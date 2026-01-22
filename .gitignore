@@ -1,0 +1,29 @@
+# Build
+build/
+DerivedData/
+
+# Xcode
+*.xcuserstate
+*.xcscmblueprint
+xcuserdata/
+
+# macOS
+**/.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/
+
+# CocoaPods (if used)
+Pods/
+
+# Carthage (if used)
+Carthage/Build/
+
+# Claude
+.claude/settings.local.json

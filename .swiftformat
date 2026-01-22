@@ -1,0 +1,7 @@
+--indent 4
+--indentcase false
+--trimwhitespace always
+--voidtype void
+--semicolons inline
+--swiftversion 5.9
+--maxwidth 120

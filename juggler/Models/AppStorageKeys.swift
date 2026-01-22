@@ -1,0 +1,62 @@
+import Foundation
+
+enum AppStorageKeys {
+    // General
+    static let launchAtLogin = "launchAtLogin"
+    static let hasCompletedOnboarding = "hasCompletedOnboarding"
+
+    // Queue
+    static let queueOrderMode = "queueOrderMode"
+    static let groupByWindow = "groupByWindow"
+
+    // Notifications
+    static let notifyOnIdle = "notifyOnIdle"
+    static let notifyOnPermission = "notifyOnPermission"
+    static let playSound = "playSound"
+
+    // Stats
+    static let enableStats = "enableStats"
+    static let idleSessionColoring = "idleSessionColoring"
+
+    // Session list highlighting
+    static let useCyclingColors = "useCyclingColors"
+    static let showShortcutHelper = "showShortcutHelper"
+
+    // Terminal highlighting
+    static let useTerminalCyclingColors = "useTerminalCyclingColors"
+
+    // Highlight triggers
+    static let highlightOnHotkey = "highlightOnHotkey"
+    static let highlightOnGuiSelect = "highlightOnGuiSelect"
+    static let highlightOnNotification = "highlightOnNotification"
+
+    // Tab bar highlighting
+    static let tabHighlightEnabled = "tabHighlightEnabled"
+    static let tabHighlightDuration = "tabHighlightDuration"
+    static let tabHighlightColorRed = "tabHighlightColorRed"
+    static let tabHighlightColorGreen = "tabHighlightColorGreen"
+    static let tabHighlightColorBlue = "tabHighlightColorBlue"
+
+    // Pane highlighting
+    static let paneHighlightEnabled = "paneHighlightEnabled"
+    static let paneHighlightDuration = "paneHighlightDuration"
+    static let paneHighlightColorRed = "paneHighlightColorRed"
+    static let paneHighlightColorGreen = "paneHighlightColorGreen"
+    static let paneHighlightColorBlue = "paneHighlightColorBlue"
+
+    // Backburner behavior
+    static let goToNextOnBackburner = "goToNextOnBackburner"
+
+    // Logging
+    static let verboseLogging = "verboseLogging"
+
+    // Local shortcuts
+    static let localShortcutMoveDown = "localShortcutMoveDown"
+    static let localShortcutMoveUp = "localShortcutMoveUp"
+    static let localShortcutBackburner = "localShortcutBackburner"
+    static let localShortcutReactivateSelected = "localShortcutReactivateSelected"
+    static let localShortcutReactivateAll = "localShortcutReactivateAll"
+    static let localShortcutRename = "localShortcutRename"
+    static let localShortcutCycleModeForward = "localShortcutCycleModeForward"
+    static let localShortcutCycleModeBackward = "localShortcutCycleModeBackward"
+}

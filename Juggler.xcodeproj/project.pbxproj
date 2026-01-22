@@ -1,0 +1,650 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		19E7C7C62F2752EC00708D20 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 19E7C7C52F2752EC00708D20 /* Sparkle */; };
+		19F658642F22BA5700CB4D71 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 19F658632F22BA5700CB4D71 /* KeyboardShortcuts */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		19F6583A2F22B72F00CB4D71 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 19F658242F22B72E00CB4D71 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 19F6582B2F22B72E00CB4D71;
+			remoteInfo = Juggler;
+		};
+		19F658442F22B72F00CB4D71 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 19F658242F22B72E00CB4D71 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 19F6582B2F22B72E00CB4D71;
+			remoteInfo = Juggler;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		19F6582C2F22B72E00CB4D71 /* Juggler.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Juggler.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		19F658392F22B72F00CB4D71 /* JugglerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JugglerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		19F658432F22B72F00CB4D71 /* JugglerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JugglerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		19E7C7C82F27532400708D20 /* Exceptions for "Juggler" folder in "Juggler" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 19F6582B2F22B72E00CB4D71 /* Juggler */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		19F6582E2F22B72E00CB4D71 /* Juggler */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				19E7C7C82F27532400708D20 /* Exceptions for "Juggler" folder in "Juggler" target */,
+			);
+			path = Juggler;
+			sourceTree = "<group>";
+		};
+		19F6583C2F22B72F00CB4D71 /* JugglerTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = JugglerTests;
+			sourceTree = "<group>";
+		};
+		19F658462F22B72F00CB4D71 /* JugglerUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = JugglerUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		19F658292F22B72E00CB4D71 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				19F658642F22BA5700CB4D71 /* KeyboardShortcuts in Frameworks */,
+				19E7C7C62F2752EC00708D20 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		19F658362F22B72F00CB4D71 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		19F658402F22B72F00CB4D71 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		19E7C7C42F2752EC00708D20 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		19F658232F22B72E00CB4D71 = {
+			isa = PBXGroup;
+			children = (
+				19F6582E2F22B72E00CB4D71 /* Juggler */,
+				19F6583C2F22B72F00CB4D71 /* JugglerTests */,
+				19F658462F22B72F00CB4D71 /* JugglerUITests */,
+				19E7C7C42F2752EC00708D20 /* Frameworks */,
+				19F6582D2F22B72E00CB4D71 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		19F6582D2F22B72E00CB4D71 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				19F6582C2F22B72E00CB4D71 /* Juggler.app */,
+				19F658392F22B72F00CB4D71 /* JugglerTests.xctest */,
+				19F658432F22B72F00CB4D71 /* JugglerUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		19F6582B2F22B72E00CB4D71 /* Juggler */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 19F6584D2F22B72F00CB4D71 /* Build configuration list for PBXNativeTarget "Juggler" */;
+			buildPhases = (
+				19F658282F22B72E00CB4D71 /* Sources */,
+				19F658292F22B72E00CB4D71 /* Frameworks */,
+				19F6582A2F22B72E00CB4D71 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				19F6582E2F22B72E00CB4D71 /* Juggler */,
+			);
+			name = Juggler;
+			packageProductDependencies = (
+				19F658632F22BA5700CB4D71 /* KeyboardShortcuts */,
+				19E7C7C52F2752EC00708D20 /* Sparkle */,
+			);
+			productName = Juggler;
+			productReference = 19F6582C2F22B72E00CB4D71 /* Juggler.app */;
+			productType = "com.apple.product-type.application";
+		};
+		19F658382F22B72F00CB4D71 /* JugglerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 19F658502F22B72F00CB4D71 /* Build configuration list for PBXNativeTarget "JugglerTests" */;
+			buildPhases = (
+				19F658352F22B72F00CB4D71 /* Sources */,
+				19F658362F22B72F00CB4D71 /* Frameworks */,
+				19F658372F22B72F00CB4D71 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				19F6583B2F22B72F00CB4D71 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				19F6583C2F22B72F00CB4D71 /* JugglerTests */,
+			);
+			name = JugglerTests;
+			packageProductDependencies = (
+			);
+			productName = JugglerTests;
+			productReference = 19F658392F22B72F00CB4D71 /* JugglerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		19F658422F22B72F00CB4D71 /* JugglerUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 19F658532F22B72F00CB4D71 /* Build configuration list for PBXNativeTarget "JugglerUITests" */;
+			buildPhases = (
+				19F6583F2F22B72F00CB4D71 /* Sources */,
+				19F658402F22B72F00CB4D71 /* Frameworks */,
+				19F658412F22B72F00CB4D71 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				19F658452F22B72F00CB4D71 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				19F658462F22B72F00CB4D71 /* JugglerUITests */,
+			);
+			name = JugglerUITests;
+			packageProductDependencies = (
+			);
+			productName = JugglerUITests;
+			productReference = 19F658432F22B72F00CB4D71 /* JugglerUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		19F658242F22B72E00CB4D71 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2620;
+				LastUpgradeCheck = 2620;
+				TargetAttributes = {
+					19F6582B2F22B72E00CB4D71 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					19F658382F22B72F00CB4D71 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 19F6582B2F22B72E00CB4D71;
+					};
+					19F658422F22B72F00CB4D71 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 19F6582B2F22B72E00CB4D71;
+					};
+				};
+			};
+			buildConfigurationList = 19F658272F22B72E00CB4D71 /* Build configuration list for PBXProject "Juggler" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 19F658232F22B72E00CB4D71;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				19F658622F22BA5700CB4D71 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+				19F658652F22BA7600CB4D71 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 19F6582D2F22B72E00CB4D71 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				19F6582B2F22B72E00CB4D71 /* Juggler */,
+				19F658382F22B72F00CB4D71 /* JugglerTests */,
+				19F658422F22B72F00CB4D71 /* JugglerUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		19F6582A2F22B72E00CB4D71 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		19F658372F22B72F00CB4D71 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		19F658412F22B72F00CB4D71 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		19F658282F22B72E00CB4D71 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		19F658352F22B72F00CB4D71 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		19F6583F2F22B72F00CB4D71 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		19F6583B2F22B72F00CB4D71 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 19F6582B2F22B72E00CB4D71 /* Juggler */;
+			targetProxy = 19F6583A2F22B72F00CB4D71 /* PBXContainerItemProxy */;
+		};
+		19F658452F22B72F00CB4D71 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 19F6582B2F22B72E00CB4D71 /* Juggler */;
+			targetProxy = 19F658442F22B72F00CB4D71 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		19F6584B2F22B72F00CB4D71 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = U9724RY3FE;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		19F6584C2F22B72F00CB4D71 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = U9724RY3FE;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		19F6584E2F22B72F00CB4D71 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Juggler/Juggler.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U9724RY3FE;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Juggler/Info.plist;
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Juggler needs to communicate with iTerm2 to manage terminal sessions.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nielsmadan.Juggler;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		19F6584F2F22B72F00CB4D71 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Juggler/Juggler.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U9724RY3FE;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Juggler/Info.plist;
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Juggler needs to communicate with iTerm2 to manage terminal sessions.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nielsmadan.Juggler;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		19F658512F22B72F00CB4D71 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U9724RY3FE;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nielsmadan.JugglerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Juggler.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Juggler";
+			};
+			name = Debug;
+		};
+		19F658522F22B72F00CB4D71 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U9724RY3FE;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nielsmadan.JugglerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Juggler.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Juggler";
+			};
+			name = Release;
+		};
+		19F658542F22B72F00CB4D71 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U9724RY3FE;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nielsmadan.JugglerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Juggler;
+			};
+			name = Debug;
+		};
+		19F658552F22B72F00CB4D71 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U9724RY3FE;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nielsmadan.JugglerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Juggler;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		19F658272F22B72E00CB4D71 /* Build configuration list for PBXProject "Juggler" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				19F6584B2F22B72F00CB4D71 /* Debug */,
+				19F6584C2F22B72F00CB4D71 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		19F6584D2F22B72F00CB4D71 /* Build configuration list for PBXNativeTarget "Juggler" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				19F6584E2F22B72F00CB4D71 /* Debug */,
+				19F6584F2F22B72F00CB4D71 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		19F658502F22B72F00CB4D71 /* Build configuration list for PBXNativeTarget "JugglerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				19F658512F22B72F00CB4D71 /* Debug */,
+				19F658522F22B72F00CB4D71 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		19F658532F22B72F00CB4D71 /* Build configuration list for PBXNativeTarget "JugglerUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				19F658542F22B72F00CB4D71 /* Debug */,
+				19F658552F22B72F00CB4D71 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		19F658622F22BA5700CB4D71 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.0;
+			};
+		};
+		19F658652F22BA7600CB4D71 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.8.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		19E7C7C52F2752EC00708D20 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 19F658652F22BA7600CB4D71 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+		19F658632F22BA5700CB4D71 /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 19F658622F22BA5700CB4D71 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 19F658242F22B72E00CB4D71 /* Project object */;
+}
