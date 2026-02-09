@@ -78,7 +78,7 @@ enum TerminalActivation {
             [
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorRed)),
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorGreen)),
-                Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorBlue)),
+                Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorBlue))
             ]
         }
         return HighlightConfig(enabled: true, color: color, duration: duration > 0 ? duration : 2.0)
@@ -97,7 +97,7 @@ enum TerminalActivation {
             [
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorRed)),
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorGreen)),
-                Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorBlue)),
+                Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorBlue))
             ]
         }
         return HighlightConfig(enabled: true, color: color, duration: duration > 0 ? duration : 1.0)

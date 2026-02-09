@@ -113,36 +113,37 @@ struct LocalShortcut: Codable, Equatable {
     }
 
     /// String representation for special keys
+    private static let specialKeyNames: [Int: String] = [
+        kVK_Return: "↩",
+        kVK_Delete: "⌫",
+        kVK_ForwardDelete: "⌦",
+        kVK_End: "↘",
+        kVK_Escape: "⎋",
+        kVK_Home: "↖",
+        kVK_Space: "Space",
+        kVK_Tab: "⇥",
+        kVK_PageUp: "⇞",
+        kVK_PageDown: "⇟",
+        kVK_UpArrow: "↑",
+        kVK_RightArrow: "→",
+        kVK_DownArrow: "↓",
+        kVK_LeftArrow: "←",
+        kVK_F1: "F1",
+        kVK_F2: "F2",
+        kVK_F3: "F3",
+        kVK_F4: "F4",
+        kVK_F5: "F5",
+        kVK_F6: "F6",
+        kVK_F7: "F7",
+        kVK_F8: "F8",
+        kVK_F9: "F9",
+        kVK_F10: "F10",
+        kVK_F11: "F11",
+        kVK_F12: "F12"
+    ]
+
     static func specialKeyString(keyCode: UInt16) -> String? {
-        switch Int(keyCode) {
-        case kVK_Return: "↩"
-        case kVK_Delete: "⌫"
-        case kVK_ForwardDelete: "⌦"
-        case kVK_End: "↘"
-        case kVK_Escape: "⎋"
-        case kVK_Home: "↖"
-        case kVK_Space: "Space"
-        case kVK_Tab: "⇥"
-        case kVK_PageUp: "⇞"
-        case kVK_PageDown: "⇟"
-        case kVK_UpArrow: "↑"
-        case kVK_RightArrow: "→"
-        case kVK_DownArrow: "↓"
-        case kVK_LeftArrow: "←"
-        case kVK_F1: "F1"
-        case kVK_F2: "F2"
-        case kVK_F3: "F3"
-        case kVK_F4: "F4"
-        case kVK_F5: "F5"
-        case kVK_F6: "F6"
-        case kVK_F7: "F7"
-        case kVK_F8: "F8"
-        case kVK_F9: "F9"
-        case kVK_F10: "F10"
-        case kVK_F11: "F11"
-        case kVK_F12: "F12"
-        default: nil
-        }
+        specialKeyNames[Int(keyCode)]
     }
 }
 

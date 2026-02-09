@@ -108,12 +108,10 @@ actor HookServer {
         let currentBodyLength = string[bodyStartIndex...].utf8.count
 
         // Parse Content-Length from headers
-        for line in headerPart.split(separator: "\r\n") {
-            if line.lowercased().hasPrefix("content-length:") {
-                let value = line.dropFirst("content-length:".count).trimmingCharacters(in: .whitespaces)
-                if let contentLength = Int(value) {
-                    return currentBodyLength >= contentLength
-                }
+        for line in headerPart.split(separator: "\r\n") where line.lowercased().hasPrefix("content-length:") {
+            let value = line.dropFirst("content-length:".count).trimmingCharacters(in: .whitespaces)
+            if let contentLength = Int(value) {
+                return currentBodyLength >= contentLength
             }
         }
 

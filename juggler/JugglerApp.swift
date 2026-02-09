@@ -85,7 +85,7 @@ struct JugglerApp: App {
             "playSound": true,
             // Cycling colors
             "useCyclingColors": true,
-            "useTerminalCyclingColors": true,
+            "useTerminalCyclingColors": true
         ])
 
         // Set up default local shortcuts if not already configured
@@ -163,15 +163,12 @@ private func setupDefaultLocalShortcuts() {
         (AppStorageKeys.localShortcutReactivateAll, kVK_ANSI_H, false),
         (AppStorageKeys.localShortcutRename, kVK_ANSI_R, false),
         (AppStorageKeys.localShortcutCycleModeForward, kVK_Tab, false),
-        (AppStorageKeys.localShortcutCycleModeBackward, kVK_Tab, true), // Shift+Tab
+        (AppStorageKeys.localShortcutCycleModeBackward, kVK_Tab, true) // Shift+Tab
     ]
 
-    for (key, keyCode, shift) in defaults {
-        // Only set default if no shortcut is configured
-        if UserDefaults.standard.data(forKey: key) == nil {
-            let modifiers: NSEvent.ModifierFlags = shift ? .shift : []
-            let shortcut = LocalShortcut(keyCode: UInt16(keyCode), modifiers: modifiers)
-            shortcut.save(to: key)
-        }
+    for (key, keyCode, shift) in defaults where UserDefaults.standard.data(forKey: key) == nil {
+        let modifiers: NSEvent.ModifierFlags = shift ? .shift : []
+        let shortcut = LocalShortcut(keyCode: UInt16(keyCode), modifiers: modifiers)
+        shortcut.save(to: key)
     }
 }

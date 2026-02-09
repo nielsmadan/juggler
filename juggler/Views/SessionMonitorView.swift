@@ -19,7 +19,7 @@ struct SessionMonitorView: View {
     @AppStorage(AppStorageKeys.idleSessionColoring) private var idleSessionColoring = true
     @AppStorage(AppStorageKeys.showShortcutHelper) private var showShortcutHelper = true
     @State private var controller = SessionListController()
-    @State private var globalStatsResetDate: Date? = nil
+    @State private var globalStatsResetDate: Date?
     @State private var isPaused = false
 
     // Namespace for matchedGeometryEffect animations between sections
@@ -81,7 +81,7 @@ struct SessionMonitorView: View {
         let sections: [(SectionType, String)] = [
             (.idle, "Idle"),
             (.busy, "Busy"),
-            (.backburner, "Backburner"),
+            (.backburner, "Backburner")
         ]
 
         for (section, title) in sections {
@@ -151,8 +151,7 @@ struct SessionMonitorView: View {
             .onChange(of: sessionManager.currentSession?.id) { _, _ in
                 // Sync selectedIndex when currentSession changes
                 if let current = sessionManager.currentSession,
-                   let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id })
-                {
+                   let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id }) {
                     controller.selectedIndex = index
                     controller.trackSelectedSession(sessions: sessionManager.sessions)
                 }

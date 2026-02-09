@@ -3,7 +3,7 @@ import Foundation
 struct Session: Identifiable, Codable, Equatable {
     let claudeSessionID: String // Claude session ID (may be shared across split panes)
     let terminalSessionID: String // e.g., "w0t0p0:UUID"
-    var tmuxPane: String? = nil // e.g., "%1", nil if not inside tmux
+    var tmuxPane: String? // e.g., "%1", nil if not inside tmux
 
     // Composite ID: unique per terminal pane, including tmux panes
     var id: String {
