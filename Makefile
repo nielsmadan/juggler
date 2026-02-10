@@ -3,7 +3,13 @@ SCHEME = Juggler
 BUILD_DIR = ./build
 APP_PATH = $(BUILD_DIR)/Build/Products/Debug/Juggler.app
 
-.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all reset-data reset-permissions reset-all
+# Release
+RELEASE_DIR = ./release
+ARCHIVE_PATH = $(RELEASE_DIR)/Juggler.xcarchive
+EXPORT_PATH = $(RELEASE_DIR)/export
+ZIP_PATH = $(RELEASE_DIR)/Juggler.zip
+
+.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all reset-data reset-permissions reset-all release archive export notarize notarize-ci release-clean
 
 FILES ?= .
 XCCONFIG_FLAG = $(if $(XCCONFIG),-xcconfig $(XCCONFIG),)
@@ -63,3 +69,67 @@ reset-all: reset-data reset-permissions
 setup:
 	@lefthook install
 	@echo "Git hooks installed."
+
+# --- Release targets ---
+
+release: release-clean archive export
+	@echo "Creating ZIP..."
+	@cd $(EXPORT_PATH) && zip -r -y ../../$(ZIP_PATH) Juggler.app
+	@echo ""
+	@echo "=== Release build complete ==="
+	@echo "ZIP: $(ZIP_PATH)"
+	@echo "SHA256: $$(shasum -a 256 $(ZIP_PATH) | cut -d' ' -f1)"
+	@echo ""
+
+archive:
+	@echo "Archiving Release build..."
+	@mkdir -p $(RELEASE_DIR)
+	@xcodebuild -scheme $(SCHEME) -configuration Release \
+		-archivePath $(ARCHIVE_PATH) \
+		archive
+
+export:
+	@echo "Exporting with Developer ID signing..."
+	@xcodebuild -exportArchive \
+		-archivePath $(ARCHIVE_PATH) \
+		-exportPath $(EXPORT_PATH) \
+		-exportOptionsPlist ExportOptions.plist
+	@echo "Verifying code signature..."
+	@codesign -dv --verbose=2 $(EXPORT_PATH)/Juggler.app 2>&1 | head -5
+
+notarize:
+	@echo "Submitting for notarization..."
+	@xcrun notarytool submit $(ZIP_PATH) \
+		--keychain-profile "juggler-notarize" \
+		--wait
+	@echo "Stapling notarization ticket..."
+	@cd $(EXPORT_PATH) && xcrun stapler staple Juggler.app
+	@echo "Re-creating ZIP with stapled app..."
+	@rm -f $(ZIP_PATH)
+	@cd $(EXPORT_PATH) && zip -r -y ../../$(ZIP_PATH) Juggler.app
+	@echo ""
+	@echo "=== Notarization complete ==="
+	@echo "ZIP: $(ZIP_PATH)"
+	@echo "SHA256: $$(shasum -a 256 $(ZIP_PATH) | cut -d' ' -f1)"
+	@echo ""
+
+notarize-ci:
+	@echo "Submitting for notarization..."
+	@xcrun notarytool submit $(ZIP_PATH) \
+		--apple-id "$(NOTARIZATION_APPLE_ID)" \
+		--password "$(NOTARIZATION_PASSWORD)" \
+		--team-id "$(NOTARIZATION_TEAM_ID)" \
+		--wait
+	@echo "Stapling notarization ticket..."
+	@cd $(EXPORT_PATH) && xcrun stapler staple Juggler.app
+	@echo "Re-creating ZIP with stapled app..."
+	@rm -f $(ZIP_PATH)
+	@cd $(EXPORT_PATH) && zip -r -y ../../$(ZIP_PATH) Juggler.app
+	@echo ""
+	@echo "=== Notarization complete ==="
+	@echo "ZIP: $(ZIP_PATH)"
+	@echo "SHA256: $$(shasum -a 256 $(ZIP_PATH) | cut -d' ' -f1)"
+	@echo ""
+
+release-clean:
+	@rm -rf $(RELEASE_DIR)
