@@ -23,8 +23,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_: Notification) {
-        // Show in dock since main window opens on launch
-        NSApp.setActivationPolicy(.regular)
+        // Show in dock only if onboarding is complete (during onboarding, dock icon is hidden)
+        if UserDefaults.standard.bool(forKey: AppStorageKeys.hasCompletedOnboarding) {
+            NSApp.setActivationPolicy(.regular)
+        }
 
         // Listen for window events to toggle dock icon
         NotificationCenter.default.addObserver(
@@ -112,6 +114,7 @@ struct JugglerApp: App {
         // Main window - Session Monitor
         // Use screen's visible height for max vertical space
         let screenHeight = NSScreen.main?.visibleFrame.height ?? 800
+        let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: AppStorageKeys.hasCompletedOnboarding)
 
         Window("Juggler", id: "main") {
             SessionMonitorView()
@@ -119,7 +122,7 @@ struct JugglerApp: App {
         }
         .defaultSize(width: 480, height: screenHeight)
         .defaultPosition(.topTrailing)
-        .defaultLaunchBehavior(.presented)
+        .defaultLaunchBehavior(hasCompletedOnboarding ? .presented : .suppressed)
         .commands {
             AboutCommands()
         }
@@ -129,6 +132,7 @@ struct JugglerApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
+        .defaultLaunchBehavior(hasCompletedOnboarding ? .suppressed : .presented)
 
         Window("About Juggler", id: "about") {
             AboutView()

@@ -381,6 +381,7 @@ struct HooksStep: View {
 
 struct FinishStep: View {
     let dismiss: DismissAction
+    @Environment(\.openWindow) private var openWindow
     @AppStorage(AppStorageKeys.launchAtLogin) private var launchAtLogin = false
     @AppStorage(AppStorageKeys.hasCompletedOnboarding) private var hasCompletedOnboarding = false
 
@@ -420,8 +421,9 @@ struct FinishStep: View {
                 Task {
                     try? await ITerm2Bridge.shared.start()
                 }
-                // Hide dock icon now that onboarding is complete
-                NSApp.setActivationPolicy(.accessory)
+                // Open main window and show dock icon
+                openWindow(id: "main")
+                NSApp.setActivationPolicy(.regular)
                 dismiss()
             }
             .buttonStyle(.borderedProminent)

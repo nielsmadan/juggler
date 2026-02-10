@@ -10,8 +10,6 @@ import SwiftUI
 
 struct SessionMonitorView: View {
     @Environment(SessionManager.self) private var sessionManager
-    @Environment(\.openWindow) private var openWindow
-    @AppStorage(AppStorageKeys.hasCompletedOnboarding) private var hasCompletedOnboarding = false
     @AppStorage(AppStorageKeys.queueOrderMode) private var queueOrderMode: String = QueueOrderMode.fair.rawValue
     @AppStorage(AppStorageKeys.groupByWindow) private var groupByWindow: Bool = true
     @AppStorage(AppStorageKeys.useCyclingColors) private var useCyclingColors = true
@@ -137,11 +135,6 @@ struct SessionMonitorView: View {
             }
             .onAppear {
                 controller.syncSelection(sessions: sessionManager.sessions)
-            }
-            .task {
-                if !hasCompletedOnboarding {
-                    openWindow(id: "onboarding")
-                }
             }
             .onChange(of: queueOrderMode) { _, newMode in
                 if let mode = QueueOrderMode(rawValue: newMode) {
