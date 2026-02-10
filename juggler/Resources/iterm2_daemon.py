@@ -46,8 +46,10 @@ class iTerm2Daemon:
 
         print(f"Daemon listening on {self.socket_path}", file=sys.stderr)
 
-        # Start focus monitor in background
+        # Start monitors in background
         asyncio.create_task(self.run_focus_monitor())
+        asyncio.create_task(self.run_session_monitor())
+        asyncio.create_task(self.run_layout_monitor())
 
         # Handle connections
         loop = asyncio.get_running_loop()
@@ -181,6 +183,63 @@ class iTerm2Daemon:
                 print(f"Focus monitor error: {e}, restarting in 5s...", file=sys.stderr)
                 if self.running:
                     await asyncio.sleep(5)
+
+    async def run_session_monitor(self) -> None:
+        """Monitor iTerm2 session terminations and push events."""
+        consecutive_failures: int = 0
+        while self.running:
+            try:
+                async with iterm2.SessionTerminationMonitor(self.connection) as monitor:
+                    consecutive_failures = 0
+                    while self.running:
+                        session_id = await monitor.async_get()
+                        await self.push_event({
+                            "event": "session_terminated",
+                            "session_id": session_id
+                        })
+            except Exception as e:
+                consecutive_failures += 1
+                if consecutive_failures >= 3:
+                    print(f"Session monitor failed {consecutive_failures} times, giving up", file=sys.stderr)
+                    break
+                print(f"Session monitor error: {e}, restarting in 5s...", file=sys.stderr)
+                if self.running:
+                    await asyncio.sleep(5)
+
+    async def run_layout_monitor(self) -> None:
+        """Monitor layout changes for faster session close detection.
+
+        SessionTerminationMonitor waits for the process to exit (~5s).
+        LayoutChangeMonitor fires immediately when a window/tab closes,
+        so we can detect gone sessions much faster.
+        """
+        known_sessions: set[str] = self._get_all_session_ids()
+        while self.running:
+            try:
+                async with iterm2.LayoutChangeMonitor(self.connection) as monitor:
+                    while self.running:
+                        await monitor.async_get()
+                        current_sessions = self._get_all_session_ids()
+                        gone = known_sessions - current_sessions
+                        for session_id in gone:
+                            await self.push_event({
+                                "event": "session_terminated",
+                                "session_id": session_id
+                            })
+                        known_sessions = current_sessions
+            except Exception as e:
+                print(f"Layout monitor error: {e}", file=sys.stderr)
+                if self.running:
+                    await asyncio.sleep(5)
+
+    def _get_all_session_ids(self) -> set[str]:
+        """Get all current iTerm2 session IDs."""
+        sessions: set[str] = set()
+        for window in self.app.terminal_windows:
+            for tab in window.tabs:
+                for session in tab.sessions:
+                    sessions.add(session.session_id)
+        return sessions
 
     async def push_event(self, event: dict[str, Any]) -> None:
         """Push an event to all subscribers."""

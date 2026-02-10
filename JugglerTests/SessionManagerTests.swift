@@ -291,3 +291,109 @@ import Testing
     #expect(!ids.contains("comp1"))
     #expect(cyclable.count == 2)
 }
+
+// MARK: - removeSessionsByTerminalID Tests
+
+@Test func removeSessionsByTerminalID_exactMatch_removesSession() {
+    let manager = SessionManager()
+
+    manager.testSetSessions([
+        makeSession("abc-123"),
+        makeSession("def-456"),
+    ])
+
+    manager.removeSessionsByTerminalID("abc-123")
+
+    #expect(manager.sessions.count == 1)
+    #expect(manager.sessions[0].terminalSessionID == "def-456")
+}
+
+@Test func removeSessionsByTerminalID_suffixMatch_removesCompositeSession() {
+    let manager = SessionManager()
+
+    var session = makeSession("w0t0p0:abc-123")
+    session = Session(
+        claudeSessionID: "c1",
+        terminalSessionID: "w0t0p0:abc-123",
+        terminalType: .iterm2,
+        projectPath: "/test",
+        terminalTabName: nil,
+        terminalWindowName: nil,
+        customName: nil,
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    manager.testSetSessions([session])
+
+    // Bare UUID should match via ":UUID" suffix
+    manager.removeSessionsByTerminalID("abc-123")
+
+    #expect(manager.sessions.isEmpty)
+}
+
+@Test func removeSessionsByTerminalID_emptyString_removesNothing() {
+    let manager = SessionManager()
+
+    manager.testSetSessions([
+        makeSession("s1"),
+        makeSession("s2"),
+    ])
+
+    manager.removeSessionsByTerminalID("")
+
+    #expect(manager.sessions.count == 2)
+}
+
+@Test func removeSessionsByTerminalID_noMatch_removesNothing() {
+    let manager = SessionManager()
+
+    manager.testSetSessions([
+        makeSession("s1"),
+        makeSession("s2"),
+    ])
+
+    manager.removeSessionsByTerminalID("nonexistent")
+
+    #expect(manager.sessions.count == 2)
+}
+
+@Test func removeSessionsByTerminalID_multipleMatches_removesAll() {
+    let manager = SessionManager()
+
+    // Simulate multiple tmux panes sharing the same iTerm2 session UUID
+    let s1 = Session(
+        claudeSessionID: "c1",
+        terminalSessionID: "w0t0p0:shared-uuid",
+        tmuxPane: "%1",
+        terminalType: .iterm2,
+        projectPath: "/test/a",
+        terminalTabName: nil,
+        terminalWindowName: nil,
+        customName: nil,
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    let s2 = Session(
+        claudeSessionID: "c2",
+        terminalSessionID: "w0t0p0:shared-uuid",
+        tmuxPane: "%2",
+        terminalType: .iterm2,
+        projectPath: "/test/b",
+        terminalTabName: nil,
+        terminalWindowName: nil,
+        customName: nil,
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    let s3 = makeSession("other-session")
+    manager.testSetSessions([s1, s2, s3])
+
+    // Both sessions share the terminal ID
+    manager.removeSessionsByTerminalID("w0t0p0:shared-uuid")
+
+    #expect(manager.sessions.count == 1)
+    #expect(manager.sessions[0].terminalSessionID == "other-session")
+}

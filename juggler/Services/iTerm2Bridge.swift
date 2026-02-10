@@ -312,7 +312,7 @@ actor ITerm2Bridge: TerminalBridge {
             case .daemonNotRunning, .connectionFailed, .connectionTimeout,
                  .commandTimeout, .invalidResponse:
                 return true
-            case .commandFailed, .authenticationFailed:
+            case .commandFailed, .authenticationFailed, .sessionNotFound:
                 return false
             }
         }
@@ -336,6 +336,10 @@ actor ITerm2Bridge: TerminalBridge {
         case "focus_changed":
             logDebug(.daemon, "Focus changed to: \(event.sessionID ?? "nil")")
             SessionManager.shared.updateFocusedSession(terminalSessionID: event.sessionID)
+        case "session_terminated":
+            guard let sessionID = event.sessionID else { return }
+            logInfo(.daemon, "Session terminated in iTerm2: \(sessionID)")
+            SessionManager.shared.removeSessionsByTerminalID(sessionID)
         case "terminal_info":
             guard let sessionID = event.sessionID else { return }
             logDebug(.daemon, "Terminal info update for: \(sessionID)")

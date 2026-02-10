@@ -364,6 +364,17 @@ final class SessionManager {
         sessions[index].customName = customName?.isEmpty == true ? nil : customName
     }
 
+    func removeSessionsByTerminalID(_ terminalSessionID: String) {
+        guard !terminalSessionID.isEmpty else { return }
+        let matching = sessions.filter {
+            $0.terminalSessionID == terminalSessionID
+                || $0.terminalSessionID.hasSuffix(":\(terminalSessionID)")
+        }
+        for session in matching {
+            removeSession(sessionID: session.id)
+        }
+    }
+
     func removeSession(sessionID: String) {
         if let session = sessions.first(where: { $0.id == sessionID }) {
             Task { @MainActor in

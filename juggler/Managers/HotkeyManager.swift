@@ -46,31 +46,32 @@ final class HotkeyManager {
     }
 
     private func handleCycleForward() async {
-        logDebug(.hotkey, "Cycle forward triggered")
-        guard let session = SessionManager.shared.cycleForward() else {
-            logDebug(.hotkey, "No session to cycle to")
-            return
-        }
-
-        do {
-            try await TerminalActivation.activate(session: session, trigger: .hotkey)
-        } catch {
-            logError(.hotkey, "Cycle forward failed: \(error)")
-        }
+        await activateWithRetry(direction: "forward", cycle: SessionManager.shared.cycleForward)
     }
 
     private func handleCycleBackward() async {
-        logDebug(.hotkey, "Cycle backward triggered")
-        guard let session = SessionManager.shared.cycleBackward() else {
-            logDebug(.hotkey, "No session to cycle to")
-            return
-        }
+        await activateWithRetry(direction: "backward", cycle: SessionManager.shared.cycleBackward)
+    }
 
-        do {
-            try await TerminalActivation.activate(session: session, trigger: .hotkey)
-        } catch {
-            logError(.hotkey, "Cycle backward failed: \(error)")
+    private func activateWithRetry(
+        direction: String,
+        cycle: () -> Session?
+    ) async {
+        logDebug(.hotkey, "Cycle \(direction) triggered")
+        // Each stale session is removed automatically on .sessionNotFound,
+        // so cycle() will eventually return nil when no cyclable sessions remain.
+        while let target = cycle() {
+            do {
+                try await TerminalActivation.activate(session: target, trigger: .hotkey)
+                return
+            } catch TerminalBridgeError.sessionNotFound {
+                logDebug(.hotkey, "Stale session skipped, retrying cycle \(direction)")
+            } catch {
+                logError(.hotkey, "Cycle \(direction) failed: \(error)")
+                return
+            }
         }
+        logDebug(.hotkey, "No session to cycle to")
     }
 
     private func handleBackburner() async {
@@ -82,11 +83,18 @@ final class HotkeyManager {
         SessionManager.shared.backburnerSession(terminalSessionID: session.id)
 
         let goToNext = UserDefaults.standard.bool(forKey: AppStorageKeys.goToNextOnBackburner)
-        if goToNext, let nextSession = SessionManager.shared.currentSession {
+        guard goToNext else { return }
+        // Each stale session is removed on .sessionNotFound, so currentSession
+        // advances until we find a live one or run out.
+        while let nextSession = SessionManager.shared.currentSession {
             do {
                 try await TerminalActivation.activate(session: nextSession, trigger: .hotkey)
+                return
+            } catch TerminalBridgeError.sessionNotFound {
+                logDebug(.hotkey, "Backburner next session gone, retrying")
             } catch {
                 logError(.hotkey, "Backburner go-to-next failed: \(error)")
+                return
             }
         }
     }

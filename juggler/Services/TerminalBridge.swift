@@ -40,7 +40,18 @@ enum ActivationTrigger {
 
 enum TerminalActivation {
     static func activate(session: Session, trigger: ActivationTrigger) async throws {
-        try await ITerm2Bridge.shared.activate(sessionID: session.terminalSessionID)
+        do {
+            try await ITerm2Bridge.shared.activate(sessionID: session.terminalSessionID)
+        } catch let error as TerminalBridgeError {
+            if case let .commandFailed(message) = error,
+               message.localizedCaseInsensitiveContains("session not found") {
+                await MainActor.run {
+                    SessionManager.shared.removeSession(sessionID: session.id)
+                }
+                throw TerminalBridgeError.sessionNotFound(session.id)
+            }
+            throw error
+        }
         if let tmuxPane = session.tmuxPane {
             selectTmuxPane(tmuxPane)
         }
@@ -120,6 +131,7 @@ enum TerminalBridgeError: Error, LocalizedError {
     case commandFailed(String)
     case invalidResponse
     case authenticationFailed(String)
+    case sessionNotFound(String)
 
     var errorDescription: String? {
         switch self {
@@ -137,6 +149,8 @@ enum TerminalBridgeError: Error, LocalizedError {
             "Invalid response from daemon"
         case let .authenticationFailed(message):
             "Authentication failed: \(message)"
+        case let .sessionNotFound(sessionID):
+            "Session not found: \(sessionID)"
         }
     }
 }
