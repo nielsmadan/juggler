@@ -412,6 +412,7 @@ struct FinishStep: View {
                         }
                     } catch {
                         print("Failed to update launch at login: \(error)")
+                        launchAtLogin = !newValue
                     }
                 }
 

@@ -26,5 +26,8 @@ Pods/
 # Carthage (if used)
 Carthage/Build/
 
+# Profiling
+*.profraw
+
 # Claude
 .claude/settings.local.json
