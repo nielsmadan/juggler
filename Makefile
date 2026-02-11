@@ -9,7 +9,7 @@ ARCHIVE_PATH = $(RELEASE_DIR)/Juggler.xcarchive
 EXPORT_PATH = $(RELEASE_DIR)/export
 ZIP_PATH = $(RELEASE_DIR)/Juggler.zip
 
-.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all reset-data reset-permissions reset-all release archive export notarize notarize-ci release-clean
+.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all reset-data reset-permissions reset-all release archive export notarize notarize-ci release-clean tag-release
 
 FILES ?= .
 XCCONFIG_FLAG = $(if $(XCCONFIG),-xcconfig $(XCCONFIG),)
@@ -130,6 +130,38 @@ notarize-ci:
 	@echo "ZIP: $(ZIP_PATH)"
 	@echo "SHA256: $$(shasum -a 256 $(ZIP_PATH) | cut -d' ' -f1)"
 	@echo ""
+
+# Usage: make tag-release BUMP=patch|minor|major
+#   Bumps MARKETING_VERSION in the Xcode project, commits, tags, and pushes.
+#   Without BUMP, requires MARKETING_VERSION to already be ahead of the latest tag.
+tag-release:
+	@VERSION=$$(xcodebuild -scheme $(SCHEME) -configuration Release -showBuildSettings 2>/dev/null \
+		| grep MARKETING_VERSION | head -1 | tr -d ' ' | cut -d= -f2); \
+	LATEST_TAG=$$(git tag --sort=-v:refname | head -1 | sed 's/^v//'); \
+	if [ -n "$(BUMP)" ]; then \
+		MAJOR=$$(echo "$$VERSION" | cut -d. -f1); \
+		MINOR=$$(echo "$$VERSION" | cut -d. -f2); \
+		PATCH=$$(echo "$$VERSION" | cut -d. -f3); \
+		case "$(BUMP)" in \
+			patch) PATCH=$$((PATCH + 1)) ;; \
+			minor) MINOR=$$((MINOR + 1)); PATCH=0 ;; \
+			major) MAJOR=$$((MAJOR + 1)); MINOR=0; PATCH=0 ;; \
+			*) echo "Error: BUMP must be patch, minor, or major"; exit 1 ;; \
+		esac; \
+		VERSION="$$MAJOR.$$MINOR.$$PATCH"; \
+		echo "Bumping MARKETING_VERSION to $$VERSION..."; \
+		sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = $$VERSION/" \
+			Juggler.xcodeproj/project.pbxproj; \
+		git add Juggler.xcodeproj/project.pbxproj; \
+		git commit -m "chore: bump version to $$VERSION"; \
+	elif [ "$$VERSION" = "$$LATEST_TAG" ] || [ "$$(printf '%s\n' "$$LATEST_TAG" "$$VERSION" | sort -V | tail -1)" = "$$LATEST_TAG" ]; then \
+		echo "Error: MARKETING_VERSION ($$VERSION) is not newer than latest tag (v$$LATEST_TAG)."; \
+		echo "Run: make tag-release BUMP=patch|minor|major"; \
+		exit 1; \
+	fi; \
+	echo "Tagging v$$VERSION..."; \
+	git tag "v$$VERSION" && git push origin main "v$$VERSION"; \
+	echo "Tagged and pushed v$$VERSION — release workflow triggered."
 
 release-clean:
 	@rm -rf $(RELEASE_DIR)
