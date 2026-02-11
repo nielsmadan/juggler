@@ -144,13 +144,14 @@ tag-release-major:
 	@$(MAKE) tag-release BUMP=major
 
 tag-release:
-	@VERSION=$$(xcodebuild -scheme $(SCHEME) -configuration Release -showBuildSettings 2>/dev/null \
-		| grep MARKETING_VERSION | head -1 | tr -d ' ' | cut -d= -f2); \
-	LATEST_TAG=$$(git tag --sort=-v:refname | head -1 | sed 's/^v//'); \
+	@LATEST_TAG=$$(git tag --sort=-v:refname | head -1 | sed 's/^v//'); \
+	if [ -z "$$LATEST_TAG" ]; then \
+		echo "Error: no existing tags found."; exit 1; \
+	fi; \
 	if [ -n "$(BUMP)" ]; then \
-		MAJOR=$$(echo "$$VERSION" | cut -d. -f1); \
-		MINOR=$$(echo "$$VERSION" | cut -d. -f2); \
-		PATCH=$$(echo "$$VERSION" | cut -d. -f3); \
+		MAJOR=$$(echo "$$LATEST_TAG" | cut -d. -f1); \
+		MINOR=$$(echo "$$LATEST_TAG" | cut -d. -f2); \
+		PATCH=$$(echo "$$LATEST_TAG" | cut -d. -f3); \
 		case "$(BUMP)" in \
 			patch) PATCH=$$((PATCH + 1)) ;; \
 			minor) MINOR=$$((MINOR + 1)); PATCH=0 ;; \
@@ -158,18 +159,22 @@ tag-release:
 			*) echo "Error: BUMP must be patch, minor, or major"; exit 1 ;; \
 		esac; \
 		VERSION="$$MAJOR.$$MINOR.$$PATCH"; \
-		echo "Bumping MARKETING_VERSION to $$VERSION..."; \
+		echo "Bumping version: v$$LATEST_TAG -> v$$VERSION"; \
 		sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = $$VERSION/" \
 			Juggler.xcodeproj/project.pbxproj; \
 		git add Juggler.xcodeproj/project.pbxproj; \
 		git commit -m "chore: bump version to $$VERSION"; \
-	elif [ "$$VERSION" = "$$LATEST_TAG" ] || [ "$$(printf '%s\n' "$$LATEST_TAG" "$$VERSION" | sort -V | tail -1)" = "$$LATEST_TAG" ]; then \
-		echo "Error: MARKETING_VERSION ($$VERSION) is not newer than latest tag (v$$LATEST_TAG)."; \
-		echo "Run: make tag-release BUMP=patch|minor|major"; \
-		exit 1; \
+	else \
+		VERSION=$$(xcodebuild -scheme $(SCHEME) -configuration Release -showBuildSettings 2>/dev/null \
+			| grep MARKETING_VERSION | head -1 | tr -d ' ' | cut -d= -f2); \
+		if [ "$$VERSION" = "$$LATEST_TAG" ] || [ "$$(printf '%s\n' "$$LATEST_TAG" "$$VERSION" | sort -V | tail -1)" = "$$LATEST_TAG" ]; then \
+			echo "Error: MARKETING_VERSION ($$VERSION) is not newer than latest tag (v$$LATEST_TAG)."; \
+			echo "Run: make tag-release-patch, tag-release-minor, or tag-release-major"; \
+			exit 1; \
+		fi; \
 	fi; \
 	echo "Tagging v$$VERSION..."; \
-	git tag "v$$VERSION" && git push origin main "v$$VERSION"; \
+	git tag "v$$VERSION" && git push origin main "v$$VERSION" && \
 	echo "Tagged and pushed v$$VERSION — release workflow triggered."
 
 release-clean:

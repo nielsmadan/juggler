@@ -2,7 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>SUfeedUrL</key>
-	<string>https://github.com/nielsmadan/juggler/releases.atom</string>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/nielsmadan/juggler/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>RDw6RPmaiBtQPfPNqy6s4fNlDnO2OacQ7ggEUUN98g0=</string>
 </dict>
 </plist>

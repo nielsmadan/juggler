@@ -91,6 +91,27 @@ jobs:
           echo "SHA256=$SHA256" >> "$GITHUB_ENV"
           echo "SHA256: $SHA256"
 
+      - name: Download Sparkle tools
+        run: |
+          SPARKLE_VERSION="2.8.1"
+          curl -L -o /tmp/Sparkle.tar.xz \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+          mkdir -p /tmp/sparkle
+          tar -xf /tmp/Sparkle.tar.xz -C /tmp/sparkle
+
+      - name: Sign update with EdDSA
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          ED_SIGNATURE=$(echo "$SPARKLE_PRIVATE_KEY" | /tmp/sparkle/bin/sign_update --ed-key-file - -p release/Juggler.zip)
+          echo "ED_SIGNATURE=$ED_SIGNATURE" >> "$GITHUB_ENV"
+
+          ZIP_LENGTH=$(stat -f%z release/Juggler.zip)
+          echo "ZIP_LENGTH=$ZIP_LENGTH" >> "$GITHUB_ENV"
+
+          echo "EdDSA signature: $ED_SIGNATURE"
+          echo "ZIP length: $ZIP_LENGTH"
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -116,6 +137,44 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Casks/juggler.rb
           git commit -m "Update Juggler to $VERSION"
+          git push
+
+      - name: Update Sparkle appcast
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DOWNLOAD_URL="https://github.com/nielsmadan/juggler/releases/download/${GITHUB_REF_NAME}/Juggler.zip"
+          PUB_DATE=$(date -u "+%a, %d %b %Y %H:%M:%S +0000")
+
+          git clone --branch main --single-branch \
+            "https://x-access-token:${GH_TOKEN}@github.com/nielsmadan/juggler.git" \
+            "$RUNNER_TEMP/appcast-repo"
+
+          python3 <<PYEOF
+          import os
+          new_item = (
+              '        <item>\n'
+              '            <title>Version $VERSION</title>\n'
+              '            <sparkle:version>$VERSION</sparkle:version>\n'
+              '            <pubDate>$PUB_DATE</pubDate>\n'
+              '            <enclosure url="$DOWNLOAD_URL"'
+              ' length="$ZIP_LENGTH" type="application/octet-stream"'
+              ' sparkle:edSignature="$ED_SIGNATURE" />\n'
+              '        </item>\n'
+          )
+          path = os.path.join("$RUNNER_TEMP", "appcast-repo", "appcast.xml")
+          with open(path) as f:
+              content = f.read()
+          content = content.replace("    </channel>", new_item + "    </channel>")
+          with open(path, "w") as f:
+              f.write(content)
+          PYEOF
+
+          cd "$RUNNER_TEMP/appcast-repo"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "chore: update appcast for v${VERSION}"
           git push
 
       - name: Cleanup keychain
