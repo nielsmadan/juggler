@@ -42,12 +42,15 @@ jobs:
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
 
       - name: Archive
+        env:
+          TEAM_ID: ${{ secrets.NOTARIZATION_TEAM_ID }}
         run: |
           mkdir -p release
           xcodebuild -scheme Juggler -configuration Release \
             -archivePath release/Juggler.xcarchive \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
             archive
 
       - name: Export with Developer ID signing
