@@ -332,11 +332,11 @@ struct SessionMonitorView: View {
         .onTapGesture {
             activateSession(session)
         }
-        // DOWN: slide out right + fade out, delay offscreen, slide in from right + fade in.
+        // DOWN: curved slide out (right + down) then curved slide in (from right + above).
         // UP: handled by matchedGeometryEffect (pure vertical move). No insertion/removal transition.
         .transition(isDownAnimation ? .asymmetric(
-            insertion: .move(edge: .trailing).combined(with: .opacity),
-            removal: .move(edge: .trailing).combined(with: .opacity)
+            insertion: .curvedEnterFromAbove,
+            removal: .curvedExitDown
         ) : .identity)
 
         if isDownAnimation {
@@ -611,5 +611,32 @@ struct SessionMonitorView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
+    }
+}
+
+// MARK: - Curved Transition for DOWN Animations
+
+private struct CurvedOffsetModifier: ViewModifier {
+    let x: CGFloat
+    let y: CGFloat
+
+    func body(content: Content) -> some View {
+        content.offset(x: x, y: y)
+    }
+}
+
+extension AnyTransition {
+    static var curvedExitDown: AnyTransition {
+        .modifier(
+            active: CurvedOffsetModifier(x: 300, y: 40),
+            identity: CurvedOffsetModifier(x: 0, y: 0)
+        ).combined(with: .opacity)
+    }
+
+    static var curvedEnterFromAbove: AnyTransition {
+        .modifier(
+            active: CurvedOffsetModifier(x: 300, y: -40),
+            identity: CurvedOffsetModifier(x: 0, y: 0)
+        ).combined(with: .opacity)
     }
 }
