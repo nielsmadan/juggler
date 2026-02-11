@@ -182,13 +182,6 @@ actor HookServer {
                     gitRepoName: gitRepo,
                     transcriptPath: transcriptPath
                 )
-                // Set focused session to composite ID so cycling knows which tmux pane is active
-                let compositeID: String = if let pane = tmuxPane {
-                    "\(terminalSessionID):\(pane)"
-                } else {
-                    terminalSessionID
-                }
-                SessionManager.shared.updateFocusedSession(terminalSessionID: compositeID)
             }
             await updateTerminalInfo(for: claudeSessionID, itermSessionID: terminalSessionID)
 
