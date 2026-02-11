@@ -36,7 +36,7 @@ test-all:
 	@xcodebuild -scheme $(SCHEME) -configuration Debug -derivedDataPath $(BUILD_DIR) $(XCCONFIG_FLAG) test
 
 run: build
-	@open $(APP_PATH)
+	@$(APP_PATH)/Contents/MacOS/Juggler
 
 clean:
 	@rm -rf $(BUILD_DIR)

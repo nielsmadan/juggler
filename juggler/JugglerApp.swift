@@ -69,15 +69,19 @@ struct JugglerApp: App {
     init() {
         // Set default values for settings
         UserDefaults.standard.register(defaults: [
-            // Tab highlighting (off by default)
-            "tabHighlightEnabled": false,
+            // Highlight triggers (all on by default)
+            "highlightOnHotkey": true,
+            "highlightOnGuiSelect": true,
+            "highlightOnNotification": true,
+            // Tab highlighting
+            "tabHighlightEnabled": true,
             "tabHighlightDuration": 2.0,
             "tabHighlightColorRed": 255.0,
             "tabHighlightColorGreen": 165.0,
             "tabHighlightColorBlue": 0.0,
-            // Pane highlighting (on by default)
+            // Pane highlighting
             "paneHighlightEnabled": true,
-            "paneHighlightDuration": 2.0,
+            "paneHighlightDuration": 1.0,
             "paneHighlightColorRed": 255.0,
             "paneHighlightColorGreen": 165.0,
             "paneHighlightColorBlue": 0.0,
@@ -85,6 +89,8 @@ struct JugglerApp: App {
             "notifyOnIdle": true,
             "notifyOnPermission": true,
             "playSound": true,
+            // Backburner behavior
+            "goToNextOnBackburner": true,
             // Cycling colors
             "useCyclingColors": true,
             "useTerminalCyclingColors": true
