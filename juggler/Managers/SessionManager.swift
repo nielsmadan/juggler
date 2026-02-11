@@ -413,15 +413,15 @@ final class SessionManager {
         return result.targetSession
     }
 
-    func disambiguatedDisplayName(for session: Session) -> String {
-        let baseName = session.displayName
-        let sessionsWithSameName = sessions.filter { $0.displayName == baseName }
+    func disambiguatedDisplayName(for session: Session, titleMode: SessionTitleMode = .tabTitle) -> String {
+        let baseName = session.title(for: titleMode)
+        let sessionsWithSameName = sessions.filter { $0.title(for: titleMode) == baseName }
 
         guard sessionsWithSameName.count > 1 else {
             return baseName
         }
 
-        // Sort by paneIndex to ensure consistent numbering
+        // Sort by paneIndex for stable, deterministic numbering
         let sorted = sessionsWithSameName.sorted { $0.paneIndex < $1.paneIndex }
         if let index = sorted.firstIndex(where: { $0.id == session.id }) {
             return "\(baseName) (\(index + 1))"

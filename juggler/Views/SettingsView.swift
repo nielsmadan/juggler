@@ -50,6 +50,7 @@ struct SettingsView: View {
 
 struct GeneralSettingsView: View {
     @AppStorage(AppStorageKeys.launchAtLogin) private var launchAtLogin = false
+    @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleMode: String = SessionTitleMode.tabTitle.rawValue
     @AppStorage(AppStorageKeys.notifyOnIdle) private var notifyOnIdle = true
     @AppStorage(AppStorageKeys.notifyOnPermission) private var notifyOnPermission = true
     @AppStorage(AppStorageKeys.playSound) private var playSound = true
@@ -73,6 +74,12 @@ struct GeneralSettingsView: View {
                             launchAtLogin = !newValue
                         }
                     }
+
+                Picker("Session Title", selection: $sessionTitleMode) {
+                    ForEach(SessionTitleMode.allCases, id: \.rawValue) { mode in
+                        Text(mode.displayName).tag(mode.rawValue)
+                    }
+                }
             }
 
             Section("Notifications") {

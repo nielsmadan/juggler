@@ -16,6 +16,11 @@ struct SessionMonitorView: View {
     @AppStorage(AppStorageKeys.enableStats) private var enableStats = true
     @AppStorage(AppStorageKeys.idleSessionColoring) private var idleSessionColoring = true
     @AppStorage(AppStorageKeys.showShortcutHelper) private var showShortcutHelper = true
+    @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode.tabTitle.rawValue
+
+    private var titleMode: SessionTitleMode {
+        SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .tabTitle
+    }
     @State private var controller = SessionListController()
     @State private var globalStatsResetDate: Date?
     @State private var isPaused = false
@@ -355,7 +360,7 @@ struct SessionMonitorView: View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text(sessionManager.disambiguatedDisplayName(for: session))
+                    Text(sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode))
                         .font(.headline)
                     Button {
                         controller.sessionToRename = session

@@ -14,6 +14,11 @@ struct SessionRowView: View {
     @Environment(SessionManager.self) private var sessionManager
     @State private var showRenameSheet = false
     @AppStorage(AppStorageKeys.useCyclingColors) private var useCyclingColors = true
+    @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode.tabTitle.rawValue
+
+    private var titleMode: SessionTitleMode {
+        SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .tabTitle
+    }
 
     private var isCurrent: Bool {
         sessionManager.currentSession?.id == session.id
@@ -33,7 +38,7 @@ struct SessionRowView: View {
             Image(systemName: session.state.iconName)
                 .font(.system(size: 10))
 
-            Text(sessionManager.disambiguatedDisplayName(for: session))
+            Text(sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode))
                 .lineLimit(1)
 
             Spacer()
