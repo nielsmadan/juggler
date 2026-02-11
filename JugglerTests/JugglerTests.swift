@@ -347,6 +347,50 @@ import Testing
     #expect(session.title(for: .tabTitle) == "my-tmux")
 }
 
+@Test func titleForMode_tmux_folderMode_ignoresTmuxSessionName() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        tmuxPane: "%1",
+        terminalType: .iterm2,
+        projectPath: "/path/project",
+        tmuxSessionName: "my-tmux",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.title(for: .folderName) == "project")
+}
+
+@Test func titleForMode_tmux_windowMode_ignoresTmuxSessionName() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        tmuxPane: "%1",
+        terminalType: .iterm2,
+        projectPath: "/path/project",
+        terminalWindowName: "my-window",
+        tmuxSessionName: "my-tmux",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.title(for: .windowTitle) == "my-window")
+}
+
+@Test func parentAndFolderName_rootPath_returnsUnknown() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.parentAndFolderName == "Unknown")
+}
+
 // MARK: - SessionTitleMode Tests
 
 @Test func sessionTitleMode_displayName() {

@@ -243,7 +243,9 @@ actor HookServer {
             await MainActor.run {
                 NotificationManager.shared.sendNotification(
                     title: title,
-                    body: session.displayName,
+                    body: session.title(for: SessionTitleMode(
+                        rawValue: UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
+                    ) ?? .tabTitle),
                     sessionID: sessionID
                 )
             }

@@ -421,7 +421,7 @@ final class SessionManager {
             return baseName
         }
 
-        // Sort by paneIndex to ensure consistent numbering
+        // Sort by paneIndex for stable, deterministic numbering
         let sorted = sessionsWithSameName.sorted { $0.paneIndex < $1.paneIndex }
         if let index = sorted.firstIndex(where: { $0.id == session.id }) {
             return "\(baseName) (\(index + 1))"
