@@ -9,7 +9,7 @@ ARCHIVE_PATH = $(RELEASE_DIR)/Juggler.xcarchive
 EXPORT_PATH = $(RELEASE_DIR)/export
 ZIP_PATH = $(RELEASE_DIR)/Juggler.zip
 
-.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all reset-data reset-permissions reset-all release archive export notarize notarize-ci release-clean tag-release
+.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all reset-data reset-permissions reset-all release archive export notarize notarize-ci release-clean tag-release tag-release-patch tag-release-minor tag-release-major
 
 FILES ?= .
 XCCONFIG_FLAG = $(if $(XCCONFIG),-xcconfig $(XCCONFIG),)
@@ -131,9 +131,18 @@ notarize-ci:
 	@echo "SHA256: $$(shasum -a 256 $(ZIP_PATH) | cut -d' ' -f1)"
 	@echo ""
 
-# Usage: make tag-release BUMP=patch|minor|major
+# Usage: make tag-release-patch, make tag-release-minor, make tag-release-major
 #   Bumps MARKETING_VERSION in the Xcode project, commits, tags, and pushes.
-#   Without BUMP, requires MARKETING_VERSION to already be ahead of the latest tag.
+#   Plain tag-release requires MARKETING_VERSION to already be ahead of the latest tag.
+tag-release-patch:
+	@$(MAKE) tag-release BUMP=patch
+
+tag-release-minor:
+	@$(MAKE) tag-release BUMP=minor
+
+tag-release-major:
+	@$(MAKE) tag-release BUMP=major
+
 tag-release:
 	@VERSION=$$(xcodebuild -scheme $(SCHEME) -configuration Release -showBuildSettings 2>/dev/null \
 		| grep MARKETING_VERSION | head -1 | tr -d ' ' | cut -d= -f2); \
