@@ -413,9 +413,9 @@ final class SessionManager {
         return result.targetSession
     }
 
-    func disambiguatedDisplayName(for session: Session) -> String {
-        let baseName = session.displayName
-        let sessionsWithSameName = sessions.filter { $0.displayName == baseName }
+    func disambiguatedDisplayName(for session: Session, titleMode: SessionTitleMode = .tabTitle) -> String {
+        let baseName = session.title(for: titleMode)
+        let sessionsWithSameName = sessions.filter { $0.title(for: titleMode) == baseName }
 
         guard sessionsWithSameName.count > 1 else {
             return baseName

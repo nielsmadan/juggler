@@ -198,6 +198,46 @@ import Testing
     #expect(name2 == "same-project (2)")
 }
 
+@Test func disambiguatedDisplayName_folderMode_disambiguatesCollisions() {
+    let manager = SessionManager()
+
+    // Different paths but same folder name
+    manager.addOrUpdateSession(
+        claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/a/project", state: .idle
+    )
+    manager.addOrUpdateSession(
+        claudeSessionID: "c2", terminalSessionID: "s2", projectPath: "/b/project", state: .idle
+    )
+
+    manager.updateSessionTerminalInfo(terminalSessionID: "s1", tabName: "tab-a", paneIndex: 0, paneCount: 1)
+    manager.updateSessionTerminalInfo(terminalSessionID: "s2", tabName: "tab-b", paneIndex: 1, paneCount: 1)
+
+    let name1 = manager.disambiguatedDisplayName(for: manager.sessions[0], titleMode: .folderName)
+    let name2 = manager.disambiguatedDisplayName(for: manager.sessions[1], titleMode: .folderName)
+
+    // Both should be "project" in folder mode, so they get disambiguated
+    #expect(name1 == "project (1)")
+    #expect(name2 == "project (2)")
+}
+
+@Test func disambiguatedDisplayName_parentFolderMode_uniqueParents_noSuffix() {
+    let manager = SessionManager()
+
+    manager.addOrUpdateSession(
+        claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/a/project", state: .idle
+    )
+    manager.addOrUpdateSession(
+        claudeSessionID: "c2", terminalSessionID: "s2", projectPath: "/b/project", state: .idle
+    )
+
+    let name1 = manager.disambiguatedDisplayName(for: manager.sessions[0], titleMode: .parentAndFolderName)
+    let name2 = manager.disambiguatedDisplayName(for: manager.sessions[1], titleMode: .parentAndFolderName)
+
+    // Parent/folder names differ ("a/project" vs "b/project"), so no disambiguation needed
+    #expect(name1 == "a/project")
+    #expect(name2 == "b/project")
+}
+
 // MARK: - removeSession Tests
 
 @Test func removeSession_removesFromList() {

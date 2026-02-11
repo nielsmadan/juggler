@@ -47,6 +47,34 @@ struct Session: Identifiable, Codable, Equatable {
         String(projectPath.split(separator: "/").last ?? "Unknown")
     }
 
+    var parentAndFolderName: String {
+        let components = projectPath.split(separator: "/")
+        if components.count >= 2 {
+            return "\(components[components.count - 2])/\(components[components.count - 1])"
+        }
+        return projectFolderName
+    }
+
+    func title(for mode: SessionTitleMode) -> String {
+        if let customName { return customName }
+        switch mode {
+        case .tabTitle:
+            if tmuxPane != nil { return tmuxSessionName ?? projectFolderName }
+            return terminalTabName ?? projectFolderName
+        case .windowTitle:
+            return terminalWindowName ?? projectFolderName
+        case .windowAndTabTitle:
+            if let window = terminalWindowName, let tab = terminalTabName {
+                return "\(window)/\(tab)"
+            }
+            return terminalWindowName ?? terminalTabName ?? projectFolderName
+        case .folderName:
+            return projectFolderName
+        case .parentAndFolderName:
+            return parentAndFolderName
+        }
+    }
+
     // Explicit CodingKeys to exclude computed 'id' property
     enum CodingKeys: String, CodingKey {
         case claudeSessionID, terminalSessionID, tmuxPane, terminalType, projectPath

@@ -123,6 +123,240 @@ import Testing
     #expect(session.projectFolderName == "Unknown")
 }
 
+// MARK: - Session parentAndFolderName Tests
+
+@Test func parentAndFolderName_extractsLastTwoComponents() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/a/b/c",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.parentAndFolderName == "b/c")
+}
+
+@Test func parentAndFolderName_deepPath() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/Users/test/projects/myproject",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.parentAndFolderName == "projects/myproject")
+}
+
+@Test func parentAndFolderName_singleComponent_fallsBackToFolderName() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/single",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.parentAndFolderName == "single")
+}
+
+@Test func parentAndFolderName_emptyPath_returnsUnknown() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.parentAndFolderName == "Unknown")
+}
+
+// MARK: - Session title(for:) Tests
+
+@Test func titleForMode_tabTitle_usesTerminalTabName() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/path/project",
+        terminalTabName: "my-tab",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.title(for: .tabTitle) == "my-tab")
+}
+
+@Test func titleForMode_tabTitle_fallsBackToFolderName() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/path/project",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.title(for: .tabTitle) == "project")
+}
+
+@Test func titleForMode_windowTitle_usesTerminalWindowName() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/path/project",
+        terminalWindowName: "my-window",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.title(for: .windowTitle) == "my-window")
+}
+
+@Test func titleForMode_windowTitle_fallsBackToFolderName() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/path/project",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.title(for: .windowTitle) == "project")
+}
+
+@Test func titleForMode_windowAndTabTitle_combinesBoth() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/path/project",
+        terminalTabName: "my-tab",
+        terminalWindowName: "my-window",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.title(for: .windowAndTabTitle) == "my-window/my-tab")
+}
+
+@Test func titleForMode_windowAndTabTitle_fallsBackToAvailable() {
+    let sessionWindowOnly = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/path/project",
+        terminalWindowName: "my-window",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(sessionWindowOnly.title(for: .windowAndTabTitle) == "my-window")
+
+    let sessionTabOnly = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/path/project",
+        terminalTabName: "my-tab",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(sessionTabOnly.title(for: .windowAndTabTitle) == "my-tab")
+
+    let sessionNeither = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/path/project",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(sessionNeither.title(for: .windowAndTabTitle) == "project")
+}
+
+@Test func titleForMode_folderName_usesFolderName() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/path/project",
+        terminalTabName: "my-tab",
+        terminalWindowName: "my-window",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.title(for: .folderName) == "project")
+}
+
+@Test func titleForMode_parentAndFolderName_usesParentAndFolder() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/a/b/c",
+        terminalTabName: "my-tab",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.title(for: .parentAndFolderName) == "b/c")
+}
+
+@Test func titleForMode_customName_overridesAllModes() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        projectPath: "/path/project",
+        terminalTabName: "tab",
+        terminalWindowName: "window",
+        customName: "custom",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    for mode in SessionTitleMode.allCases {
+        #expect(session.title(for: mode) == "custom")
+    }
+}
+
+@Test func titleForMode_tabTitle_tmux_usesTmuxSessionName() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        tmuxPane: "%1",
+        terminalType: .iterm2,
+        projectPath: "/path/project",
+        tmuxSessionName: "my-tmux",
+        state: .idle,
+        lastUpdated: Date(),
+        startedAt: Date()
+    )
+    #expect(session.title(for: .tabTitle) == "my-tmux")
+}
+
+// MARK: - SessionTitleMode Tests
+
+@Test func sessionTitleMode_displayName() {
+    #expect(SessionTitleMode.tabTitle.displayName == "Tab Title")
+    #expect(SessionTitleMode.windowTitle.displayName == "Window Title")
+    #expect(SessionTitleMode.windowAndTabTitle.displayName == "Window / Tab Title")
+    #expect(SessionTitleMode.folderName.displayName == "Folder Name")
+    #expect(SessionTitleMode.parentAndFolderName.displayName == "Parent / Folder Name")
+}
+
 // MARK: - Session Idle Duration Tests
 
 @Test func currentIdleDuration_nilWhenWorking() {
