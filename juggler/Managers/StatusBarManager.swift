@@ -111,6 +111,10 @@ final class StatusBarManager {
         NSApp.activate(ignoringOtherApps: true)
 
         if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" || $0.title == "Juggler" }) {
+            // Restore saved frame before showing to avoid flicker
+            if let appDelegate = NSApp.delegate as? AppDelegate {
+                appDelegate.restoreSavedFrame(for: window)
+            }
             window.makeKeyAndOrderFront(nil)
             window.orderFrontRegardless()
         } else {

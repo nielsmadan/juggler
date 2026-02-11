@@ -51,6 +51,9 @@ enum AppStorageKeys {
     // Logging
     static let verboseLogging = "verboseLogging"
 
+    // Window frame
+    static let mainWindowFrame = "mainWindowFrame"
+
     // Local shortcuts
     static let localShortcutMoveDown = "localShortcutMoveDown"
     static let localShortcutMoveUp = "localShortcutMoveUp"

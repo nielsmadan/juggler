@@ -9,6 +9,8 @@ import Carbon.HIToolbox
 import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    private var mainWindowNeedsRestore = true
+
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
         false // Keep running when window closes (menu bar app stays active)
     }
@@ -41,12 +43,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSWindow.didBecomeKeyNotification,
             object: nil
         )
+
+        // Restore saved window position on launch (avoids flicker at default position)
+        if UserDefaults.standard.string(forKey: AppStorageKeys.mainWindowFrame) != nil {
+            DispatchQueue.main.async { [weak self] in
+                if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" }) {
+                    window.alphaValue = 0
+                    self?.restoreSavedFrame(for: window)
+                    window.alphaValue = 1
+                }
+            }
+        }
+    }
+
+    func restoreSavedFrame(for window: NSWindow) {
+        mainWindowNeedsRestore = false
+        guard let frameString = UserDefaults.standard.string(forKey: AppStorageKeys.mainWindowFrame) else { return }
+        let savedFrame = NSRectFromString(frameString)
+        let onScreen = NSScreen.screens.contains(where: { $0.visibleFrame.intersects(savedFrame) })
+        if savedFrame.width > 100, savedFrame.height > 100, onScreen {
+            window.setFrame(savedFrame, display: false)
+        }
     }
 
     @objc func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
               window.identifier?.rawValue == "main"
         else { return }
+        // Save frame synchronously while window is still valid
+        UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: AppStorageKeys.mainWindowFrame)
+        mainWindowNeedsRestore = true
         // Delay to allow window to fully close
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             NSApp.setActivationPolicy(.accessory)
@@ -58,6 +84,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
               window.identifier?.rawValue == "main"
         else { return }
         NSApp.setActivationPolicy(.regular)
+
+        // Restore saved frame on first appearance after close or app launch
+        if mainWindowNeedsRestore {
+            mainWindowNeedsRestore = false
+            restoreSavedFrame(for: window)
+        }
     }
 }
 
