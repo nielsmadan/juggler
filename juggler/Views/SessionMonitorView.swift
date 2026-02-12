@@ -332,12 +332,12 @@ struct SessionMonitorView: View {
         .onTapGesture {
             activateSession(session)
         }
-        // DOWN: curved slide out (right + down) then curved slide in (from right + above).
-        // UP: handled by matchedGeometryEffect (pure vertical move). No insertion/removal transition.
-        .transition(isDownAnimation ? .asymmetric(
-            insertion: .curvedEnterFromAbove,
-            removal: .curvedExitDown
-        ) : .identity)
+        // New sessions: fade in from above. DOWN arrivals: parabolic arc from right.
+        // DOWN removal: parabolic arc out (right + down). UP: matchedGeometryEffect handles vertical move.
+        .transition(.asymmetric(
+            insertion: isDownAnimation ? .curvedEnterFromAbove : .fadeInFromAbove,
+            removal: isDownAnimation ? .curvedExitDown : .identity
+        ))
 
         if isDownAnimation {
             row
@@ -614,29 +614,53 @@ struct SessionMonitorView: View {
     }
 }
 
-// MARK: - Curved Transition for DOWN Animations
+// MARK: - Parabolic Arc Transition for DOWN Animations
 
-private struct CurvedOffsetModifier: ViewModifier {
-    let x: CGFloat
-    let y: CGFloat
+private struct FadeFromAboveModifier: ViewModifier {
+    let yOffset: CGFloat
+    let opacity: Double
 
     func body(content: Content) -> some View {
-        content.offset(x: x, y: y)
+        content.offset(y: yOffset).opacity(opacity)
+    }
+}
+
+private struct ParabolicArcEffect: GeometryEffect {
+    var progress: CGFloat
+    let endX: CGFloat
+    let endY: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        let x = endX * progress
+        let y = endY * progress * progress
+        return ProjectionTransform(CGAffineTransform(translationX: x, y: y))
     }
 }
 
 extension AnyTransition {
     static var curvedExitDown: AnyTransition {
         .modifier(
-            active: CurvedOffsetModifier(x: 300, y: 40),
-            identity: CurvedOffsetModifier(x: 0, y: 0)
+            active: ParabolicArcEffect(progress: 1, endX: 300, endY: 40),
+            identity: ParabolicArcEffect(progress: 0, endX: 300, endY: 40)
         ).combined(with: .opacity)
+    }
+
+    static var fadeInFromAbove: AnyTransition {
+        .modifier(
+            active: FadeFromAboveModifier(yOffset: -20, opacity: 0),
+            identity: FadeFromAboveModifier(yOffset: 0, opacity: 1)
+        )
     }
 
     static var curvedEnterFromAbove: AnyTransition {
         .modifier(
-            active: CurvedOffsetModifier(x: 300, y: -40),
-            identity: CurvedOffsetModifier(x: 0, y: 0)
+            active: ParabolicArcEffect(progress: 1, endX: 300, endY: -40),
+            identity: ParabolicArcEffect(progress: 0, endX: 300, endY: -40)
         ).combined(with: .opacity)
     }
 }
