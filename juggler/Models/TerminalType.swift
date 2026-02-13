@@ -2,7 +2,7 @@ import Foundation
 
 enum TerminalType: String, Codable, CaseIterable {
     case iterm2
-    case kitty // Future
+    case kitty
     case ghostty // Future
     case wezterm // Future
 
@@ -12,6 +12,24 @@ enum TerminalType: String, Codable, CaseIterable {
         case .kitty: "Kitty"
         case .ghostty: "Ghostty"
         case .wezterm: "WezTerm"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .iterm2: "apple.terminal.fill"
+        case .kitty: "cat.fill"
+        case .ghostty: "apple.terminal.fill"
+        case .wezterm: "apple.terminal.fill"
+        }
+    }
+
+    var bundleIdentifier: String {
+        switch self {
+        case .iterm2: "com.googlecode.iterm2"
+        case .kitty: "net.kovidgoyal.kitty"
+        case .ghostty: "com.mitchellh.ghostty"
+        case .wezterm: "com.github.wezterm"
         }
     }
 }

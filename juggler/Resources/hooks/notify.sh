@@ -8,8 +8,22 @@ JUGGLER_PORT="${JUGGLER_PORT:-7483}"
 # Read raw JSON input from stdin (Claude Code passes hook data via stdin)
 HOOK_INPUT=$(cat)
 
-# Get iTerm session ID from environment (if available)
+# Detect terminal type and session ID
 ITERM_SESSION_ID="${ITERM_SESSION_ID:-}"
+KITTY_WINDOW_ID="${KITTY_WINDOW_ID:-}"
+KITTY_LISTEN_ON="${KITTY_LISTEN_ON:-}"
+KITTY_PID="${KITTY_PID:-}"
+
+if [ -n "$KITTY_WINDOW_ID" ]; then
+    TERMINAL_TYPE="kitty"
+    TERMINAL_SESSION_ID="$KITTY_WINDOW_ID"
+elif [ -n "$ITERM_SESSION_ID" ]; then
+    TERMINAL_TYPE="iterm2"
+    TERMINAL_SESSION_ID="$ITERM_SESSION_ID"
+else
+    TERMINAL_TYPE=""
+    TERMINAL_SESSION_ID=""
+fi
 
 # Get tmux pane ID and session name (if running inside tmux)
 TMUX_PANE_ID="${TMUX_PANE:-}"
@@ -25,7 +39,10 @@ GIT_REPO=$(basename "$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)" 2>/
 # Pass all data safely via environment variables (avoids shell injection in heredoc)
 export JUGGLER_HOOK_INPUT="$HOOK_INPUT"
 export JUGGLER_EVENT="$EVENT"
-export JUGGLER_ITERM_SID="$ITERM_SESSION_ID"
+export JUGGLER_TERMINAL_SID="$TERMINAL_SESSION_ID"
+export JUGGLER_TERMINAL_TYPE="$TERMINAL_TYPE"
+export JUGGLER_KITTY_LISTEN_ON="$KITTY_LISTEN_ON"
+export JUGGLER_KITTY_PID="$KITTY_PID"
 export JUGGLER_CWD="$PWD"
 export JUGGLER_GIT_BRANCH="$GIT_BRANCH"
 export JUGGLER_GIT_REPO="$GIT_REPO"
@@ -56,14 +73,28 @@ if raw.strip():
     except json.JSONDecodeError:
         pass
 
+terminal_info = {
+    "sessionId": os.environ.get("JUGGLER_TERMINAL_SID", ""),
+    "cwd": os.environ.get("JUGGLER_CWD", "")
+}
+
+terminal_type = os.environ.get("JUGGLER_TERMINAL_TYPE", "")
+if terminal_type:
+    terminal_info["terminalType"] = terminal_type
+
+kitty_listen_on = os.environ.get("JUGGLER_KITTY_LISTEN_ON", "")
+if kitty_listen_on:
+    terminal_info["kittyListenOn"] = kitty_listen_on
+
+kitty_pid = os.environ.get("JUGGLER_KITTY_PID", "")
+if kitty_pid:
+    terminal_info["kittyPid"] = kitty_pid
+
 payload = {
     "agent": "claude-code",
     "event": os.environ.get("JUGGLER_EVENT", ""),
     "hookInput": hook_input,
-    "terminal": {
-        "sessionId": os.environ.get("JUGGLER_ITERM_SID", ""),
-        "cwd": os.environ.get("JUGGLER_CWD", "")
-    },
+    "terminal": terminal_info,
     "git": {
         "branch": os.environ.get("JUGGLER_GIT_BRANCH", ""),
         "repo": os.environ.get("JUGGLER_GIT_REPO", "")

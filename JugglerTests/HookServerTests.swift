@@ -210,3 +210,77 @@ import Testing
     #expect(payload.hookInput?.sessionId == "abc-123")
     #expect(payload.hookInput?.transcriptPath == "~/path/to/transcript.jsonl")
 }
+
+// MARK: - Terminal Type Payload Tests
+
+@Test func decodePayload_kittyTerminalType() throws {
+    let json = """
+    {
+        "agent": "claude-code",
+        "event": "SessionStart",
+        "terminal": {
+            "sessionId": "42",
+            "cwd": "/Users/test",
+            "terminalType": "kitty",
+            "kittyListenOn": "unix:/tmp/kitty-12345",
+            "kittyPid": "12345"
+        }
+    }
+    """
+
+    let payload = try JSONDecoder().decode(UnifiedHookPayload.self, from: Data(json.utf8))
+
+    #expect(payload.terminal?.terminalType == "kitty")
+    #expect(payload.terminal?.kittyListenOn == "unix:/tmp/kitty-12345")
+    #expect(payload.terminal?.kittyPid == "12345")
+    #expect(payload.terminal?.sessionId == "42")
+}
+
+@Test func decodePayload_noTerminalType_defaultsToNil() throws {
+    let json = """
+    {
+        "agent": "claude-code",
+        "event": "Stop",
+        "terminal": {
+            "sessionId": "w0t0p0:uuid",
+            "cwd": "/tmp"
+        }
+    }
+    """
+
+    let payload = try JSONDecoder().decode(UnifiedHookPayload.self, from: Data(json.utf8))
+
+    #expect(payload.terminal?.terminalType == nil)
+    #expect(payload.terminal?.kittyListenOn == nil)
+    #expect(payload.terminal?.kittyPid == nil)
+}
+
+// MARK: - KittyEventPayload Tests
+
+@Test func decodeKittyEventPayload_focusChanged() throws {
+    let json = """
+    {
+        "event": "focus_changed",
+        "window_id": "42"
+    }
+    """
+
+    let payload = try JSONDecoder().decode(KittyEventPayload.self, from: Data(json.utf8))
+
+    #expect(payload.event == "focus_changed")
+    #expect(payload.windowID == "42")
+}
+
+@Test func decodeKittyEventPayload_sessionTerminated() throws {
+    let json = """
+    {
+        "event": "session_terminated",
+        "window_id": "99"
+    }
+    """
+
+    let payload = try JSONDecoder().decode(KittyEventPayload.self, from: Data(json.utf8))
+
+    #expect(payload.event == "session_terminated")
+    #expect(payload.windowID == "99")
+}

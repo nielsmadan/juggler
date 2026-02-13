@@ -22,12 +22,10 @@ struct OnboardingView: View {
                 case 1:
                     AccessibilityStep()
                 case 2:
-                    ITerm2RuntimeStep()
+                    IntegrationHubView()
                 case 3:
                     ShortcutsStep()
                 case 4:
-                    HooksStep()
-                case 5:
                     FinishStep(dismiss: dismiss)
                 default:
                     EmptyView()
@@ -49,7 +47,7 @@ struct OnboardingView: View {
 
                 // Step indicators
                 HStack(spacing: 8) {
-                    ForEach(0 ..< 6) { index in
+                    ForEach(0 ..< 5) { index in
                         Circle()
                             .fill(index == currentStep ? Color.accentColor : Color.secondary.opacity(0.3))
                             .frame(width: 8, height: 8)
@@ -58,7 +56,7 @@ struct OnboardingView: View {
 
                 Spacer()
 
-                if currentStep < 5 {
+                if currentStep < 4 {
                     Button("Continue") {
                         currentStep += 1
                     }
@@ -67,7 +65,7 @@ struct OnboardingView: View {
             }
             .padding()
         }
-        .frame(width: 500, height: 520)
+        .frame(width: 500, height: 700)
     }
 }
 
@@ -418,9 +416,14 @@ struct FinishStep: View {
 
             Button("Finish") {
                 hasCompletedOnboarding = true
-                // Start the daemon now that onboarding is complete
+                // Start configured bridges now that onboarding is complete
                 Task {
-                    try? await ITerm2Bridge.shared.start()
+                    if UserDefaults.standard.bool(forKey: AppStorageKeys.iterm2Enabled) {
+                        try? await TerminalBridgeRegistry.shared.start(.iterm2)
+                    }
+                    if UserDefaults.standard.bool(forKey: AppStorageKeys.kittyEnabled) {
+                        try? await TerminalBridgeRegistry.shared.start(.kitty)
+                    }
                 }
                 // Open main window and show dock icon
                 openWindow(id: "main")

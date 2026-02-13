@@ -48,6 +48,10 @@ enum AppStorageKeys {
     // Backburner behavior
     static let goToNextOnBackburner = "goToNextOnBackburner"
 
+    // Terminal enablement
+    static let iterm2Enabled = "iterm2Enabled"
+    static let kittyEnabled = "kittyEnabled"
+
     // Logging
     static let verboseLogging = "verboseLogging"
 

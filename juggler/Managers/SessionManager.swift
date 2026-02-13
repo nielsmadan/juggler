@@ -17,6 +17,10 @@ final class SessionManager {
     private(set) var focusedSessionID: String? // terminalSessionID of actually focused session in iTerm2
     private let cyclingEngine: CyclingEngine
 
+    /// Set during hotkey-driven activation to suppress intermediate focus events from terminals.
+    /// When non-nil, `updateFocusedSession` ignores focus events that don't match this target.
+    private var activationTarget: String?
+
     /// Animation controller for section transitions
     let animationController = SectionAnimationController()
 
@@ -208,8 +212,39 @@ final class SessionManager {
         return cyclable[safeIndex]
     }
 
+    /// Called before hotkey activation to suppress intermediate focus events.
+    @MainActor
+    func beginActivation(targetSessionID: String) {
+        activationTarget = targetSessionID
+    }
+
+    /// Called after hotkey activation completes (success or failure) to resume normal focus tracking.
+    @MainActor
+    func endActivation() {
+        activationTarget = nil
+    }
+
     @MainActor
     func updateFocusedSession(terminalSessionID: String?) {
+        // During hotkey activation, ignore focus events that don't match the target.
+        // This prevents intermediate events (e.g., iTerm2 briefly focusing the wrong tab
+        // as the app comes to foreground) from causing UI flicker.
+        if let target = activationTarget, let newID = terminalSessionID {
+            let matchesTarget = sessions.contains(where: {
+                $0.id == target
+                    && ($0.terminalSessionID == newID || $0.terminalSessionID.hasSuffix(newID)
+                        || newID == $0.id)
+            })
+            if matchesTarget {
+                // Focus arrived at our target — accept it and clear the guard
+                activationTarget = nil
+            } else {
+                // Spurious intermediate focus event — ignore it
+                logDebug(.hotkey, "Suppressed intermediate focus event for \(newID) during activation of \(target)")
+                return
+            }
+        }
+
         // Don't let a bare UUID from iTerm2 focus events overwrite
         // a more specific composite ID (e.g., "w0t0p0:UUID:%1" contains "UUID")
         if let newID = terminalSessionID, let currentID = focusedSessionID,
@@ -388,12 +423,18 @@ final class SessionManager {
     }
 
     func cycleForward() -> Session? {
+        let cyclable = sessions.filter(\.state.isIncludedInCycle)
+        logDebug(.hotkey, "cycleForward: focused=\(focusedSessionID ?? "nil") stateIdx=\(cyclingState.currentIndex) cyclable=\(cyclable.map { "\($0.id)(\($0.terminalType.displayName))" })")
+
         let result = cyclingEngine.cycleForward(
             sessions: sessions,
             focusedSessionID: focusedSessionID,
             state: cyclingState
         )
         cyclingState = result.newState
+
+        logDebug(.hotkey, "cycleForward -> target=\(result.targetSession?.id ?? "nil") newIdx=\(result.newState.currentIndex)")
+
         if let target = result.targetSession {
             focusedSessionID = target.id
         }
@@ -401,12 +442,18 @@ final class SessionManager {
     }
 
     func cycleBackward() -> Session? {
+        let cyclable = sessions.filter(\.state.isIncludedInCycle)
+        logDebug(.hotkey, "cycleBackward: focused=\(focusedSessionID ?? "nil") stateIdx=\(cyclingState.currentIndex) cyclable=\(cyclable.map { "\($0.id)(\($0.terminalType.displayName))" })")
+
         let result = cyclingEngine.cycleBackward(
             sessions: sessions,
             focusedSessionID: focusedSessionID,
             state: cyclingState
         )
         cyclingState = result.newState
+
+        logDebug(.hotkey, "cycleBackward -> target=\(result.targetSession?.id ?? "nil") newIdx=\(result.newState.currentIndex)")
+
         if let target = result.targetSession {
             focusedSessionID = target.id
         }

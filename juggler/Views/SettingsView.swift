@@ -116,6 +116,16 @@ struct IntegrationSettingsView: View {
     @State private var isInstallingHooks = false
     @State private var hookInstallError: String?
 
+    // Kitty state
+    @AppStorage(AppStorageKeys.kittyEnabled) private var kittyEnabled = false
+    @State private var kittyInstalled = false
+    @State private var kittyRemoteControl = false
+    @State private var kittyListenOn = false
+    @State private var kittyWatcherInstalled = false
+    @State private var isInstallingKittyWatcher = false
+    @State private var kittyWatcherError: String?
+    @State private var kittyConfigError: String?
+
     // tmux configuration state
     @State private var tmuxConfigured = false
     @State private var isConfiguringTmux = false
@@ -131,7 +141,8 @@ struct IntegrationSettingsView: View {
             .appendingPathComponent(".tmux.conf").path
     }
 
-    private let tmuxUpdateEnvironmentLine = "set-option -ga update-environment ' ITERM_SESSION_ID'"
+    private let tmuxUpdateEnvironmentLine =
+        "set-option -ga update-environment ' ITERM_SESSION_ID KITTY_WINDOW_ID KITTY_LISTEN_ON KITTY_PID'"
 
     var body: some View {
         Form {
@@ -182,10 +193,103 @@ struct IntegrationSettingsView: View {
                 .disabled(isInstallingHooks)
             }
 
+            Section("Kitty") {
+                HStack {
+                    Text("Kitty App")
+                    Spacer()
+                    if kittyInstalled {
+                        Label("Installed", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Found", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Remote Control")
+                        Spacer()
+                        if kittyRemoteControl {
+                            Label("Enabled", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else {
+                            Label("Not Configured", systemImage: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if !kittyRemoteControl, kittyInstalled {
+                        Text("Adds allow_remote_control socket-only to kitty.conf")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button("Add to kitty.conf") {
+                            configureKittyRemoteControl()
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Listen Socket")
+                        Spacer()
+                        if kittyListenOn {
+                            Label("Configured", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else {
+                            Label("Not Configured", systemImage: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if !kittyListenOn, kittyInstalled {
+                        Text("Adds listen_on unix:/tmp/kitty-{kitty_pid} to kitty.conf")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button("Add to kitty.conf") {
+                            configureKittyListenOn()
+                        }
+                    }
+                }
+
+                HStack {
+                    Text("Watcher Script")
+                    Spacer()
+                    if kittyWatcherInstalled {
+                        Label("Installed", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Installed", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let error = kittyConfigError {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+
+                if let error = kittyWatcherError {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+
+                Button(kittyWatcherInstalled ? "Reinstall Watcher" : "Install Watcher") {
+                    installKittyWatcher()
+                }
+                .disabled(isInstallingKittyWatcher)
+
+                if !kittyRemoteControl || !kittyListenOn || kittyWatcherInstalled {
+                    Text("Restart Kitty after changes for them to take effect.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("tmux") {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("ITERM_SESSION_ID in update-environment")
+                        Text("Terminal env vars in update-environment")
                         Spacer()
                         if tmuxConfigured {
                             Label("Configured", systemImage: "checkmark.circle.fill")
@@ -223,6 +327,7 @@ struct IntegrationSettingsView: View {
         .onAppear {
             checkPermissions()
             checkHooksInstalled()
+            checkKittyStatus()
             checkTmuxConfigured()
         }
     }
@@ -279,6 +384,98 @@ struct IntegrationSettingsView: View {
         }
     }
 
+    // MARK: - Kitty
+
+    private var kittyConfPath: String {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/kitty/kitty.conf").path
+    }
+
+    private func checkKittyStatus() {
+        kittyInstalled = FileManager.default.fileExists(atPath: "/Applications/kitty.app")
+
+        if let contents = try? String(contentsOfFile: kittyConfPath, encoding: .utf8) {
+            kittyRemoteControl = contents.split(separator: "\n").contains { line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                return !trimmed.hasPrefix("#") && trimmed.hasPrefix("allow_remote_control")
+                    && (trimmed.contains("yes") || trimmed.contains("socket"))
+            }
+            kittyListenOn = contents.split(separator: "\n").contains { line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                return trimmed.hasPrefix("listen_on") && !trimmed.hasPrefix("#")
+            }
+            kittyWatcherInstalled = contents.contains("juggler_watcher.py")
+        } else {
+            kittyRemoteControl = false
+            kittyListenOn = false
+            kittyWatcherInstalled = false
+        }
+    }
+
+    private func appendToKittyConf(_ line: String) {
+        kittyConfigError = nil
+
+        do {
+            let fileURL = URL(fileURLWithPath: kittyConfPath)
+            let configDir = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".config/kitty")
+
+            // Create config directory if needed
+            try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
+
+            if FileManager.default.fileExists(atPath: kittyConfPath) {
+                let existingContent = try String(contentsOfFile: kittyConfPath, encoding: .utf8)
+                let handle = try FileHandle(forWritingTo: fileURL)
+                handle.seekToEndOfFile()
+
+                var lineToAppend = line + "\n"
+                if !existingContent.isEmpty, !existingContent.hasSuffix("\n") {
+                    lineToAppend = "\n" + lineToAppend
+                }
+
+                handle.write(Data(lineToAppend.utf8))
+                handle.closeFile()
+            } else {
+                try (line + "\n").write(toFile: kittyConfPath, atomically: true, encoding: .utf8)
+            }
+
+            checkKittyStatus()
+        } catch {
+            kittyConfigError = "Failed to update kitty.conf: \(error.localizedDescription)"
+        }
+    }
+
+    private func configureKittyRemoteControl() {
+        appendToKittyConf("allow_remote_control socket-only")
+    }
+
+    private func configureKittyListenOn() {
+        appendToKittyConf("listen_on unix:/tmp/kitty-{kitty_pid}")
+    }
+
+    private func installKittyWatcher() {
+        isInstallingKittyWatcher = true
+        kittyWatcherError = nil
+
+        guard let scriptPath = Bundle.main.path(forResource: "install_kitty_watcher", ofType: "sh") else {
+            kittyWatcherError = "Install script not found in bundle"
+            isInstallingKittyWatcher = false
+            return
+        }
+
+        Task {
+            let result = await runProcess(executableURL: "/bin/bash", arguments: [scriptPath])
+            await MainActor.run {
+                if let error = result {
+                    kittyWatcherError = error
+                } else {
+                    checkKittyStatus()
+                }
+                isInstallingKittyWatcher = false
+            }
+        }
+    }
+
     // MARK: - tmux Configuration
 
     private func checkTmuxConfigured() {
@@ -289,7 +486,8 @@ struct IntegrationSettingsView: View {
 
         do {
             let contents = try String(contentsOfFile: tmuxConfPath, encoding: .utf8)
-            tmuxConfigured = contents.contains("update-environment") && contents.contains("ITERM_SESSION_ID")
+            tmuxConfigured = contents.contains("update-environment")
+                && (contents.contains("ITERM_SESSION_ID") || contents.contains("KITTY_WINDOW_ID"))
         } catch {
             tmuxConfigured = false
         }

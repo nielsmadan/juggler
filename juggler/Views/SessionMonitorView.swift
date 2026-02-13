@@ -292,7 +292,7 @@ struct SessionMonitorView: View {
     private func listSessionRow(_ session: Session) -> some View {
         let index = flatIndex(for: session)
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "apple.terminal.fill")
+            Image(systemName: session.terminalType.iconName)
                 .padding(.top, 2)
             sessionContent(session)
         }
@@ -316,7 +316,7 @@ struct SessionMonitorView: View {
         let isDownAnimation = animationController.isDownAnimating(sessionID: session.id)
 
         let row = HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "apple.terminal.fill")
+            Image(systemName: session.terminalType.iconName)
                 .padding(.top, 2)
             sessionContent(session)
         }

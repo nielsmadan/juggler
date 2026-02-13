@@ -134,21 +134,30 @@ actor HookServer {
             return HTTPResponse(status: 405, body: #"{"status":"error","message":"Method not allowed"}"#)
         }
 
-        // Handle unified /hook endpoint
-        guard request.path == "/hook" else {
+        switch request.path {
+        case "/hook":
+            guard let payload = decodeUnifiedPayload(request.body) else {
+                await MainActor.run {
+                    logWarning(.hooks, "Invalid JSON in hook request: \(request.body.prefix(200))")
+                }
+                return HTTPResponse(status: 400, body: #"{"status":"error","message":"Invalid JSON"}"#)
+            }
+
+            await handleUnifiedHookEvent(payload)
+            return HTTPResponse(status: 200, body: #"{"status":"ok"}"#)
+
+        case "/kitty-event":
+            guard let eventPayload = try? JSONDecoder().decode(KittyEventPayload.self, from: Data(request.body.utf8))
+            else {
+                return HTTPResponse(status: 400, body: #"{"status":"error","message":"Invalid JSON"}"#)
+            }
+
+            await handleKittyEvent(eventPayload)
+            return HTTPResponse(status: 200, body: #"{"status":"ok"}"#)
+
+        default:
             return HTTPResponse(status: 404, body: #"{"status":"error","message":"Not found"}"#)
         }
-
-        guard let payload = decodeUnifiedPayload(request.body) else {
-            await MainActor.run {
-                logWarning(.hooks, "Invalid JSON in hook request: \(request.body.prefix(200))")
-            }
-            return HTTPResponse(status: 400, body: #"{"status":"error","message":"Invalid JSON"}"#)
-        }
-
-        await handleUnifiedHookEvent(payload)
-
-        return HTTPResponse(status: 200, body: #"{"status":"ok"}"#)
     }
 
     private func handleUnifiedHookEvent(_ payload: UnifiedHookPayload) async {
@@ -161,8 +170,30 @@ actor HookServer {
         let tmuxPane = payload.tmux?.pane
         let tmuxSessionName = payload.tmux?.sessionName
 
+        // Derive terminal type from payload
+        let terminalType: TerminalType = if let typeStr = payload.terminal?.terminalType,
+                                            let type = TerminalType(rawValue: typeStr) {
+            type
+        } else {
+            .iterm2
+        }
+
+        // Register Kitty socket path if present
+        if terminalType == .kitty, let socketPath = payload.terminal?.kittyListenOn, !socketPath.isEmpty {
+            // Ensure the bridge is started (finds kitten binary, etc.)
+            try? await TerminalBridgeRegistry.shared.start(.kitty)
+            await KittyBridge.shared.registerSocket(windowID: terminalSessionID, socketPath: socketPath)
+            await MainActor.run {
+                logDebug(.kitty, "Registered socket for window \(terminalSessionID): \(socketPath)")
+            }
+        } else if terminalType == .kitty {
+            await MainActor.run {
+                logWarning(.kitty, "Kitty hook received but no kittyListenOn in payload (sessionID: \(terminalSessionID))")
+            }
+        }
+
         await MainActor.run {
-            logDebug(.hooks, "Hook received: \(payload.event) from \(payload.agent)")
+            logDebug(.hooks, "Hook received: \(payload.event) from \(payload.agent) (\(terminalType.displayName))")
         }
 
         let action = HookEventMapper.map(event: payload.event)
@@ -175,6 +206,7 @@ actor HookServer {
                     terminalSessionID: terminalSessionID,
                     tmuxPane: tmuxPane,
                     tmuxSessionName: tmuxSessionName,
+                    terminalType: terminalType,
                     projectPath: cwd,
                     state: state,
                     event: payload.event,
@@ -183,7 +215,7 @@ actor HookServer {
                     transcriptPath: transcriptPath
                 )
             }
-            await updateTerminalInfo(for: claudeSessionID, itermSessionID: terminalSessionID)
+            await updateTerminalInfo(terminalSessionID: terminalSessionID, terminalType: terminalType)
 
             // Send notifications for specific states
             let notifyID: String = if let pane = tmuxPane {
@@ -245,19 +277,26 @@ actor HookServer {
         }
     }
 
-    private func updateTerminalInfo(for _: String, itermSessionID: String) async {
-        guard !itermSessionID.isEmpty else { return }
+    private func updateTerminalInfo(terminalSessionID: String, terminalType: TerminalType) async {
+        guard !terminalSessionID.isEmpty else { return }
 
         await MainActor.run {
-            logDebug(.hooks, "updateTerminalInfo: calling getSessionInfo for \(itermSessionID)")
+            logDebug(.hooks, "updateTerminalInfo: calling getSessionInfo for \(terminalSessionID)")
+        }
+
+        guard let bridge = await TerminalBridgeRegistry.shared.bridge(for: terminalType) else {
+            await MainActor.run {
+                logDebug(.hooks, "No bridge available for \(terminalType.displayName)")
+            }
+            return
         }
 
         do {
-            if let info = try await ITerm2Bridge.shared.getSessionInfo(sessionID: itermSessionID) {
+            if let info = try await bridge.getSessionInfo(sessionID: terminalSessionID) {
                 await MainActor.run {
-                    logDebug(.hooks, "Got terminal info for \(itermSessionID): tab=\(info.tabName)")
+                    logDebug(.hooks, "Got terminal info for \(terminalSessionID): tab=\(info.tabName)")
                     SessionManager.shared.updateSessionTerminalInfo(
-                        terminalSessionID: itermSessionID,
+                        terminalSessionID: terminalSessionID,
                         tabName: info.tabName,
                         windowName: info.windowName,
                         paneIndex: info.paneIndex,
@@ -266,12 +305,33 @@ actor HookServer {
                 }
             } else {
                 await MainActor.run {
-                    logDebug(.hooks, "No terminal info found for \(itermSessionID)")
+                    logDebug(.hooks, "No terminal info found for \(terminalSessionID)")
                 }
             }
         } catch {
             await MainActor.run {
                 logWarning(.hooks, "Failed to get terminal info: \(error)")
+            }
+        }
+    }
+
+    private func handleKittyEvent(_ payload: KittyEventPayload) async {
+        await MainActor.run {
+            logDebug(.kitty, "Kitty event: \(payload.event) window=\(payload.windowID)")
+        }
+
+        switch payload.event {
+        case "focus_changed":
+            await MainActor.run {
+                SessionManager.shared.updateFocusedSession(terminalSessionID: payload.windowID)
+            }
+        case "session_terminated":
+            await MainActor.run {
+                SessionManager.shared.removeSessionsByTerminalID(payload.windowID)
+            }
+        default:
+            await MainActor.run {
+                logDebug(.kitty, "Unknown kitty event: \(payload.event)")
             }
         }
     }
@@ -358,6 +418,9 @@ struct UnifiedHookPayload: Sendable {
     struct TerminalInfo: Sendable {
         let sessionId: String?
         let cwd: String?
+        let terminalType: String?
+        let kittyListenOn: String?
+        let kittyPid: String?
     }
 
     struct GitInfo: Sendable {
@@ -401,10 +464,13 @@ extension UnifiedHookPayload.TerminalInfo: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId)
         cwd = try container.decodeIfPresent(String.self, forKey: .cwd)
+        terminalType = try container.decodeIfPresent(String.self, forKey: .terminalType)
+        kittyListenOn = try container.decodeIfPresent(String.self, forKey: .kittyListenOn)
+        kittyPid = try container.decodeIfPresent(String.self, forKey: .kittyPid)
     }
 
     enum CodingKeys: String, CodingKey {
-        case sessionId, cwd
+        case sessionId, cwd, terminalType, kittyListenOn, kittyPid
     }
 }
 
@@ -429,5 +495,25 @@ extension UnifiedHookPayload.TmuxInfo: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case pane, sessionName
+    }
+}
+
+// MARK: - Kitty Event Payload
+
+struct KittyEventPayload: Sendable {
+    let event: String
+    let windowID: String
+
+    enum CodingKeys: String, CodingKey {
+        case event
+        case windowID = "window_id"
+    }
+}
+
+extension KittyEventPayload: Decodable {
+    nonisolated init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        event = try container.decode(String.self, forKey: .event)
+        windowID = try container.decode(String.self, forKey: .windowID)
     }
 }

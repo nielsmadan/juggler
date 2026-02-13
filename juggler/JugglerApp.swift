@@ -17,7 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         Task {
-            await ITerm2Bridge.shared.stop()
+            await TerminalBridgeRegistry.shared.stopAll()
             await HookServer.shared.stop()
             sender.reply(toApplicationShouldTerminate: true)
         }
@@ -125,7 +125,10 @@ struct JugglerApp: App {
             "goToNextOnBackburner": true,
             // Cycling colors
             "useCyclingColors": true,
-            "useTerminalCyclingColors": true
+            "useTerminalCyclingColors": true,
+            // Terminal enablement (iTerm2 on by default for existing users)
+            AppStorageKeys.iterm2Enabled: true,
+            AppStorageKeys.kittyEnabled: false
         ])
 
         // Set up default local shortcuts if not already configured
@@ -135,10 +138,19 @@ struct JugglerApp: App {
         NotificationManager.shared.requestPermission()
 
         Task {
+            // Register bridges
+            await TerminalBridgeRegistry.shared.register(ITerm2Bridge.shared, for: .iterm2)
+            await TerminalBridgeRegistry.shared.register(KittyBridge.shared, for: .kitty)
+
             try? await HookServer.shared.start()
-            // Only start daemon if onboarding is complete (avoids early permission prompt)
+            // Only start bridges if onboarding is complete (avoids early permission prompt)
             if UserDefaults.standard.bool(forKey: AppStorageKeys.hasCompletedOnboarding) {
-                try? await ITerm2Bridge.shared.start()
+                if UserDefaults.standard.bool(forKey: AppStorageKeys.iterm2Enabled) {
+                    try? await TerminalBridgeRegistry.shared.start(.iterm2)
+                }
+                if UserDefaults.standard.bool(forKey: AppStorageKeys.kittyEnabled) {
+                    try? await TerminalBridgeRegistry.shared.start(.kitty)
+                }
             }
         }
 

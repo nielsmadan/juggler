@@ -40,8 +40,11 @@ enum ActivationTrigger {
 
 enum TerminalActivation {
     static func activate(session: Session, trigger: ActivationTrigger) async throws {
+        guard let bridge = await TerminalBridgeRegistry.shared.bridge(for: session.terminalType) else {
+            throw TerminalBridgeError.bridgeNotAvailable(session.terminalType)
+        }
         do {
-            try await ITerm2Bridge.shared.activate(sessionID: session.terminalSessionID)
+            try await bridge.activate(sessionID: session.terminalSessionID)
         } catch let error as TerminalBridgeError {
             if case let .commandFailed(message) = error,
                message.localizedCaseInsensitiveContains("session not found") {
@@ -56,7 +59,7 @@ enum TerminalActivation {
             selectTmuxPane(tmuxPane)
         }
         guard shouldHighlight(for: trigger) else { return }
-        try await ITerm2Bridge.shared.highlight(
+        try await bridge.highlight(
             sessionID: session.terminalSessionID,
             tabConfig: tabHighlightConfig(for: session),
             paneConfig: paneHighlightConfig(for: session)
@@ -132,6 +135,7 @@ enum TerminalBridgeError: Error, LocalizedError {
     case invalidResponse
     case authenticationFailed(String)
     case sessionNotFound(String)
+    case bridgeNotAvailable(TerminalType)
 
     var errorDescription: String? {
         switch self {
@@ -151,6 +155,8 @@ enum TerminalBridgeError: Error, LocalizedError {
             "Authentication failed: \(message)"
         case let .sessionNotFound(sessionID):
             "Session not found: \(sessionID)"
+        case let .bridgeNotAvailable(terminalType):
+            "No bridge available for \(terminalType.displayName)"
         }
     }
 }

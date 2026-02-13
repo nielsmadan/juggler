@@ -61,12 +61,17 @@ final class HotkeyManager {
         // Each stale session is removed automatically on .sessionNotFound,
         // so cycle() will eventually return nil when no cyclable sessions remain.
         while let target = cycle() {
+            // Guard against intermediate focus events during activation
+            SessionManager.shared.beginActivation(targetSessionID: target.id)
             do {
                 try await TerminalActivation.activate(session: target, trigger: .hotkey)
+                SessionManager.shared.endActivation()
                 return
             } catch TerminalBridgeError.sessionNotFound {
+                SessionManager.shared.endActivation()
                 logDebug(.hotkey, "Stale session skipped, retrying cycle \(direction)")
             } catch {
+                SessionManager.shared.endActivation()
                 logError(.hotkey, "Cycle \(direction) failed: \(error)")
                 return
             }
@@ -87,12 +92,16 @@ final class HotkeyManager {
         // Each stale session is removed on .sessionNotFound, so currentSession
         // advances until we find a live one or run out.
         while let nextSession = SessionManager.shared.currentSession {
+            SessionManager.shared.beginActivation(targetSessionID: nextSession.id)
             do {
                 try await TerminalActivation.activate(session: nextSession, trigger: .hotkey)
+                SessionManager.shared.endActivation()
                 return
             } catch TerminalBridgeError.sessionNotFound {
+                SessionManager.shared.endActivation()
                 logDebug(.hotkey, "Backburner next session gone, retrying")
             } catch {
+                SessionManager.shared.endActivation()
                 logError(.hotkey, "Backburner go-to-next failed: \(error)")
                 return
             }

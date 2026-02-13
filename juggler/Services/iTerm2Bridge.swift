@@ -312,7 +312,7 @@ actor ITerm2Bridge: TerminalBridge {
             case .daemonNotRunning, .connectionFailed, .connectionTimeout,
                  .commandTimeout, .invalidResponse:
                 return true
-            case .commandFailed, .authenticationFailed, .sessionNotFound:
+            case .commandFailed, .authenticationFailed, .sessionNotFound, .bridgeNotAvailable:
                 return false
             }
         }
