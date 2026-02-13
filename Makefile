@@ -8,8 +8,9 @@ RELEASE_DIR = ./release
 ARCHIVE_PATH = $(RELEASE_DIR)/Juggler.xcarchive
 EXPORT_PATH = $(RELEASE_DIR)/export
 ZIP_PATH = $(RELEASE_DIR)/Juggler.zip
+DMG_PATH = $(RELEASE_DIR)/Juggler.dmg
 
-.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all reset-data reset-permissions reset-all release archive export notarize notarize-ci release-clean tag-release tag-release-patch tag-release-minor tag-release-major
+.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all reset-data reset-permissions reset-all release archive export notarize notarize-ci dmg release-clean tag-release tag-release-patch tag-release-minor tag-release-major
 
 FILES ?= .
 XCCONFIG_FLAG = $(if $(XCCONFIG),-xcconfig $(XCCONFIG),)
@@ -129,6 +130,25 @@ notarize-ci:
 	@echo "=== Notarization complete ==="
 	@echo "ZIP: $(ZIP_PATH)"
 	@echo "SHA256: $$(shasum -a 256 $(ZIP_PATH) | cut -d' ' -f1)"
+	@echo ""
+
+dmg:
+	@echo "Creating DMG..."
+	@rm -f $(DMG_PATH)
+	@create-dmg \
+		--volname "Juggler" \
+		--window-pos 200 120 \
+		--window-size 660 400 \
+		--icon-size 100 \
+		--icon "Juggler.app" 180 190 \
+		--hide-extension "Juggler.app" \
+		--app-drop-link 480 190 \
+		$(DMG_PATH) \
+		$(EXPORT_PATH)/
+	@echo ""
+	@echo "=== DMG created ==="
+	@echo "DMG: $(DMG_PATH)"
+	@echo "SHA256: $$(shasum -a 256 $(DMG_PATH) | cut -d' ' -f1)"
 	@echo ""
 
 # Usage: make tag-release-patch, make tag-release-minor, make tag-release-major

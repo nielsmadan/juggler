@@ -85,11 +85,44 @@ jobs:
           rm -f release/Juggler.zip
           cd release/export && zip -r -y ../Juggler.zip Juggler.app
 
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Create DMG
+        run: |
+          create-dmg \
+            --volname "Juggler" \
+            --window-pos 200 120 \
+            --window-size 660 400 \
+            --icon-size 100 \
+            --icon "Juggler.app" 180 190 \
+            --hide-extension "Juggler.app" \
+            --app-drop-link 480 190 \
+            release/Juggler.dmg \
+            release/export/
+
+      - name: Notarize DMG
+        env:
+          NOTARIZATION_APPLE_ID: ${{ secrets.NOTARIZATION_APPLE_ID }}
+          NOTARIZATION_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }}
+          NOTARIZATION_TEAM_ID: ${{ secrets.NOTARIZATION_TEAM_ID }}
+        run: |
+          xcrun notarytool submit release/Juggler.dmg \
+            --apple-id "$NOTARIZATION_APPLE_ID" \
+            --password "$NOTARIZATION_PASSWORD" \
+            --team-id "$NOTARIZATION_TEAM_ID" \
+            --wait
+          xcrun stapler staple release/Juggler.dmg
+
       - name: Compute SHA256
         run: |
           SHA256=$(shasum -a 256 release/Juggler.zip | cut -d' ' -f1)
           echo "SHA256=$SHA256" >> "$GITHUB_ENV"
-          echo "SHA256: $SHA256"
+          echo "SHA256 (ZIP): $SHA256"
+
+          DMG_SHA256=$(shasum -a 256 release/Juggler.dmg | cut -d' ' -f1)
+          echo "DMG_SHA256=$DMG_SHA256" >> "$GITHUB_ENV"
+          echo "SHA256 (DMG): $DMG_SHA256"
 
       - name: Download Sparkle tools
         run: |
@@ -116,7 +149,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release/Juggler.zip \
+          gh release create "$GITHUB_REF_NAME" release/Juggler.zip release/Juggler.dmg \
             --title "Juggler $VERSION" \
             --generate-notes
 
@@ -130,7 +163,8 @@ jobs:
           CASK_FILE="$RUNNER_TEMP/homebrew-juggler/Casks/juggler.rb"
 
           sed -i '' "s/version \".*\"/version \"$VERSION\"/" "$CASK_FILE"
-          sed -i '' "s/sha256 \".*\"/sha256 \"$SHA256\"/" "$CASK_FILE"
+          sed -i '' "s/sha256 \".*\"/sha256 \"$DMG_SHA256\"/" "$CASK_FILE"
+          sed -i '' "s/Juggler\.zip/Juggler.dmg/" "$CASK_FILE"
 
           cd "$RUNNER_TEMP/homebrew-juggler"
           git config user.name "github-actions[bot]"
