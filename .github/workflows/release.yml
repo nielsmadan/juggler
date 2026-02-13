@@ -149,9 +149,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          PREV_TAG=$(git tag --sort=-v:refname | grep -v "^${GITHUB_REF_NAME}$" | head -1)
+          NOTES=$(git log --pretty=format:"- %s" "${PREV_TAG}..${GITHUB_REF_NAME}" \
+            | grep -v "^- chore:" \
+            | grep -v "^- Merge ")
+
+          {
+            echo "## What's Changed"
+            echo ""
+            echo "$NOTES"
+            echo ""
+            echo "**Full Changelog**: https://github.com/nielsmadan/juggler/compare/${PREV_TAG}...${GITHUB_REF_NAME}"
+          } > /tmp/release-notes.md
+
           gh release create "$GITHUB_REF_NAME" release/Juggler.zip release/Juggler.dmg \
             --title "Juggler $VERSION" \
-            --generate-notes
+            --notes-file /tmp/release-notes.md
 
       - name: Update Homebrew tap
         env:
