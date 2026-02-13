@@ -171,7 +171,7 @@ final class SessionManager {
         }
 
         let idle = sessions.filter { $0.state == .idle || $0.state == .permission }
-        let busy = sessions.filter { $0.state == .working || $0.state == .compacting }
+        let working = sessions.filter { $0.state == .working || $0.state == .compacting }
         let backburner = sessions.filter { $0.state == .backburner }
 
         let sortedIdle = idle.sorted {
@@ -185,7 +185,7 @@ final class SessionManager {
             }
         }
 
-        sessions = sortedIdle + busy + backburner
+        sessions = sortedIdle + working + backburner
     }
 
     var cyclableSessions: [Session] {

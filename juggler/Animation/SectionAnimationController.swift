@@ -14,7 +14,7 @@ import SwiftUI
 
 enum SectionType: Int {
     case idle = 0
-    case busy = 1
+    case working = 1
     case backburner = 2
 
     init(from state: SessionState) {
@@ -22,7 +22,7 @@ enum SectionType: Int {
         case .idle, .permission:
             self = .idle
         case .working, .compacting:
-            self = .busy
+            self = .working
         case .backburner:
             self = .backburner
         }

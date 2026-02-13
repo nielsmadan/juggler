@@ -83,7 +83,7 @@ struct SessionMonitorView: View {
         var rows: [SectionRow] = []
         let sections: [(SectionType, String)] = [
             (.idle, "Idle"),
-            (.busy, "Busy"),
+            (.working, "Working"),
             (.backburner, "Backburner")
         ]
 
@@ -191,6 +191,7 @@ struct SessionMonitorView: View {
             if showShortcutHelper, !sessionManager.sessions.isEmpty {
                 Divider()
                 shortcutsReference
+                modesReference
             }
         }
     }
@@ -411,7 +412,7 @@ struct SessionMonitorView: View {
                     Text("|")
                 }
                 if session.state == .working || session.state == .compacting {
-                    Text("air")
+                    Text("working")
                         .frame(minWidth: 16, alignment: .trailing)
                     Text(formatDuration(session.currentWorkingDuration ?? 0))
                         .frame(minWidth: 28, alignment: .trailing)
@@ -541,7 +542,7 @@ struct SessionMonitorView: View {
                     .font(.subheadline)
                 Text("\(formatDuration(totalIdleTimeForFooter)) total idle")
                     .font(.subheadline)
-                Text("\(formatDuration(totalWorkingTimeForFooter)) airtime")
+                Text("\(formatDuration(totalWorkingTimeForFooter)) working time")
                     .font(.subheadline)
             }
 
@@ -610,6 +611,38 @@ struct SessionMonitorView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
+        }
+    }
+
+    // MARK: - Modes Reference
+
+    @ViewBuilder
+    private var modesReference: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Modes")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                modeRow("Fair", "Idle sessions go to end of queue")
+                modeRow("Prio", "Idle sessions go to top of queue")
+                modeRow("Static", "No automatic reordering")
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func modeRow(_ name: String, _ description: String) -> some View {
+        HStack(spacing: 4) {
+            Text(name)
+                .font(.caption.monospaced())
+                .foregroundStyle(.primary)
+                .frame(minWidth: 40, alignment: .trailing)
+            Text(description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }
