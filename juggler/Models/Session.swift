@@ -14,6 +14,7 @@ struct Session: Identifiable, Codable, Equatable {
     }
 
     let terminalType: TerminalType
+    let agent: String // "claude-code" or "opencode"
     let projectPath: String
     var terminalTabName: String?
     var terminalWindowName: String?
@@ -35,6 +36,10 @@ struct Session: Identifiable, Codable, Equatable {
 
     // Claude transcript
     var transcriptPath: String?
+
+    var agentShortName: String {
+        agent == "opencode" ? "OC" : "CC"
+    }
 
     var displayName: String {
         if tmuxPane != nil {
@@ -77,7 +82,7 @@ struct Session: Identifiable, Codable, Equatable {
 
     // Explicit CodingKeys to exclude computed 'id' property
     enum CodingKeys: String, CodingKey {
-        case claudeSessionID, terminalSessionID, tmuxPane, terminalType, projectPath
+        case claudeSessionID, terminalSessionID, tmuxPane, terminalType, agent, projectPath
         case terminalTabName, terminalWindowName, tmuxSessionName, customName, state, lastUpdated, startedAt
         case lastBecameIdle, accumulatedIdleTime, lastBecameWorking, accumulatedWorkingTime
         case paneIndex, paneCount, gitBranch, gitRepoName, transcriptPath
@@ -92,6 +97,7 @@ struct Session: Identifiable, Codable, Equatable {
             lhs.terminalSessionID == rhs.terminalSessionID &&
             lhs.tmuxPane == rhs.tmuxPane &&
             lhs.terminalType == rhs.terminalType &&
+            lhs.agent == rhs.agent &&
             lhs.projectPath == rhs.projectPath &&
             lhs.terminalTabName == rhs.terminalTabName &&
             lhs.terminalWindowName == rhs.terminalWindowName &&

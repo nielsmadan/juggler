@@ -14,6 +14,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
         claudeSessionID: id,
         terminalSessionID: id,
         terminalType: .iterm2,
+        agent: "claude-code",
         projectPath: "/test/\(id)",
         terminalTabName: nil,
         terminalWindowName: nil,

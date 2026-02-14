@@ -207,6 +207,7 @@ actor HookServer {
                     tmuxPane: tmuxPane,
                     tmuxSessionName: tmuxSessionName,
                     terminalType: terminalType,
+                    agent: payload.agent,
                     projectPath: cwd,
                     state: state,
                     event: payload.event,

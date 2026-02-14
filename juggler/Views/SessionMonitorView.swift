@@ -293,8 +293,13 @@ struct SessionMonitorView: View {
     private func listSessionRow(_ session: Session) -> some View {
         let index = flatIndex(for: session)
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: session.terminalType.iconName)
-                .padding(.top, 2)
+            VStack(spacing: 2) {
+                Image(systemName: session.terminalType.iconName)
+                Text(session.agentShortName)
+                    .font(.system(size: 8, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 2)
             sessionContent(session)
         }
         .padding(.vertical, 4)
@@ -317,8 +322,13 @@ struct SessionMonitorView: View {
         let isDownAnimation = animationController.isDownAnimating(sessionID: session.id)
 
         let row = HStack(alignment: .top, spacing: 8) {
-            Image(systemName: session.terminalType.iconName)
-                .padding(.top, 2)
+            VStack(spacing: 2) {
+                Image(systemName: session.terminalType.iconName)
+                Text(session.agentShortName)
+                    .font(.system(size: 8, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 2)
             sessionContent(session)
         }
         .padding(.vertical, 8)
