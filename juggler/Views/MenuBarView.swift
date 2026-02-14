@@ -84,8 +84,7 @@ struct MenuBarView: View {
                             Text("\(rename.displayString) rename")
                         }
                         if let forward = controller.shortcutCycleModeForward,
-                           let backward = controller.shortcutCycleModeBackward
-                        {
+                           let backward = controller.shortcutCycleModeBackward {
                             Text("\(forward.displayString)/\(backward.displayString) mode")
                         }
                     }
@@ -168,6 +167,7 @@ struct QueueModePicker: View {
                 } label: {
                     Text(mode.displayName)
                         .font(.callout)
+                        .padding(.horizontal, 8)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                         .background(selection == mode.rawValue ? Color.accentColor : Color.clear)

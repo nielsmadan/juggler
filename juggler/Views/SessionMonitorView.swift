@@ -169,7 +169,6 @@ struct SessionMonitorView: View {
     private var mainContent: some View {
         VStack(spacing: 0) {
             controlBar
-            Divider()
             if sessionManager.sessions.isEmpty {
                 ContentUnavailableView(
                     "No Sessions",
@@ -262,16 +261,9 @@ struct SessionMonitorView: View {
     }
 
     private var controlBar: some View {
-        HStack {
-            Picker("", selection: $queueOrderMode) {
-                ForEach(QueueOrderMode.allCases, id: \.rawValue) { mode in
-                    Text(mode.displayName).tag(mode.rawValue)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 200)
-            .padding(.trailing, 4)
+        HStack(spacing: 8) {
+            QueueModePicker(selection: $queueOrderMode)
+                .frame(maxWidth: 260)
 
             Button {
                 showModesInfo.toggle()
@@ -298,7 +290,7 @@ struct SessionMonitorView: View {
             .toggleStyle(.button)
             .help("Beacon: show session name when cycling")
         }
-        .padding(.horizontal)
+        .padding(.trailing)
         .padding(.vertical, 8)
         .background(.bar)
     }
