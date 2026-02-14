@@ -654,6 +654,10 @@ struct SessionListShortcutsSection: View {
     @State private var rename = LocalShortcut.load(from: AppStorageKeys.localShortcutRename)
     @State private var cycleModeForward = LocalShortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
     @State private var cycleModeBackward = LocalShortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
+    @State private var togglePause: LocalShortcut? = LocalShortcut.load(from: AppStorageKeys.localShortcutTogglePause)
+        ?? LocalShortcut(keyCode: 1, modifiers: []) // S
+    @State private var resetStats: LocalShortcut? = LocalShortcut.load(from: AppStorageKeys.localShortcutResetStats)
+        ?? LocalShortcut(keyCode: 1, modifiers: .shift) // ⇧S
 
     var body: some View {
         Section("Session List Shortcuts") {
@@ -684,6 +688,16 @@ struct SessionListShortcutsSection: View {
                 label: "Cycle Mode Backward",
                 shortcut: $cycleModeBackward,
                 storageKey: AppStorageKeys.localShortcutCycleModeBackward
+            )
+            LocalShortcutRow(
+                label: "Start/Pause Stats",
+                shortcut: $togglePause,
+                storageKey: AppStorageKeys.localShortcutTogglePause
+            )
+            LocalShortcutRow(
+                label: "Reset Stats",
+                shortcut: $resetStats,
+                storageKey: AppStorageKeys.localShortcutResetStats
             )
         }
     }

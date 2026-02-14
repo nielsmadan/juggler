@@ -450,10 +450,10 @@ struct SessionMonitorView: View {
         if result == .handled { return .handled }
 
         // Monitor-specific keys
-        if enableStats, press.characters.lowercased() == "s" {
+        if enableStats, let shortcut = controller.shortcutTogglePause, shortcut.matches(press) {
             isPaused.toggle()
             return .handled
-        } else if enableStats, press.characters.lowercased() == "r" {
+        } else if enableStats, let shortcut = controller.shortcutResetStats, shortcut.matches(press) {
             globalStatsResetDate = Date()
             return .handled
         }
@@ -606,8 +606,8 @@ struct SessionMonitorView: View {
                 shortcutRow(controller.shortcutRename?.displayString ?? "–", "Rename")
                 shortcutRow(controller.shortcutCycleModeForward?.displayString ?? "–", "Mode →")
                 shortcutRow(controller.shortcutCycleModeBackward?.displayString ?? "–", "Mode ←")
-                shortcutRow("S", "Start/Pause")
-                shortcutRow("R", "Reset Stats")
+                shortcutRow(controller.shortcutTogglePause?.displayString ?? "–", "Start/Pause")
+                shortcutRow(controller.shortcutResetStats?.displayString ?? "–", "Reset Stats")
             }
         }
         .padding(.horizontal)

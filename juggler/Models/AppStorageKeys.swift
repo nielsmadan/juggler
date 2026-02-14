@@ -67,4 +67,6 @@ enum AppStorageKeys {
     static let localShortcutRename = "localShortcutRename"
     static let localShortcutCycleModeForward = "localShortcutCycleModeForward"
     static let localShortcutCycleModeBackward = "localShortcutCycleModeBackward"
+    static let localShortcutTogglePause = "localShortcutTogglePause"
+    static let localShortcutResetStats = "localShortcutResetStats"
 }

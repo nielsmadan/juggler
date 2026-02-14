@@ -17,6 +17,8 @@ final class SessionListController {
     private(set) var shortcutRename: LocalShortcut?
     private(set) var shortcutCycleModeForward: LocalShortcut?
     private(set) var shortcutCycleModeBackward: LocalShortcut?
+    private(set) var shortcutTogglePause: LocalShortcut?
+    private(set) var shortcutResetStats: LocalShortcut?
 
     init() {
         reloadShortcuts()
@@ -31,6 +33,10 @@ final class SessionListController {
         shortcutRename = LocalShortcut.load(from: AppStorageKeys.localShortcutRename)
         shortcutCycleModeForward = LocalShortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
         shortcutCycleModeBackward = LocalShortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
+        shortcutTogglePause = LocalShortcut.load(from: AppStorageKeys.localShortcutTogglePause)
+            ?? LocalShortcut(keyCode: 1, modifiers: []) // S
+        shortcutResetStats = LocalShortcut.load(from: AppStorageKeys.localShortcutResetStats)
+            ?? LocalShortcut(keyCode: 1, modifiers: .shift) // ⇧S
     }
 
     // MARK: - Selection
