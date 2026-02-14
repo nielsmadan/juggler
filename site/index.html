@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Juggler — Keep Every Claude Code Session in the Air</title>
+<meta name="description" content="A native macOS app to cycle through idle Claude Code and OpenCode sessions with a single global hotkey. Works with iTerm2 and Kitty. Zero workflow changes.">
+<meta property="og:title" content="Juggler — Keep Every Claude Code Session in the Air">
+<meta property="og:description" content="Native macOS app to cycle through idle coding sessions with global hotkeys. iTerm2, Kitty, Claude Code, OpenCode. Never lose track of a session again.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Libre+Franklin:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #08090a;
+  --bg-surface: #0f1012;
+  --bg-raised: #161719;
+  --bg-hover: #1c1d20;
+  --border: #232528;
+  --border-light: #2e3034;
+  --text: #d4d2cd;
+  --text-bright: #eeedea;
+  --text-dim: #7c7d82;
+
+  /* Juggle ball palette */
+  --ball-red: #d44343;
+  --ball-amber: #ffb400;
+  --ball-purple: #9068d4;
+  --ball-blue: #4bb1df;
+  --ball-green: #9ed450;
+
+  /* Primary accent uses the green ball */
+  --accent: #9ed450;
+  --accent-dim: rgba(158, 212, 80, 0.12);
+  --accent-glow: rgba(158, 212, 80, 0.06);
+
+  --mono: 'IBM Plex Mono', 'SF Mono', 'Cascadia Code', monospace;
+  --sans: 'Libre Franklin', -apple-system, sans-serif;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+a { color: inherit; }
+
+.wrap {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0 28px;
+}
+
+/* ═══════════ NAV ═══════════ */
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  background: rgba(8, 9, 10, 0.75);
+  border-bottom: 1px solid var(--border);
+}
+
+nav .inner {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0 28px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text-bright);
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.logo-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.nav-right a {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.nav-right a:hover { color: var(--text); }
+
+.btn-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.15s;
+  border: 1px solid var(--border-light);
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.btn-sm:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-dim);
+}
+
+.btn-sm svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+/* ═══════════ HERO ═══════════ */
+.hero {
+  padding: 140px 0 60px;
+  position: relative;
+}
+
+/* Multi-color glow behind hero using ball colors */
+.hero::after {
+  content: '';
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 800px;
+  height: 500px;
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(158, 212, 80, 0.06), transparent 50%),
+    radial-gradient(ellipse at 70% 35%, rgba(75, 177, 223, 0.05), transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(144, 104, 212, 0.04), transparent 50%);
+  pointer-events: none;
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 5px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  margin-bottom: 36px;
+  background: var(--bg-surface);
+}
+
+.hero-badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: blink 2.4s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+h1 {
+  font-family: var(--mono);
+  font-size: clamp(36px, 5.5vw, 56px);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+  color: var(--text-bright);
+  margin-bottom: 24px;
+}
+
+h1 em {
+  font-style: normal;
+  background: linear-gradient(135deg, var(--ball-green), var(--ball-blue));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-desc {
+  font-size: 17px;
+  font-weight: 400;
+  color: var(--text-dim);
+  max-width: 520px;
+  line-height: 1.7;
+  margin-bottom: 40px;
+}
+
+.hero-ctas {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 24px var(--accent-dim);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--text);
+}
+
+.btn-ghost:hover {
+  background: var(--bg-raised);
+  border-color: var(--text-dim);
+}
+
+/* ═══════════ DEMO ═══════════ */
+.demo {
+  padding: 20px 0 100px;
+  position: relative;
+  z-index: 1;
+}
+
+.demo-frame {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.3),
+    0 8px 32px rgba(0,0,0,0.25),
+    0 24px 60px rgba(0,0,0,0.15);
+}
+
+.demo-chrome {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+
+.demo-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.demo-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* Use ball colors for window dots */
+.demo-dots span:nth-child(1) { background: var(--ball-red); }
+.demo-dots span:nth-child(2) { background: var(--ball-amber); }
+.demo-dots span:nth-child(3) { background: var(--ball-green); }
+
+.demo-chrome-title {
+  flex: 1;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-right: 46px;
+}
+
+.demo-content {
+  background: var(--bg);
+  position: relative;
+  line-height: 0;
+}
+
+.demo-content video {
+  display: block;
+}
+
+.demo-caption {
+  text-align: center;
+  margin-top: 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ═══════════ THREE PILLARS ═══════════ */
+.pillars {
+  padding: 80px 0;
+  border-top: 1px solid var(--border);
+}
+
+.pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.pillar {
+  padding: 36px 28px;
+  background: var(--bg-surface);
+}
+
+.pillar-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+/* Color-code each pillar number with a ball color */
+.pillar:nth-child(1) .pillar-num { color: var(--ball-amber); }
+.pillar:nth-child(2) .pillar-num { color: var(--ball-blue); }
+.pillar:nth-child(3) .pillar-num { color: var(--ball-green); }
+
+.pillar h3 {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 10px;
+  letter-spacing: -0.01em;
+}
+
+.pillar p {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.65;
+}
+
+/* ═══════════ HOW IT WORKS ═══════════ */
+.how {
+  padding: 100px 0;
+  border-top: 1px solid var(--border);
+}
+
+.section-tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+h2 {
+  font-family: var(--mono);
+  font-size: clamp(24px, 3.5vw, 34px);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--text-bright);
+  line-height: 1.2;
+  margin-bottom: 20px;
+}
+
+.how-steps {
+  margin-top: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.how-step {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 24px;
+  padding: 28px 0;
+  border-bottom: 1px solid var(--border);
+  align-items: start;
+}
+
+.how-step:last-child { border-bottom: none; }
+
+.step-marker {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid var(--border-light);
+  background: var(--bg-surface);
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--accent);
+}
+
+.step-body h3 {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 6px;
+}
+
+.step-body p {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.step-code {
+  margin-top: 10px;
+  display: inline-block;
+  padding: 8px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent);
+}
+
+/* ═══════════ FEATURES GRID ═══════════ */
+.features {
+  padding: 100px 0;
+  border-top: 1px solid var(--border);
+}
+
+.feat-grid {
+  margin-top: 48px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.feat {
+  padding: 28px 24px;
+  background: var(--bg-surface);
+}
+
+.feat-icon {
+  font-size: 32px;
+  margin-bottom: 14px;
+  display: block;
+  line-height: 1;
+}
+
+.feat h3 {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 6px;
+}
+
+.feat p {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* ═══════════ SHORTCUTS ═══════════ */
+.shortcuts {
+  padding: 100px 0;
+  border-top: 1px solid var(--border);
+}
+
+.sc-table {
+  margin-top: 48px;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sc-table th {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  text-align: left;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.sc-table td {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.sc-table tr:last-child td { border-bottom: none; }
+
+kbd {
+  display: inline-block;
+  padding: 3px 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-bright);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 var(--border);
+  line-height: 1.4;
+}
+
+.sc-note {
+  margin-top: 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ═══════════ COMPAT ═══════════ */
+.compat {
+  padding: 100px 0;
+  border-top: 1px solid var(--border);
+}
+
+.compat-grid {
+  margin-top: 48px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+.compat-group h3 {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+}
+
+.compat-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-bright);
+}
+
+.compat-item .tag {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  padding: 2px 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.compat-item .tag.optional {
+  color: var(--ball-amber);
+  border-color: rgba(255, 180, 0, 0.2);
+  background: rgba(255, 180, 0, 0.06);
+}
+
+/* ═══════════ PHILOSOPHY ═══════════ */
+.philosophy {
+  padding: 100px 0;
+  border-top: 1px solid var(--border);
+}
+
+.phil-columns {
+  margin-top: 48px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.phil-card {
+  padding: 28px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.phil-card h3 {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: var(--text-dim);
+}
+
+.phil-card p {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.65;
+}
+
+.phil-card.highlight {
+  border-color: rgba(158, 212, 80, 0.25);
+  background: linear-gradient(165deg, rgba(158, 212, 80, 0.04) 0%, transparent 50%);
+}
+
+.phil-card.highlight h3 { color: var(--accent); }
+.phil-card.highlight p { color: var(--text); }
+
+/* ═══════════ CTA ═══════════ */
+.cta {
+  padding: 120px 0;
+  text-align: center;
+  border-top: 1px solid var(--border);
+  position: relative;
+}
+
+.cta::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 300px;
+  background:
+    radial-gradient(ellipse at 40% 60%, rgba(158, 212, 80, 0.05), transparent 55%),
+    radial-gradient(ellipse at 60% 50%, rgba(75, 177, 223, 0.04), transparent 55%);
+  pointer-events: none;
+}
+
+.cta > * { position: relative; z-index: 1; }
+
+.cta h2 { margin-bottom: 12px; }
+
+.cta .sub {
+  font-size: 15px;
+  color: var(--text-dim);
+  margin-bottom: 36px;
+}
+
+.cta .hero-ctas { justify-content: center; }
+
+.cta .platform {
+  margin-top: 20px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ═══════════ JUGGLE BALLS DIVIDER ═══════════ */
+.ball-divider {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 0;
+}
+
+.ball-divider span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+.ball-divider span:nth-child(1) { background: var(--ball-red); }
+.ball-divider span:nth-child(2) { background: var(--ball-amber); }
+.ball-divider span:nth-child(3) { background: var(--ball-purple); }
+.ball-divider span:nth-child(4) { background: var(--ball-blue); }
+.ball-divider span:nth-child(5) { background: var(--ball-green); }
+
+/* ═══════════ FOOTER ═══════════ */
+footer {
+  padding: 32px 0;
+  border-top: 1px solid var(--border);
+}
+
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.footer-inner a {
+  text-decoration: none;
+  color: var(--text-dim);
+  transition: color 0.15s;
+}
+
+.footer-inner a:hover { color: var(--text); }
+
+.footer-links {
+  display: flex;
+  gap: 20px;
+}
+
+/* ═══════════ RESPONSIVE ═══════════ */
+@media (max-width: 720px) {
+  .pillars-grid { grid-template-columns: 1fr; }
+  .feat-grid { grid-template-columns: 1fr; }
+  .compat-grid { grid-template-columns: 1fr; }
+  .phil-columns { grid-template-columns: 1fr; }
+  .nav-right a:not(.btn-sm) { display: none; }
+  .footer-inner { flex-direction: column; gap: 12px; text-align: center; }
+}
+
+/* ═══════════ ANIMATIONS ═══════════ */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-inner { animation: rise 0.7s ease-out both; }
+  .demo { animation: rise 0.7s ease-out 0.1s both; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ NAV ═══ -->
+<nav>
+  <div class="inner">
+    <a href="/" class="logo">
+      <div class="logo-icon">
+        <img src="icon.png" alt="Juggler icon">
+      </div>
+      Juggler
+    </a>
+    <div class="nav-right">
+      <a href="#features">Features</a>
+      <a href="#setup">Setup</a>
+      <a href="#compatibility">Compatibility</a>
+      <a href="https://github.com/nielsmadan/juggler" class="btn-sm">
+        <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══ HERO ═══ -->
+<section class="hero">
+  <div class="wrap hero-inner">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      Open source · MIT · macOS
+    </div>
+    <h1>One hotkey.<br><em>Next idle session.</em></h1>
+    <p class="hero-desc">
+      Juggler is a native macOS app that tracks your running coding agent sessions and cycles you to the next one that needs attention. No workflow changes. No new terminal. Just less time wasted.
+    </p>
+    <div class="hero-ctas">
+      <a href="https://github.com/nielsmadan/juggler/releases/latest/download/Juggler.dmg" class="btn btn-primary">↓ Download for macOS</a>
+      <a href="https://github.com/nielsmadan/juggler" class="btn btn-ghost">View Source</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ DEMO ═══ -->
+<section class="demo">
+  <div class="wrap">
+    <div class="demo-frame">
+      <div class="demo-chrome">
+        <div class="demo-dots"><span></span><span></span><span></span></div>
+        <div class="demo-chrome-title">Juggler</div>
+      </div>
+      <div class="demo-content">
+        <video autoplay loop muted playsinline style="width:100%;height:100%;object-fit:cover;">
+          <source src="video.mp4" type="video/mp4">
+        </video>
+      </div>
+    </div>
+    <p class="demo-caption">⇧⌘K cycles to the next idle session and highlights the terminal tab.</p>
+  </div>
+</section>
+
+<!-- ═══ THREE PILLARS ═══ -->
+<section class="pillars">
+  <div class="wrap">
+    <div class="pillars-grid">
+      <div class="pillar">
+        <div class="pillar-num">01</div>
+        <h3>Instant switching</h3>
+        <p>Press one global hotkey from anywhere — any app, any Space — and Juggler takes you straight to the next session that's waiting for input.</p>
+      </div>
+      <div class="pillar">
+        <div class="pillar-num">02</div>
+        <h3>Never lose a window</h3>
+        <p>When you switch, Juggler highlights the terminal tab and pane with a color-coded flash. Across multiple monitors, you'll spot it immediately.</p>
+      </div>
+      <div class="pillar">
+        <div class="pillar-num">03</div>
+        <h3>Zero workflow changes</h3>
+        <p>No new terminal to learn. No forced worktrees. No limit to one repo. Keep your existing setup — Juggler works around you, not the other way around.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ HOW IT WORKS ═══ -->
+<section class="how" id="setup">
+  <div class="wrap">
+    <div class="section-tag">Getting started</div>
+    <h2>Running in two minutes.</h2>
+    <div class="how-steps">
+      <div class="how-step">
+        <div class="step-marker">1</div>
+        <div class="step-body">
+          <h3>Download and open</h3>
+          <p>Grab the latest release from GitHub. Drag to Applications. Launch.</p>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="step-marker">2</div>
+        <div class="step-body">
+          <h3>Walk through onboarding</h3>
+          <p>Juggler guides you through granting Accessibility permissions, setting up your terminal integration, and installing the hooks that let it detect sessions.</p>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="step-marker">3</div>
+        <div class="step-body">
+          <h3>Open your sessions</h3>
+          <p>Start Claude Code or OpenCode sessions as you normally would. Juggler detects them automatically — no registration, no config per project.</p>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="step-marker">4</div>
+        <div class="step-body">
+          <h3>Hit the hotkey</h3>
+          <p>Press ⇧⌘K and you're at the next idle session. That's it.</p>
+          <div class="step-code">⇧⌘K next · ⇧⌘J prev · ⇧⌘L backburner</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FEATURES ═══ -->
+<section class="features" id="features">
+  <div class="wrap">
+    <div class="section-tag">Features</div>
+    <h2>What's in the box.</h2>
+    <div class="feat-grid">
+      <div class="feat">
+        <span class="feat-icon">⌨️</span>
+        <h3>Global hotkeys</h3>
+        <p>Cycle forward, backward, backburner, reactivate, toggle the UI — all from any app, all customizable.</p>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">🎨</span>
+        <h3>Tab & pane highlighting</h3>
+        <p>Cycling color palette marks the active session's tab and pane. Spots it instantly, even across monitors.</p>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">🔔</span>
+        <h3>Notifications</h3>
+        <p>Native macOS alerts when a session goes idle or needs permission. Click the notification to jump there.</p>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">📊</span>
+        <h3>Menu bar & monitor</h3>
+        <p>Popover for a quick glance. Full session monitor window with animated state transitions and stats.</p>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">🔄</span>
+        <h3>Queue modes</h3>
+        <p>Fair (round-robin), Priority (most recent first), or Static (creation order). Match Juggler to how you think.</p>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">⏸️</span>
+        <h3>Backburner</h3>
+        <p>Park sessions you don't need right now. They stay tracked but won't appear in your cycle.</p>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">📈</span>
+        <h3>Idle time stats</h3>
+        <p>Per-session and global idle vs. working time. See exactly how much throughput you're getting.</p>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">⚡</span>
+        <h3>Guided setup</h3>
+        <p>Onboarding walks you through permissions, terminal integration, and hook installation. No manual config.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SHORTCUTS ═══ -->
+<section class="shortcuts">
+  <div class="wrap">
+    <div class="section-tag">Keyboard-first</div>
+    <h2>Hands stay on the keyboard.</h2>
+    <table class="sc-table">
+      <thead>
+        <tr><th>Shortcut</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>K</kbd></td><td>Cycle to next idle session</td></tr>
+        <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>J</kbd></td><td>Cycle backward</td></tr>
+        <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>L</kbd></td><td>Backburner current session</td></tr>
+        <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>H</kbd></td><td>Reactivate all backburnered sessions</td></tr>
+        <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>;</kbd></td><td>Toggle popover / open monitor</td></tr>
+      </tbody>
+    </table>
+    <p class="sc-note">Every action has a keyboard shortcut — including all popover and session monitor controls. All fully customizable.</p>
+  </div>
+</section>
+
+<!-- ═══ COMPAT ═══ -->
+<section class="compat" id="compatibility">
+  <div class="wrap">
+    <div class="section-tag">Compatibility</div>
+    <h2>Works with what you use.</h2>
+    <div class="compat-grid">
+      <div class="compat-group">
+        <h3>Terminals</h3>
+        <div class="compat-item">iTerm2</div>
+        <div class="compat-item">Kitty</div>
+        <div class="compat-item">tmux <span class="tag optional">optional</span></div>
+      </div>
+      <div class="compat-group">
+        <h3>Coding agents</h3>
+        <div class="compat-item">Claude Code</div>
+        <div class="compat-item">OpenCode</div>
+      </div>
+    </div>
+    <p style="margin-top: 24px; font-size: 13px; color: var(--text-dim);">Requires macOS 14.0+ (Sonoma).</p>
+  </div>
+</section>
+
+<!-- ═══ PHILOSOPHY ═══ -->
+<section class="philosophy">
+  <div class="wrap">
+    <div class="section-tag">Philosophy</div>
+    <h2>Your terminal. Your way.</h2>
+    <div class="phil-columns">
+      <div class="phil-card">
+        <h3>Other session managers</h3>
+        <p>Wrap your sessions in a TUI or custom terminal. You give up your splits, profiles, colors, scrollback, and muscle memory in exchange for a dashboard. Often require tmux, force worktrees, or limit you to a single repo.</p>
+      </div>
+      <div class="phil-card highlight">
+        <h3>Juggler</h3>
+        <p>Sits in your menu bar. Detects sessions via hooks. Activates and highlights your real terminal windows natively. Your workflow stays exactly as it was — just with less time spent hunting for idle sessions.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CTA ═══ -->
+<section class="cta">
+  <div class="wrap">
+    <div class="ball-divider">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div class="section-tag">Get started</div>
+    <h2>Stop losing sessions<br>in a sea of tabs.</h2>
+    <p class="sub">Free, open source, and built for people who run coding agents all day.</p>
+    <div class="hero-ctas">
+      <a href="https://github.com/nielsmadan/juggler/releases/latest/download/Juggler.dmg" class="btn btn-primary">↓ Download for macOS</a>
+      <a href="https://github.com/nielsmadan/juggler" class="btn btn-ghost">★ Star on GitHub</a>
+    </div>
+    <p class="platform">macOS 14.0+ · iTerm2 / Kitty · Claude Code / OpenCode · MIT License</p>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══ -->
+<footer>
+  <div class="wrap footer-inner">
+    <span>Built by <a href="https://github.com/nielsmadan">Niels Madan</a></span>
+    <div class="footer-links">
+      <a href="https://github.com/nielsmadan/juggler">GitHub</a>
+      <a href="/legal.html">Legal Notice</a>
+      <a href="/privacy.html">Privacy</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

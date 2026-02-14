@@ -1,74 +1,104 @@
 # Juggler
 
-A macOS menu bar app for navigating Claude Code sessions in iTerm2 via global hotkeys.
+**One hotkey. Next idle session.**
 
-## Features
+A native macOS menu bar app that tracks your running coding agent sessions and cycles you to the next one that needs attention. No workflow changes. No new terminal. Just less time wasted.
 
-- **Session Tracking** - Automatically tracks Claude Code sessions via hooks
-- **Global Hotkeys** - Cycle through sessions without leaving your keyboard
-- **Smart Filtering** - Focus on sessions that need attention (idle or waiting for permission)
-- **Backburner Mode** - Temporarily hide sessions you're not actively working on
-- **Tab Highlighting** - Visual feedback when switching between sessions
-- **Notifications** - Get alerted when sessions need your attention
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen)
 
-## Requirements
+<p align="center">
+  <img src="site/video.gif" alt="Juggler demo" width="720">
+</p>
 
-- macOS 14.0 or later
-- iTerm2
+## Why Juggler
+
+- **Instant switching** — Press one global hotkey from anywhere and Juggler takes you straight to the next session waiting for input
+- **Never lose a window** — Color-coded tab and pane highlighting lets you spot the active session immediately, even across monitors
+- **Zero workflow changes** — No new terminal to learn, no forced worktrees, no single-repo limits. Your existing setup stays exactly as it was
 
 ## Installation
 
-1. Download the latest release
-2. Move `Juggler.app` to your Applications folder
-3. Launch Juggler from Applications
-4. Grant Accessibility permissions when prompted (required for global hotkeys)
-5. Run the onboarding flow to install Claude Code hooks
+### Homebrew (recommended)
 
-## Usage
+```bash
+brew install --cask nielsmadan/juggler/juggler
+```
 
-### Global Hotkeys
+### Manual download
 
-| Hotkey | Action |
-|--------|--------|
-| `Shift+Cmd+J` | Jump to next idle/permission session |
-| `Shift+Cmd+K` | Jump to previous idle/permission session |
-| `Shift+Cmd+L` | Send current session to backburner |
-| `Shift+Cmd+H` | Reactivate all backburner sessions |
-| `Shift+Cmd+;` | Show/hide session monitor window |
+Download the latest DMG from [GitHub Releases](https://github.com/nielsmadan/juggler/releases/latest/download/Juggler.dmg). Open the DMG and drag Juggler to Applications.
 
-### Menu Bar
+## Getting Started
 
-Click the Juggler icon in the menu bar to:
-- View all active sessions and their status
-- Click a session to switch to it
-- Access preferences and quit
+1. **Download and open** — Launch Juggler from Applications
+2. **Walk through onboarding** — Grant Accessibility permissions, set up terminal integration, install hooks
+3. **Open your sessions** — Start Claude Code or OpenCode as you normally would. Juggler detects them automatically
+4. **Hit the hotkey** — Press `⇧⌘K` and you're at the next idle session
 
-### Session States
+## Features
 
-- **Idle** - Claude is waiting for input
-- **Working** - Claude is currently processing
-- **Permission** - Claude needs permission to proceed
-- **Backburner** - Session temporarily hidden from cycling
+- **Global hotkeys** — Cycle forward, backward, backburner, reactivate, toggle UI — all from any app, all customizable
+- **Tab & pane highlighting** — Cycling color palette marks the active session's tab and pane
+- **Notifications** — Native macOS alerts when a session goes idle or needs permission. Click to jump there
+- **Menu bar & monitor** — Popover for a quick glance. Full session monitor window with animated state transitions and stats
+- **Queue modes** — Fair (round-robin), Priority (most recent first), Static (creation order), or Grouped (by state)
+- **Backburner** — Park sessions you don't need right now. They stay tracked but won't appear in your cycle
+- **Idle time stats** — Per-session and global idle vs. working time
+- **Guided setup** — Onboarding walks you through permissions, terminal integration, and hook installation
 
-## Installing Claude Code Hooks
+## Keyboard Shortcuts
 
-Juggler tracks sessions through Claude Code's hook system. The onboarding flow will install hooks automatically, but you can also install them manually:
+| Shortcut | Action |
+|----------|--------|
+| `⇧⌘K` | Cycle to next idle session |
+| `⇧⌘J` | Cycle backward |
+| `⇧⌘L` | Backburner current session |
+| `⇧⌘H` | Reactivate all backburnered sessions |
+| `⇧⌘;` | Toggle popover / open monitor |
 
-### Automatic Installation
+All shortcuts are customizable in Settings.
 
-Run the install script bundled with Juggler:
+## Compatibility
+
+**Terminals:** iTerm2, Kitty, tmux (optional multiplexer)
+
+**Coding agents:** Claude Code, OpenCode
+
+**Requires:** macOS 14.0+ (Sonoma)
+
+## How It Works
+
+Juggler runs a lightweight HTTP server on port 7483 that receives events from coding agent hooks. When a session changes state (idle, working, permission, compacting), Juggler updates its tracking and can notify you or cycle you to sessions that need attention.
+
+**Session detection:** Claude Code hooks (`~/.claude/hooks/juggler/notify.sh`) fire on session lifecycle events and POST JSON to Juggler's HTTP server with the session ID, terminal session ID, working directory, and state.
+
+**Terminal integration:** For iTerm2, a Python daemon communicates via iTerm2's Python API over a Unix socket, providing session switching, tab highlighting, and focus tracking. For Kitty, Juggler uses `kitten @` remote control commands.
+
+**Session states:**
+- **Idle** — Agent is waiting for user input
+- **Permission** — Agent needs permission to proceed
+- **Working** — Agent is currently processing
+- **Compacting** — Agent is compacting context
+- **Backburner** — Session temporarily excluded from cycling
+
+## Installing Hooks
+
+The onboarding flow installs hooks automatically. To install manually:
+
+### Automatic
+
 ```bash
 /Applications/Juggler.app/Contents/Resources/install.sh
 ```
 
-### Manual Installation
+### Manual
 
 1. Create the hooks directory:
    ```bash
    mkdir -p ~/.claude/hooks/juggler
    ```
 
-2. Copy the `notify.sh` script from Juggler's Resources folder to `~/.claude/hooks/juggler/`
+2. Copy `notify.sh` from Juggler's Resources folder to `~/.claude/hooks/juggler/`
 
 3. Add hooks to `~/.claude/settings.json`:
    ```json
@@ -91,18 +121,18 @@ Run the install script bundled with Juggler:
    }
    ```
 
-## How It Works
+## Your Terminal. Your Way.
 
-Juggler runs a lightweight HTTP server on port 7483 that receives events from Claude Code hooks. When a session changes state, Juggler updates its internal tracking and can notify you or help you navigate to sessions that need attention.
+Other session managers wrap your sessions in a TUI or custom terminal — you give up your splits, profiles, colors, scrollback, and muscle memory in exchange for a dashboard.
 
-The app communicates with iTerm2 via a Python daemon using iTerm2's Python API over a Unix socket. This provides fast, reliable session switching and tab highlighting.
+Juggler sits in your menu bar. Detects sessions via hooks. Activates and highlights your real terminal windows natively. Your workflow stays exactly as it was — just with less time spent hunting for idle sessions.
 
 ## Development
 
-- [CLAUDE.md](CLAUDE.md) - Development documentation and build instructions
-- [docs/tech/overview.md](docs/tech/overview.md) - Technical architecture
-- [docs/requirements.md](docs/requirements.md) - Feature requirements
+- [CLAUDE.md](CLAUDE.md) — Development documentation and build instructions
+- [docs/tech/overview.md](docs/tech/overview.md) — Technical architecture
+- [docs/requirements.md](docs/requirements.md) — Feature requirements
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE) for details.
