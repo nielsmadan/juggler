@@ -84,6 +84,7 @@ final class HotkeyManager {
             }
         }
         logDebug(.hotkey, "No session to cycle to")
+        BeaconManager.shared.show(sessionName: "All At Work")
     }
 
     private func handleBackburner() async {
