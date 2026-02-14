@@ -284,3 +284,55 @@ import Testing
     #expect(payload.event == "session_terminated")
     #expect(payload.windowID == "99")
 }
+
+// MARK: - HookEventMapper Agent-Aware Tests
+
+@Test func mapOpenCode_sessionCreated_mapsToIdle() {
+    let action = HookEventMapper.map(event: "session.created", agent: "opencode")
+    #expect(action == .updateState(.idle))
+}
+
+@Test func mapOpenCode_sessionStatusIdle_mapsToIdle() {
+    let action = HookEventMapper.map(event: "session.status.idle", agent: "opencode")
+    #expect(action == .updateState(.idle))
+}
+
+@Test func mapOpenCode_sessionStatusBusy_mapsToWorking() {
+    let action = HookEventMapper.map(event: "session.status.busy", agent: "opencode")
+    #expect(action == .updateState(.working))
+}
+
+@Test func mapOpenCode_sessionStatusRetry_mapsToWorking() {
+    let action = HookEventMapper.map(event: "session.status.retry", agent: "opencode")
+    #expect(action == .updateState(.working))
+}
+
+@Test func mapOpenCode_permissionAsked_mapsToPermission() {
+    let action = HookEventMapper.map(event: "permission.asked", agent: "opencode")
+    #expect(action == .updateState(.permission))
+}
+
+@Test func mapOpenCode_sessionCompacted_mapsToCompacting() {
+    let action = HookEventMapper.map(event: "session.compacted", agent: "opencode")
+    #expect(action == .updateState(.compacting))
+}
+
+@Test func mapOpenCode_sessionDeleted_mapsToRemoveSession() {
+    let action = HookEventMapper.map(event: "session.deleted", agent: "opencode")
+    #expect(action == .removeSession)
+}
+
+@Test func mapOpenCode_serverDisposed_mapsToRemoveSession() {
+    let action = HookEventMapper.map(event: "server.instance.disposed", agent: "opencode")
+    #expect(action == .removeSession)
+}
+
+@Test func mapOpenCode_unknownEvent_mapsToIgnore() {
+    let action = HookEventMapper.map(event: "lsp.updated", agent: "opencode")
+    #expect(action == .ignore)
+}
+
+@Test func mapClaudeCode_defaultAgent_unchanged() {
+    let action = HookEventMapper.map(event: "Stop")
+    #expect(action == .updateState(.idle))
+}

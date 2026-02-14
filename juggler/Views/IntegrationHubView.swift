@@ -13,11 +13,13 @@ struct IntegrationHubView: View {
     @State private var showingKittySetup = false
     @State private var showingTmuxSetup = false
     @State private var showingClaudeCodeSetup = false
+    @State private var showingOpenCodeSetup = false
 
     @State private var iterm2Configured = false
     @State private var kittyConfigured = false
     @State private var tmuxConfigured = false
     @State private var claudeCodeConfigured = false
+    @State private var openCodeConfigured = false
 
     var hasAnyTerminal: Bool {
         iterm2Configured || kittyConfigured
@@ -85,10 +87,9 @@ struct IntegrationHubView: View {
                 IntegrationCard(
                     icon: "hammer",
                     title: "OpenCode",
-                    description: "Coming soon",
-                    isConfigured: false,
-                    isDisabled: true,
-                    action: {}
+                    description: "Install plugin for session tracking",
+                    isConfigured: openCodeConfigured,
+                    action: { showingOpenCodeSetup = true }
                 )
             }
 
@@ -113,6 +114,10 @@ struct IntegrationHubView: View {
         }
         .sheet(isPresented: $showingClaudeCodeSetup) {
             ClaudeCodeSetupView(isConfigured: $claudeCodeConfigured)
+                .frame(width: 540, height: 420)
+        }
+        .sheet(isPresented: $showingOpenCodeSetup) {
+            OpenCodeSetupView(isConfigured: $openCodeConfigured)
                 .frame(width: 540, height: 420)
         }
     }
@@ -489,6 +494,99 @@ struct ClaudeCodeSetupView: View {
                 isInstalling = false
             }
         }
+    }
+}
+
+// MARK: - OpenCode Setup
+
+struct OpenCodeSetupView: View {
+    @Binding var isConfigured: Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var isInstalling = false
+    @State private var isInstalled = false
+    @State private var errorMessage: String?
+
+    private var pluginPath: String {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/opencode/plugins/juggler-opencode.ts").path
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("OpenCode Setup")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Text(
+                "Juggler needs to install a plugin in ~/.config/opencode/plugins to detect when OpenCode sessions become idle or need input."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+
+            VStack(alignment: .leading, spacing: 16) {
+                SetupStep(
+                    number: 1,
+                    isComplete: isInstalled,
+                    title: "Install Plugin",
+                    detail: "Adds juggler-opencode.ts to ~/.config/opencode/plugins/"
+                )
+            }
+            .padding()
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(8)
+
+            if isInstalled {
+                Label("Plugin Installed", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else if let error = errorMessage {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            }
+
+            if !isInstalled {
+                Button("Install Plugin") {
+                    installPlugin()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isInstalling)
+            }
+
+            Spacer()
+
+            HStack {
+                Button("Cancel") {
+                    dismiss()
+                }
+
+                Spacer()
+
+                Button("Done") {
+                    isConfigured = isInstalled
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!isInstalled)
+            }
+        }
+        .padding()
+        .onAppear {
+            isInstalled = FileManager.default.fileExists(atPath: pluginPath)
+        }
+    }
+
+    private func installPlugin() {
+        isInstalling = true
+        errorMessage = nil
+
+        do {
+            try OpenCodePluginInstaller.install()
+            isInstalled = true
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isInstalling = false
     }
 }
 

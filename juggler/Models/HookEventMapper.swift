@@ -9,38 +9,50 @@ enum HookEventMapper {
         case ignore
     }
 
-    /// Maps a Claude Code hook event name to a Juggler action
-    /// - Parameter event: The raw event name (e.g., "PreToolUse", "Stop")
-    /// - Returns: The action to take
-    nonisolated static func map(event: String) -> MappedAction {
+    /// Maps a hook event name to a Juggler action, dispatching by agent
+    nonisolated static func map(event: String, agent: String = "claude-code") -> MappedAction {
+        switch agent {
+        case "opencode":
+            mapOpenCode(event: event)
+        default:
+            mapClaudeCode(event: event)
+        }
+    }
+
+    private nonisolated static func mapClaudeCode(event: String) -> MappedAction {
         switch event {
-        // Session lifecycle - idle states
         case "SessionStart", "Stop":
             .updateState(.idle)
-
-        // Active work - working states
         case "UserPromptSubmit", "PreToolUse", "PostToolUse",
              "PostToolUseFailure", "SubagentStart":
             .updateState(.working)
-
-        // SubagentStop is ignored - it fires asynchronously AFTER the main Stop event,
-        // which would incorrectly overwrite the idle state. See docs/tech/hooks.md for details.
+        // SubagentStop fires asynchronously after the main Stop event,
+        // which would incorrectly overwrite the idle state back to working.
         case "SubagentStop":
             .ignore
-
-        // Permission required
         case "PermissionRequest":
             .updateState(.permission)
-
-        // Context compaction
         case "PreCompact":
             .updateState(.compacting)
-
-        // Session termination
         case "SessionEnd":
             .removeSession
+        default:
+            .ignore
+        }
+    }
 
-        // Unknown events - ignore gracefully
+    private nonisolated static func mapOpenCode(event: String) -> MappedAction {
+        switch event {
+        case "session.created", "session.status.idle":
+            .updateState(.idle)
+        case "session.status.busy", "session.status.retry":
+            .updateState(.working)
+        case "permission.asked":
+            .updateState(.permission)
+        case "session.compacted":
+            .updateState(.compacting)
+        case "session.deleted", "server.instance.disposed":
+            .removeSession
         default:
             .ignore
         }

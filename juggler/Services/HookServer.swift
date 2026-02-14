@@ -196,7 +196,7 @@ actor HookServer {
             logDebug(.hooks, "Hook received: \(payload.event) from \(payload.agent) (\(terminalType.displayName))")
         }
 
-        let action = HookEventMapper.map(event: payload.event)
+        let action = HookEventMapper.map(event: payload.event, agent: payload.agent)
 
         switch action {
         case let .updateState(state):
