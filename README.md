@@ -4,7 +4,7 @@
 
 A native macOS menu bar app that tracks your running coding agent sessions and cycles you to the next one that needs attention. No workflow changes. No new terminal. Just less time wasted.
 
-![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen)
 
 <p align="center">
   <img src="site/video.gif" alt="Juggler demo" width="720">
@@ -68,58 +68,18 @@ All shortcuts are customizable in Settings.
 
 ## How It Works
 
-Juggler runs a lightweight HTTP server on port 7483 that receives events from coding agent hooks. When a session changes state (idle, working, permission, compacting), Juggler updates its tracking and can notify you or cycle you to sessions that need attention.
-
-**Session detection:** Claude Code hooks (`~/.claude/hooks/juggler/notify.sh`) fire on session lifecycle events and POST JSON to Juggler's HTTP server with the session ID, terminal session ID, working directory, and state.
+Juggler runs a lightweight HTTP server on port 7483 that receives state-change events from your coding agent. When a session goes idle, starts working, or needs permission, Juggler updates its tracking and can notify you or cycle you to sessions that need attention.
 
 **Terminal integration:** For iTerm2, a Python daemon communicates via iTerm2's Python API over a Unix socket, providing session switching, tab highlighting, and focus tracking. For Kitty, Juggler uses `kitten @` remote control commands.
 
-**Session states:**
-- **Idle** — Agent is waiting for user input
-- **Permission** — Agent needs permission to proceed
-- **Working** — Agent is currently processing
-- **Compacting** — Agent is compacting context
-- **Backburner** — Session temporarily excluded from cycling
+**Session states:** idle, permission, working, compacting, backburner
 
-## Installing Hooks
+## Agent Integration
 
-The onboarding flow installs hooks automatically. To install manually:
+Juggler's onboarding flow sets up agent integration automatically. You can also configure it manually:
 
-### Automatic
-
-```bash
-/Applications/Juggler.app/Contents/Resources/install.sh
-```
-
-### Manual
-
-1. Create the hooks directory:
-   ```bash
-   mkdir -p ~/.claude/hooks/juggler
-   ```
-
-2. Copy `notify.sh` from Juggler's Resources folder to `~/.claude/hooks/juggler/`
-
-3. Add hooks to `~/.claude/settings.json`:
-   ```json
-   {
-     "hooks": {
-       "SessionStart": [{
-         "hooks": [{"type": "command", "command": "~/.claude/hooks/juggler/notify.sh start", "timeout": 5}]
-       }],
-       "Notification": [{
-         "matcher": "idle_prompt|permission_prompt",
-         "hooks": [{"type": "command", "command": "~/.claude/hooks/juggler/notify.sh idle", "timeout": 5}]
-       }],
-       "UserPromptSubmit": [{
-         "hooks": [{"type": "command", "command": "~/.claude/hooks/juggler/notify.sh working", "timeout": 5}]
-       }],
-       "Stop": [{
-         "hooks": [{"type": "command", "command": "~/.claude/hooks/juggler/notify.sh stop", "timeout": 5}]
-       }]
-     }
-   }
-   ```
+- **Claude Code** — Shell hooks installed to `~/.claude/hooks/juggler/`. Alternatively, run `/Applications/Juggler.app/Contents/Resources/install.sh`
+- **OpenCode** — TypeScript plugin installed to `~/.config/opencode/plugins/juggler-opencode.ts`. Configure via Settings → Integrations
 
 ## Your Terminal. Your Way.
 
