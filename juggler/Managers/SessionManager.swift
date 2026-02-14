@@ -15,7 +15,16 @@ final class SessionManager {
 
     private(set) var cyclingState = CyclingState.initial
     private(set) var focusedSessionID: String? // terminalSessionID of actually focused session in iTerm2
+    private(set) var isTerminalAppActive = false
     private let cyclingEngine: CyclingEngine
+    private var appFocusObserver: NSObjectProtocol?
+
+    /// True when a tracked session is focused in an active terminal app.
+    /// Computed from two independent signals to avoid race conditions.
+    var isSessionFocused: Bool {
+        guard isTerminalAppActive, let focusedID = focusedSessionID else { return false }
+        return matchesTrackedSession(focusedID)
+    }
 
     /// Set during hotkey-driven activation to suppress intermediate focus events from terminals.
     /// When non-nil, `updateFocusedSession` ignores focus events that don't match this target.
@@ -225,6 +234,47 @@ final class SessionManager {
         activationTarget = nil
     }
 
+    /// Whether the given terminal session ID matches any tracked session.
+    private func matchesTrackedSession(_ terminalSessionID: String) -> Bool {
+        sessions.contains(where: {
+            $0.id == terminalSessionID
+                || $0.terminalSessionID == terminalSessionID
+                || $0.terminalSessionID.hasSuffix(terminalSessionID)
+        })
+    }
+
+    /// Observe app activation to track whether a terminal app is frontmost.
+    @MainActor
+    func startAppFocusObserver() {
+        // Guard against double-registration
+        if let existing = appFocusObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(existing)
+        }
+
+        let terminalBundleIDs = Set(TerminalType.allCases.map(\.bundleIdentifier))
+
+        appFocusObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self else { return }
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                  let bundleID = app.bundleIdentifier
+            else { return }
+
+            let isTerminal = terminalBundleIDs.contains(bundleID)
+            logDebug(.session, "App focus: \(bundleID) activated, isTerminal=\(isTerminal)")
+            isTerminalAppActive = isTerminal
+        }
+
+        // Initialize based on current frontmost app
+        if let frontmost = NSWorkspace.shared.frontmostApplication,
+           let bundleID = frontmost.bundleIdentifier {
+            isTerminalAppActive = terminalBundleIDs.contains(bundleID)
+        }
+    }
+
     @MainActor
     func updateFocusedSession(terminalSessionID: String?) {
         // During hotkey activation, ignore focus events that don't match the target.
@@ -251,17 +301,21 @@ final class SessionManager {
         if let newID = terminalSessionID, let currentID = focusedSessionID,
            currentID != newID, currentID.contains(newID)
         {
+            logDebug(.session, "Focus event (bare UUID \(newID) subsumed by \(currentID))")
             return
         }
 
         focusedSessionID = terminalSessionID
 
-        if terminalSessionID != nil {
+        if let newID = terminalSessionID {
+            logDebug(.session, "Focus updated to \(newID) → isSessionFocused=\(isSessionFocused)")
             cyclingState = cyclingEngine.syncStateToFocus(
                 sessions: sessions,
                 focusedSessionID: terminalSessionID,
                 state: cyclingState
             )
+        } else {
+            logDebug(.session, "Focus cleared → isSessionFocused=\(isSessionFocused)")
         }
     }
 

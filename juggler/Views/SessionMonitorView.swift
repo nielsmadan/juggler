@@ -314,7 +314,7 @@ struct SessionMonitorView: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .listRowBackground(
-            controller.selectedIndex == index
+            sessionManager.isSessionFocused && controller.selectedIndex == index
                 ? highlightColor(at: index ?? 0).opacity(0.15)
                 : Color.clear
         )
@@ -344,7 +344,7 @@ struct SessionMonitorView: View {
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            controller.selectedIndex == index
+            sessionManager.isSessionFocused && controller.selectedIndex == index
                 ? highlightColor(at: index ?? 0).opacity(0.15)
                 : Color.clear
         )

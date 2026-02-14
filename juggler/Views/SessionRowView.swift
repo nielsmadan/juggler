@@ -22,7 +22,7 @@ struct SessionRowView: View {
     }
 
     private var isCurrent: Bool {
-        sessionManager.currentSession?.id == session.id
+        sessionManager.isSessionFocused && sessionManager.currentSession?.id == session.id
     }
 
     private var highlightColor: Color {

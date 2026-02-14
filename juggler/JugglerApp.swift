@@ -163,6 +163,7 @@ struct JugglerApp: App {
         Task { @MainActor in
             HotkeyManager.shared.setupHotkeys()
             StatusBarManager.shared.setup()
+            SessionManager.shared.startAppFocusObserver()
         }
     }
 
