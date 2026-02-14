@@ -29,6 +29,11 @@ struct SettingsView: View {
                     Label("Highlighting", systemImage: "sparkles")
                 }
 
+            BeaconSettingsView()
+                .tabItem {
+                    Label("Beacon", systemImage: "text.bubble")
+                }
+
             ShortcutsSettingsView()
                 .tabItem {
                     Label("Shortcuts", systemImage: "keyboard")
@@ -50,7 +55,8 @@ struct SettingsView: View {
 
 struct GeneralSettingsView: View {
     @AppStorage(AppStorageKeys.launchAtLogin) private var launchAtLogin = false
-    @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleMode: String = SessionTitleMode.tabTitle.rawValue
+    @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleMode: String = SessionTitleMode.tabTitle
+        .rawValue
     @AppStorage(AppStorageKeys.notifyOnIdle) private var notifyOnIdle = true
     @AppStorage(AppStorageKeys.notifyOnPermission) private var notifyOnPermission = true
     @AppStorage(AppStorageKeys.playSound) private var playSound = true
@@ -577,20 +583,6 @@ struct IntegrationSettingsView: View {
             openCodeInstallError = error.localizedDescription
         }
         isInstallingOpenCodePlugin = false
-    }
-}
-
-private struct SettingWithDescription<Content: View>: View {
-    let description: String
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            content
-            Text(description)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
     }
 }
 

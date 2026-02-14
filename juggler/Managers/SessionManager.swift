@@ -203,7 +203,8 @@ final class SessionManager {
            let session = cyclable.first(where: {
                $0.id == focusedID || $0.terminalSessionID == focusedID
                    || $0.terminalSessionID.hasSuffix(focusedID)
-           }) {
+           })
+        {
             return session
         }
 
@@ -248,7 +249,8 @@ final class SessionManager {
         // Don't let a bare UUID from iTerm2 focus events overwrite
         // a more specific composite ID (e.g., "w0t0p0:UUID:%1" contains "UUID")
         if let newID = terminalSessionID, let currentID = focusedSessionID,
-           currentID != newID, currentID.contains(newID) {
+           currentID != newID, currentID.contains(newID)
+        {
             return
         }
 
@@ -354,7 +356,8 @@ final class SessionManager {
 
             // If this new session matches the currently focused pane, sync cycling state
             if let focusedID = focusedSessionID,
-               session.terminalSessionID.hasSuffix(focusedID) {
+               session.terminalSessionID.hasSuffix(focusedID)
+            {
                 cyclingState = cyclingEngine.syncStateToFocus(
                     sessions: sessions,
                     focusedSessionID: focusedID,

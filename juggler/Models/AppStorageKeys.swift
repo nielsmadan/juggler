@@ -52,6 +52,13 @@ enum AppStorageKeys {
     static let iterm2Enabled = "iterm2Enabled"
     static let kittyEnabled = "kittyEnabled"
 
+    // Beacon HUD
+    static let beaconEnabled = "beaconEnabled"
+    static let beaconPosition = "beaconPosition"
+    static let beaconSize = "beaconSize"
+    static let beaconDuration = "beaconDuration"
+    static let beaconAnchor = "beaconAnchor"
+
     // Logging
     static let verboseLogging = "verboseLogging"
 

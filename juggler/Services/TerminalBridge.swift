@@ -47,7 +47,8 @@ enum TerminalActivation {
             try await bridge.activate(sessionID: session.terminalSessionID)
         } catch let error as TerminalBridgeError {
             if case let .commandFailed(message) = error,
-               message.localizedCaseInsensitiveContains("session not found") {
+               message.localizedCaseInsensitiveContains("session not found")
+            {
                 await MainActor.run {
                     SessionManager.shared.removeSession(sessionID: session.id)
                 }
@@ -92,7 +93,7 @@ enum TerminalActivation {
             [
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorRed)),
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorGreen)),
-                Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorBlue))
+                Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorBlue)),
             ]
         }
         return HighlightConfig(enabled: true, color: color, duration: duration > 0 ? duration : 2.0)
@@ -111,7 +112,7 @@ enum TerminalActivation {
             [
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorRed)),
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorGreen)),
-                Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorBlue))
+                Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorBlue)),
             ]
         }
         return HighlightConfig(enabled: true, color: color, duration: duration > 0 ? duration : 1.0)

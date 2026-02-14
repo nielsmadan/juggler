@@ -15,11 +15,14 @@ struct SessionMonitorView: View {
     @AppStorage(AppStorageKeys.enableStats) private var enableStats = true
     @AppStorage(AppStorageKeys.idleSessionColoring) private var idleSessionColoring = true
     @AppStorage(AppStorageKeys.showShortcutHelper) private var showShortcutHelper = true
-    @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode.tabTitle.rawValue
+    @AppStorage(AppStorageKeys.beaconEnabled) private var beaconEnabled = true
+    @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode.tabTitle
+        .rawValue
 
     private var titleMode: SessionTitleMode {
         SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .tabTitle
     }
+
     @State private var controller = SessionListController()
     @State private var globalStatsResetDate: Date?
     @State private var isPaused = false
@@ -76,7 +79,7 @@ struct SessionMonitorView: View {
         let sections: [(SectionType, String)] = [
             (.idle, "Idle"),
             (.working, "Working"),
-            (.backburner, "Backburner")
+            (.backburner, "Backburner"),
         ]
 
         for (section, title) in sections {
@@ -110,55 +113,56 @@ struct SessionMonitorView: View {
             mainContent
         }
         .focusable()
-            .focusEffectDisabled()
-            .onKeyPress(.downArrow) {
-                controller.moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
+        .focusEffectDisabled()
+        .onKeyPress(.downArrow) {
+            controller.moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
+            controller.trackSelectedSession(sessions: sessionManager.sessions)
+            return .handled
+        }
+        .onKeyPress(.upArrow) {
+            controller.moveSelection(by: -1, sessionCount: sessionManager.sessions.count)
+            controller.trackSelectedSession(sessions: sessionManager.sessions)
+            return .handled
+        }
+        .onKeyPress(.return) { activateSelected(); return .handled }
+        .onKeyPress { handleKeyPress($0) }
+        .sheet(item: $controller.sessionToRename) { session in
+            RenameSessionView(session: session)
+                .environment(sessionManager)
+        }
+        .onChange(of: sessionManager.sessions) { _, newSessions in
+            controller.syncSelection(sessions: newSessions)
+        }
+        .onAppear {
+            controller.syncSelection(sessions: sessionManager.sessions)
+        }
+        .onChange(of: queueOrderMode) { _, newMode in
+            if let mode = QueueOrderMode(rawValue: newMode) {
+                sessionManager.reorderForMode(mode)
+            }
+        }
+        .onChange(of: sessionManager.currentSession?.id) { _, _ in
+            // Sync selectedIndex when currentSession changes
+            if let current = sessionManager.currentSession,
+               let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id })
+            {
+                controller.selectedIndex = index
                 controller.trackSelectedSession(sessions: sessionManager.sessions)
-                return .handled
             }
-            .onKeyPress(.upArrow) {
-                controller.moveSelection(by: -1, sessionCount: sessionManager.sessions.count)
+        }
+        .onChange(of: sessionManager.focusedSessionID) { _, newFocusedID in
+            // Sync selectedIndex when focus changes (direct observer for reliability)
+            guard let focusedID = newFocusedID else { return }
+            if let index = sessionManager.sessions.firstIndex(where: {
+                $0.terminalSessionID == focusedID || $0.terminalSessionID.hasSuffix(focusedID)
+            }) {
+                controller.selectedIndex = index
                 controller.trackSelectedSession(sessions: sessionManager.sessions)
-                return .handled
             }
-            .onKeyPress(.return) { activateSelected(); return .handled }
-            .onKeyPress { handleKeyPress($0) }
-            .sheet(item: $controller.sessionToRename) { session in
-                RenameSessionView(session: session)
-                    .environment(sessionManager)
-            }
-            .onChange(of: sessionManager.sessions) { _, newSessions in
-                controller.syncSelection(sessions: newSessions)
-            }
-            .onAppear {
-                controller.syncSelection(sessions: sessionManager.sessions)
-            }
-            .onChange(of: queueOrderMode) { _, newMode in
-                if let mode = QueueOrderMode(rawValue: newMode) {
-                    sessionManager.reorderForMode(mode)
-                }
-            }
-            .onChange(of: sessionManager.currentSession?.id) { _, _ in
-                // Sync selectedIndex when currentSession changes
-                if let current = sessionManager.currentSession,
-                   let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id }) {
-                    controller.selectedIndex = index
-                    controller.trackSelectedSession(sessions: sessionManager.sessions)
-                }
-            }
-            .onChange(of: sessionManager.focusedSessionID) { _, newFocusedID in
-                // Sync selectedIndex when focus changes (direct observer for reliability)
-                guard let focusedID = newFocusedID else { return }
-                if let index = sessionManager.sessions.firstIndex(where: {
-                    $0.terminalSessionID == focusedID || $0.terminalSessionID.hasSuffix(focusedID)
-                }) {
-                    controller.selectedIndex = index
-                    controller.trackSelectedSession(sessions: sessionManager.sessions)
-                }
-            }
-            .onAppear {
-                controller.reloadShortcuts()
-            }
+        }
+        .onAppear {
+            controller.reloadShortcuts()
+        }
     }
 
     @ViewBuilder
@@ -285,6 +289,14 @@ struct SessionMonitorView: View {
                 }
                 .padding()
             }
+
+            Spacer()
+
+            Toggle(isOn: $beaconEnabled) {
+                Image(systemName: "text.bubble")
+            }
+            .toggleStyle(.button)
+            .help("Beacon: show session name when cycling")
         }
         .padding(.horizontal)
         .padding(.vertical, 8)

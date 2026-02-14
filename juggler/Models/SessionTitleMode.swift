@@ -1,11 +1,11 @@
 import Foundation
 
 enum SessionTitleMode: String, CaseIterable {
-    case tabTitle = "tabTitle"
-    case windowTitle = "windowTitle"
-    case windowAndTabTitle = "windowAndTabTitle"
-    case folderName = "folderName"
-    case parentAndFolderName = "parentAndFolderName"
+    case tabTitle
+    case windowTitle
+    case windowAndTabTitle
+    case folderName
+    case parentAndFolderName
 
     var displayName: String {
         switch self {

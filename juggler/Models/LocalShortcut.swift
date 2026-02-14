@@ -139,7 +139,7 @@ struct LocalShortcut: Codable, Equatable {
         kVK_F9: "F9",
         kVK_F10: "F10",
         kVK_F11: "F11",
-        kVK_F12: "F12"
+        kVK_F12: "F12",
     ]
 
     static func specialKeyString(keyCode: UInt16) -> String? {

@@ -66,6 +66,13 @@ final class HotkeyManager {
             do {
                 try await TerminalActivation.activate(session: target, trigger: .hotkey)
                 SessionManager.shared.endActivation()
+                let titleMode = SessionTitleMode(
+                    rawValue: UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
+                ) ?? .tabTitle
+                let displayName = SessionManager.shared.disambiguatedDisplayName(
+                    for: target, titleMode: titleMode
+                )
+                BeaconManager.shared.show(sessionName: displayName)
                 return
             } catch TerminalBridgeError.sessionNotFound {
                 SessionManager.shared.endActivation()

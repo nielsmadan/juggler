@@ -118,7 +118,7 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [
             .keyDown,
             .leftMouseUp,
-            .rightMouseUp
+            .rightMouseUp,
         ]) { [weak self] event in
             guard let self, isRecording else { return event }
             return handleEvent(event)
@@ -144,7 +144,8 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
 
     // Block ALL text changes
     func control(_: NSControl, textView _: NSTextView, shouldChangeTextIn _: NSRange,
-                 replacementString _: String?) -> Bool {
+                 replacementString _: String?) -> Bool
+    {
         false
     }
 
@@ -217,7 +218,8 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
 
         // Delete/Backspace without modifiers: clear shortcut
         if modifiers.isEmpty,
-           event.keyCode == UInt16(kVK_Delete) || event.keyCode == UInt16(kVK_ForwardDelete) {
+           event.keyCode == UInt16(kVK_Delete) || event.keyCode == UInt16(kVK_ForwardDelete)
+        {
             shortcut = nil
             onShortcutChange?(nil)
             updateDisplay()

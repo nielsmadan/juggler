@@ -1,5 +1,16 @@
 {
   "enabledPlugins": {
     "superpowers@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(make lint:*)",
+      "Bash(make format:*)",
+      "Bash(make reset:*)",
+      "Bash(make build:*)",
+      "Bash(make clean:*)",
+      "Bash(make test:*)",
+      "Bash(make build-strict:*)"
+    ]
   }
 }

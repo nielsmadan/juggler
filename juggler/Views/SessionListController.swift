@@ -53,7 +53,8 @@ final class SessionListController {
     /// Sync selection to the current sessions array, preserving selection by ID across reorders.
     func syncSelection(sessions: [Session]) {
         if let id = selectedSessionID,
-           let newIndex = sessions.firstIndex(where: { $0.id == id }) {
+           let newIndex = sessions.firstIndex(where: { $0.id == id })
+        {
             selectedIndex = newIndex
         } else if sessions.isEmpty {
             selectedIndex = nil
@@ -112,7 +113,9 @@ final class SessionListController {
     // MARK: - Key Handling
 
     /// Handle shared key press. Returns .handled or .ignored.
-    func handleKeyPress(_ press: KeyPress, sessionManager: SessionManager, queueOrderMode: inout String) -> KeyPress.Result {
+    func handleKeyPress(_ press: KeyPress, sessionManager: SessionManager, queueOrderMode: inout String) -> KeyPress
+        .Result
+    {
         if let shortcut = shortcutMoveDown, shortcut.matches(press) {
             moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
             trackSelectedSession(sessions: sessionManager.sessions)

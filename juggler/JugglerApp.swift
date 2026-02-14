@@ -128,7 +128,13 @@ struct JugglerApp: App {
             "useTerminalCyclingColors": true,
             // Terminal enablement (iTerm2 on by default for existing users)
             AppStorageKeys.iterm2Enabled: true,
-            AppStorageKeys.kittyEnabled: false
+            AppStorageKeys.kittyEnabled: false,
+            // Beacon HUD
+            "beaconEnabled": true,
+            "beaconDuration": 1.5,
+            "beaconPosition": BeaconPosition.center.rawValue,
+            "beaconSize": BeaconSize.m.rawValue,
+            "beaconAnchor": BeaconAnchor.screen.rawValue,
         ])
 
         // Set up default local shortcuts if not already configured
@@ -217,7 +223,7 @@ private func setupDefaultLocalShortcuts() {
         (AppStorageKeys.localShortcutReactivateAll, kVK_ANSI_H, false),
         (AppStorageKeys.localShortcutRename, kVK_ANSI_R, false),
         (AppStorageKeys.localShortcutCycleModeForward, kVK_Tab, false),
-        (AppStorageKeys.localShortcutCycleModeBackward, kVK_Tab, true) // Shift+Tab
+        (AppStorageKeys.localShortcutCycleModeBackward, kVK_Tab, true), // Shift+Tab
     ]
 
     for (key, keyCode, shift) in defaults where UserDefaults.standard.data(forKey: key) == nil {

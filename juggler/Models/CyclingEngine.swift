@@ -150,7 +150,8 @@ struct DefaultCyclingEngine: CyclingEngine {
         // Find first cyclable session AFTER the focused position
         for (i, session) in cyclable.enumerated() {
             if let sessionAllIdx = allSessions.firstIndex(where: { $0.id == session.id }),
-               sessionAllIdx > allIdx {
+               sessionAllIdx > allIdx
+            {
                 return i
             }
         }
@@ -181,7 +182,8 @@ struct DefaultCyclingEngine: CyclingEngine {
         // Find last cyclable session BEFORE the focused position
         for (i, session) in cyclable.enumerated().reversed() {
             if let sessionAllIdx = allSessions.firstIndex(where: { $0.id == session.id }),
-               sessionAllIdx < allIdx {
+               sessionAllIdx < allIdx
+            {
                 return i
             }
         }
