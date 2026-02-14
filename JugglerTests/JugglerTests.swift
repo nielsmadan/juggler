@@ -604,4 +604,5 @@ import Testing
     #expect(QueueOrderMode.fair.displayName == "Fair")
     #expect(QueueOrderMode.prio.displayName == "Prio")
     #expect(QueueOrderMode.static.displayName == "Static")
+    #expect(QueueOrderMode.grouped.displayName == "Grouped")
 }

@@ -122,20 +122,28 @@ import Testing
     #expect(result == "prio")
 }
 
-@Test func cycleMode_forward_wrapsStaticToFair() {
+@Test func cycleMode_forward_staticToGrouped() {
     let controller = SessionListController()
 
     let result = controller.cycleMode(forward: true, currentMode: "static")
 
+    #expect(result == "grouped")
+}
+
+@Test func cycleMode_forward_wrapsGroupedToFair() {
+    let controller = SessionListController()
+
+    let result = controller.cycleMode(forward: true, currentMode: "grouped")
+
     #expect(result == "fair")
 }
 
-@Test func cycleMode_backward_fairToStatic() {
+@Test func cycleMode_backward_fairToGrouped() {
     let controller = SessionListController()
 
     let result = controller.cycleMode(forward: false, currentMode: "fair")
 
-    #expect(result == "static")
+    #expect(result == "grouped")
 }
 
 @Test func cycleMode_invalidMode_returnsUnchanged() {

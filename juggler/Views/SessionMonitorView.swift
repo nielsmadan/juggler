@@ -11,7 +11,6 @@ import SwiftUI
 struct SessionMonitorView: View {
     @Environment(SessionManager.self) private var sessionManager
     @AppStorage(AppStorageKeys.queueOrderMode) private var queueOrderMode: String = QueueOrderMode.fair.rawValue
-    @AppStorage(AppStorageKeys.groupByWindow) private var groupByWindow: Bool = true
     @AppStorage(AppStorageKeys.useCyclingColors) private var useCyclingColors = true
     @AppStorage(AppStorageKeys.enableStats) private var enableStats = true
     @AppStorage(AppStorageKeys.idleSessionColoring) private var idleSessionColoring = true
@@ -24,17 +23,10 @@ struct SessionMonitorView: View {
     @State private var controller = SessionListController()
     @State private var globalStatsResetDate: Date?
     @State private var isPaused = false
+    @State private var showModesInfo = false
 
     // Namespace for matchedGeometryEffect animations between sections
     @Namespace private var sessionAnimation
-
-    private var isGroupingAvailable: Bool {
-        queueOrderMode == QueueOrderMode.static.rawValue
-    }
-
-    private var shouldShowGrouped: Bool {
-        isGroupingAvailable && groupByWindow
-    }
 
     private var groupedSessions: [(key: String, value: [Session])] {
         let grouped = Dictionary(grouping: sessionManager.sessions) { session in
@@ -191,28 +183,28 @@ struct SessionMonitorView: View {
             if showShortcutHelper, !sessionManager.sessions.isEmpty {
                 Divider()
                 shortcutsReference
-                modesReference
             }
         }
     }
 
     @ViewBuilder
     private var sessionList: some View {
-        if queueOrderMode == QueueOrderMode.static.rawValue {
-            // Static mode: use List for groupByWindow support
+        if queueOrderMode == QueueOrderMode.grouped.rawValue {
+            // Grouped mode: grouped by terminal window
             List {
-                if shouldShowGrouped {
-                    ForEach(groupedSessions, id: \.key) { windowName, sessions in
-                        Section(header: Text(windowName)) {
-                            ForEach(sessions) { session in
-                                listSessionRow(session)
-                            }
+                ForEach(groupedSessions, id: \.key) { windowName, sessions in
+                    Section(header: Text(windowName)) {
+                        ForEach(sessions) { session in
+                            listSessionRow(session)
                         }
                     }
-                } else {
-                    ForEach(sessionManager.sessions) { session in
-                        listSessionRow(session)
-                    }
+                }
+            }
+        } else if queueOrderMode == QueueOrderMode.static.rawValue {
+            // Static mode: flat list, no grouping
+            List {
+                ForEach(sessionManager.sessions) { session in
+                    listSessionRow(session)
                 }
             }
         } else {
@@ -267,19 +259,32 @@ struct SessionMonitorView: View {
 
     private var controlBar: some View {
         HStack {
-            Picker("Order", selection: $queueOrderMode) {
+            Picker("", selection: $queueOrderMode) {
                 ForEach(QueueOrderMode.allCases, id: \.rawValue) { mode in
                     Text(mode.displayName).tag(mode.rawValue)
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .frame(maxWidth: 200)
+            .padding(.trailing, 4)
 
-            Toggle("Group by Window", isOn: Binding(
-                get: { isGroupingAvailable && groupByWindow },
-                set: { groupByWindow = $0 }
-            ))
-            .disabled(!isGroupingAvailable)
+            Button {
+                showModesInfo.toggle()
+            } label: {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showModesInfo) {
+                VStack(alignment: .leading, spacing: 2) {
+                    modeRow("Fair", "Idle sessions go to end of queue")
+                    modeRow("Prio", "Idle sessions go to top of queue")
+                    modeRow("Static", "No automatic reordering")
+                    modeRow("Grouped", "Static + grouped by window")
+                }
+                .padding()
+            }
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -622,26 +627,6 @@ struct SessionMonitorView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
-    }
-
-    // MARK: - Modes Reference
-
-    @ViewBuilder
-    private var modesReference: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Modes")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            VStack(alignment: .leading, spacing: 2) {
-                modeRow("Fair", "Idle sessions go to end of queue")
-                modeRow("Prio", "Idle sessions go to top of queue")
-                modeRow("Static", "No automatic reordering")
-            }
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private func modeRow(_ name: String, _ description: String) -> some View {

@@ -89,7 +89,7 @@ final class SessionManager {
         }
 
         // Reorder for queue mode (no manual animation - List handles it)
-        guard queueOrderMode != .static else { return }
+        guard queueOrderMode != .static, queueOrderMode != .grouped else { return }
 
         let wasBusy = oldState == .working || oldState == .compacting
         let isBusy = newState == .working || newState == .compacting
@@ -165,7 +165,7 @@ final class SessionManager {
     }
 
     func reorderForMode(_ mode: QueueOrderMode) {
-        guard mode != .static else {
+        guard mode != .static, mode != .grouped else {
             sessions.sort { $0.startedAt < $1.startedAt }
             return
         }
@@ -180,7 +180,7 @@ final class SessionManager {
                 ($0.lastBecameIdle ?? .distantPast) < ($1.lastBecameIdle ?? .distantPast)
             case .prio:
                 ($0.lastBecameIdle ?? .distantPast) > ($1.lastBecameIdle ?? .distantPast)
-            case .static:
+            case .static, .grouped:
                 $0.startedAt < $1.startedAt
             }
         }
