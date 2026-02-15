@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import signal
 import socket
 import sys
@@ -41,6 +42,7 @@ class iTerm2Daemon:
         # Start Unix socket server
         self.server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.server.bind(str(self.socket_path))
+        os.chmod(str(self.socket_path), 0o600)
         self.server.listen(5)
         self.server.setblocking(False)
 

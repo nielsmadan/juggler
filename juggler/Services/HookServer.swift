@@ -6,6 +6,7 @@ actor HookServer {
 
     private var listener: NWListener?
     private let port: UInt16 = 7483
+    private let maxRequestSize = 1_048_576 // 1 MB
 
     init() {}
 
@@ -81,6 +82,11 @@ actor HookServer {
 
             var accumulated = buffer
             accumulated.append(data)
+
+            guard accumulated.count <= self.maxRequestSize else {
+                connection.cancel()
+                return
+            }
 
             if self.hasCompleteHTTPBody(accumulated) || isComplete {
                 if let request = HTTPRequest.parse(accumulated) {
@@ -179,7 +185,8 @@ actor HookServer {
         }
 
         // Register Kitty socket path if present
-        if terminalType == .kitty, let socketPath = payload.terminal?.kittyListenOn, !socketPath.isEmpty {
+        if terminalType == .kitty, let socketPath = payload.terminal?.kittyListenOn, !socketPath.isEmpty,
+           socketPath.hasPrefix("unix:"), socketPath.contains("kitty") {
             // Ensure the bridge is started (finds kitten binary, etc.)
             try? await TerminalBridgeRegistry.shared.start(.kitty)
             await KittyBridge.shared.registerSocket(windowID: terminalSessionID, socketPath: socketPath)
@@ -188,7 +195,10 @@ actor HookServer {
             }
         } else if terminalType == .kitty {
             await MainActor.run {
-                logWarning(.kitty, "Kitty hook received but no kittyListenOn in payload (sessionID: \(terminalSessionID))")
+                logWarning(
+                    .kitty,
+                    "Kitty hook received but no kittyListenOn in payload (sessionID: \(terminalSessionID))"
+                )
             }
         }
 
