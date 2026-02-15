@@ -20,8 +20,8 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
         terminalWindowName: nil,
         customName: nil,
         state: state,
-        lastUpdated: Date(),
-        startedAt: Date()
+        lastUpdated: Date(timeIntervalSince1970: 0),
+        startedAt: Date(timeIntervalSince1970: 0)
     )
 }
 

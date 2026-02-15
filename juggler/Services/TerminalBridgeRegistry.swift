@@ -10,7 +10,7 @@ actor TerminalBridgeRegistry {
 
     private var bridges: [TerminalType: any TerminalBridge] = [:]
 
-    private init() {}
+    init() {}
 
     func register(_ bridge: any TerminalBridge, for type: TerminalType) {
         bridges[type] = bridge

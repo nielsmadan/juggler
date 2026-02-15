@@ -362,8 +362,8 @@ import Testing
         terminalWindowName: nil,
         customName: nil,
         state: .idle,
-        lastUpdated: Date(),
-        startedAt: Date()
+        lastUpdated: Date(timeIntervalSince1970: 0),
+        startedAt: Date(timeIntervalSince1970: 0)
     )
     manager.testSetSessions([session])
 
@@ -414,8 +414,8 @@ import Testing
         terminalWindowName: nil,
         customName: nil,
         state: .idle,
-        lastUpdated: Date(),
-        startedAt: Date()
+        lastUpdated: Date(timeIntervalSince1970: 0),
+        startedAt: Date(timeIntervalSince1970: 0)
     )
     let s2 = Session(
         claudeSessionID: "c2",
@@ -428,8 +428,8 @@ import Testing
         terminalWindowName: nil,
         customName: nil,
         state: .idle,
-        lastUpdated: Date(),
-        startedAt: Date()
+        lastUpdated: Date(timeIntervalSince1970: 0),
+        startedAt: Date(timeIntervalSince1970: 0)
     )
     let s3 = makeSession("other-session")
     manager.testSetSessions([s1, s2, s3])

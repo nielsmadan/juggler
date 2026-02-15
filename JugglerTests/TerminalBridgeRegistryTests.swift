@@ -24,7 +24,7 @@ private actor MockBridge: TerminalBridge {
 }
 
 @Test func registry_registerAndLookup() async {
-    let registry = TerminalBridgeRegistry.shared
+    let registry = TerminalBridgeRegistry()
     let mock = MockBridge()
 
     await registry.register(mock, for: .kitty)
@@ -34,7 +34,7 @@ private actor MockBridge: TerminalBridge {
 }
 
 @Test func registry_missingBridge_returnsNil() async {
-    let registry = TerminalBridgeRegistry.shared
+    let registry = TerminalBridgeRegistry()
 
     let bridge = await registry.bridge(for: .ghostty)
 
