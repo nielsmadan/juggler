@@ -8,8 +8,6 @@ enum AppStorageKeys {
 
     // Queue
     static let queueOrderMode = "queueOrderMode"
-    static let groupByWindow = "groupByWindow"
-
     // Notifications
     static let notifyOnIdle = "notifyOnIdle"
     static let notifyOnPermission = "notifyOnPermission"

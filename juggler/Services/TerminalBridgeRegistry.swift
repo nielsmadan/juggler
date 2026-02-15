@@ -20,18 +20,6 @@ actor TerminalBridgeRegistry {
         bridges[type]
     }
 
-    func startAll() async {
-        for (type, bridge) in bridges {
-            do {
-                try await bridge.start()
-            } catch {
-                await MainActor.run {
-                    logWarning(.session, "Failed to start \(type.displayName) bridge: \(error)")
-                }
-            }
-        }
-    }
-
     func stopAll() async {
         for (_, bridge) in bridges {
             await bridge.stop()
@@ -43,8 +31,4 @@ actor TerminalBridgeRegistry {
         try await bridge.start()
     }
 
-    func stop(_ type: TerminalType) async {
-        guard let bridge = bridges[type] else { return }
-        await bridge.stop()
-    }
 }

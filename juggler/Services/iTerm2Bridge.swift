@@ -18,15 +18,12 @@ actor ITerm2Bridge: TerminalBridge {
     }()
 
     private var eventReadSource: DispatchSourceRead?
-    private var eventSocket: Int32 = -1
     private let eventQueue = DispatchQueue(label: "com.juggler.eventlistener")
     private var eventLineBuffer = Data()
 
     private var healthCheckTask: Task<Void, Never>?
 
-    private let connectionTimeout: TimeInterval = 1.0
     private let activateTimeout: TimeInterval = 2.0
-    private let listTimeout: TimeInterval = 3.0
     private let highlightTimeout: TimeInterval = 1.0
 
     private init() {}
@@ -110,8 +107,6 @@ actor ITerm2Bridge: TerminalBridge {
             do {
                 let sock = try connectEventSocket()
 
-                Task { await self.setEventSocket(sock) }
-
                 let source = DispatchSource.makeReadSource(fileDescriptor: sock, queue: eventQueue)
 
                 source.setEventHandler { [self] in
@@ -137,10 +132,6 @@ actor ITerm2Bridge: TerminalBridge {
                 }
             }
         }
-    }
-
-    private func setEventSocket(_ sock: Int32) {
-        eventSocket = sock
     }
 
     private func setEventReadSource(_ source: DispatchSourceRead) {
@@ -218,7 +209,6 @@ actor ITerm2Bridge: TerminalBridge {
     private func cancelEventListener() {
         eventReadSource?.cancel()
         eventReadSource = nil
-        eventSocket = -1
         if daemonProcess != nil {
             scheduleEventListenerReconnect()
         }
@@ -288,7 +278,6 @@ actor ITerm2Bridge: TerminalBridge {
         healthCheckTask = nil
         eventReadSource?.cancel()
         eventReadSource = nil
-        eventSocket = -1
         eventLineBuffer.removeAll()
         process?.terminate()
         if let process, process.isRunning {
@@ -430,13 +419,6 @@ actor ITerm2Bridge: TerminalBridge {
         }
     }
 
-    func resetHighlight(sessionID: String) async throws {
-        let request = DaemonRequest(command: "reset", sessionID: sessionID)
-        _ = try? await withTimeout(highlightTimeout) {
-            try await self.sendRequest(request)
-        }
-    }
-
     func getSessionInfo(sessionID: String) async throws -> TerminalSessionInfo? {
         await MainActor.run { logDebug(.daemon, "getSessionInfo: starting for \(sessionID)") }
         let request = DaemonRequest(command: "get_session_info", sessionID: sessionID)
@@ -475,7 +457,6 @@ actor ITerm2Bridge: TerminalBridge {
             id: sessionID,
             tabName: tabName,
             windowName: windowName,
-            windowIndex: 0,
             tabIndex: 0,
             paneIndex: paneIndex,
             paneCount: paneCount,
@@ -603,7 +584,6 @@ extension DaemonRequest: Encodable {
 private struct DaemonResponse: Sendable {
     let status: String
     var message: String?
-    var sessionID: String?
     var tabName: String?
     var windowName: String?
     var paneIndex: Int?
@@ -612,7 +592,6 @@ private struct DaemonResponse: Sendable {
     enum CodingKeys: String, CodingKey {
         case status
         case message
-        case sessionID = "session_id"
         case tabName = "tab_name"
         case windowName = "window_name"
         case paneIndex = "pane_index"
@@ -625,7 +604,6 @@ extension DaemonResponse: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         status = try container.decode(String.self, forKey: .status)
         message = try container.decodeIfPresent(String.self, forKey: .message)
-        sessionID = try container.decodeIfPresent(String.self, forKey: .sessionID)
         tabName = try container.decodeIfPresent(String.self, forKey: .tabName)
         windowName = try container.decodeIfPresent(String.self, forKey: .windowName)
         paneIndex = try container.decodeIfPresent(Int.self, forKey: .paneIndex)

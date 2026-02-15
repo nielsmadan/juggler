@@ -16,6 +16,7 @@ pre-commit:
       priority: 3
 
 pre-push:
+  parallel: true
   commands:
     build:
       run: make build-strict
@@ -23,3 +24,6 @@ pre-push:
     test:
       run: make test
       priority: 2
+    unused-check:
+      run: make unused-check
+      priority: 3

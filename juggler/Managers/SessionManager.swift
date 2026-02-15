@@ -1,6 +1,13 @@
 import Foundation
 import SwiftUI
 
+enum QueuePosition: Equatable {
+    case topOfIdle
+    case bottomOfIdle
+    case bottomOfBusy
+    case bottomOfBackburner
+}
+
 @Observable
 final class SessionManager {
     static let shared = SessionManager()
@@ -51,11 +58,6 @@ final class SessionManager {
             }
         }
     }
-
-    // MARK: - Backwards compatibility computed properties
-
-    var currentIndex: Int { cyclingState.currentIndex }
-    var highlightColorIndex: Int { cyclingState.highlightColorIndex }
 
     // MARK: - State Transitions
 
@@ -348,7 +350,7 @@ final class SessionManager {
             // (explicit reactivation via UI uses updateSessionState, not this method)
             if oldState == .backburner, event != "UserPromptSubmit" {
                 // Update metadata but preserve backburner state
-                sessions[index].lastUpdated = Date()
+
                 if let tmuxSessionName, !tmuxSessionName.isEmpty {
                     sessions[index].tmuxSessionName = tmuxSessionName
                 }
@@ -365,7 +367,6 @@ final class SessionManager {
             }
 
             // Update metadata (doesn't need animation)
-            sessions[index].lastUpdated = Date()
             if let tmuxSessionName, !tmuxSessionName.isEmpty {
                 sessions[index].tmuxSessionName = tmuxSessionName
             }
@@ -399,7 +400,6 @@ final class SessionManager {
                 terminalWindowName: nil,
                 customName: nil,
                 state: state,
-                lastUpdated: now,
                 startedAt: now
             )
             session.tmuxSessionName = tmuxSessionName?.isEmpty == true ? nil : tmuxSessionName
@@ -428,7 +428,6 @@ final class SessionManager {
     func updateSessionState(terminalSessionID: String, state: SessionState) {
         guard let index = sessions.firstIndex(where: { $0.id == terminalSessionID }) else { return }
         let oldState = sessions[index].state
-        sessions[index].lastUpdated = Date()
         if oldState != state {
             let sessionID = sessions[index].id
             Task { @MainActor in

@@ -24,12 +24,4 @@ enum TerminalType: String, Codable, CaseIterable {
         }
     }
 
-    var bundleIdentifier: String {
-        switch self {
-        case .iterm2: "com.googlecode.iterm2"
-        case .kitty: "net.kovidgoyal.kitty"
-        case .ghostty: "com.mitchellh.ghostty"
-        case .wezterm: "com.github.wezterm"
-        }
-    }
 }

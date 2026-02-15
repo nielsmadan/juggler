@@ -123,7 +123,6 @@ struct IntegrationSettingsView: View {
     @State private var hookInstallError: String?
 
     // Kitty state
-    @AppStorage(AppStorageKeys.kittyEnabled) private var kittyEnabled = false
     @State private var kittyInstalled = false
     @State private var kittyRemoteControl = false
     @State private var kittyListenOn = false

@@ -21,7 +21,6 @@ struct Session: Identifiable, Codable, Equatable {
     var tmuxSessionName: String?
     var customName: String?
     var state: SessionState
-    var lastUpdated: Date
     var startedAt: Date
     var lastBecameIdle: Date?
     var accumulatedIdleTime: TimeInterval = 0
@@ -83,13 +82,13 @@ struct Session: Identifiable, Codable, Equatable {
     // Explicit CodingKeys to exclude computed 'id' property
     enum CodingKeys: String, CodingKey {
         case claudeSessionID, terminalSessionID, tmuxPane, terminalType, agent, projectPath
-        case terminalTabName, terminalWindowName, tmuxSessionName, customName, state, lastUpdated, startedAt
+        case terminalTabName, terminalWindowName, tmuxSessionName, customName, state, startedAt
         case lastBecameIdle, accumulatedIdleTime, lastBecameWorking, accumulatedWorkingTime
         case paneIndex, paneCount, gitBranch, gitRepoName, transcriptPath
     }
 
     // Explicit Equatable: excludes computed 'id' and volatile timing fields
-    // (lastUpdated, lastBecameIdle, accumulatedIdleTime, lastBecameWorking, accumulatedWorkingTime)
+    // (lastBecameIdle, accumulatedIdleTime, lastBecameWorking, accumulatedWorkingTime)
     // to prevent .onChange(of: sessions) from firing on every hook event heartbeat.
     // Timing fields are display-only and refreshed by TimelineView on a 5-second cadence.
     static func == (lhs: Session, rhs: Session) -> Bool {

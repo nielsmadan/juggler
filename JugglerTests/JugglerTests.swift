@@ -19,7 +19,6 @@ import Testing
         terminalTabName: "tab-name",
         customName: "my-custom-name",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
 
@@ -40,7 +39,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/Users/test/project",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date(),
         paneIndex: 0,
         paneCount: 1
@@ -81,7 +79,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/Users/test/myproject",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.projectFolderName == "myproject")
@@ -95,7 +92,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/single",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.projectFolderName == "single")
@@ -109,7 +105,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.projectFolderName == "Unknown")
@@ -123,7 +118,6 @@ import Testing
         agent: "claude-code",
         projectPath: "",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.projectFolderName == "Unknown")
@@ -139,7 +133,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/a/b/c",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.parentAndFolderName == "b/c")
@@ -153,7 +146,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/Users/test/projects/myproject",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.parentAndFolderName == "projects/myproject")
@@ -167,7 +159,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/single",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.parentAndFolderName == "single")
@@ -181,7 +172,6 @@ import Testing
         agent: "claude-code",
         projectPath: "",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.parentAndFolderName == "Unknown")
@@ -198,7 +188,6 @@ import Testing
         projectPath: "/path/project",
         terminalTabName: "my-tab",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.title(for: .tabTitle) == "my-tab")
@@ -212,7 +201,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/path/project",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.title(for: .tabTitle) == "project")
@@ -227,7 +215,6 @@ import Testing
         projectPath: "/path/project",
         terminalWindowName: "my-window",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.title(for: .windowTitle) == "my-window")
@@ -241,7 +228,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/path/project",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.title(for: .windowTitle) == "project")
@@ -257,7 +243,6 @@ import Testing
         terminalTabName: "my-tab",
         terminalWindowName: "my-window",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.title(for: .windowAndTabTitle) == "my-window/my-tab")
@@ -272,7 +257,6 @@ import Testing
         projectPath: "/path/project",
         terminalWindowName: "my-window",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(sessionWindowOnly.title(for: .windowAndTabTitle) == "my-window")
@@ -285,7 +269,6 @@ import Testing
         projectPath: "/path/project",
         terminalTabName: "my-tab",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(sessionTabOnly.title(for: .windowAndTabTitle) == "my-tab")
@@ -297,7 +280,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/path/project",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(sessionNeither.title(for: .windowAndTabTitle) == "project")
@@ -313,7 +295,6 @@ import Testing
         terminalTabName: "my-tab",
         terminalWindowName: "my-window",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.title(for: .folderName) == "project")
@@ -328,7 +309,6 @@ import Testing
         projectPath: "/a/b/c",
         terminalTabName: "my-tab",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.title(for: .parentAndFolderName) == "b/c")
@@ -345,7 +325,6 @@ import Testing
         terminalWindowName: "window",
         customName: "custom",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     for mode in SessionTitleMode.allCases {
@@ -363,7 +342,6 @@ import Testing
         projectPath: "/path/project",
         tmuxSessionName: "my-tmux",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.title(for: .tabTitle) == "my-tmux")
@@ -379,7 +357,6 @@ import Testing
         projectPath: "/path/project",
         tmuxSessionName: "my-tmux",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.title(for: .folderName) == "project")
@@ -396,7 +373,6 @@ import Testing
         terminalWindowName: "my-window",
         tmuxSessionName: "my-tmux",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.title(for: .windowTitle) == "my-window")
@@ -410,7 +386,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date()
     )
     #expect(session.parentAndFolderName == "Unknown")
@@ -436,7 +411,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/test",
         state: .working,
-        lastUpdated: Date(),
         startedAt: Date(),
         lastBecameIdle: Date()
     )
@@ -451,7 +425,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/test",
         state: .backburner,
-        lastUpdated: Date(),
         startedAt: Date(),
         lastBecameIdle: Date()
     )
@@ -466,7 +439,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/test",
         state: .compacting,
-        lastUpdated: Date(),
         startedAt: Date(),
         lastBecameIdle: Date()
     )
@@ -481,7 +453,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/test",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date(),
         lastBecameIdle: nil
     )
@@ -497,7 +468,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/test",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date(),
         lastBecameIdle: tenSecondsAgo
     )
@@ -515,7 +485,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/test",
         state: .permission,
-        lastUpdated: Date(),
         startedAt: Date(),
         lastBecameIdle: fiveSecondsAgo
     )
@@ -532,7 +501,6 @@ import Testing
         agent: "claude-code",
         projectPath: "/test",
         state: .idle,
-        lastUpdated: Date(),
         startedAt: Date(),
         lastBecameIdle: tenSecondsAgo,
         accumulatedIdleTime: 60
@@ -559,7 +527,6 @@ import Testing
         terminalWindowName: "my-window",
         customName: "custom",
         state: .idle,
-        lastUpdated: Date(timeIntervalSince1970: 1000),
         startedAt: Date(timeIntervalSince1970: 900),
         lastBecameIdle: Date(timeIntervalSince1970: 950),
         accumulatedIdleTime: 30,

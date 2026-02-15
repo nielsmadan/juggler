@@ -19,7 +19,6 @@ private actor MockBridge: TerminalBridge {
 
     func activate(sessionID _: String) async throws {}
     func highlight(sessionID _: String, tabConfig _: HighlightConfig?, paneConfig _: HighlightConfig?) async throws {}
-    func resetHighlight(sessionID _: String) async throws {}
     func getSessionInfo(sessionID _: String) async throws -> TerminalSessionInfo? { nil }
 }
 

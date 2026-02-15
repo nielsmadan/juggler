@@ -50,14 +50,11 @@ enum DownPhase {
 struct DownAnimationState: Equatable {
     let sessionID: String
     let fromState: SessionState
-    let toState: SessionState
     var phase: DownPhase
 }
 
 struct UpAnimationState: Equatable {
     let sessionID: String
-    let fromState: SessionState
-    let toState: SessionState
 }
 
 // MARK: - Animation Timing
@@ -113,9 +110,9 @@ final class SectionAnimationController {
 
         switch direction {
         case .down:
-            startDownAnimation(sessionID: sessionID, from: fromState, to: toState)
+            startDownAnimation(sessionID: sessionID, from: fromState)
         case .up:
-            startUpAnimation(sessionID: sessionID, from: fromState, to: toState)
+            startUpAnimation(sessionID: sessionID)
         case .none:
             break
         }
@@ -138,12 +135,11 @@ final class SectionAnimationController {
 
     // MARK: - DOWN Animation
 
-    private func startDownAnimation(sessionID: String, from fromState: SessionState, to toState: SessionState) {
+    private func startDownAnimation(sessionID: String, from fromState: SessionState) {
         // Phase 1: departing (still visible in source section).
         downAnimation = DownAnimationState(
             sessionID: sessionID,
             fromState: fromState,
-            toState: toState,
             phase: .departing
         )
 
@@ -157,7 +153,6 @@ final class SectionAnimationController {
                 downAnimation = DownAnimationState(
                     sessionID: sessionID,
                     fromState: fromState,
-                    toState: toState,
                     phase: .inFlight
                 )
             }
@@ -173,7 +168,6 @@ final class SectionAnimationController {
                 downAnimation = DownAnimationState(
                     sessionID: sessionID,
                     fromState: fromState,
-                    toState: toState,
                     phase: .arriving
                 )
             }
@@ -188,13 +182,11 @@ final class SectionAnimationController {
 
     // MARK: - UP Animation
 
-    private func startUpAnimation(sessionID: String, from fromState: SessionState, to toState: SessionState) {
+    private func startUpAnimation(sessionID: String) {
         // For UP, we just track that an animation is happening
         // The actual animation is handled by matchedGeometryEffect in the view
         upAnimation = UpAnimationState(
-            sessionID: sessionID,
-            fromState: fromState,
-            toState: toState
+            sessionID: sessionID
         )
 
         Task { @MainActor in

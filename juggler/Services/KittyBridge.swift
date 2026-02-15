@@ -168,29 +168,6 @@ actor KittyBridge: TerminalBridge {
         }
     }
 
-    func resetHighlight(sessionID: String) async throws {
-        guard let socketPath = socketPaths[sessionID] else { return }
-
-        activeTabResetTasks[sessionID]?.cancel()
-        activeTabResetTasks.removeValue(forKey: sessionID)
-        activePaneResetTasks[sessionID]?.cancel()
-        activePaneResetTasks.removeValue(forKey: sessionID)
-
-        // Reset tab color
-        _ = try? await runKittenCommand(
-            ["@", "set-tab-color", "--match", "window_id:\(sessionID)", "active_bg=none"],
-            socketPath: socketPath
-        )
-
-        // Restore original background color
-        if let original = originalColors.removeValue(forKey: sessionID) {
-            _ = try? await runKittenCommand(
-                ["@", "set-colors", "--match", "id:\(sessionID)", "background=\(original)"],
-                socketPath: socketPath
-            )
-        }
-    }
-
     func getSessionInfo(sessionID: String) async throws -> TerminalSessionInfo? {
         guard let socketPath = socketPaths[sessionID] else { return nil }
 
@@ -230,7 +207,6 @@ actor KittyBridge: TerminalBridge {
                         id: windowID,
                         tabName: tabTitle,
                         windowName: windowTitle.map { "Window \($0)" } ?? "Kitty",
-                        windowIndex: 0,
                         tabIndex: tabIndex,
                         paneIndex: paneIndex,
                         paneCount: windows.count,

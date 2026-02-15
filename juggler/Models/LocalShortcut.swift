@@ -18,18 +18,6 @@ struct LocalShortcut: Codable, Equatable {
         self.modifiers = modifiers.rawValue
     }
 
-    init?(event: NSEvent) {
-        guard event.type == .keyDown || event.type == .keyUp else {
-            return nil
-        }
-        keyCode = event.keyCode
-        // Normalize modifiers to only include the standard ones
-        let normalized = event.modifierFlags
-            .intersection(.deviceIndependentFlagsMask)
-            .subtracting([.capsLock, .numericPad, .function])
-        modifiers = normalized.rawValue
-    }
-
     var modifierFlags: NSEvent.ModifierFlags {
         NSEvent.ModifierFlags(rawValue: modifiers)
     }

@@ -10,7 +10,7 @@ EXPORT_PATH = $(RELEASE_DIR)/export
 ZIP_PATH = $(RELEASE_DIR)/Juggler.zip
 DMG_PATH = $(RELEASE_DIR)/Juggler.dmg
 
-.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all reset-data reset-permissions reset-all release archive export notarize notarize-ci dmg release-clean tag-release tag-release-patch tag-release-minor tag-release-major
+.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all unused-checkreset-data reset-permissions reset-all release archive export notarize notarize-ci dmg release-clean tag-release tag-release-patch tag-release-minor tag-release-major
 
 FILES ?= .
 XCCONFIG_FLAG = $(if $(XCCONFIG),-xcconfig $(XCCONFIG),)
@@ -51,6 +51,9 @@ lint-fix:
 
 format:
 	@swiftformat $(FILES)
+
+unused-check:
+	@periphery scan
 
 reset-data:
 	@echo "Resetting Juggler app data..."

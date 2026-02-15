@@ -11,7 +11,6 @@ protocol TerminalBridge: Sendable {
     func stop() async
     func activate(sessionID: String) async throws
     func highlight(sessionID: String, tabConfig: HighlightConfig?, paneConfig: HighlightConfig?) async throws
-    func resetHighlight(sessionID: String) async throws
     func getSessionInfo(sessionID: String) async throws -> TerminalSessionInfo?
 }
 
@@ -25,7 +24,6 @@ struct TerminalSessionInfo: Sendable {
     let id: String
     let tabName: String
     let windowName: String
-    let windowIndex: Int
     let tabIndex: Int
     let paneIndex: Int
     let paneCount: Int
