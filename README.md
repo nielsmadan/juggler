@@ -29,11 +29,6 @@ and the terminal I already set up just the way I like. So I built Juggler.
 - **Never lose a window** — Color-coded tab and pane highlighting lets you spot the active session immediately, even across monitors
 - **Zero workflow changes** — No new terminal to learn, no forced worktrees, no single-repo limits. Your existing setup stays exactly as it was
 
-### Who I am
-
-I have more than 15 years of software development experience working professionally in TypeScript / Python / C++. This is not
-slopcode / slopware.
-
 ## Installation
 
 ### Homebrew (recommended)
