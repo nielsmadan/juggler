@@ -73,7 +73,7 @@ All shortcuts are customizable in Settings.
 
 ## Compatibility
 
-**Terminals:** iTerm2, Kitty, tmux (optional multiplexer)
+**Terminals:** iTerm2, Kitty, tmux (optional multiplexer), Zellij (planned)
 
 **Coding agents:** Claude Code, OpenCode
 
@@ -103,6 +103,9 @@ Juggler requires terminals with a scriptable API to switch sessions and highligh
 **Planned:**
 
 - [WezTerm](https://wezfurlong.org/wezterm/) — cross-platform CLI API for session and tab control (macOS, Linux, Windows)
+- [Wave](https://github.com/wavetermdev/waveterm) — `wsh` CLI for workspace control (macOS, Linux, Windows)
+- [Tabby](https://github.com/Eugeny/tabby) — TypeScript plugin system for tab control (macOS, Linux, Windows)
+- [Zellij](https://github.com/zellij-org/zellij) — multiplexer with CLI session/tab control, as an alternative to tmux
 
 **Waiting on API support:**
 
@@ -127,7 +130,7 @@ Juggler tracks agent sessions through lifecycle hooks that fire on events like s
 
 ### Linux & Windows
 
-Juggler is currently macOS-only. [WezTerm](https://wezfurlong.org/wezterm/) runs on macOS, Linux, and Windows with a CLI API for session control, and [Kitty](https://sw.kovidgoyal.net/kitty/) already runs on Linux. If there's popular demand, I'm happy to port it.
+Juggler is currently macOS-only. [WezTerm](https://wezfurlong.org/wezterm/), [Wave](https://github.com/wavetermdev/waveterm), and [Tabby](https://github.com/Eugeny/tabby) run on macOS, Linux, and Windows. [Kitty](https://sw.kovidgoyal.net/kitty/) and [Konsole](https://konsole.kde.org/) (D-Bus API) already run on Linux. If there's popular demand, I'm happy to port it.
 
 ## Development
 
