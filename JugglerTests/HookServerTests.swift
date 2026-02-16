@@ -336,3 +336,213 @@ import Testing
     let action = HookEventMapper.map(event: "Stop")
     #expect(action == .updateState(.idle))
 }
+
+// MARK: - HTTPResponse Status Text Tests
+
+@Test func serialize_400BadRequest() {
+    let response = HTTPResponse(status: 400, body: "{}")
+    let string = String(decoding: response.serialize(), as: UTF8.self)
+
+    #expect(string.contains("HTTP/1.1 400 Bad Request"))
+}
+
+@Test func serialize_500_usesDefaultErrorText() {
+    let response = HTTPResponse(status: 500, body: "{}")
+    let string = String(decoding: response.serialize(), as: UTF8.self)
+
+    #expect(string.contains("HTTP/1.1 500 Error"))
+}
+
+@Test func serialize_unknownStatusCode_usesError() {
+    let response = HTTPResponse(status: 418, body: "{}")
+    let string = String(decoding: response.serialize(), as: UTF8.self)
+
+    #expect(string.contains("HTTP/1.1 418 Error"))
+}
+
+// MARK: - Additional Payload Edge Cases
+
+@Test func decodePayload_emptyStrings() throws {
+    let json = """
+    {
+        "agent": "",
+        "event": "",
+        "terminal": {
+            "sessionId": "",
+            "cwd": ""
+        }
+    }
+    """
+
+    let payload = try JSONDecoder().decode(UnifiedHookPayload.self, from: Data(json.utf8))
+
+    #expect(payload.agent == "")
+    #expect(payload.event == "")
+    #expect(payload.terminal?.sessionId == "")
+    #expect(payload.terminal?.cwd == "")
+}
+
+@Test func decodePayload_gitWithoutBranch() throws {
+    let json = """
+    {
+        "agent": "claude-code",
+        "event": "Stop",
+        "git": {
+            "repo": "my-repo"
+        }
+    }
+    """
+
+    let payload = try JSONDecoder().decode(UnifiedHookPayload.self, from: Data(json.utf8))
+
+    #expect(payload.git?.repo == "my-repo")
+    #expect(payload.git?.branch == nil)
+}
+
+@Test func decodePayload_tmuxWithoutSessionName() throws {
+    let json = """
+    {
+        "agent": "claude-code",
+        "event": "Stop",
+        "tmux": {
+            "pane": "%3"
+        }
+    }
+    """
+
+    let payload = try JSONDecoder().decode(UnifiedHookPayload.self, from: Data(json.utf8))
+
+    #expect(payload.tmux?.pane == "%3")
+    #expect(payload.tmux?.sessionName == nil)
+}
+
+// MARK: - HTTPRequest.parse Additional Tests
+
+@Test func parse_multipleHeaders() {
+    let raw =
+        "POST /hook HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 11\r\n\r\n{\"ok\":true}"
+    let request = HTTPRequest.parse(Data(raw.utf8))
+
+    #expect(request != nil)
+    #expect(request?.method == "POST")
+    #expect(request?.path == "/hook")
+    #expect(request?.body == "{\"ok\":true}")
+}
+
+@Test func parse_bodyWithNewlines() {
+    let body = "{\"msg\":\"line1\\nline2\"}"
+    let raw = "POST /hook HTTP/1.1\r\nHost: localhost\r\n\r\n\(body)"
+    let request = HTTPRequest.parse(Data(raw.utf8))
+
+    #expect(request?.body == body)
+}
+
+@Test func parse_longPath() {
+    let raw = "GET /very/long/path/to/resource HTTP/1.1\r\nHost: localhost\r\n\r\n"
+    let request = HTTPRequest.parse(Data(raw.utf8))
+
+    #expect(request?.path == "/very/long/path/to/resource")
+}
+
+// MARK: - HTTPResponse Content-Length Tests
+
+@Test func serialize_contentLengthMatchesUnicodeBody() {
+    let body = "{\"name\":\"日本語\"}"
+    let response = HTTPResponse(status: 200, body: body)
+    let data = response.serialize()
+    let string = String(decoding: data, as: UTF8.self)
+
+    #expect(string.contains("Content-Length: \(body.utf8.count)"))
+}
+
+@Test func serialize_emptyBody() {
+    let response = HTTPResponse(status: 200, body: "")
+    let data = response.serialize()
+    let string = String(decoding: data, as: UTF8.self)
+
+    #expect(string.contains("Content-Length: 0"))
+    #expect(string.contains("HTTP/1.1 200 OK"))
+}
+
+// MARK: - HookEventMapper additional Tests
+
+@Test func mapOpenCode_allRemoveEvents() {
+    // Both should map to removeSession
+    #expect(HookEventMapper.map(event: "session.deleted", agent: "opencode") == .removeSession)
+    #expect(HookEventMapper.map(event: "server.instance.disposed", agent: "opencode") == .removeSession)
+}
+
+@Test func mapOpenCode_allWorkingEvents() {
+    #expect(HookEventMapper.map(event: "session.status.busy", agent: "opencode") == .updateState(.working))
+    #expect(HookEventMapper.map(event: "session.status.retry", agent: "opencode") == .updateState(.working))
+}
+
+@Test func mapClaudeCode_allEvents() {
+    #expect(HookEventMapper.map(event: "SessionStart") == .updateState(.idle))
+    #expect(HookEventMapper.map(event: "Stop") == .updateState(.idle))
+    #expect(HookEventMapper.map(event: "PreToolUse") == .updateState(.working))
+    #expect(HookEventMapper.map(event: "PostToolUse") == .updateState(.working))
+    #expect(HookEventMapper.map(event: "UserPromptSubmit") == .updateState(.working))
+    #expect(HookEventMapper.map(event: "PreCompact") == .updateState(.compacting))
+    #expect(HookEventMapper.map(event: "PermissionRequest") == .updateState(.permission))
+    #expect(HookEventMapper.map(event: "SessionEnd") == .removeSession)
+}
+
+// MARK: - KittyEventPayload Additional Tests
+
+@Test func decodeKittyEventPayload_unknownEvent() throws {
+    let json = """
+    {
+        "event": "some_future_event",
+        "window_id": "1"
+    }
+    """
+
+    let payload = try JSONDecoder().decode(KittyEventPayload.self, from: Data(json.utf8))
+    #expect(payload.event == "some_future_event")
+    #expect(payload.windowID == "1")
+}
+
+// MARK: - UnifiedHookPayload terminal fields Tests
+
+@Test func decodePayload_allTerminalFields() throws {
+    let json = """
+    {
+        "agent": "claude-code",
+        "event": "SessionStart",
+        "terminal": {
+            "sessionId": "42",
+            "cwd": "/home/user",
+            "terminalType": "kitty",
+            "kittyListenOn": "unix:/tmp/kitty.sock",
+            "kittyPid": "9999"
+        }
+    }
+    """
+
+    let payload = try JSONDecoder().decode(UnifiedHookPayload.self, from: Data(json.utf8))
+    #expect(payload.terminal?.sessionId == "42")
+    #expect(payload.terminal?.cwd == "/home/user")
+    #expect(payload.terminal?.terminalType == "kitty")
+    #expect(payload.terminal?.kittyListenOn == "unix:/tmp/kitty.sock")
+    #expect(payload.terminal?.kittyPid == "9999")
+}
+
+@Test func decodePayload_hookInputAllFields() throws {
+    let json = """
+    {
+        "agent": "claude-code",
+        "event": "PreToolUse",
+        "hookInput": {
+            "session_id": "sess-001",
+            "transcript_path": "/path/to/transcript.jsonl",
+            "tool_name": "write_file"
+        }
+    }
+    """
+
+    let payload = try JSONDecoder().decode(UnifiedHookPayload.self, from: Data(json.utf8))
+    #expect(payload.hookInput?.sessionId == "sess-001")
+    #expect(payload.hookInput?.transcriptPath == "/path/to/transcript.jsonl")
+    #expect(payload.hookInput?.toolName == "write_file")
+}

@@ -437,3 +437,310 @@ import Testing
     #expect(manager.sessions.count == 1)
     #expect(manager.sessions[0].terminalSessionID == "other-session")
 }
+
+// MARK: - reorderForMode Additional Tests
+
+@Test func reorderForMode_grouped_sortsByStartedAt() {
+    let manager = SessionManager()
+
+    var s1 = makeSession("s1", state: .idle)
+    s1.startedAt = Date(timeIntervalSince1970: 300)
+    var s2 = makeSession("s2", state: .idle)
+    s2.startedAt = Date(timeIntervalSince1970: 100)
+    var s3 = makeSession("s3", state: .idle)
+    s3.startedAt = Date(timeIntervalSince1970: 200)
+
+    manager.testSetSessions([s1, s2, s3])
+    manager.reorderForMode(.grouped)
+
+    // Grouped mode sorts by startedAt (same as static)
+    #expect(manager.sessions[0].terminalSessionID == "s2")
+    #expect(manager.sessions[1].terminalSessionID == "s3")
+    #expect(manager.sessions[2].terminalSessionID == "s1")
+}
+
+@Test func reorderForMode_static_preservesSectioning() {
+    let manager = SessionManager()
+
+    var idle1 = makeSession("idle1", state: .idle)
+    idle1.startedAt = Date(timeIntervalSince1970: 100)
+    var busy1 = makeSession("busy1", state: .working)
+    busy1.startedAt = Date(timeIntervalSince1970: 200)
+    var back1 = makeSession("back1", state: .backburner)
+    back1.startedAt = Date(timeIntervalSince1970: 50)
+
+    manager.testSetSessions([busy1, back1, idle1])
+    manager.reorderForMode(.static)
+
+    // Static sorts by startedAt: back1(50), idle1(100), busy1(200)
+    #expect(manager.sessions[0].terminalSessionID == "back1")
+    #expect(manager.sessions[1].terminalSessionID == "idle1")
+    #expect(manager.sessions[2].terminalSessionID == "busy1")
+}
+
+// MARK: - updateSessionTerminalInfo Tests
+
+@Test func updateSessionTerminalInfo_updatesTabAndPaneInfo() {
+    let manager = SessionManager()
+
+    manager.addOrUpdateSession(
+        claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+    )
+
+    manager.updateSessionTerminalInfo(
+        terminalSessionID: "s1", tabName: "My Tab", paneIndex: 1, paneCount: 3
+    )
+
+    #expect(manager.sessions[0].terminalTabName == "My Tab")
+    #expect(manager.sessions[0].paneIndex == 1)
+    #expect(manager.sessions[0].paneCount == 3)
+}
+
+@Test func updateSessionTerminalInfo_nonexistentSession_noOp() {
+    let manager = SessionManager()
+
+    // Should not crash
+    manager.updateSessionTerminalInfo(
+        terminalSessionID: "nonexistent", tabName: "Tab", paneIndex: 0, paneCount: 1
+    )
+
+    #expect(manager.sessions.isEmpty)
+}
+
+@Test func updateSessionTerminalInfo_windowName() {
+    let manager = SessionManager()
+
+    manager.addOrUpdateSession(
+        claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+    )
+
+    manager.updateSessionTerminalInfo(
+        terminalSessionID: "s1", tabName: "Tab", windowName: "Window", paneIndex: 0, paneCount: 1
+    )
+
+    #expect(manager.sessions[0].terminalWindowName == "Window")
+    #expect(manager.sessions[0].terminalTabName == "Tab")
+}
+
+@Test func updateSessionTerminalInfo_updatesAllSessionsSharingTerminalID() {
+    let manager = SessionManager()
+
+    // Two tmux panes sharing the same terminal session
+    let s1 = Session(
+        claudeSessionID: "c1", terminalSessionID: "w0t0p0:abc",
+        tmuxPane: "%1", terminalType: .iterm2, agent: "claude-code",
+        projectPath: "/test/a", state: .idle, startedAt: Date()
+    )
+    let s2 = Session(
+        claudeSessionID: "c2", terminalSessionID: "w0t0p0:abc",
+        tmuxPane: "%2", terminalType: .iterm2, agent: "claude-code",
+        projectPath: "/test/b", state: .idle, startedAt: Date()
+    )
+    manager.testSetSessions([s1, s2])
+
+    manager.updateSessionTerminalInfo(
+        terminalSessionID: "w0t0p0:abc", tabName: "Shared Tab", paneIndex: 0, paneCount: 2
+    )
+
+    // Both sessions should be updated
+    #expect(manager.sessions[0].terminalTabName == "Shared Tab")
+    #expect(manager.sessions[1].terminalTabName == "Shared Tab")
+}
+
+// MARK: - addOrUpdateSession metadata Tests
+
+@Test func addOrUpdateSession_newSession_withAllMetadata() {
+    let manager = SessionManager()
+
+    manager.addOrUpdateSession(
+        claudeSessionID: "c1", terminalSessionID: "s1",
+        tmuxPane: "%1", tmuxSessionName: "dev",
+        terminalType: .kitty, agent: "opencode",
+        projectPath: "/test/project", state: .working,
+        gitBranch: "feature-x", gitRepoName: "my-repo",
+        transcriptPath: "/tmp/transcript.jsonl"
+    )
+
+    #expect(manager.sessions.count == 1)
+    let s = manager.sessions[0]
+    #expect(s.id == "s1:%1")
+    #expect(s.tmuxSessionName == "dev")
+    #expect(s.terminalType == .kitty)
+    #expect(s.agent == "opencode")
+    #expect(s.agentShortName == "OC")
+    #expect(s.gitBranch == "feature-x")
+    #expect(s.gitRepoName == "my-repo")
+    #expect(s.transcriptPath == "/tmp/transcript.jsonl")
+}
+
+@Test func addOrUpdateSession_emptyMetadata_treatedAsNil() {
+    let manager = SessionManager()
+
+    manager.addOrUpdateSession(
+        claudeSessionID: "c1", terminalSessionID: "s1",
+        tmuxSessionName: "", projectPath: "/p", state: .idle,
+        gitBranch: "", gitRepoName: "", transcriptPath: ""
+    )
+
+    let s = manager.sessions[0]
+    #expect(s.tmuxSessionName == nil)
+    #expect(s.gitBranch == nil)
+    #expect(s.gitRepoName == nil)
+    #expect(s.transcriptPath == nil)
+}
+
+@Test func addOrUpdateSession_updatesTranscriptPath() {
+    let manager = SessionManager()
+
+    manager.addOrUpdateSession(
+        claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+    )
+    manager.addOrUpdateSession(
+        claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle,
+        transcriptPath: "/new/transcript.jsonl"
+    )
+
+    #expect(manager.sessions[0].transcriptPath == "/new/transcript.jsonl")
+}
+
+@Test func addOrUpdateSession_backburnered_updatesMetadata_preservesState() {
+    let manager = SessionManager()
+
+    manager.addOrUpdateSession(
+        claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p",
+        state: .backburner
+    )
+    manager.addOrUpdateSession(
+        claudeSessionID: "c1", terminalSessionID: "s1",
+        tmuxSessionName: "dev",
+        projectPath: "/p", state: .working, event: "Stop",
+        gitBranch: "main", gitRepoName: "repo", transcriptPath: "/path"
+    )
+
+    let s = manager.sessions[0]
+    #expect(s.state == .backburner) // preserved
+    #expect(s.tmuxSessionName == "dev") // updated
+    #expect(s.gitBranch == "main") // updated
+    #expect(s.gitRepoName == "repo") // updated
+    #expect(s.transcriptPath == "/path") // updated
+}
+
+// MARK: - cycleForward / cycleBackward Tests
+
+@Test func cycleForward_returnsNextIdleSession() {
+    let manager = SessionManager()
+
+    manager.testSetSessions([
+        makeSession("s1", state: .idle),
+        makeSession("s2", state: .idle),
+        makeSession("s3", state: .idle),
+    ])
+
+    let first = manager.cycleForward()
+    #expect(first != nil)
+
+    let second = manager.cycleForward()
+    #expect(second != nil)
+    #expect(second?.terminalSessionID != first?.terminalSessionID)
+}
+
+@Test func cycleBackward_returnsSession() {
+    let manager = SessionManager()
+
+    manager.testSetSessions([
+        makeSession("s1", state: .idle),
+        makeSession("s2", state: .idle),
+    ])
+
+    let result = manager.cycleBackward()
+    #expect(result != nil)
+}
+
+@Test func cycleForward_noSessions_returnsNil() {
+    let manager = SessionManager()
+    let result = manager.cycleForward()
+    #expect(result == nil)
+}
+
+@Test func cycleBackward_noSessions_returnsNil() {
+    let manager = SessionManager()
+    let result = manager.cycleBackward()
+    #expect(result == nil)
+}
+
+@Test func manager_cycleForward_allBackburnered_returnsNil() {
+    let manager = SessionManager()
+
+    manager.testSetSessions([
+        makeSession("s1", state: .backburner),
+        makeSession("s2", state: .backburner),
+    ])
+
+    let result = manager.cycleForward()
+    #expect(result == nil)
+}
+
+// MARK: - currentSession Tests
+
+@Test func currentSession_noSessions_returnsNil() {
+    let manager = SessionManager()
+    #expect(manager.currentSession == nil)
+}
+
+@Test func currentSession_withSessions_returnsOne() {
+    let manager = SessionManager()
+
+    manager.testSetSessions([
+        makeSession("s1", state: .idle),
+        makeSession("s2", state: .idle),
+    ])
+
+    #expect(manager.currentSession != nil)
+}
+
+@Test func currentSession_allBackburnered_returnsNil() {
+    let manager = SessionManager()
+
+    manager.testSetSessions([
+        makeSession("s1", state: .backburner),
+    ])
+
+    #expect(manager.currentSession == nil)
+}
+
+// MARK: - isSessionFocused Tests
+
+@Test func isSessionFocused_noFocusedID_returnsFalse() {
+    let manager = SessionManager()
+
+    manager.testSetSessions([makeSession("s1")])
+
+    #expect(manager.isSessionFocused == false)
+}
+
+// MARK: - renameSession edge cases
+
+@Test func renameSession_nonexistentSession_noOp() {
+    let manager = SessionManager()
+
+    manager.addOrUpdateSession(
+        claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+    )
+
+    manager.renameSession(terminalSessionID: "nonexistent", customName: "Test")
+
+    #expect(manager.sessions[0].customName == nil)
+}
+
+@Test func renameSession_nilClears() {
+    let manager = SessionManager()
+
+    manager.addOrUpdateSession(
+        claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+    )
+    manager.renameSession(terminalSessionID: "s1", customName: "Custom")
+    #expect(manager.sessions[0].customName == "Custom")
+
+    manager.renameSession(terminalSessionID: "s1", customName: nil)
+    #expect(manager.sessions[0].customName == nil)
+}

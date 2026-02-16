@@ -514,6 +514,134 @@ import Testing
     #expect(session.totalIdleTime == 60)
 }
 
+// MARK: - Session agentShortName Tests
+
+@Test func agentShortName_claudeCode() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        agent: "claude-code",
+        projectPath: "/test",
+        state: .idle,
+        startedAt: Date()
+    )
+    #expect(session.agentShortName == "CC")
+}
+
+@Test func agentShortName_opencode() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        agent: "opencode",
+        projectPath: "/test",
+        state: .idle,
+        startedAt: Date()
+    )
+    #expect(session.agentShortName == "OC")
+}
+
+// MARK: - Session displayName with tmux Tests
+
+@Test func displayName_tmux_prefersTmuxSessionName() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        tmuxPane: "%1",
+        terminalType: .iterm2,
+        agent: "claude-code",
+        projectPath: "/path/project",
+        terminalTabName: "tab-name",
+        tmuxSessionName: "tmux-sess",
+        state: .idle,
+        startedAt: Date()
+    )
+    // tmux branch: customName ?? tmuxSessionName ?? projectFolderName
+    #expect(session.displayName == "tmux-sess")
+}
+
+@Test func displayName_tmux_fallsBackToFolderName() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        tmuxPane: "%1",
+        terminalType: .iterm2,
+        agent: "claude-code",
+        projectPath: "/path/project",
+        state: .idle,
+        startedAt: Date()
+    )
+    #expect(session.displayName == "project")
+}
+
+// MARK: - Session Working Duration Tests
+
+@Test func currentWorkingDuration_nilWhenIdle() {
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        agent: "claude-code",
+        projectPath: "/test",
+        state: .idle,
+        startedAt: Date(),
+        lastBecameWorking: Date()
+    )
+    #expect(session.currentWorkingDuration == nil)
+}
+
+@Test func currentWorkingDuration_calculatesWhenWorking() {
+    let tenSecondsAgo = Date().addingTimeInterval(-10)
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        agent: "claude-code",
+        projectPath: "/test",
+        state: .working,
+        startedAt: Date(),
+        lastBecameWorking: tenSecondsAgo
+    )
+    let duration = session.currentWorkingDuration!
+    #expect(duration >= 9 && duration <= 12)
+}
+
+@Test func currentWorkingDuration_calculatesWhenCompacting() {
+    let fiveSecondsAgo = Date().addingTimeInterval(-5)
+    let session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        agent: "claude-code",
+        projectPath: "/test",
+        state: .compacting,
+        startedAt: Date(),
+        lastBecameWorking: fiveSecondsAgo
+    )
+    let duration = session.currentWorkingDuration!
+    #expect(duration >= 4 && duration <= 7)
+}
+
+@Test func totalWorkingTime_sumsAccumulatedAndCurrent() {
+    var session = Session(
+        claudeSessionID: "test",
+        terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2,
+        agent: "claude-code",
+        projectPath: "/test",
+        state: .working,
+        startedAt: Date(),
+        lastBecameWorking: Date().addingTimeInterval(-10),
+        accumulatedWorkingTime: 60
+    )
+    let total = session.totalWorkingTime
+    #expect(total >= 69 && total <= 72)
+
+    session.state = .idle
+    #expect(session.totalWorkingTime == 60)
+}
+
 // MARK: - Session Codable Tests
 
 @Test func session_codableRoundtrip() throws {
@@ -632,3 +760,135 @@ import Testing
     #expect(BeaconSize.l.minWidth == 260)
     #expect(BeaconSize.xl.minWidth == 320)
 }
+
+// MARK: - Session Equatable Tests
+
+@Test func session_equatable_ignoresTimingFields() {
+    let now = Date()
+    var s1 = Session(
+        claudeSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
+        agent: "claude-code", projectPath: "/test", state: .idle, startedAt: now
+    )
+    var s2 = s1
+
+    // Timing fields should be ignored by ==
+    s1.accumulatedIdleTime = 100
+    s2.accumulatedIdleTime = 200
+    s1.lastBecameIdle = Date(timeIntervalSince1970: 100)
+    s2.lastBecameIdle = Date(timeIntervalSince1970: 200)
+    s1.accumulatedWorkingTime = 50
+    s2.accumulatedWorkingTime = 75
+    s1.lastBecameWorking = Date(timeIntervalSince1970: 300)
+    s2.lastBecameWorking = Date(timeIntervalSince1970: 400)
+
+    #expect(s1 == s2)
+}
+
+@Test func session_equatable_detectsStateDifference() {
+    let now = Date()
+    let s1 = Session(
+        claudeSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
+        agent: "claude-code", projectPath: "/test", state: .idle, startedAt: now
+    )
+    var s2 = s1
+    s2.state = .working
+
+    #expect(s1 != s2)
+}
+
+@Test func session_equatable_detectsGitBranchDifference() {
+    let now = Date()
+    var s1 = Session(
+        claudeSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
+        agent: "claude-code", projectPath: "/test", state: .idle, startedAt: now
+    )
+    var s2 = s1
+    s1.gitBranch = "main"
+    s2.gitBranch = "feature"
+
+    #expect(s1 != s2)
+}
+
+// MARK: - Session id Tests
+
+@Test func session_id_withoutTmuxPane_usesTerminalSessionID() {
+    let session = Session(
+        claudeSessionID: "c1", terminalSessionID: "w0t0p0:abc",
+        terminalType: .iterm2, agent: "claude-code",
+        projectPath: "/test", state: .idle, startedAt: Date()
+    )
+    #expect(session.id == "w0t0p0:abc")
+}
+
+@Test func session_id_withTmuxPane_appendsPane() {
+    let session = Session(
+        claudeSessionID: "c1", terminalSessionID: "w0t0p0:abc",
+        tmuxPane: "%3", terminalType: .iterm2, agent: "claude-code",
+        projectPath: "/test", state: .idle, startedAt: Date()
+    )
+    #expect(session.id == "w0t0p0:abc:%3")
+}
+
+// MARK: - SessionState Codable Tests
+
+@Test func sessionState_codableRoundtrip() throws {
+    for state in [SessionState.idle, .working, .permission, .backburner, .compacting] {
+        let data = try JSONEncoder().encode(state)
+        let decoded = try JSONDecoder().decode(SessionState.self, from: data)
+        #expect(decoded == state)
+    }
+}
+
+// MARK: - TerminalType Codable Tests
+
+@Test func terminalType_codableRoundtrip() throws {
+    for type in TerminalType.allCases {
+        let data = try JSONEncoder().encode(type)
+        let decoded = try JSONDecoder().decode(TerminalType.self, from: data)
+        #expect(decoded == type)
+    }
+}
+
+// MARK: - Session displayName priority Tests
+
+@Test func displayName_nonTmux_prefersCustomOverTab() {
+    let session = Session(
+        claudeSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
+        agent: "claude-code", projectPath: "/path/project",
+        terminalTabName: "tab", customName: "custom",
+        state: .idle, startedAt: Date()
+    )
+    #expect(session.displayName == "custom")
+}
+
+@Test func displayName_nonTmux_prefersTabOverFolder() {
+    let session = Session(
+        claudeSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
+        agent: "claude-code", projectPath: "/path/project",
+        terminalTabName: "my-tab",
+        state: .idle, startedAt: Date()
+    )
+    #expect(session.displayName == "my-tab")
+}
+
+@Test func displayName_nonTmux_fallsBackToFolderName() {
+    let session = Session(
+        claudeSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
+        agent: "claude-code", projectPath: "/path/project",
+        state: .idle, startedAt: Date()
+    )
+    #expect(session.displayName == "project")
+}
+
+// MARK: - HighlightConfig Tests
+
+@Test func highlightConfig_codableRoundtrip() throws {
+    let config = HighlightConfig(enabled: true, color: [255, 128, 0], duration: 2.5)
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(HighlightConfig.self, from: data)
+
+    #expect(decoded.enabled == true)
+    #expect(decoded.color == [255, 128, 0])
+    #expect(decoded.duration == 2.5)
+}
+

@@ -147,3 +147,77 @@ import Testing
     #expect(!shortcut.modifierFlags.contains(.shift))
     #expect(!shortcut.modifierFlags.contains(.control))
 }
+
+// MARK: - Display String Tests
+
+@Test func displayString_specialKey_returnSymbol() {
+    let shortcut = LocalShortcut(keyCode: UInt16(kVK_Return), modifiers: [])
+    #expect(shortcut.displayString == "↩")
+}
+
+@Test func displayString_modifierWithSpecialKey() {
+    let shortcut = LocalShortcut(keyCode: UInt16(kVK_Return), modifiers: .command)
+    #expect(shortcut.displayString == "⌘↩")
+}
+
+@Test func displayString_modifierWithLetter() {
+    // keyCode 38 = J on US keyboard
+    let shortcut = LocalShortcut(keyCode: 38, modifiers: [.command, .shift])
+    let display = shortcut.displayString
+    #expect(display.contains("⇧"))
+    #expect(display.contains("⌘"))
+    // Should end with the character
+    #expect(display.count >= 3)
+}
+
+@Test func displayString_letterOnly() {
+    // keyCode 1 = S on US keyboard
+    let shortcut = LocalShortcut(keyCode: 1, modifiers: [])
+    let display = shortcut.displayString
+    // Should just be the letter (uppercase)
+    #expect(display == "S")
+}
+
+// MARK: - keyToCharacter Tests
+
+@Test func keyToCharacter_knownKeys() {
+    // keyCode 0 = A
+    let a = LocalShortcut.keyToCharacter(keyCode: 0)
+    #expect(a?.lowercased() == "a")
+
+    // keyCode 1 = S
+    let s = LocalShortcut.keyToCharacter(keyCode: 1)
+    #expect(s?.lowercased() == "s")
+}
+
+// MARK: - UserDefaults save/load/remove Tests
+
+@Test func localShortcut_saveLoadRoundtrip() {
+    let key = "test_shortcut_roundtrip_\(UUID().uuidString)"
+    defer { LocalShortcut.remove(from: key) }
+    let shortcut = LocalShortcut(keyCode: 38, modifiers: [.command, .shift])
+
+    shortcut.save(to: key)
+    let loaded = LocalShortcut.load(from: key)
+
+    #expect(loaded == shortcut)
+    LocalShortcut.remove(from: key)
+    #expect(LocalShortcut.load(from: key) == nil)
+}
+
+@Test func localShortcut_load_missingKey_returnsNil() {
+    let loaded = LocalShortcut.load(from: "nonexistent_key_\(UUID().uuidString)")
+    #expect(loaded == nil)
+}
+
+@Test func localShortcut_remove_clearsValue() {
+    let key = "test_shortcut_remove_\(UUID().uuidString)"
+    defer { LocalShortcut.remove(from: key) }
+    let shortcut = LocalShortcut(keyCode: 1, modifiers: .shift)
+
+    shortcut.save(to: key)
+    #expect(LocalShortcut.load(from: key) != nil)
+
+    LocalShortcut.remove(from: key)
+    #expect(LocalShortcut.load(from: key) == nil)
+}

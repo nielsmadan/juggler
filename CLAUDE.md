@@ -12,8 +12,10 @@ make test-ui  # Run UI tests only (launches app)
 make test-all # Run all tests (unit + UI)
 make clean    # Remove build directory
 make lint     # Run SwiftLint
-make format   # Run SwiftFormat
-make reset    # Clear all app preferences (for testing fresh state)
+make format       # Run SwiftFormat
+make unused-check # Check for unused code (Periphery)
+make coverage     # Run tests and print coverage summary
+make reset        # Clear all app preferences (for testing fresh state)
 ```
 
 Or use Xcode: `⌘B` to build, `⌘R` to run.

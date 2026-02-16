@@ -10,7 +10,7 @@ EXPORT_PATH = $(RELEASE_DIR)/export
 ZIP_PATH = $(RELEASE_DIR)/Juggler.zip
 DMG_PATH = $(RELEASE_DIR)/Juggler.dmg
 
-.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all unused-checkreset-data reset-permissions reset-all release archive export notarize notarize-ci dmg release-clean tag-release tag-release-patch tag-release-minor tag-release-major
+.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all unused-check coverage reset-data reset-permissions reset-all release archive export notarize notarize-ci dmg release-clean tag-release tag-release-patch tag-release-minor tag-release-major
 
 FILES ?= .
 XCCONFIG_FLAG = $(if $(XCCONFIG),-xcconfig $(XCCONFIG),)
@@ -25,16 +25,26 @@ build-strict:
 # Fast unit tests only (no UI, no app launch)
 test:
 	@xcodebuild -scheme $(SCHEME) -configuration Debug -derivedDataPath $(BUILD_DIR) \
-		$(XCCONFIG_FLAG) -only-testing:JugglerTests test
+		$(XCCONFIG_FLAG) -enableCodeCoverage YES -only-testing:JugglerTests test
 
 # UI tests only (launches app, slower)
 test-ui:
 	@xcodebuild -scheme $(SCHEME) -configuration Debug -derivedDataPath $(BUILD_DIR) \
-		$(XCCONFIG_FLAG) -only-testing:JugglerUITests test
+		$(XCCONFIG_FLAG) -enableCodeCoverage YES -only-testing:JugglerUITests test
 
 # All tests (unit + UI)
 test-all:
-	@xcodebuild -scheme $(SCHEME) -configuration Debug -derivedDataPath $(BUILD_DIR) $(XCCONFIG_FLAG) test
+	@xcodebuild -scheme $(SCHEME) -configuration Debug -derivedDataPath $(BUILD_DIR) \
+		$(XCCONFIG_FLAG) -enableCodeCoverage YES test
+
+XCRESULT = $(BUILD_DIR)/Logs/Test/coverage.xcresult
+
+coverage:
+	@rm -rf $(XCRESULT)
+	@xcodebuild -scheme $(SCHEME) -configuration Debug -derivedDataPath $(BUILD_DIR) \
+		$(XCCONFIG_FLAG) -enableCodeCoverage YES -resultBundlePath $(XCRESULT) \
+		-only-testing:JugglerTests test
+	@xcrun xccov view --report --only-targets $(XCRESULT) | grep -E "^--|Juggler\.app"
 
 run: build
 	@$(APP_PATH)/Contents/MacOS/Juggler
