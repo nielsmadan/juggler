@@ -82,8 +82,10 @@ final class BeaconManager {
             context.duration = 0.3
             self.panel?.animator().alphaValue = 0
         }, completionHandler: {
-            guard self.showGeneration == generation else { return }
-            self.panel?.orderOut(nil)
+            MainActor.assumeIsolated {
+                guard self.showGeneration == generation else { return }
+                self.panel?.orderOut(nil)
+            }
         })
     }
 
@@ -142,11 +144,10 @@ final class BeaconManager {
     private func positionPanel(panelSize: NSSize) {
         guard panel != nil, let screen = NSScreen.main else { return }
 
-        let referenceFrame: NSRect
-        if anchor == .activeWindow, let windowFrame = frontmostWindowFrame() {
-            referenceFrame = windowFrame
+        let referenceFrame: NSRect = if anchor == .activeWindow, let windowFrame = frontmostWindowFrame() {
+            windowFrame
         } else {
-            referenceFrame = screen.visibleFrame
+            screen.visibleFrame
         }
 
         let margin: CGFloat = 40
