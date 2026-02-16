@@ -24,22 +24,30 @@ struct LocalShortcutRecorderView: NSViewRepresentable {
                 } else {
                     LocalShortcut.remove(from: storageKey)
                 }
+                NotificationCenter.default.post(name: .localShortcutsDidChange, object: nil)
             }
         }
         return field
     }
 
     func updateNSView(_ nsView: LocalShortcutRecorderField, context _: Context) {
+        // Don't update while recording — the async binding update from onShortcutChange
+        // can set stringValue on the field editor, triggering controlTextDidEndEditing
+        // and prematurely stopping the recording session.
+        guard !nsView.isRecording else { return }
         nsView.shortcut = shortcut
     }
 }
 
 /// NSSearchField subclass that captures keyboard shortcuts
 final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NSTextViewDelegate {
+    /// True when any recorder instance is actively capturing a shortcut
+    static var isAnyRecording = false
+
     private let minimumWidth: CGFloat = 130
     private var eventMonitor: Any?
     private var cancelButton: NSButtonCell?
-    private var isRecording = false
+    private(set) var isRecording = false
     private var canBecomeKey = false
 
     override var canBecomeKeyView: Bool { canBecomeKey }
@@ -55,6 +63,10 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
     private var showsCancelButton: Bool {
         get { (cell as? NSSearchFieldCell)?.cancelButtonCell != nil }
         set { (cell as? NSSearchFieldCell)?.cancelButtonCell = newValue ? cancelButton : nil }
+    }
+
+    deinit {
+        endRecording()
     }
 
     override init(frame _: NSRect) {
@@ -76,7 +88,6 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
         setContentHuggingPriority(.defaultHigh, for: .vertical)
         setContentHuggingPriority(.defaultHigh, for: .horizontal)
 
-        // Store cancel button for later use
         cancelButton = (cell as? NSSearchFieldCell)?.cancelButtonCell
 
         updateDisplay()
@@ -112,6 +123,7 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
 
     private func startRecording() {
         isRecording = true
+        Self.isAnyRecording = true
         placeholderString = "Press shortcut..."
         showsCancelButton = shortcut != nil
 
@@ -125,31 +137,45 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
         }
     }
 
-    private func stopRecording() {
+    /// Clean up recording state without blurring focus.
+    /// Callers that want to also lose focus should call blur() separately.
+    /// This mirrors the KeyboardShortcuts library pattern where endRecording()
+    /// is separate from blur() to prevent cascading stopRecording calls via
+    /// controlTextDidEndEditing.
+    private func endRecording() {
+        guard isRecording else { return }
         isRecording = false
+        Self.isAnyRecording = false
         if let eventMonitor {
             NSEvent.removeMonitor(eventMonitor)
             self.eventMonitor = nil
         }
         placeholderString = "Record Shortcut"
         showsCancelButton = shortcut != nil
+    }
+
+    private func blur() {
         window?.makeFirstResponder(nil)
     }
 
     // MARK: - NSSearchFieldDelegate
 
     func controlTextDidEndEditing(_: Notification) {
-        stopRecording()
+        // Just clean up recording state — don't blur, since we're already
+        // losing focus (that's why this delegate fired).
+        endRecording()
     }
 
-    // Block ALL text changes
+    // Prevent typed characters from appearing — all input handled via event monitor
     func control(_: NSControl, textView _: NSTextView, shouldChangeTextIn _: NSRange,
                  replacementString _: String?) -> Bool
     {
         false
     }
 
-    // Handle X button click
+    // Handle X button click — field stays first responder, so don't call
+    // endRecording() here (it would tear down the event monitor with no
+    // path to restart since becomeFirstResponder won't fire again).
     func searchFieldDidEndSearching(_: NSSearchField) {
         shortcut = nil
         onShortcutChange?(nil)
@@ -191,7 +217,8 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
             let clickPoint = convert(event.locationInWindow, from: nil)
             let clickMargin: CGFloat = 3.0
             if !bounds.insetBy(dx: -clickMargin, dy: -clickMargin).contains(clickPoint) {
-                stopRecording()
+                endRecording()
+                blur()
                 return event
             }
             return nil
@@ -204,15 +231,10 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
             .intersection(.deviceIndependentFlagsMask)
             .subtracting([.capsLock, .numericPad, .function])
 
-        // Tab without modifiers: move to next responder
-        if modifiers.isEmpty, event.keyCode == UInt16(kVK_Tab) {
-            stopRecording()
-            return event
-        }
-
         // Escape without modifiers: cancel recording
         if modifiers.isEmpty, event.keyCode == UInt16(kVK_Escape) {
-            stopRecording()
+            endRecording()
+            blur()
             return nil
         }
 
@@ -223,7 +245,8 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
             shortcut = nil
             onShortcutChange?(nil)
             updateDisplay()
-            stopRecording()
+            endRecording()
+            blur()
             return nil
         }
 
@@ -232,7 +255,8 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
         shortcut = newShortcut
         onShortcutChange?(newShortcut)
         updateDisplay()
-        stopRecording()
+        endRecording()
+        blur()
         return nil
     }
 }

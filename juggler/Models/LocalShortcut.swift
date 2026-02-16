@@ -34,19 +34,55 @@ struct LocalShortcut: Codable, Equatable {
         NSEvent.ModifierFlags(rawValue: modifiers)
     }
 
+    /// Match against an NSEvent (used by NSEvent monitors for keys like Tab that SwiftUI's focus system intercepts)
+    func matches(_ event: NSEvent) -> Bool {
+        guard event.keyCode == keyCode else { return false }
+        let eventMods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            .intersection([.shift, .control, .option, .command])
+        return eventMods == modifierFlags
+    }
+
     /// Check if this shortcut matches a SwiftUI KeyPress event
     func matches(_ press: KeyPress) -> Bool {
         // For simple shortcuts without modifiers, just compare characters
         if modifierFlags.isEmpty {
-            return Self.keyToCharacter(keyCode: keyCode)?.lowercased() == press.characters.lowercased()
+            return matchesKey(press)
         }
 
         // For shortcuts with modifiers, we need to check both
         let pressModifiers = Self.eventModifiersToNSModifiers(press.modifiers)
         guard pressModifiers == modifierFlags else { return false }
 
-        // Compare the key character
+        // Compare the key
+        return matchesKey(press)
+    }
+
+    /// Compare key identity, handling special keys (Tab, etc.) where modifiers change press.characters
+    private func matchesKey(_ press: KeyPress) -> Bool {
+        if let keyEquivalent = Self.specialKeyEquivalent(keyCode: keyCode) {
+            return press.key == keyEquivalent
+        }
         return Self.keyToCharacter(keyCode: keyCode)?.lowercased() == press.characters.lowercased()
+    }
+
+    /// Map key codes to SwiftUI KeyEquivalent for special keys
+    private static func specialKeyEquivalent(keyCode: UInt16) -> KeyEquivalent? {
+        switch Int(keyCode) {
+        case kVK_Tab: return .tab
+        case kVK_Return: return .return
+        case kVK_Delete: return .delete
+        case kVK_Escape: return .escape
+        case kVK_Space: return .space
+        case kVK_UpArrow: return .upArrow
+        case kVK_DownArrow: return .downArrow
+        case kVK_LeftArrow: return .leftArrow
+        case kVK_RightArrow: return .rightArrow
+        case kVK_Home: return .home
+        case kVK_End: return .end
+        case kVK_PageUp: return .pageUp
+        case kVK_PageDown: return .pageDown
+        default: return nil
+        }
     }
 
     /// Convert SwiftUI EventModifiers to NSEvent.ModifierFlags
@@ -121,7 +157,7 @@ struct LocalShortcut: Codable, Equatable {
         kVK_Escape: "⎋",
         kVK_Home: "↖",
         kVK_Space: "Space",
-        kVK_Tab: "⇥",
+        kVK_Tab: "tab",
         kVK_PageUp: "⇞",
         kVK_PageDown: "⇟",
         kVK_UpArrow: "↑",
@@ -159,6 +195,12 @@ extension NSEvent.ModifierFlags {
         if contains(.command) { result += "⌘" }
         return result
     }
+}
+
+// MARK: - Notifications
+
+extension Notification.Name {
+    static let localShortcutsDidChange = Notification.Name("localShortcutsDidChange")
 }
 
 // MARK: - UserDefaults Storage

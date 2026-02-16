@@ -32,7 +32,7 @@ import Testing
 }
 
 @Test func specialKeyString_tabKey() {
-    #expect(LocalShortcut.specialKeyString(keyCode: UInt16(kVK_Tab)) == "⇥")
+    #expect(LocalShortcut.specialKeyString(keyCode: UInt16(kVK_Tab)) == "tab")
 }
 
 @Test func specialKeyString_arrowKeys() {

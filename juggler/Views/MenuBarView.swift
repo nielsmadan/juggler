@@ -5,6 +5,8 @@
 //  Created by Niels Madan on 22.01.26.
 //
 
+import Carbon.HIToolbox
+import Combine
 import SwiftUI
 
 struct MenuBarView: View {
@@ -89,7 +91,7 @@ struct MenuBarView: View {
                         }
                     }
                 }
-                .font(.caption)
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -121,14 +123,19 @@ struct MenuBarView: View {
         }
         .onAppear {
             controller.syncSelection(sessions: sessionManager.sessions)
+            controller.reloadShortcuts()
+            controller.installTabMonitor(sessionManager: sessionManager, queueOrderMode: $queueOrderMode)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
+            controller.reloadShortcuts()
+        }
+        .onDisappear {
+            controller.removeTabMonitor()
         }
         .onChange(of: queueOrderMode) { _, newMode in
             if let mode = QueueOrderMode(rawValue: newMode) {
                 sessionManager.reorderForMode(mode)
             }
-        }
-        .onAppear {
-            controller.reloadShortcuts()
         }
     }
 

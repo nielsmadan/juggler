@@ -1,3 +1,4 @@
+import Carbon.HIToolbox
 import SwiftUI
 
 @Observable
@@ -7,6 +8,9 @@ final class SessionListController {
 
     // Track selection by session ID so reorder doesn't lose it
     private var selectedSessionID: String?
+
+    // NSEvent monitor needed because SwiftUI intercepts Tab before onKeyPress
+    private var tabEventMonitor: Any?
 
     // Shortcuts — refreshed via reloadShortcuts()
     private(set) var shortcutMoveDown: LocalShortcut?
@@ -110,7 +114,86 @@ final class SessionListController {
         return modes[newIdx].rawValue
     }
 
+    // MARK: - Tab Event Monitor
+
+    /// Install a local NSEvent monitor for Tab key events (Tab is intercepted by SwiftUI's focus system).
+    /// The `extraHandler` closure lets the calling view handle view-specific shortcuts (e.g. togglePause/resetStats).
+    func installTabMonitor(
+        sessionManager: SessionManager,
+        queueOrderMode: Binding<String>,
+        extraHandler: ((NSEvent) -> Bool)? = nil
+    ) {
+        removeTabMonitor()
+        tabEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+            guard event.keyCode == UInt16(kVK_Tab) else { return event }
+            guard !LocalShortcutRecorderField.isAnyRecording else { return event }
+            guard event.window?.isKeyWindow == true else { return event }
+            guard hasShortcutForKeyCode(UInt16(kVK_Tab)) else { return event }
+            var mode = queueOrderMode.wrappedValue
+            if handleKeyEvent(event, sessionManager: sessionManager, queueOrderMode: &mode) {
+                queueOrderMode.wrappedValue = mode
+                return nil
+            }
+            if let extraHandler, extraHandler(event) {
+                return nil
+            }
+            return event
+        }
+    }
+
+    func removeTabMonitor() {
+        if let monitor = tabEventMonitor {
+            NSEvent.removeMonitor(monitor)
+            tabEventMonitor = nil
+        }
+    }
+
     // MARK: - Key Handling
+
+    /// Whether any configured shortcut uses the given key code (used to decide if NSEvent monitor should intercept)
+    func hasShortcutForKeyCode(_ keyCode: UInt16) -> Bool {
+        let all: [LocalShortcut?] = [
+            shortcutMoveDown, shortcutMoveUp, shortcutBackburner,
+            shortcutReactivateSelected, shortcutReactivateAll, shortcutRename,
+            shortcutCycleModeForward, shortcutCycleModeBackward,
+            shortcutTogglePause, shortcutResetStats,
+        ]
+        return all.contains { $0?.keyCode == keyCode }
+    }
+
+    /// Handle NSEvent for keys intercepted before SwiftUI's focus system (e.g. Tab).
+    /// Returns true if handled.
+    func handleKeyEvent(_ event: NSEvent, sessionManager: SessionManager, queueOrderMode: inout String) -> Bool {
+        if let shortcut = shortcutMoveDown, shortcut.matches(event) {
+            moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
+            trackSelectedSession(sessions: sessionManager.sessions)
+            return true
+        } else if let shortcut = shortcutMoveUp, shortcut.matches(event) {
+            moveSelection(by: -1, sessionCount: sessionManager.sessions.count)
+            trackSelectedSession(sessions: sessionManager.sessions)
+            return true
+        } else if let shortcut = shortcutBackburner, shortcut.matches(event) {
+            backburnerSelected(sessionManager: sessionManager)
+            return true
+        } else if let shortcut = shortcutReactivateSelected, shortcut.matches(event) {
+            reactivateSelected(sessionManager: sessionManager)
+            return true
+        } else if let shortcut = shortcutReactivateAll, shortcut.matches(event) {
+            reactivateAll(sessionManager: sessionManager)
+            return true
+        } else if let shortcut = shortcutRename, shortcut.matches(event) {
+            renameSelected(sessions: sessionManager.sessions)
+            return true
+        } else if let shortcut = shortcutCycleModeForward, shortcut.matches(event) {
+            queueOrderMode = cycleMode(forward: true, currentMode: queueOrderMode)
+            return true
+        } else if let shortcut = shortcutCycleModeBackward, shortcut.matches(event) {
+            queueOrderMode = cycleMode(forward: false, currentMode: queueOrderMode)
+            return true
+        }
+        return false
+    }
 
     /// Handle shared key press. Returns .handled or .ignored.
     func handleKeyPress(_ press: KeyPress, sessionManager: SessionManager, queueOrderMode: inout String) -> KeyPress

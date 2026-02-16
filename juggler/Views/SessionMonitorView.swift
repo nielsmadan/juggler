@@ -5,6 +5,7 @@
 //  Created by Niels Madan on 22.01.26.
 //
 
+import Carbon.HIToolbox
 import Combine
 import SwiftUI
 
@@ -113,62 +114,81 @@ struct SessionMonitorView: View {
             mainContent
         }
         .focusable()
-        .focusEffectDisabled()
-        .onKeyPress(.downArrow) {
-            controller.moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
-            controller.trackSelectedSession(sessions: sessionManager.sessions)
-            return .handled
-        }
-        .onKeyPress(.upArrow) {
-            controller.moveSelection(by: -1, sessionCount: sessionManager.sessions.count)
-            controller.trackSelectedSession(sessions: sessionManager.sessions)
-            return .handled
-        }
-        .onKeyPress(.return) { activateSelected(); return .handled }
-        .onKeyPress { handleKeyPress($0) }
-        .sheet(item: $controller.sessionToRename) { session in
-            RenameSessionView(session: session)
-                .environment(sessionManager)
-        }
-        .onChange(of: sessionManager.sessions) { _, newSessions in
-            controller.syncSelection(sessions: newSessions)
-        }
-        .onAppear {
-            controller.syncSelection(sessions: sessionManager.sessions)
-        }
-        .onChange(of: queueOrderMode) { _, newMode in
-            if let mode = QueueOrderMode(rawValue: newMode) {
-                sessionManager.reorderForMode(mode)
-            }
-        }
-        .onChange(of: sessionManager.currentSession?.id) { _, _ in
-            // Sync selectedIndex when currentSession changes
-            if let current = sessionManager.currentSession,
-               let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id })
-            {
-                controller.selectedIndex = index
+            .focusEffectDisabled()
+            .onKeyPress(.downArrow) {
+                controller.moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
                 controller.trackSelectedSession(sessions: sessionManager.sessions)
+                return .handled
             }
-        }
-        .onChange(of: sessionManager.focusedSessionID) { _, newFocusedID in
-            // Sync selectedIndex when focus changes (direct observer for reliability)
-            guard let focusedID = newFocusedID else { return }
-            if let index = sessionManager.sessions.firstIndex(where: {
-                $0.terminalSessionID == focusedID || $0.terminalSessionID.hasSuffix(focusedID)
-            }) {
-                controller.selectedIndex = index
+            .onKeyPress(.upArrow) {
+                controller.moveSelection(by: -1, sessionCount: sessionManager.sessions.count)
                 controller.trackSelectedSession(sessions: sessionManager.sessions)
+                return .handled
             }
-        }
-        .onAppear {
-            controller.reloadShortcuts()
-        }
+            .onKeyPress(.return) { activateSelected(); return .handled }
+            .onKeyPress { handleKeyPress($0) }
+            .sheet(item: $controller.sessionToRename) { session in
+                RenameSessionView(session: session)
+                    .environment(sessionManager)
+            }
+            .onChange(of: sessionManager.sessions) { _, newSessions in
+                controller.syncSelection(sessions: newSessions)
+            }
+            .onAppear {
+                controller.syncSelection(sessions: sessionManager.sessions)
+                controller.reloadShortcuts()
+                controller.installTabMonitor(
+                    sessionManager: sessionManager,
+                    queueOrderMode: $queueOrderMode,
+                    extraHandler: { event in
+                        if enableStats, let shortcut = controller.shortcutTogglePause, shortcut.matches(event) {
+                            isPaused.toggle()
+                            return true
+                        }
+                        if enableStats, let shortcut = controller.shortcutResetStats, shortcut.matches(event) {
+                            globalStatsResetDate = Date()
+                            return true
+                        }
+                        return false
+                    }
+                )
+            }
+            .onDisappear {
+                controller.removeTabMonitor()
+            }
+            .onChange(of: queueOrderMode) { _, newMode in
+                if let mode = QueueOrderMode(rawValue: newMode) {
+                    sessionManager.reorderForMode(mode)
+                }
+            }
+            .onChange(of: sessionManager.currentSession?.id) { _, _ in
+                // Sync selectedIndex when currentSession changes
+                if let current = sessionManager.currentSession,
+                   let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id }) {
+                    controller.selectedIndex = index
+                    controller.trackSelectedSession(sessions: sessionManager.sessions)
+                }
+            }
+            .onChange(of: sessionManager.focusedSessionID) { _, newFocusedID in
+                // Sync selectedIndex when focus changes (direct observer for reliability)
+                guard let focusedID = newFocusedID else { return }
+                if let index = sessionManager.sessions.firstIndex(where: {
+                    $0.terminalSessionID == focusedID || $0.terminalSessionID.hasSuffix(focusedID)
+                }) {
+                    controller.selectedIndex = index
+                    controller.trackSelectedSession(sessions: sessionManager.sessions)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
+                controller.reloadShortcuts()
+            }
     }
 
     @ViewBuilder
     private var mainContent: some View {
         VStack(spacing: 0) {
             controlBar
+            Divider()
             if sessionManager.sessions.isEmpty {
                 ContentUnavailableView(
                     "No Sessions",
@@ -596,10 +616,10 @@ struct SessionMonitorView: View {
     private var shortcutsReference: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Shortcuts")
-                .font(.caption)
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 120, maximum: 160))], alignment: .leading, spacing: 2) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140, maximum: 180))], alignment: .leading, spacing: 2) {
                 shortcutRow("↑/↓", "Navigate")
                 shortcutRow("↵", "Activate")
                 shortcutRow(controller.shortcutMoveUp?.displayString ?? "–", "Move Up")
@@ -622,11 +642,11 @@ struct SessionMonitorView: View {
     private func shortcutRow(_ key: String, _ action: String) -> some View {
         HStack(spacing: 4) {
             Text(key)
-                .font(.caption.monospaced())
+                .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(.primary)
-                .frame(minWidth: 40, alignment: .trailing)
+                .frame(minWidth: 48, alignment: .trailing)
             Text(action)
-                .font(.caption)
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
