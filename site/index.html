@@ -8,9 +8,11 @@
 <meta property="og:title" content="Juggler — Keep Every Claude Code Session in the Air">
 <meta property="og:description" content="Native macOS app to cycle through idle coding sessions with global hotkeys. iTerm2, Kitty, Claude Code, OpenCode. Never lose track of a session again.">
 <meta property="og:type" content="website">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Libre+Franklin:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #08090a;
@@ -36,7 +38,7 @@
   --accent-glow: rgba(158, 212, 80, 0.06);
 
   --mono: 'IBM Plex Mono', 'SF Mono', 'Cascadia Code', monospace;
-  --sans: 'Libre Franklin', -apple-system, sans-serif;
+  --sans: 'Outfit', -apple-system, sans-serif;
 }
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -52,6 +54,20 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ═══════════ NOISE TEXTURE ═══════════ */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+
 ::selection {
   background: var(--accent);
   color: var(--bg);
@@ -65,6 +81,28 @@ a { color: inherit; }
   padding: 0 28px;
 }
 
+/* ═══════════ SCROLL REVEAL ═══════════ */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+
+.reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Stagger children in grids */
+.reveal-stagger > .reveal:nth-child(1) { transition-delay: 0s; }
+.reveal-stagger > .reveal:nth-child(2) { transition-delay: 0.08s; }
+.reveal-stagger > .reveal:nth-child(3) { transition-delay: 0.16s; }
+.reveal-stagger > .reveal:nth-child(4) { transition-delay: 0.24s; }
+.reveal-stagger > .reveal:nth-child(5) { transition-delay: 0.32s; }
+.reveal-stagger > .reveal:nth-child(6) { transition-delay: 0.4s; }
+.reveal-stagger > .reveal:nth-child(7) { transition-delay: 0.48s; }
+.reveal-stagger > .reveal:nth-child(8) { transition-delay: 0.56s; }
+
 /* ═══════════ NAV ═══════════ */
 nav {
   position: fixed;
@@ -76,6 +114,17 @@ nav {
   -webkit-backdrop-filter: blur(24px) saturate(1.2);
   background: rgba(8, 9, 10, 0.75);
   border-bottom: 1px solid var(--border);
+}
+
+nav::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--ball-green) 30%, var(--ball-blue) 70%, transparent 100%);
+  opacity: 0.3;
 }
 
 nav .inner {
@@ -160,22 +209,154 @@ nav .inner {
 .hero {
   padding: 140px 0 60px;
   position: relative;
+  overflow: hidden;
 }
 
-/* Multi-color glow behind hero using ball colors */
+/* Multi-color glow behind hero using all 5 ball colors */
 .hero::after {
   content: '';
   position: absolute;
   top: 40px;
   left: 50%;
   transform: translateX(-50%);
-  width: 800px;
-  height: 500px;
+  width: 900px;
+  height: 600px;
   background:
-    radial-gradient(ellipse at 30% 40%, rgba(158, 212, 80, 0.06), transparent 50%),
-    radial-gradient(ellipse at 70% 35%, rgba(75, 177, 223, 0.05), transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(144, 104, 212, 0.04), transparent 50%);
+    radial-gradient(ellipse at 25% 35%, rgba(158, 212, 80, 0.07), transparent 50%),
+    radial-gradient(ellipse at 70% 30%, rgba(75, 177, 223, 0.06), transparent 50%),
+    radial-gradient(ellipse at 50% 45%, rgba(144, 104, 212, 0.05), transparent 50%),
+    radial-gradient(ellipse at 35% 55%, rgba(255, 180, 0, 0.04), transparent 45%),
+    radial-gradient(ellipse at 65% 55%, rgba(212, 67, 67, 0.04), transparent 45%);
   pointer-events: none;
+  animation: heroPulse 8s ease-in-out infinite alternate;
+}
+
+@keyframes heroPulse {
+  0% { opacity: 0.8; transform: translateX(-50%) scale(1); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+}
+
+/* Flying ball arc — enter left side near top, curve down, exit bottom side near right */
+.hero-orbs {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0;
+  filter: blur(1px);
+}
+
+.orb:nth-child(1) {
+  width: 14px; height: 14px;
+  background: var(--ball-red);
+  animation: orbArc1 8s linear infinite;
+}
+.orb:nth-child(2) {
+  width: 14px; height: 14px;
+  background: var(--ball-amber);
+  animation: orbArc2 8s linear infinite;
+  animation-delay: -1.6s;
+}
+.orb:nth-child(3) {
+  width: 14px; height: 14px;
+  background: var(--ball-purple);
+  animation: orbArc3 8s linear infinite;
+  animation-delay: -3.2s;
+}
+.orb:nth-child(4) {
+  width: 14px; height: 14px;
+  background: var(--ball-blue);
+  animation: orbArc4 8s linear infinite;
+  animation-delay: -4.8s;
+}
+.orb:nth-child(5) {
+  width: 14px; height: 14px;
+  background: var(--ball-green);
+  animation: orbArc5 8s linear infinite;
+  animation-delay: -6.4s;
+}
+
+/* Each ball: parabolic arc like a juggled ball — steep rise, float at top, steep fall */
+/* left moves at constant rate (10.5% per step); top follows parabola; opacity fades only at edges */
+@keyframes orbArc1 {
+  0%   { left: -2%;   top: 75%;  opacity: 0; }
+  3%   { left: 1%;    top: 68%;  opacity: 0.4; }
+  10%  { left: 8.5%;  top: 46%;  opacity: 0.4; }
+  20%  { left: 19%;   top: 24%;  opacity: 0.4; }
+  30%  { left: 29.5%; top: 14%;  opacity: 0.4; }
+  40%  { left: 40%;   top: 10%;  opacity: 0.4; }
+  50%  { left: 50.5%; top: 10%;  opacity: 0.4; }
+  60%  { left: 61%;   top: 14%;  opacity: 0.4; }
+  70%  { left: 71.5%; top: 24%;  opacity: 0.4; }
+  80%  { left: 82%;   top: 40%;  opacity: 0.4; }
+  90%  { left: 92.5%; top: 58%;  opacity: 0.4; }
+  97%  { left: 100%;  top: 72%;  opacity: 0.4; }
+  100% { left: 103%;  top: 78%;  opacity: 0; }
+}
+@keyframes orbArc2 {
+  0%   { left: -2%;   top: 77%;  opacity: 0; }
+  3%   { left: 1%;    top: 70%;  opacity: 0.38; }
+  10%  { left: 8.5%;  top: 48%;  opacity: 0.38; }
+  20%  { left: 19%;   top: 26%;  opacity: 0.38; }
+  30%  { left: 29.5%; top: 16%;  opacity: 0.38; }
+  40%  { left: 40%;   top: 12%;  opacity: 0.38; }
+  50%  { left: 50.5%; top: 12%;  opacity: 0.38; }
+  60%  { left: 61%;   top: 16%;  opacity: 0.38; }
+  70%  { left: 71.5%; top: 26%;  opacity: 0.38; }
+  80%  { left: 82%;   top: 42%;  opacity: 0.38; }
+  90%  { left: 92.5%; top: 60%;  opacity: 0.38; }
+  97%  { left: 100%;  top: 74%;  opacity: 0.38; }
+  100% { left: 103%;  top: 80%;  opacity: 0; }
+}
+@keyframes orbArc3 {
+  0%   { left: -2%;   top: 74%;  opacity: 0; }
+  3%   { left: 1%;    top: 67%;  opacity: 0.4; }
+  10%  { left: 9%;    top: 45%;  opacity: 0.4; }
+  20%  { left: 19.5%; top: 23%;  opacity: 0.4; }
+  30%  { left: 30%;   top: 13%;  opacity: 0.4; }
+  40%  { left: 40.5%; top: 9%;   opacity: 0.4; }
+  50%  { left: 51%;   top: 9%;   opacity: 0.4; }
+  60%  { left: 61.5%; top: 13%;  opacity: 0.4; }
+  70%  { left: 72%;   top: 23%;  opacity: 0.4; }
+  80%  { left: 82.5%; top: 39%;  opacity: 0.4; }
+  90%  { left: 93%;   top: 57%;  opacity: 0.4; }
+  97%  { left: 100.5%; top: 71%; opacity: 0.4; }
+  100% { left: 104%;  top: 77%;  opacity: 0; }
+}
+@keyframes orbArc4 {
+  0%   { left: -2%;   top: 78%;  opacity: 0; }
+  3%   { left: 1%;    top: 71%;  opacity: 0.36; }
+  10%  { left: 8.5%;  top: 49%;  opacity: 0.36; }
+  20%  { left: 19%;   top: 27%;  opacity: 0.36; }
+  30%  { left: 29.5%; top: 17%;  opacity: 0.36; }
+  40%  { left: 40%;   top: 13%;  opacity: 0.36; }
+  50%  { left: 50.5%; top: 13%;  opacity: 0.36; }
+  60%  { left: 61%;   top: 17%;  opacity: 0.36; }
+  70%  { left: 71.5%; top: 27%;  opacity: 0.36; }
+  80%  { left: 82%;   top: 43%;  opacity: 0.36; }
+  90%  { left: 92.5%; top: 61%;  opacity: 0.36; }
+  97%  { left: 100%;  top: 75%;  opacity: 0.36; }
+  100% { left: 103%;  top: 81%;  opacity: 0; }
+}
+@keyframes orbArc5 {
+  0%   { left: -2%;   top: 76%;  opacity: 0; }
+  3%   { left: 1%;    top: 69%;  opacity: 0.39; }
+  10%  { left: 8.5%;  top: 47%;  opacity: 0.39; }
+  20%  { left: 19%;   top: 25%;  opacity: 0.39; }
+  30%  { left: 29.5%; top: 15%;  opacity: 0.39; }
+  40%  { left: 40%;   top: 11%;  opacity: 0.39; }
+  50%  { left: 50.5%; top: 11%;  opacity: 0.39; }
+  60%  { left: 61%;   top: 15%;  opacity: 0.39; }
+  70%  { left: 71.5%; top: 25%;  opacity: 0.39; }
+  80%  { left: 82%;   top: 41%;  opacity: 0.39; }
+  90%  { left: 92.5%; top: 59%;  opacity: 0.39; }
+  97%  { left: 100%;  top: 73%;  opacity: 0.39; }
+  100% { left: 103%;  top: 79%;  opacity: 0; }
 }
 
 .hero-inner {
@@ -243,6 +424,49 @@ h1 em {
   flex-wrap: wrap;
 }
 
+.brew-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  margin-top: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.brew-install code {
+  padding: 10px 16px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.brew-copy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 100%;
+  background: none;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: color 0.2s;
+  padding: 10px;
+}
+
+.brew-copy:hover {
+  color: var(--text);
+}
+
+.brew-copy svg {
+  width: 16px;
+  height: 16px;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -295,7 +519,20 @@ h1 em {
   box-shadow:
     0 1px 2px rgba(0,0,0,0.3),
     0 8px 32px rgba(0,0,0,0.25),
-    0 24px 60px rgba(0,0,0,0.15);
+    0 24px 60px rgba(0,0,0,0.15),
+    0 0 80px rgba(158, 212, 80, 0.04),
+    0 0 120px rgba(75, 177, 223, 0.03);
+  transition: transform 0.35s ease, box-shadow 0.35s ease;
+}
+
+.demo-frame:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.3),
+    0 12px 40px rgba(0,0,0,0.3),
+    0 32px 80px rgba(0,0,0,0.2),
+    0 0 100px rgba(158, 212, 80, 0.06),
+    0 0 160px rgba(75, 177, 223, 0.04);
 }
 
 .demo-chrome {
@@ -352,24 +589,36 @@ h1 em {
 
 /* ═══════════ THREE PILLARS ═══════════ */
 .pillars {
-  padding: 80px 0;
-  border-top: 1px solid var(--border);
+  padding: 80px 0 100px;
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent 0%, var(--border) 20%, var(--border) 80%, transparent 100%) 1;
 }
 
 .pillars-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
+  gap: 20px;
 }
 
 .pillar {
-  padding: 36px 28px;
+  padding: 32px 28px;
   background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
+
+.pillar:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+}
+
+/* Colored top border accent */
+.pillar:nth-child(1) { border-top: 2px solid var(--ball-amber); }
+.pillar:nth-child(2) { border-top: 2px solid var(--ball-blue); transform: translateY(24px); }
+.pillar:nth-child(3) { border-top: 2px solid var(--ball-green); }
+
+.pillar:nth-child(2):hover { transform: translateY(21px); }
 
 .pillar-num {
   font-family: var(--mono);
@@ -402,8 +651,9 @@ h1 em {
 
 /* ═══════════ HOW IT WORKS ═══════════ */
 .how {
-  padding: 100px 0;
-  border-top: 1px solid var(--border);
+  padding: 120px 0 100px;
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent 0%, var(--border) 20%, var(--border) 80%, transparent 100%) 1;
 }
 
 .section-tag {
@@ -431,6 +681,26 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 0;
+  position: relative;
+}
+
+/* Vertical connecting line */
+.how-steps::before {
+  content: '';
+  position: absolute;
+  left: 24px;
+  top: 28px;
+  bottom: 28px;
+  width: 2px;
+  background: linear-gradient(
+    to bottom,
+    var(--ball-green),
+    var(--ball-blue),
+    var(--ball-purple),
+    var(--ball-amber)
+  );
+  opacity: 0.2;
+  border-radius: 1px;
 }
 
 .how-step {
@@ -456,7 +726,15 @@ h2 {
   font-weight: 700;
   font-size: 15px;
   color: var(--accent);
+  position: relative;
+  z-index: 1;
 }
+
+/* Color-code each step marker */
+.how-step:nth-child(1) .step-marker { color: var(--ball-green); border-color: rgba(158, 212, 80, 0.3); }
+.how-step:nth-child(2) .step-marker { color: var(--ball-blue); border-color: rgba(75, 177, 223, 0.3); }
+.how-step:nth-child(3) .step-marker { color: var(--ball-purple); border-color: rgba(144, 104, 212, 0.3); }
+.how-step:nth-child(4) .step-marker { color: var(--ball-amber); border-color: rgba(255, 180, 0, 0.3); }
 
 .step-body h3 {
   font-family: var(--mono);
@@ -486,32 +764,44 @@ h2 {
 
 /* ═══════════ FEATURES GRID ═══════════ */
 .features {
-  padding: 100px 0;
-  border-top: 1px solid var(--border);
+  padding: 100px 0 80px;
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent 0%, var(--border) 20%, var(--border) 80%, transparent 100%) 1;
 }
+
+.features .section-tag { color: var(--ball-blue); }
 
 .feat-grid {
   margin-top: 48px;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
+  gap: 16px;
 }
 
 .feat {
   padding: 28px 24px;
   background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: transform 0.2s ease;
+}
+
+.feat:hover {
+  transform: translateY(-2px);
 }
 
 .feat-icon {
-  font-size: 32px;
+  width: 36px;
+  height: 36px;
   margin-bottom: 14px;
   display: block;
-  line-height: 1;
 }
+
+.feat-icon.green  { filter: brightness(0) saturate(100%) invert(78%) sepia(40%) saturate(500%) hue-rotate(40deg) brightness(105%) drop-shadow(0 0 8px rgba(158,212,80,0.3)); }
+.feat-icon.amber  { filter: brightness(0) saturate(100%) invert(70%) sepia(80%) saturate(600%) hue-rotate(5deg) brightness(105%) drop-shadow(0 0 8px rgba(255,180,0,0.3)); }
+.feat-icon.red    { filter: brightness(0) saturate(100%) invert(35%) sepia(80%) saturate(600%) hue-rotate(340deg) brightness(95%) drop-shadow(0 0 8px rgba(212,67,67,0.3)); }
+.feat-icon.blue   { filter: brightness(0) saturate(100%) invert(65%) sepia(50%) saturate(500%) hue-rotate(165deg) brightness(105%) drop-shadow(0 0 8px rgba(75,177,223,0.3)); }
+.feat-icon.purple { filter: brightness(0) saturate(100%) invert(45%) sepia(50%) saturate(500%) hue-rotate(225deg) brightness(110%) drop-shadow(0 0 8px rgba(144,104,212,0.3)); }
 
 .feat h3 {
   font-family: var(--mono);
@@ -529,12 +819,22 @@ h2 {
 
 /* ═══════════ SHORTCUTS ═══════════ */
 .shortcuts {
-  padding: 100px 0;
+  padding: 80px 0 100px;
   border-top: 1px solid var(--border);
 }
 
-.sc-table {
+.shortcuts .section-tag { color: var(--ball-purple); }
+
+.sc-card {
   margin-top: 48px;
+  max-width: 600px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 32px;
+}
+
+.sc-table {
   width: 100%;
   border-collapse: collapse;
 }
@@ -567,10 +867,10 @@ kbd {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-bright);
-  background: var(--bg-raised);
+  background: linear-gradient(180deg, var(--bg-hover) 0%, var(--bg-raised) 100%);
   border: 1px solid var(--border-light);
   border-radius: 4px;
-  box-shadow: 0 1px 0 var(--border);
+  box-shadow: 0 2px 0 var(--border), 0 1px 3px rgba(0,0,0,0.2);
   line-height: 1.4;
 }
 
@@ -583,9 +883,12 @@ kbd {
 
 /* ═══════════ COMPAT ═══════════ */
 .compat {
-  padding: 100px 0;
-  border-top: 1px solid var(--border);
+  padding: 100px 0 140px;
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent 0%, var(--border) 20%, var(--border) 80%, transparent 100%) 1;
 }
+
+.compat .section-tag { color: var(--ball-amber); }
 
 .compat-grid {
   margin-top: 48px;
@@ -619,6 +922,13 @@ kbd {
   color: var(--text-bright);
 }
 
+.compat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 .compat-item .tag {
   margin-left: auto;
   font-size: 11px;
@@ -638,9 +948,11 @@ kbd {
 
 /* ═══════════ PHILOSOPHY ═══════════ */
 .philosophy {
-  padding: 100px 0;
+  padding: 80px 0 100px;
   border-top: 1px solid var(--border);
 }
+
+.philosophy .section-tag { color: var(--ball-red); }
 
 .phil-columns {
   margin-top: 48px;
@@ -662,6 +974,16 @@ kbd {
   font-weight: 600;
   margin-bottom: 10px;
   color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.phil-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .phil-card p {
@@ -670,9 +992,28 @@ kbd {
   line-height: 1.65;
 }
 
+/* "Others" card — dimmed */
+.phil-card.dimmed {
+  opacity: 0.7;
+  background: rgba(10, 11, 13, 0.8);
+}
+
+.phil-card.dimmed h3 {
+  text-decoration: line-through;
+  color: var(--ball-red);
+}
+
+/* "Juggler" card — elevated */
 .phil-card.highlight {
   border-color: rgba(158, 212, 80, 0.25);
-  background: linear-gradient(165deg, rgba(158, 212, 80, 0.04) 0%, transparent 50%);
+  background: linear-gradient(165deg,
+    rgba(158, 212, 80, 0.04) 0%,
+    rgba(75, 177, 223, 0.02) 30%,
+    rgba(144, 104, 212, 0.02) 60%,
+    transparent 100%
+  );
+  transform: scale(1.02);
+  box-shadow: 0 0 40px rgba(158, 212, 80, 0.06);
 }
 
 .phil-card.highlight h3 { color: var(--accent); }
@@ -682,7 +1023,8 @@ kbd {
 .cta {
   padding: 120px 0;
   text-align: center;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent 0%, var(--border) 20%, var(--border) 80%, transparent 100%) 1;
   position: relative;
 }
 
@@ -692,17 +1034,23 @@ kbd {
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 600px;
-  height: 300px;
+  width: 700px;
+  height: 350px;
   background:
-    radial-gradient(ellipse at 40% 60%, rgba(158, 212, 80, 0.05), transparent 55%),
-    radial-gradient(ellipse at 60% 50%, rgba(75, 177, 223, 0.04), transparent 55%);
+    radial-gradient(ellipse at 30% 60%, rgba(158, 212, 80, 0.06), transparent 55%),
+    radial-gradient(ellipse at 50% 50%, rgba(144, 104, 212, 0.04), transparent 50%),
+    radial-gradient(ellipse at 70% 50%, rgba(75, 177, 223, 0.05), transparent 55%),
+    radial-gradient(ellipse at 40% 40%, rgba(255, 180, 0, 0.03), transparent 45%),
+    radial-gradient(ellipse at 60% 60%, rgba(212, 67, 67, 0.03), transparent 45%);
   pointer-events: none;
 }
 
 .cta > * { position: relative; z-index: 1; }
 
-.cta h2 { margin-bottom: 12px; }
+.cta h2 {
+  font-size: clamp(28px, 4vw, 40px);
+  margin-bottom: 12px;
+}
 
 .cta .sub {
   font-size: 15px;
@@ -731,14 +1079,20 @@ kbd {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
-.ball-divider span:nth-child(1) { background: var(--ball-red); }
-.ball-divider span:nth-child(2) { background: var(--ball-amber); }
-.ball-divider span:nth-child(3) { background: var(--ball-purple); }
-.ball-divider span:nth-child(4) { background: var(--ball-blue); }
-.ball-divider span:nth-child(5) { background: var(--ball-green); }
+.ball-divider span:nth-child(1) { background: var(--ball-red); animation: ballBounce 1.4s ease-in-out infinite; animation-delay: 0s; }
+.ball-divider span:nth-child(2) { background: var(--ball-amber); animation: ballBounce 1.4s ease-in-out infinite; animation-delay: 0.12s; }
+.ball-divider span:nth-child(3) { background: var(--ball-purple); animation: ballBounce 1.4s ease-in-out infinite; animation-delay: 0.24s; }
+.ball-divider span:nth-child(4) { background: var(--ball-blue); animation: ballBounce 1.4s ease-in-out infinite; animation-delay: 0.36s; }
+.ball-divider span:nth-child(5) { background: var(--ball-green); animation: ballBounce 1.4s ease-in-out infinite; animation-delay: 0.48s; }
+
+@keyframes ballBounce {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-10px); }
+  60% { transform: translateY(-4px); }
+}
 
 /* ═══════════ FOOTER ═══════════ */
 footer {
@@ -770,14 +1124,36 @@ footer {
 /* ═══════════ RESPONSIVE ═══════════ */
 @media (max-width: 720px) {
   .pillars-grid { grid-template-columns: 1fr; }
+  .pillar:nth-child(2) { transform: none; }
+  .pillar:nth-child(2):hover { transform: translateY(-3px); }
   .feat-grid { grid-template-columns: 1fr; }
   .compat-grid { grid-template-columns: 1fr; }
   .phil-columns { grid-template-columns: 1fr; }
+  .phil-card.highlight { transform: none; }
   .nav-right a:not(.btn-sm) { display: none; }
   .footer-inner { flex-direction: column; gap: 12px; text-align: center; }
+  .hero-orbs { display: none; }
+  .sc-card { padding: 20px; }
 }
 
-/* ═══════════ ANIMATIONS ═══════════ */
+/* ═══════════ REDUCED MOTION ═══════════ */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .orb,
+  .ball-divider span,
+  .hero::after {
+    animation: none !important;
+  }
+  .hero-orbs { display: none; }
+  .demo-frame { transition: none; }
+  .pillar, .feat { transition: none; }
+}
+
+/* ═══════════ ANIMATIONS (motion OK) ═══════════ */
 @media (prefers-reduced-motion: no-preference) {
   .hero-inner { animation: rise 0.7s ease-out both; }
   .demo { animation: rise 0.7s ease-out 0.1s both; }
@@ -814,18 +1190,31 @@ footer {
 
 <!-- ═══ HERO ═══ -->
 <section class="hero">
+  <div class="hero-orbs">
+    <span class="orb"></span>
+    <span class="orb"></span>
+    <span class="orb"></span>
+    <span class="orb"></span>
+    <span class="orb"></span>
+  </div>
   <div class="wrap hero-inner">
     <div class="hero-badge">
       <span class="dot"></span>
       Open source · MIT · macOS
     </div>
-    <h1>One hotkey.<br><em>Next idle session.</em></h1>
+    <h1>One hotkey.<br><em>Every session in the air.</em></h1>
     <p class="hero-desc">
-      Juggler is a native macOS app that tracks your running coding agent sessions and cycles you to the next one that needs attention. No workflow changes. No new terminal. Just less time wasted.
+      Juggler is a native macOS app that tracks your running coding agent sessions and cycles you to the next one that needs attention. No workflow changes. No new terminal.
     </p>
     <div class="hero-ctas">
       <a href="https://github.com/nielsmadan/juggler/releases/latest/download/Juggler.dmg" class="btn btn-primary">↓ Download for macOS</a>
       <a href="https://github.com/nielsmadan/juggler" class="btn btn-ghost">View Source</a>
+    </div>
+    <div class="brew-install">
+      <code>brew install --cask nielsmadan/juggler/juggler</code>
+      <button class="brew-copy" onclick="navigator.clipboard.writeText('brew install --cask nielsmadan/juggler/juggler').then(()=>{const b=this;b.innerHTML='<svg fill=\'none\' stroke=\'currentColor\' viewBox=\'0 0 24 24\'><path stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M5 13l4 4L19 7\'/></svg>';setTimeout(()=>{b.innerHTML='<svg fill=\'none\' stroke=\'currentColor\' viewBox=\'0 0 24 24\'><rect x=\'9\' y=\'9\' width=\'13\' height=\'13\' rx=\'2\' stroke-width=\'2\'/><path stroke-width=\'2\' d=\'M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1\'/></svg>'},1500)})">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" stroke-width="2"/><path stroke-width="2" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+      </button>
     </div>
   </div>
 </section>
@@ -844,28 +1233,28 @@ footer {
         </video>
       </div>
     </div>
-    <p class="demo-caption">⇧⌘K cycles to the next idle session and highlights the terminal tab.</p>
+    <p class="demo-caption">Press the hotkey. Land on the next idle session. Keep juggling.</p>
   </div>
 </section>
 
 <!-- ═══ THREE PILLARS ═══ -->
 <section class="pillars">
   <div class="wrap">
-    <div class="pillars-grid">
-      <div class="pillar">
+    <div class="pillars-grid reveal-stagger">
+      <div class="pillar reveal">
         <div class="pillar-num">01</div>
         <h3>Instant switching</h3>
         <p>Press one global hotkey from anywhere — any app, any Space — and Juggler takes you straight to the next session that's waiting for input.</p>
       </div>
-      <div class="pillar">
+      <div class="pillar reveal">
         <div class="pillar-num">02</div>
         <h3>Never lose a window</h3>
         <p>When you switch, Juggler highlights the terminal tab and pane with a color-coded flash. Across multiple monitors, you'll spot it immediately.</p>
       </div>
-      <div class="pillar">
+      <div class="pillar reveal">
         <div class="pillar-num">03</div>
         <h3>Zero workflow changes</h3>
-        <p>No new terminal to learn. No forced worktrees. No limit to one repo. Keep your existing setup — Juggler works around you, not the other way around.</p>
+        <p>No new terminal to learn. No forced worktrees. No limit to one repo. Keep your existing setup and workflow.</p>
       </div>
     </div>
   </div>
@@ -876,29 +1265,29 @@ footer {
   <div class="wrap">
     <div class="section-tag">Getting started</div>
     <h2>Running in two minutes.</h2>
-    <div class="how-steps">
-      <div class="how-step">
+    <div class="how-steps reveal-stagger">
+      <div class="how-step reveal">
         <div class="step-marker">1</div>
         <div class="step-body">
-          <h3>Download and open</h3>
-          <p>Grab the latest release from GitHub. Drag to Applications. Launch.</p>
+          <h3>Install</h3>
+          <p>Grab the .dmg or install with homebrew.</p>
         </div>
       </div>
-      <div class="how-step">
+      <div class="how-step reveal">
         <div class="step-marker">2</div>
         <div class="step-body">
-          <h3>Walk through onboarding</h3>
+          <h3>Onboarding</h3>
           <p>Juggler guides you through granting Accessibility permissions, setting up your terminal integration, and installing the hooks that let it detect sessions.</p>
         </div>
       </div>
-      <div class="how-step">
+      <div class="how-step reveal">
         <div class="step-marker">3</div>
         <div class="step-body">
           <h3>Open your sessions</h3>
-          <p>Start Claude Code or OpenCode sessions as you normally would. Juggler detects them automatically — no registration, no config per project.</p>
+          <p>Start Claude Code or OpenCode sessions as you normally would. Juggler detects them automatically. No registration. No config.</p>
         </div>
       </div>
-      <div class="how-step">
+      <div class="how-step reveal">
         <div class="step-marker">4</div>
         <div class="step-body">
           <h3>Hit the hotkey</h3>
@@ -915,69 +1304,71 @@ footer {
   <div class="wrap">
     <div class="section-tag">Features</div>
     <h2>What's in the box.</h2>
-    <div class="feat-grid">
-      <div class="feat">
-        <span class="feat-icon">⌨️</span>
+    <div class="feat-grid reveal-stagger">
+      <div class="feat reveal">
+        <img src="assets/global-hotkeys.svg" class="feat-icon green" alt="">
         <h3>Global hotkeys</h3>
-        <p>Cycle forward, backward, backburner, reactivate, toggle the UI — all from any app, all customizable.</p>
+        <p>Cycle forward, backward, backburner, reactivate, toggle the UI. All global, all customizable.</p>
       </div>
-      <div class="feat">
-        <span class="feat-icon">🎨</span>
+      <div class="feat reveal">
+        <img src="assets/tab.svg" class="feat-icon amber" alt="">
         <h3>Tab & pane highlighting</h3>
-        <p>Cycling color palette marks the active session's tab and pane. Spots it instantly, even across monitors.</p>
+        <p>Color-coded flash marks the active session's tab and pane. Spot it instantly across monitors.</p>
       </div>
-      <div class="feat">
-        <span class="feat-icon">🔔</span>
+      <div class="feat reveal">
+        <img src="assets/notification.svg" class="feat-icon red" alt="">
         <h3>Notifications</h3>
-        <p>Native macOS alerts when a session goes idle or needs permission. Click the notification to jump there.</p>
+        <p>Native macOS alerts when a session goes idle or needs permission. Click to jump there.</p>
       </div>
-      <div class="feat">
-        <span class="feat-icon">📊</span>
+      <div class="feat reveal">
+        <img src="assets/monitor.svg" class="feat-icon blue" alt="">
         <h3>Menu bar & monitor</h3>
-        <p>Popover for a quick glance. Full session monitor window with animated state transitions and stats.</p>
+        <p>Popover for a quick glance. Full session monitor with all the details and jugglery animations.</p>
       </div>
-      <div class="feat">
-        <span class="feat-icon">🔄</span>
+      <div class="feat reveal">
+        <img src="assets/queue.svg" class="feat-icon purple" alt="">
         <h3>Queue modes</h3>
-        <p>Fair (round-robin), Priority (most recent first), or Static (creation order). Match Juggler to how you think.</p>
+        <p>Fair, Priority, or Static. Match Juggler to your tasks and your workflow.</p>
       </div>
-      <div class="feat">
-        <span class="feat-icon">⏸️</span>
+      <div class="feat reveal">
+        <img src="assets/burner.svg" class="feat-icon amber" alt="">
         <h3>Backburner</h3>
-        <p>Park sessions you don't need right now. They stay tracked but won't appear in your cycle.</p>
+        <p>Park sessions you don't need right now. They stay tracked but skip the cycle. Reactivate when you're ready to continue</p>
       </div>
-      <div class="feat">
-        <span class="feat-icon">📈</span>
+      <div class="feat reveal">
+        <img src="assets/idle.svg" class="feat-icon blue" alt="">
         <h3>Idle time stats</h3>
-        <p>Per-session and global idle vs. working time. See exactly how much throughput you're getting.</p>
+        <p>Per-session and global idle vs. working time. See your actual throughput.</p>
       </div>
-      <div class="feat">
-        <span class="feat-icon">⚡</span>
+      <div class="feat reveal">
+        <img src="assets/guide.svg" class="feat-icon green" alt="">
         <h3>Guided setup</h3>
-        <p>Onboarding walks you through permissions, terminal integration, and hook installation. No manual config.</p>
+        <p>Onboarding walks you through permissions, terminal integration, and hooks. No manual config.</p>
       </div>
     </div>
   </div>
 </section>
 
 <!-- ═══ SHORTCUTS ═══ -->
-<section class="shortcuts">
+<section class="shortcuts" id="shortcuts">
   <div class="wrap">
     <div class="section-tag">Keyboard-first</div>
     <h2>Hands stay on the keyboard.</h2>
-    <table class="sc-table">
-      <thead>
-        <tr><th>Shortcut</th><th>Action</th></tr>
-      </thead>
-      <tbody>
-        <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>K</kbd></td><td>Cycle to next idle session</td></tr>
-        <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>J</kbd></td><td>Cycle backward</td></tr>
-        <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>L</kbd></td><td>Backburner current session</td></tr>
-        <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>H</kbd></td><td>Reactivate all backburnered sessions</td></tr>
-        <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>;</kbd></td><td>Toggle popover / open monitor</td></tr>
-      </tbody>
-    </table>
-    <p class="sc-note">Every action has a keyboard shortcut — including all popover and session monitor controls. All fully customizable.</p>
+    <div class="sc-card reveal">
+      <table class="sc-table">
+        <thead>
+          <tr><th>Shortcut</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>K</kbd></td><td>Cycle to next idle session</td></tr>
+          <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>J</kbd></td><td>Cycle backward</td></tr>
+          <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>L</kbd></td><td>Backburner current session</td></tr>
+          <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>H</kbd></td><td>Reactivate all backburnered sessions</td></tr>
+          <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>;</kbd></td><td>Toggle popover / open monitor</td></tr>
+        </tbody>
+      </table>
+      <p class="sc-note">Every action has a keyboard shortcut, including all popover and session monitor controls. All fully customizable. Made by a longtime vim user.</p>
+    </div>
   </div>
 </section>
 
@@ -986,20 +1377,21 @@ footer {
   <div class="wrap">
     <div class="section-tag">Compatibility</div>
     <h2>Works with what you use.</h2>
-    <div class="compat-grid">
-      <div class="compat-group">
+    <div class="compat-grid reveal-stagger">
+      <div class="compat-group reveal">
         <h3>Terminals</h3>
-        <div class="compat-item">iTerm2</div>
-        <div class="compat-item">Kitty</div>
-        <div class="compat-item">tmux <span class="tag optional">optional</span></div>
+        <div class="compat-item"><span class="compat-dot" style="background:var(--ball-red)"></span>iTerm2</div>
+        <div class="compat-item"><span class="compat-dot" style="background:var(--ball-amber)"></span>Kitty</div>
+        <div class="compat-item"><span class="compat-dot" style="background:var(--ball-purple)"></span>tmux <span class="tag optional">optional</span></div>
       </div>
-      <div class="compat-group">
+      <div class="compat-group reveal">
         <h3>Coding agents</h3>
-        <div class="compat-item">Claude Code</div>
-        <div class="compat-item">OpenCode</div>
+        <div class="compat-item"><span class="compat-dot" style="background:var(--ball-blue)"></span>Claude Code</div>
+        <div class="compat-item"><span class="compat-dot" style="background:var(--ball-green)"></span>OpenCode</div>
       </div>
     </div>
     <p style="margin-top: 24px; font-size: 13px; color: var(--text-dim);">Requires macOS 14.0+ (Sonoma).</p>
+    <p style="margin-top: 12px; font-size: 15px; color: var(--text);">More integrations — WezTerm, Gemini CLI, Copilot — coming soon.</p>
   </div>
 </section>
 
@@ -1008,14 +1400,14 @@ footer {
   <div class="wrap">
     <div class="section-tag">Philosophy</div>
     <h2>Your terminal. Your way.</h2>
-    <div class="phil-columns">
-      <div class="phil-card">
-        <h3>Other session managers</h3>
-        <p>Wrap your sessions in a TUI or custom terminal. You give up your splits, profiles, colors, scrollback, and muscle memory in exchange for a dashboard. Often require tmux, force worktrees, or limit you to a single repo.</p>
+    <div class="phil-columns reveal-stagger">
+      <div class="phil-card dimmed reveal">
+        <h3><span class="phil-dot" style="background:var(--ball-red)"></span>Other session managers</h3>
+        <p>Wrap sessions in a TUI or separate app. Give up splits, profiles, scrollback. Force tmux. Force worktrees. Limit to one repo. And who knows how long they will be maintained?</p>
       </div>
-      <div class="phil-card highlight">
-        <h3>Juggler</h3>
-        <p>Sits in your menu bar. Detects sessions via hooks. Activates and highlights your real terminal windows natively. Your workflow stays exactly as it was — just with less time spent hunting for idle sessions.</p>
+      <div class="phil-card highlight reveal">
+        <h3><span class="phil-dot" style="background:var(--ball-green)"></span>Juggler</h3>
+        <p>Sits in your menu bar. Detects sessions via hooks. Activates your real terminal windows natively. Your workflow stays exactly as it was.</p>
       </div>
     </div>
   </div>
@@ -1027,14 +1419,16 @@ footer {
     <div class="ball-divider">
       <span></span><span></span><span></span><span></span><span></span>
     </div>
-    <div class="section-tag">Get started</div>
-    <h2>Stop losing sessions<br>in a sea of tabs.</h2>
-    <p class="sub">Free, open source, and built for people who run coding agents all day.</p>
-    <div class="hero-ctas">
-      <a href="https://github.com/nielsmadan/juggler/releases/latest/download/Juggler.dmg" class="btn btn-primary">↓ Download for macOS</a>
-      <a href="https://github.com/nielsmadan/juggler" class="btn btn-ghost">★ Star on GitHub</a>
+    <div class="cta-content reveal">
+      <div class="section-tag">Get started</div>
+      <h2>Stop hunting for idle sessions.</h2>
+      <p class="sub">Free, open source, and built for people who run coding agents all day and hate using their mouse.</p>
+      <div class="hero-ctas">
+        <a href="https://github.com/nielsmadan/juggler/releases/latest/download/Juggler.dmg" class="btn btn-primary">↓ Download for macOS</a>
+        <a href="https://github.com/nielsmadan/juggler" class="btn btn-ghost">★ Star on GitHub</a>
+      </div>
+      <p class="platform">macOS 14.0+ · iTerm2 / Kitty · Claude Code / OpenCode · MIT License</p>
     </div>
-    <p class="platform">macOS 14.0+ · iTerm2 / Kitty · Claude Code / OpenCode · MIT License</p>
   </div>
 </section>
 
@@ -1049,6 +1443,23 @@ footer {
     </div>
   </div>
 </footer>
+
+<!-- ═══ SCROLL REVEAL ═══ -->
+<script>
+(function() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var els = document.querySelectorAll('.reveal');
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) {
+        e.target.classList.add('revealed');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.15 });
+  els.forEach(function(el) { observer.observe(el); });
+})();
+</script>
 
 </body>
 </html>
