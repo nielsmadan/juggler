@@ -52,6 +52,7 @@ class iTerm2Daemon:
         asyncio.create_task(self.run_focus_monitor())
         asyncio.create_task(self.run_session_monitor())
         asyncio.create_task(self.run_layout_monitor())
+        asyncio.create_task(self._monitor_parent())
 
         # Handle connections
         loop = asyncio.get_running_loop()
@@ -420,6 +421,16 @@ class iTerm2Daemon:
         await session.async_send_text('\033]1337;SetColors=bg=default\a')
 
         return {"status": "ok"}
+
+    async def _monitor_parent(self) -> None:
+        """Exit if parent process dies (orphan detection)."""
+        parent_pid = os.getppid()
+        while self.running:
+            await asyncio.sleep(5)
+            if os.getppid() != parent_pid:
+                print("Parent process gone, exiting", file=sys.stderr)
+                self.stop()
+                sys.exit(0)
 
     def _extract_uuid(self, session_id: str) -> str:
         """Extract UUID from 'w0t0p0:UUID' format."""

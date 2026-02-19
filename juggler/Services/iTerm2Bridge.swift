@@ -16,6 +16,7 @@ actor ITerm2Bridge: TerminalBridge {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("iterm2_daemon.sock").path
     }()
+    private nonisolated var pidFilePath: String { socketPath + ".pid" }
 
     private var eventReadSource: DispatchSourceRead?
     private let eventQueue = DispatchQueue(label: "com.juggler.eventlistener")
@@ -30,6 +31,8 @@ actor ITerm2Bridge: TerminalBridge {
 
     func start() async throws {
         guard daemonProcess == nil else { return }
+
+        await killOrphanedDaemon()
 
         await MainActor.run { logInfo(.daemon, "Starting iTerm2 daemon...") }
 
@@ -86,6 +89,7 @@ actor ITerm2Bridge: TerminalBridge {
 
         try process.run()
         daemonProcess = process
+        writePIDFile(pid: process.processIdentifier)
 
         for _ in 0 ..< 50 {
             if FileManager.default.fileExists(atPath: socketPath) {
@@ -290,7 +294,41 @@ actor ITerm2Bridge: TerminalBridge {
             }
         }
         try? FileManager.default.removeItem(atPath: socketPath)
+        removePIDFile()
         await MainActor.run { logInfo(.daemon, "Daemon stopped") }
+    }
+
+    // MARK: - PID File Management
+
+    private func killOrphanedDaemon() async {
+        guard let pidString = try? String(contentsOfFile: pidFilePath, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
+              let pid = Int32(pidString), pid > 0
+        else { return }
+
+        // Check if process is still running (signal 0 = existence check)
+        if kill(pid, 0) == 0 {
+            kill(pid, SIGTERM)
+            // Brief wait for graceful shutdown
+            for _ in 0 ..< 10 {
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                if kill(pid, 0) != 0 { break }
+            }
+            // Force kill if still alive
+            if kill(pid, 0) == 0 {
+                kill(pid, SIGKILL)
+            }
+        }
+
+        try? FileManager.default.removeItem(atPath: pidFilePath)
+        try? FileManager.default.removeItem(atPath: socketPath)
+    }
+
+    private nonisolated func writePIDFile(pid: Int32) {
+        try? String(pid).write(toFile: pidFilePath, atomically: true, encoding: .utf8)
+    }
+
+    private nonisolated func removePIDFile() {
+        try? FileManager.default.removeItem(atPath: pidFilePath)
     }
 
     // MARK: - Connection Recovery
