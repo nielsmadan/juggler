@@ -21,6 +21,9 @@ extension KeyboardShortcuts.Name {
 final class HotkeyManager {
     static let shared = HotkeyManager()
 
+    /// The app that was frontmost before the show-monitor hotkey opened the popover.
+    private var previousApp: NSRunningApplication?
+
     private init() {}
 
     func setupHotkeys() {
@@ -123,10 +126,24 @@ final class HotkeyManager {
 
     private func handleShowMonitor() {
         logDebug(.hotkey, "Show monitor triggered")
+        let mainWindowVisible = NSApp.windows.contains {
+            $0.identifier?.rawValue == "main" && $0.isVisible
+        }
+
         if StatusBarManager.shared.isPopoverShown {
+            // State 2: popover visible → hide popover, open main window
             StatusBarManager.shared.hidePopover()
             StatusBarManager.shared.openMainWindow()
+        } else if mainWindowVisible {
+            // State 3: main window visible → close it, go back to original app
+            if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" }) {
+                window.close()
+            }
+            previousApp?.activate()
+            previousApp = nil
         } else {
+            // State 1: nothing visible → remember current app, show popover
+            previousApp = NSWorkspace.shared.frontmostApplication
             StatusBarManager.shared.showPopover()
         }
     }
