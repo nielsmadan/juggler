@@ -649,6 +649,8 @@ struct SessionListShortcutsSection: View {
         ?? LocalShortcut(keyCode: 1, modifiers: []) // S
     @State private var resetStats: LocalShortcut? = LocalShortcut.load(from: AppStorageKeys.localShortcutResetStats)
         ?? LocalShortcut(keyCode: 1, modifiers: .shift) // ⇧S
+    @State private var toggleBeacon: LocalShortcut? = LocalShortcut.load(from: AppStorageKeys.localShortcutToggleBeacon)
+        ?? LocalShortcut(keyCode: 11, modifiers: []) // B
 
     var body: some View {
         Section("Session List Shortcuts") {
@@ -689,6 +691,11 @@ struct SessionListShortcutsSection: View {
                 label: "Reset Stats",
                 shortcut: $resetStats,
                 storageKey: AppStorageKeys.localShortcutResetStats
+            )
+            LocalShortcutRow(
+                label: "Toggle Beacon",
+                shortcut: $toggleBeacon,
+                storageKey: AppStorageKeys.localShortcutToggleBeacon
             )
         }
     }

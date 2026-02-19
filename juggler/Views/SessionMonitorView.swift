@@ -305,7 +305,7 @@ struct SessionMonitorView: View {
             Spacer()
 
             Toggle(isOn: $beaconEnabled) {
-                Image(systemName: "text.bubble")
+                Image(systemName: "light.panel")
             }
             .toggleStyle(.button)
             .help("Beacon: show session name when cycling")
@@ -481,6 +481,10 @@ struct SessionMonitorView: View {
             globalStatsResetDate = Date()
             return .handled
         }
+        if let shortcut = controller.shortcutToggleBeacon, shortcut.matches(press) {
+            beaconEnabled.toggle()
+            return .handled
+        }
         return .ignored
     }
 
@@ -632,6 +636,7 @@ struct SessionMonitorView: View {
                 shortcutRow(controller.shortcutCycleModeBackward?.displayString ?? "–", "Mode ←")
                 shortcutRow(controller.shortcutTogglePause?.displayString ?? "–", "Start/Pause")
                 shortcutRow(controller.shortcutResetStats?.displayString ?? "–", "Reset Stats")
+                shortcutRow(controller.shortcutToggleBeacon?.displayString ?? "–", "Toggle Beacon")
             }
         }
         .padding(.horizontal)
