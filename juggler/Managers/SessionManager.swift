@@ -203,6 +203,21 @@ final class SessionManager {
         if isCyclable, lastActiveSessionID == sessionID {
             lastActiveSessionID = nil
         }
+
+        // Handle auto-restart: when a session becomes idle and it's the only cyclable one
+        if !wasCyclable, isCyclable {
+            let autoRestart = UserDefaults.standard.bool(forKey: AppStorageKeys.autoRestartOnIdle)
+            if autoRestart {
+                let cyclableCount = sessions.filter(\.state.isIncludedInCycle).count
+                if cyclableCount == 1 {
+                    NotificationCenter.default.post(
+                        name: .shouldAutoRestart,
+                        object: nil,
+                        userInfo: ["sessionID": sessionID]
+                    )
+                }
+            }
+        }
     }
 
     private func targetIndex(for position: QueuePosition, in sessions: [Session]) -> Int {
@@ -673,4 +688,5 @@ final class SessionManager {
 
 extension Notification.Name {
     static let shouldAutoAdvance = Notification.Name("shouldAutoAdvance")
+    static let shouldAutoRestart = Notification.Name("shouldAutoRestart")
 }

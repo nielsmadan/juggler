@@ -654,6 +654,9 @@ struct SessionListShortcutsSection: View {
     @State private var toggleAutoNext: LocalShortcut? = LocalShortcut
         .load(from: AppStorageKeys.localShortcutToggleAutoNext)
         ?? LocalShortcut(keyCode: 0, modifiers: []) // A
+    @State private var toggleAutoRestart: LocalShortcut? = LocalShortcut
+        .load(from: AppStorageKeys.localShortcutToggleAutoRestart)
+        ?? LocalShortcut(keyCode: 12, modifiers: []) // Q
 
     var body: some View {
         Section("Session List Shortcuts") {
@@ -704,6 +707,11 @@ struct SessionListShortcutsSection: View {
                 label: "Auto Next",
                 shortcut: $toggleAutoNext,
                 storageKey: AppStorageKeys.localShortcutToggleAutoNext
+            )
+            LocalShortcutRow(
+                label: "Auto Restart",
+                shortcut: $toggleAutoRestart,
+                storageKey: AppStorageKeys.localShortcutToggleAutoRestart
             )
         }
     }

@@ -18,6 +18,7 @@ struct SessionMonitorView: View {
     @AppStorage(AppStorageKeys.showShortcutHelper) private var showShortcutHelper = true
     @AppStorage(AppStorageKeys.beaconEnabled) private var beaconEnabled = true
     @AppStorage(AppStorageKeys.autoAdvanceOnBusy) private var autoAdvanceOnBusy = false
+    @AppStorage(AppStorageKeys.autoRestartOnIdle) private var autoRestartOnIdle = false
     @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode.tabTitle
         .rawValue
 
@@ -152,6 +153,10 @@ struct SessionMonitorView: View {
                     }
                     if let shortcut = controller.shortcutToggleAutoNext, shortcut.matches(event) {
                         autoAdvanceOnBusy.toggle()
+                        return true
+                    }
+                    if let shortcut = controller.shortcutToggleAutoRestart, shortcut.matches(event) {
+                        autoRestartOnIdle.toggle()
                         return true
                     }
                     return false
@@ -315,6 +320,12 @@ struct SessionMonitorView: View {
             }
             .toggleStyle(.button)
             .help("Auto-advance: go to next session when current goes busy")
+
+            Toggle(isOn: $autoRestartOnIdle) {
+                Image(systemName: "autostartstop")
+            }
+            .toggleStyle(.button)
+            .help("Auto-restart: jump to session when it becomes idle and all others are busy")
 
             Toggle(isOn: $beaconEnabled) {
                 Image(systemName: "light.panel")
@@ -501,6 +512,10 @@ struct SessionMonitorView: View {
             autoAdvanceOnBusy.toggle()
             return .handled
         }
+        if let shortcut = controller.shortcutToggleAutoRestart, shortcut.matches(press) {
+            autoRestartOnIdle.toggle()
+            return .handled
+        }
         return .ignored
     }
 
@@ -654,6 +669,7 @@ struct SessionMonitorView: View {
                 shortcutRow(controller.shortcutResetStats?.displayString ?? "–", "Reset Stats")
                 shortcutRow(controller.shortcutToggleBeacon?.displayString ?? "–", "Toggle Beacon")
                 shortcutRow(controller.shortcutToggleAutoNext?.displayString ?? "–", "Auto Next")
+                shortcutRow(controller.shortcutToggleAutoRestart?.displayString ?? "–", "Auto Restart")
             }
         }
         .padding(.horizontal)

@@ -25,6 +25,7 @@ final class HotkeyManager {
     private var previousApp: NSRunningApplication?
 
     private var autoAdvanceObserver: NSObjectProtocol?
+    private var autoRestartObserver: NSObjectProtocol?
 
     private init() {}
 
@@ -34,6 +35,15 @@ final class HotkeyManager {
         ) { [weak self] _ in
             Task { @MainActor in
                 await self?.handleAutoAdvance()
+            }
+        }
+
+        autoRestartObserver = NotificationCenter.default.addObserver(
+            forName: .shouldAutoRestart, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let sessionID = notification.userInfo?["sessionID"] as? String else { return }
+            Task { @MainActor in
+                await self?.handleAutoRestart(sessionID: sessionID)
             }
         }
 
@@ -113,6 +123,16 @@ final class HotkeyManager {
         await activateWithRetry(
             direction: "auto-advance",
             cycle: { SessionManager.shared.cycleForward() }
+        )
+    }
+
+    private func handleAutoRestart(sessionID: String) async {
+        await activateWithRetry(
+            direction: "auto-restart",
+            cycle: {
+                // Return the target session directly if it's still cyclable, otherwise nil
+                SessionManager.shared.sessions.first { $0.id == sessionID && $0.state.isIncludedInCycle }
+            }
         )
     }
 

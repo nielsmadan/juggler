@@ -48,6 +48,7 @@ enum AppStorageKeys {
 
     // Auto-advance behavior
     static let autoAdvanceOnBusy = "autoAdvanceOnBusy"
+    static let autoRestartOnIdle = "autoRestartOnIdle"
 
     // Terminal enablement
     static let iterm2Enabled = "iterm2Enabled"
@@ -79,4 +80,5 @@ enum AppStorageKeys {
     static let localShortcutResetStats = "localShortcutResetStats"
     static let localShortcutToggleBeacon = "localShortcutToggleBeacon"
     static let localShortcutToggleAutoNext = "localShortcutToggleAutoNext"
+    static let localShortcutToggleAutoRestart = "localShortcutToggleAutoRestart"
 }

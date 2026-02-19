@@ -125,6 +125,7 @@ struct JugglerApp: App {
             "goToNextOnBackburner": true,
             // Auto-advance behavior
             AppStorageKeys.autoAdvanceOnBusy: false,
+            AppStorageKeys.autoRestartOnIdle: false,
             // Cycling colors
             "useCyclingColors": true,
             "useTerminalCyclingColors": true,
