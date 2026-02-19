@@ -17,6 +17,7 @@ struct SessionMonitorView: View {
     @AppStorage(AppStorageKeys.idleSessionColoring) private var idleSessionColoring = true
     @AppStorage(AppStorageKeys.showShortcutHelper) private var showShortcutHelper = true
     @AppStorage(AppStorageKeys.beaconEnabled) private var beaconEnabled = true
+    @AppStorage(AppStorageKeys.autoAdvanceOnBusy) private var autoAdvanceOnBusy = false
     @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode.tabTitle
         .rawValue
 
@@ -114,74 +115,79 @@ struct SessionMonitorView: View {
             mainContent
         }
         .focusable()
-            .focusEffectDisabled()
-            .onKeyPress(.downArrow) {
-                controller.moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
-                controller.trackSelectedSession(sessions: sessionManager.sessions)
-                return .handled
-            }
-            .onKeyPress(.upArrow) {
-                controller.moveSelection(by: -1, sessionCount: sessionManager.sessions.count)
-                controller.trackSelectedSession(sessions: sessionManager.sessions)
-                return .handled
-            }
-            .onKeyPress(.return) { activateSelected(); return .handled }
-            .onKeyPress { handleKeyPress($0) }
-            .sheet(item: $controller.sessionToRename) { session in
-                RenameSessionView(session: session)
-                    .environment(sessionManager)
-            }
-            .onChange(of: sessionManager.sessions) { _, newSessions in
-                controller.syncSelection(sessions: newSessions)
-            }
-            .onAppear {
-                controller.syncSelection(sessions: sessionManager.sessions)
-                controller.reloadShortcuts()
-                controller.installTabMonitor(
-                    sessionManager: sessionManager,
-                    queueOrderMode: $queueOrderMode,
-                    extraHandler: { event in
-                        if enableStats, let shortcut = controller.shortcutTogglePause, shortcut.matches(event) {
-                            isPaused.toggle()
-                            return true
-                        }
-                        if enableStats, let shortcut = controller.shortcutResetStats, shortcut.matches(event) {
-                            globalStatsResetDate = Date()
-                            return true
-                        }
-                        return false
+        .focusEffectDisabled()
+        .onKeyPress(.downArrow) {
+            controller.moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
+            controller.trackSelectedSession(sessions: sessionManager.sessions)
+            return .handled
+        }
+        .onKeyPress(.upArrow) {
+            controller.moveSelection(by: -1, sessionCount: sessionManager.sessions.count)
+            controller.trackSelectedSession(sessions: sessionManager.sessions)
+            return .handled
+        }
+        .onKeyPress(.return) { activateSelected(); return .handled }
+        .onKeyPress { handleKeyPress($0) }
+        .sheet(item: $controller.sessionToRename) { session in
+            RenameSessionView(session: session)
+                .environment(sessionManager)
+        }
+        .onChange(of: sessionManager.sessions) { _, newSessions in
+            controller.syncSelection(sessions: newSessions)
+        }
+        .onAppear {
+            controller.syncSelection(sessions: sessionManager.sessions)
+            controller.reloadShortcuts()
+            controller.installTabMonitor(
+                sessionManager: sessionManager,
+                queueOrderMode: $queueOrderMode,
+                extraHandler: { event in
+                    if enableStats, let shortcut = controller.shortcutTogglePause, shortcut.matches(event) {
+                        isPaused.toggle()
+                        return true
                     }
-                )
-            }
-            .onDisappear {
-                controller.removeTabMonitor()
-            }
-            .onChange(of: queueOrderMode) { _, newMode in
-                if let mode = QueueOrderMode(rawValue: newMode) {
-                    sessionManager.reorderForMode(mode)
+                    if enableStats, let shortcut = controller.shortcutResetStats, shortcut.matches(event) {
+                        globalStatsResetDate = Date()
+                        return true
+                    }
+                    if let shortcut = controller.shortcutToggleAutoNext, shortcut.matches(event) {
+                        autoAdvanceOnBusy.toggle()
+                        return true
+                    }
+                    return false
                 }
+            )
+        }
+        .onDisappear {
+            controller.removeTabMonitor()
+        }
+        .onChange(of: queueOrderMode) { _, newMode in
+            if let mode = QueueOrderMode(rawValue: newMode) {
+                sessionManager.reorderForMode(mode)
             }
-            .onChange(of: sessionManager.currentSession?.id) { _, _ in
-                // Sync selectedIndex when currentSession changes
-                if let current = sessionManager.currentSession,
-                   let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id }) {
-                    controller.selectedIndex = index
-                    controller.trackSelectedSession(sessions: sessionManager.sessions)
-                }
+        }
+        .onChange(of: sessionManager.currentSession?.id) { _, _ in
+            // Sync selectedIndex when currentSession changes
+            if let current = sessionManager.currentSession,
+               let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id })
+            {
+                controller.selectedIndex = index
+                controller.trackSelectedSession(sessions: sessionManager.sessions)
             }
-            .onChange(of: sessionManager.focusedSessionID) { _, newFocusedID in
-                // Sync selectedIndex when focus changes (direct observer for reliability)
-                guard let focusedID = newFocusedID else { return }
-                if let index = sessionManager.sessions.firstIndex(where: {
-                    $0.terminalSessionID == focusedID || $0.terminalSessionID.hasSuffix(focusedID)
-                }) {
-                    controller.selectedIndex = index
-                    controller.trackSelectedSession(sessions: sessionManager.sessions)
-                }
+        }
+        .onChange(of: sessionManager.focusedSessionID) { _, newFocusedID in
+            // Sync selectedIndex when focus changes (direct observer for reliability)
+            guard let focusedID = newFocusedID else { return }
+            if let index = sessionManager.sessions.firstIndex(where: {
+                $0.terminalSessionID == focusedID || $0.terminalSessionID.hasSuffix(focusedID)
+            }) {
+                controller.selectedIndex = index
+                controller.trackSelectedSession(sessions: sessionManager.sessions)
             }
-            .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
-                controller.reloadShortcuts()
-            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
+            controller.reloadShortcuts()
+        }
     }
 
     @ViewBuilder
@@ -303,6 +309,12 @@ struct SessionMonitorView: View {
             }
 
             Spacer()
+
+            Toggle(isOn: $autoAdvanceOnBusy) {
+                Image(systemName: "forward.fill")
+            }
+            .toggleStyle(.button)
+            .help("Auto-advance: go to next session when current goes busy")
 
             Toggle(isOn: $beaconEnabled) {
                 Image(systemName: "light.panel")
@@ -485,6 +497,10 @@ struct SessionMonitorView: View {
             beaconEnabled.toggle()
             return .handled
         }
+        if let shortcut = controller.shortcutToggleAutoNext, shortcut.matches(press) {
+            autoAdvanceOnBusy.toggle()
+            return .handled
+        }
         return .ignored
     }
 
@@ -637,6 +653,7 @@ struct SessionMonitorView: View {
                 shortcutRow(controller.shortcutTogglePause?.displayString ?? "–", "Start/Pause")
                 shortcutRow(controller.shortcutResetStats?.displayString ?? "–", "Reset Stats")
                 shortcutRow(controller.shortcutToggleBeacon?.displayString ?? "–", "Toggle Beacon")
+                shortcutRow(controller.shortcutToggleAutoNext?.displayString ?? "–", "Auto Next")
             }
         }
         .padding(.horizontal)
@@ -692,7 +709,7 @@ private struct ParabolicArcEffect: GeometryEffect {
         set { progress = newValue }
     }
 
-    func effectValue(size: CGSize) -> ProjectionTransform {
+    func effectValue(size _: CGSize) -> ProjectionTransform {
         let x = endX * progress
         let y = endY * progress * progress
         return ProjectionTransform(CGAffineTransform(translationX: x, y: y))

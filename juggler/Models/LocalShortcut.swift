@@ -56,20 +56,20 @@ struct LocalShortcut: Codable, Equatable {
     /// Map key codes to SwiftUI KeyEquivalent for special keys
     private static func specialKeyEquivalent(keyCode: UInt16) -> KeyEquivalent? {
         switch Int(keyCode) {
-        case kVK_Tab: return .tab
-        case kVK_Return: return .return
-        case kVK_Delete: return .delete
-        case kVK_Escape: return .escape
-        case kVK_Space: return .space
-        case kVK_UpArrow: return .upArrow
-        case kVK_DownArrow: return .downArrow
-        case kVK_LeftArrow: return .leftArrow
-        case kVK_RightArrow: return .rightArrow
-        case kVK_Home: return .home
-        case kVK_End: return .end
-        case kVK_PageUp: return .pageUp
-        case kVK_PageDown: return .pageDown
-        default: return nil
+        case kVK_Tab: .tab
+        case kVK_Return: .return
+        case kVK_Delete: .delete
+        case kVK_Escape: .escape
+        case kVK_Space: .space
+        case kVK_UpArrow: .upArrow
+        case kVK_DownArrow: .downArrow
+        case kVK_LeftArrow: .leftArrow
+        case kVK_RightArrow: .rightArrow
+        case kVK_Home: .home
+        case kVK_End: .end
+        case kVK_PageUp: .pageUp
+        case kVK_PageDown: .pageDown
+        default: nil
         }
     }
 

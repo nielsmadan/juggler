@@ -22,7 +22,11 @@ struct SessionRowView: View {
     }
 
     private var isCurrent: Bool {
-        sessionManager.isSessionFocused && sessionManager.currentSession?.id == session.id
+        // When auto-advance is OFF and lastActiveSessionID is set, the busy session stays highlighted
+        if sessionManager.lastActiveSessionID == session.id {
+            return true
+        }
+        return sessionManager.isSessionFocused && sessionManager.currentSession?.id == session.id
     }
 
     private var highlightColor: Color {

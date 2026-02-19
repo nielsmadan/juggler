@@ -1,6 +1,6 @@
 import Foundation
-import SwiftUI
 @testable import Juggler
+import SwiftUI
 import Testing
 
 // MARK: - LogLevel Tests

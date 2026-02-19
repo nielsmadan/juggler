@@ -289,10 +289,12 @@ struct TmuxSetupView: View {
                 .font(.title2)
                 .fontWeight(.bold)
 
-            Text("Juggler needs terminal env vars forwarded into tmux sessions so it can identify which terminal each session runs in.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            Text(
+                "Juggler needs terminal env vars forwarded into tmux sessions so it can identify which terminal each session runs in."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
 
             VStack(alignment: .leading, spacing: 16) {
                 SetupStep(

@@ -891,4 +891,3 @@ import Testing
     #expect(decoded.color == [255, 128, 0])
     #expect(decoded.duration == 2.5)
 }
-

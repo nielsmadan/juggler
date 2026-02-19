@@ -86,7 +86,8 @@ struct MenuBarView: View {
                             Text("\(rename.displayString) rename")
                         }
                         if let forward = controller.shortcutCycleModeForward,
-                           let backward = controller.shortcutCycleModeBackward {
+                           let backward = controller.shortcutCycleModeBackward
+                        {
                             Text("\(forward.displayString)/\(backward.displayString) mode")
                         }
                     }

@@ -24,6 +24,7 @@ final class SessionListController {
     private(set) var shortcutTogglePause: LocalShortcut?
     private(set) var shortcutResetStats: LocalShortcut?
     private(set) var shortcutToggleBeacon: LocalShortcut?
+    private(set) var shortcutToggleAutoNext: LocalShortcut?
 
     init() {
         reloadShortcuts()
@@ -44,6 +45,8 @@ final class SessionListController {
             ?? LocalShortcut(keyCode: 1, modifiers: .shift) // ⇧S
         shortcutToggleBeacon = LocalShortcut.load(from: AppStorageKeys.localShortcutToggleBeacon)
             ?? LocalShortcut(keyCode: 11, modifiers: []) // B
+        shortcutToggleAutoNext = LocalShortcut.load(from: AppStorageKeys.localShortcutToggleAutoNext)
+            ?? LocalShortcut(keyCode: 0, modifiers: []) // A
     }
 
     // MARK: - Selection
@@ -161,6 +164,7 @@ final class SessionListController {
             shortcutReactivateSelected, shortcutReactivateAll, shortcutRename,
             shortcutCycleModeForward, shortcutCycleModeBackward,
             shortcutTogglePause, shortcutResetStats,
+            shortcutToggleAutoNext,
         ]
         return all.contains { $0?.keyCode == keyCode }
     }

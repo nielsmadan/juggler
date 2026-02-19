@@ -32,5 +32,4 @@ enum TerminalType: String, Codable, CaseIterable {
         case .wezterm: "apple.terminal.fill"
         }
     }
-
 }

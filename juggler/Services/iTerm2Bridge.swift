@@ -16,6 +16,7 @@ actor ITerm2Bridge: TerminalBridge {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("iterm2_daemon.sock").path
     }()
+
     private nonisolated var pidFilePath: String { socketPath + ".pid" }
 
     private var eventReadSource: DispatchSourceRead?
@@ -301,8 +302,9 @@ actor ITerm2Bridge: TerminalBridge {
     // MARK: - PID File Management
 
     private func killOrphanedDaemon() async {
-        guard let pidString = try? String(contentsOfFile: pidFilePath, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
-              let pid = Int32(pidString), pid > 0
+        guard let pidString = try? String(contentsOfFile: pidFilePath, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            let pid = Int32(pidString), pid > 0
         else { return }
 
         // Check if process is still running (signal 0 = existence check)

@@ -24,15 +24,28 @@ final class HotkeyManager {
     /// The app that was frontmost before the show-monitor hotkey opened the popover.
     private var previousApp: NSRunningApplication?
 
+    private var autoAdvanceObserver: NSObjectProtocol?
+
     private init() {}
 
     func setupHotkeys() {
+        autoAdvanceObserver = NotificationCenter.default.addObserver(
+            forName: .shouldAutoAdvance, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                await self?.handleAutoAdvance()
+            }
+        }
+
         KeyboardShortcuts.onKeyDown(for: .cycleForward) {
-            Task { await self.handleCycleForward() }
+            // Capture frontmost app synchronously before async Task scheduling
+            let wasTerminalFrontmost = SessionManager.shared.isTerminalFrontmost()
+            Task { await self.handleCycleForward(wasTerminalFrontmost: wasTerminalFrontmost) }
         }
 
         KeyboardShortcuts.onKeyDown(for: .cycleBackward) {
-            Task { await self.handleCycleBackward() }
+            let wasTerminalFrontmost = SessionManager.shared.isTerminalFrontmost()
+            Task { await self.handleCycleBackward(wasTerminalFrontmost: wasTerminalFrontmost) }
         }
 
         KeyboardShortcuts.onKeyDown(for: .backburner) {
@@ -48,12 +61,18 @@ final class HotkeyManager {
         }
     }
 
-    private func handleCycleForward() async {
-        await activateWithRetry(direction: "forward", cycle: SessionManager.shared.cycleForward)
+    private func handleCycleForward(wasTerminalFrontmost: Bool) async {
+        await activateWithRetry(
+            direction: "forward",
+            cycle: { SessionManager.shared.cycleForward(wasTerminalFrontmost: wasTerminalFrontmost) }
+        )
     }
 
-    private func handleCycleBackward() async {
-        await activateWithRetry(direction: "backward", cycle: SessionManager.shared.cycleBackward)
+    private func handleCycleBackward(wasTerminalFrontmost: Bool) async {
+        await activateWithRetry(
+            direction: "backward",
+            cycle: { SessionManager.shared.cycleBackward(wasTerminalFrontmost: wasTerminalFrontmost) }
+        )
     }
 
     private func activateWithRetry(
@@ -88,6 +107,13 @@ final class HotkeyManager {
         }
         logDebug(.hotkey, "No session to cycle to")
         BeaconManager.shared.show(sessionName: "All At Work")
+    }
+
+    private func handleAutoAdvance() async {
+        await activateWithRetry(
+            direction: "auto-advance",
+            cycle: { SessionManager.shared.cycleForward() }
+        )
     }
 
     private func handleBackburner() async {

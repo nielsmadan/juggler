@@ -46,6 +46,9 @@ enum AppStorageKeys {
     // Backburner behavior
     static let goToNextOnBackburner = "goToNextOnBackburner"
 
+    // Auto-advance behavior
+    static let autoAdvanceOnBusy = "autoAdvanceOnBusy"
+
     // Terminal enablement
     static let iterm2Enabled = "iterm2Enabled"
     static let kittyEnabled = "kittyEnabled"
@@ -75,4 +78,5 @@ enum AppStorageKeys {
     static let localShortcutTogglePause = "localShortcutTogglePause"
     static let localShortcutResetStats = "localShortcutResetStats"
     static let localShortcutToggleBeacon = "localShortcutToggleBeacon"
+    static let localShortcutToggleAutoNext = "localShortcutToggleAutoNext"
 }

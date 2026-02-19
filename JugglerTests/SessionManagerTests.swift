@@ -744,3 +744,120 @@ import Testing
     manager.renameSession(terminalSessionID: "s1", customName: nil)
     #expect(manager.sessions[0].customName == nil)
 }
+
+// MARK: - lastActiveSessionID (Anchor) Tests
+
+@Test func lastActiveSessionID_anchorClearedOnCycleForward() {
+    let manager = SessionManager()
+
+    manager.testSetSessions([
+        makeSession("s1", state: .working),
+        makeSession("s2", state: .idle),
+        makeSession("s3", state: .idle),
+    ])
+    manager.testSetLastActiveSessionID("s1")
+    manager.testSetFocusedSessionID("s1")
+
+    // cycleForward should consume the anchor and use it as effective focus
+    let result = manager.cycleForward()
+    #expect(result != nil)
+    #expect(manager.lastActiveSessionID == nil)
+}
+
+@Test func lastActiveSessionID_anchorClearedOnCycleBackward() {
+    let manager = SessionManager()
+
+    manager.testSetSessions([
+        makeSession("s1", state: .idle),
+        makeSession("s2", state: .working),
+        makeSession("s3", state: .idle),
+    ])
+    manager.testSetLastActiveSessionID("s2")
+    manager.testSetFocusedSessionID("s2")
+
+    let result = manager.cycleBackward()
+    #expect(result != nil)
+    #expect(manager.lastActiveSessionID == nil)
+}
+
+@Test func lastActiveSessionID_anchorClearedOnSessionRemoval() {
+    let manager = SessionManager()
+
+    manager.testSetSessions([
+        makeSession("s1", state: .working),
+        makeSession("s2", state: .idle),
+    ])
+    manager.testSetLastActiveSessionID("s1")
+
+    manager.removeSession(sessionID: "s1")
+    #expect(manager.lastActiveSessionID == nil)
+}
+
+@Test func currentSession_autoAdvanceOff_busySessionReturnedViaAnchor() {
+    let manager = SessionManager()
+    UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
+
+    manager.testSetSessions([
+        makeSession("s1", state: .working),
+        makeSession("s2", state: .idle),
+    ])
+    manager.testSetLastActiveSessionID("s1")
+
+    // With anchor set and auto-advance OFF, currentSession should return the busy session
+    let current = manager.currentSession
+    #expect(current?.id == "s1")
+}
+
+@Test func currentSession_autoAdvanceOn_busySessionNotReturnedViaAnchor() {
+    let manager = SessionManager()
+    UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
+
+    manager.testSetSessions([
+        makeSession("s1", state: .working),
+        makeSession("s2", state: .idle),
+    ])
+    manager.testSetLastActiveSessionID("s1")
+
+    // With auto-advance ON, the anchor is ignored for currentSession
+    let current = manager.currentSession
+    #expect(current?.id != "s1")
+
+    // Clean up
+    UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy)
+}
+
+@Test func cycleForward_withAnchor_usesAnchorAsEffectiveFocus() {
+    let manager = SessionManager()
+
+    // s1=idle, s2=working (anchored), s3=idle
+    manager.testSetSessions([
+        makeSession("s1", state: .idle),
+        makeSession("s2", state: .working),
+        makeSession("s3", state: .idle),
+    ])
+    manager.testSetLastActiveSessionID("s2")
+    manager.testSetFocusedSessionID("s2")
+
+    // Cycling forward from s2 (working, anchored) should advance to s3
+    let result = manager.cycleForward()
+    #expect(result?.id == "s3")
+    #expect(manager.lastActiveSessionID == nil) // anchor consumed
+}
+
+@Test func cycleBackward_withAnchor_usesAnchorAsEffectiveFocus() {
+    let manager = SessionManager()
+
+    // s1=idle, s2=working (anchored), s3=idle
+    manager.testSetSessions([
+        makeSession("s1", state: .idle),
+        makeSession("s2", state: .working),
+        makeSession("s3", state: .idle),
+    ])
+    manager.testSetLastActiveSessionID("s2")
+    manager.testSetFocusedSessionID("s2")
+
+    // Cycling backward from s2 should go to s1
+    let result = manager.cycleBackward()
+    #expect(result?.id == "s1")
+    #expect(manager.lastActiveSessionID == nil) // anchor consumed
+}

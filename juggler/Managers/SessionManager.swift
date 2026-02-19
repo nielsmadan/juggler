@@ -20,9 +20,32 @@ final class SessionManager {
         sessions = newSessions
     }
 
+    /// Test-only: set focusedSessionID. Only accessible via @testable import.
+    func testSetFocusedSessionID(_ id: String?) {
+        focusedSessionID = id
+    }
+
+    /// Test-only: set lastActiveSessionID. Only accessible via @testable import.
+    func testSetLastActiveSessionID(_ id: String?) {
+        lastActiveSessionID = id
+    }
+
     private(set) var cyclingState = CyclingState.initial
     private(set) var focusedSessionID: String? // terminalSessionID of actually focused session in iTerm2
     private(set) var isTerminalAppActive = false
+
+    /// Tracks the session the user was last focused on, even after it goes busy.
+    /// Used when auto-advance is OFF to keep the busy session highlighted as "current".
+    private(set) var lastActiveSessionID: String?
+
+    /// Check whether a terminal app is currently the frontmost application (live check, no caching).
+    func isTerminalFrontmost() -> Bool {
+        guard let frontmost = NSWorkspace.shared.frontmostApplication,
+              let bundleID = frontmost.bundleIdentifier
+        else { return false }
+        return TerminalType.allCases.contains { $0.bundleIdentifier == bundleID }
+    }
+
     private let cyclingEngine: CyclingEngine
     private var appFocusObserver: NSObjectProtocol?
 
@@ -151,6 +174,35 @@ final class SessionManager {
             sessions[index].state = newState
             handleStateTransition(at: index, from: oldState, to: newState)
         }
+
+        // Handle auto-advance when a session goes busy
+        let wasCyclable = oldState.isIncludedInCycle
+        let isCyclable = newState.isIncludedInCycle
+        if wasCyclable, !isCyclable {
+            // Only act if the user is still focused on this session.
+            // If they already cycled away, the hook arrived late — don't yank them.
+            let isStillFocused = focusedSessionID.map { fid in
+                sessions[index].id == fid
+                    || sessions[index].terminalSessionID == fid
+                    || sessions[index].terminalSessionID.hasSuffix(fid)
+            } ?? false
+
+            if isStillFocused {
+                let autoAdvance = UserDefaults.standard.bool(forKey: AppStorageKeys.autoAdvanceOnBusy)
+                if autoAdvance {
+                    // Auto-advance ON: notify HotkeyManager to navigate to next idle session
+                    NotificationCenter.default.post(name: .shouldAutoAdvance, object: nil)
+                } else {
+                    // Auto-advance OFF: remember this session as the anchor
+                    lastActiveSessionID = sessionID
+                }
+            }
+        }
+
+        // Clear lastActiveSessionID when the session returns to cyclable state
+        if isCyclable, lastActiveSessionID == sessionID {
+            lastActiveSessionID = nil
+        }
     }
 
     private func targetIndex(for position: QueuePosition, in sessions: [Session]) -> Int {
@@ -205,6 +257,18 @@ final class SessionManager {
 
     var currentSession: Session? {
         let cyclable = cyclableSessions
+
+        // When auto-advance is OFF and we have a lastActiveSessionID pointing to a busy session,
+        // return that session as current even though it's not cyclable.
+        // This keeps the UI highlighting stable when a session goes busy.
+        let autoAdvance = UserDefaults.standard.bool(forKey: AppStorageKeys.autoAdvanceOnBusy)
+        if !autoAdvance, let lastID = lastActiveSessionID,
+           let session = sessions.first(where: { $0.id == lastID }),
+           !session.state.isIncludedInCycle
+        {
+            return session
+        }
+
         guard !cyclable.isEmpty else { return nil }
 
         // Prefer focused session if it's cyclable
@@ -272,7 +336,8 @@ final class SessionManager {
 
         // Initialize based on current frontmost app
         if let frontmost = NSWorkspace.shared.frontmostApplication,
-           let bundleID = frontmost.bundleIdentifier {
+           let bundleID = frontmost.bundleIdentifier
+        {
             isTerminalAppActive = terminalBundleIDs.contains(bundleID)
         }
     }
@@ -478,20 +543,64 @@ final class SessionManager {
         if focusedSessionID == sessionID {
             focusedSessionID = nil
         }
+        if lastActiveSessionID == sessionID {
+            lastActiveSessionID = nil
+        }
     }
 
-    func cycleForward() -> Session? {
+    /// Resolve the effective focus ID for cycling, consuming `lastActiveSessionID` as an anchor.
+    /// Returns an early-return session if the user should be returned to a previously focused session
+    /// (e.g., terminal wasn't frontmost, or focused pane isn't a tracked session).
+    private func resolveEffectiveFocus(
+        wasTerminalFrontmost: Bool,
+        direction: String
+    ) -> (effectiveFocusID: String?, earlyReturn: Session?) {
+        let effectiveFocusID = lastActiveSessionID ?? focusedSessionID
+        if lastActiveSessionID != nil {
+            lastActiveSessionID = nil
+        }
+
+        let focusedIsTracked = effectiveFocusID.map { matchesTrackedSession($0) } ?? false
+        if let focusedID = effectiveFocusID, !wasTerminalFrontmost || !focusedIsTracked {
+            let cyclable = sessions.filter(\.state.isIncludedInCycle)
+            if let session = cyclable.first(where: {
+                $0.id == focusedID || $0.terminalSessionID == focusedID
+                    || $0.terminalSessionID.hasSuffix(focusedID)
+            }) {
+                logDebug(
+                    .hotkey,
+                    "cycle\(direction): returning to focused session \(session.id) (terminalFrontmost=\(wasTerminalFrontmost), focusedIsTracked=\(focusedIsTracked))"
+                )
+                focusedSessionID = session.id
+                return (effectiveFocusID, session)
+            }
+        }
+        return (effectiveFocusID, nil)
+    }
+
+    func cycleForward(wasTerminalFrontmost: Bool = true) -> Session? {
+        let (effectiveFocusID, earlyReturn) = resolveEffectiveFocus(
+            wasTerminalFrontmost: wasTerminalFrontmost, direction: "Forward"
+        )
+        if let session = earlyReturn { return session }
+
         let cyclable = sessions.filter(\.state.isIncludedInCycle)
-        logDebug(.hotkey, "cycleForward: focused=\(focusedSessionID ?? "nil") stateIdx=\(cyclingState.currentIndex) cyclable=\(cyclable.map { "\($0.id)(\($0.terminalType.displayName))" })")
+        logDebug(
+            .hotkey,
+            "cycleForward: focused=\(effectiveFocusID ?? "nil") stateIdx=\(cyclingState.currentIndex) cyclable=\(cyclable.map { "\($0.id)(\($0.terminalType.displayName))" })"
+        )
 
         let result = cyclingEngine.cycleForward(
             sessions: sessions,
-            focusedSessionID: focusedSessionID,
+            focusedSessionID: effectiveFocusID,
             state: cyclingState
         )
         cyclingState = result.newState
 
-        logDebug(.hotkey, "cycleForward -> target=\(result.targetSession?.id ?? "nil") newIdx=\(result.newState.currentIndex)")
+        logDebug(
+            .hotkey,
+            "cycleForward -> target=\(result.targetSession?.id ?? "nil") newIdx=\(result.newState.currentIndex)"
+        )
 
         if let target = result.targetSession {
             focusedSessionID = target.id
@@ -499,18 +608,29 @@ final class SessionManager {
         return result.targetSession
     }
 
-    func cycleBackward() -> Session? {
+    func cycleBackward(wasTerminalFrontmost: Bool = true) -> Session? {
+        let (effectiveFocusID, earlyReturn) = resolveEffectiveFocus(
+            wasTerminalFrontmost: wasTerminalFrontmost, direction: "Backward"
+        )
+        if let session = earlyReturn { return session }
+
         let cyclable = sessions.filter(\.state.isIncludedInCycle)
-        logDebug(.hotkey, "cycleBackward: focused=\(focusedSessionID ?? "nil") stateIdx=\(cyclingState.currentIndex) cyclable=\(cyclable.map { "\($0.id)(\($0.terminalType.displayName))" })")
+        logDebug(
+            .hotkey,
+            "cycleBackward: focused=\(effectiveFocusID ?? "nil") stateIdx=\(cyclingState.currentIndex) cyclable=\(cyclable.map { "\($0.id)(\($0.terminalType.displayName))" })"
+        )
 
         let result = cyclingEngine.cycleBackward(
             sessions: sessions,
-            focusedSessionID: focusedSessionID,
+            focusedSessionID: effectiveFocusID,
             state: cyclingState
         )
         cyclingState = result.newState
 
-        logDebug(.hotkey, "cycleBackward -> target=\(result.targetSession?.id ?? "nil") newIdx=\(result.newState.currentIndex)")
+        logDebug(
+            .hotkey,
+            "cycleBackward -> target=\(result.targetSession?.id ?? "nil") newIdx=\(result.newState.currentIndex)"
+        )
 
         if let target = result.targetSession {
             focusedSessionID = target.id
@@ -549,4 +669,8 @@ final class SessionManager {
             applyStateChange(sessionID: id, from: .backburner, to: .idle)
         }
     }
+}
+
+extension Notification.Name {
+    static let shouldAutoAdvance = Notification.Name("shouldAutoAdvance")
 }

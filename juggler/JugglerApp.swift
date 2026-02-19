@@ -123,6 +123,8 @@ struct JugglerApp: App {
             "playSound": true,
             // Backburner behavior
             "goToNextOnBackburner": true,
+            // Auto-advance behavior
+            AppStorageKeys.autoAdvanceOnBusy: false,
             // Cycling colors
             "useCyclingColors": true,
             "useTerminalCyclingColors": true,

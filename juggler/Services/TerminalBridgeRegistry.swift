@@ -30,5 +30,4 @@ actor TerminalBridgeRegistry {
         guard let bridge = bridges[type] else { return }
         try await bridge.start()
     }
-
 }

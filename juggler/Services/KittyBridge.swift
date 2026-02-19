@@ -32,7 +32,7 @@ actor KittyBridge: TerminalBridge {
         let candidates = [
             "/Applications/kitty.app/Contents/MacOS/kitten",
             "/usr/local/bin/kitten",
-            "/opt/homebrew/bin/kitten"
+            "/opt/homebrew/bin/kitten",
         ]
 
         for candidate in candidates where FileManager.default.fileExists(atPath: candidate) {
@@ -59,8 +59,12 @@ actor KittyBridge: TerminalBridge {
     }
 
     func stop() async {
-        for (_, task) in activeTabResetTasks { task.cancel() }
-        for (_, task) in activePaneResetTasks { task.cancel() }
+        for (_, task) in activeTabResetTasks {
+            task.cancel()
+        }
+        for (_, task) in activePaneResetTasks {
+            task.cancel()
+        }
         activeTabResetTasks.removeAll()
         activePaneResetTasks.removeAll()
         socketPaths.removeAll()
@@ -232,7 +236,7 @@ actor KittyBridge: TerminalBridge {
         // Build args: kitten @ --to <socket> <subcommand> <args...>
         // The @ must come first, then --to, then the rest of the arguments
         var args: [String] = []
-        if executable == "/usr/bin/env" && kittenOverride == nil {
+        if executable == "/usr/bin/env", kittenOverride == nil {
             args.append("kitten")
         }
 
