@@ -140,10 +140,13 @@ struct JugglerApp: App {
             "beaconDuration": 1.5,
             "beaconPosition": BeaconPosition.center.rawValue,
             "beaconSize": BeaconSize.m.rawValue,
-            "beaconAnchor": BeaconAnchor.screen.rawValue,
+            "beaconAnchor": BeaconAnchor.screen.rawValue
         ])
 
         setupDefaultLocalShortcuts()
+
+        // Skip heavy service startup when running as a test host
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
 
         NotificationManager.shared.requestPermission()
 
@@ -224,7 +227,7 @@ private func setupDefaultLocalShortcuts() {
         (AppStorageKeys.localShortcutReactivateAll, kVK_ANSI_H, false),
         (AppStorageKeys.localShortcutRename, kVK_ANSI_R, false),
         (AppStorageKeys.localShortcutCycleModeForward, kVK_Tab, false),
-        (AppStorageKeys.localShortcutCycleModeBackward, kVK_Tab, true), // Shift+Tab
+        (AppStorageKeys.localShortcutCycleModeBackward, kVK_Tab, true) // Shift+Tab
     ]
 
     for (key, keyCode, shift) in defaults where UserDefaults.standard.data(forKey: key) == nil {
