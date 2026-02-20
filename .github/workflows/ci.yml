@@ -47,7 +47,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Install Periphery
-        run: brew tap peripheryapp/periphery && brew install periphery
+        run: brew install --cask peripheryapp/periphery/periphery
 
       - name: Check for unused code
         run: make unused-check
