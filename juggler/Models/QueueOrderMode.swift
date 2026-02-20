@@ -14,4 +14,13 @@ enum QueueOrderMode: String, CaseIterable {
         case .grouped: "Grouped"
         }
     }
+
+    var helpText: String {
+        switch self {
+        case .fair: "Idle sessions go to end of queue"
+        case .prio: "Idle sessions go to top of queue"
+        case .static: "No automatic reordering"
+        case .grouped: "Static + grouped by window"
+        }
+    }
 }

@@ -99,6 +99,10 @@ struct JugglerApp: App {
     @State private var sessionManager = SessionManager.shared
 
     init() {
+        // Reduce tooltip hover delay from default ~1000ms to 300ms
+        UserDefaults.standard.set(300, forKey: "NSInitialToolTipDelay")
+
+        // Set default values for settings
         UserDefaults.standard.register(defaults: [
             // Highlight triggers (all on by default)
             "highlightOnHotkey": true,

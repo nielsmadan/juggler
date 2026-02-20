@@ -178,8 +178,10 @@ struct QueueModePicker: View {
                         .padding(.horizontal, 8)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
-                        .background(selection == mode.rawValue ? Color.accentColor : Color.clear)
+                        .background(selection == mode.rawValue ? Color(red: 144 / 255, green: 104 / 255, blue: 212 / 255) : Color.clear)
                         .foregroundStyle(selection == mode.rawValue ? .white : .primary)
+                        .contentShape(Rectangle())
+                        .help(mode.helpText)
                 }
                 .buttonStyle(.plain)
             }

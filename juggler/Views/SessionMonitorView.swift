@@ -11,6 +11,7 @@ import SwiftUI
 
 struct SessionMonitorView: View {
     @Environment(SessionManager.self) private var sessionManager
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage(AppStorageKeys.queueOrderMode) private var queueOrderMode: String = QueueOrderMode.fair.rawValue
     @AppStorage(AppStorageKeys.useCyclingColors) private var useCyclingColors = true
     @AppStorage(AppStorageKeys.enableStats) private var enableStats = true
@@ -26,10 +27,15 @@ struct SessionMonitorView: View {
         SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .tabTitle
     }
 
+    private var controlBarDividerColor: Color {
+        colorScheme == .dark
+            ? Color(red: 205 / 255, green: 205 / 255, blue: 205 / 255)
+            : Color(red: 50 / 255, green: 50 / 255, blue: 50 / 255)
+    }
+
     @State private var controller = SessionListController()
     @State private var globalStatsResetDate: Date?
     @State private var isPaused = false
-    @State private var showModesInfo = false
 
     @Namespace private var sessionAnimation
 
@@ -196,7 +202,6 @@ struct SessionMonitorView: View {
     private var mainContent: some View {
         VStack(spacing: 0) {
             controlBar
-            Divider()
             if sessionManager.sessions.isEmpty {
                 ContentUnavailableView(
                     "No Sessions",
@@ -286,50 +291,42 @@ struct SessionMonitorView: View {
     }
 
     private var controlBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             QueueModePicker(selection: $queueOrderMode)
-                .frame(maxWidth: 260)
 
-            Button {
-                showModesInfo.toggle()
-            } label: {
-                Image(systemName: "info.circle")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showModesInfo) {
-                VStack(alignment: .leading, spacing: 2) {
-                    modeRow("Fair", "Idle sessions go to end of queue")
-                    modeRow("Prio", "Idle sessions go to top of queue")
-                    modeRow("Static", "No automatic reordering")
-                    modeRow("Grouped", "Static + grouped by window")
-                }
-                .padding()
-            }
+            Rectangle()
+                .fill(controlBarDividerColor)
+                .frame(width: 2)
 
-            Spacer()
-
-            Toggle(isOn: $autoAdvanceOnBusy) {
-                Image(systemName: "forward.fill")
-            }
-            .toggleStyle(.button)
-            .help("Auto-advance: go to next session when current goes busy")
-
-            Toggle(isOn: $autoRestartOnIdle) {
-                Image(systemName: "autostartstop")
-            }
-            .toggleStyle(.button)
-            .help("Auto-restart: jump to session when it becomes idle and all others are busy")
-
-            Toggle(isOn: $beaconEnabled) {
-                Image(systemName: "light.panel")
-            }
-            .toggleStyle(.button)
-            .help("Beacon: show session name when cycling")
+            toggleButton(isOn: $autoAdvanceOnBusy, icon: "forward.fill",
+                         activeColor: CyclingColors.palette[0],
+                         help: "Auto-advance: go to next session when current goes busy")
+            toggleButton(isOn: $autoRestartOnIdle, icon: "autostartstop",
+                         activeColor: CyclingColors.palette[3],
+                         help: "Auto-restart: jump to session when it becomes idle and all others are busy")
+            toggleButton(isOn: $beaconEnabled, icon: "light.panel",
+                         activeColor: CyclingColors.palette[4],
+                         help: "Beacon: show session name when cycling")
         }
-        .padding(.trailing)
-        .padding(.vertical, 8)
+        .fixedSize(horizontal: false, vertical: true)
         .background(.bar)
+    }
+
+    private func toggleButton(isOn: Binding<Bool>, icon: String, activeColor: Color, help: String) -> some View {
+        Button {
+            isOn.wrappedValue.toggle()
+        } label: {
+            Image(systemName: icon)
+                .font(.callout)
+                .frame(width: 16, height: 16)
+                .frame(width: 32)
+                .padding(.vertical, 6)
+                .background(isOn.wrappedValue ? activeColor : Color.clear)
+                .foregroundStyle(isOn.wrappedValue ? .white : .primary)
+                .contentShape(Rectangle())
+                .help(help)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Row Views
@@ -640,17 +637,6 @@ struct SessionMonitorView: View {
         }
     }
 
-    private func modeRow(_ name: String, _ description: String) -> some View {
-        HStack(spacing: 4) {
-            Text(name)
-                .font(.caption.monospaced())
-                .foregroundStyle(.primary)
-                .frame(minWidth: 40, alignment: .trailing)
-            Text(description)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
 }
 
 // MARK: - Parabolic Arc Transition for DOWN Animations
@@ -703,3 +689,5 @@ extension AnyTransition {
         ).combined(with: .opacity)
     }
 }
+
+
