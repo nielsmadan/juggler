@@ -22,6 +22,7 @@ struct SessionMonitorView: View {
     @AppStorage(AppStorageKeys.autoRestartOnIdle) private var autoRestartOnIdle = false
     @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode.tabTitle
         .rawValue
+    @AppStorage(AppStorageKeys.controlBarHintDismissed) private var controlBarHintDismissed = false
 
     private var titleMode: SessionTitleMode {
         SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .tabTitle
@@ -202,6 +203,22 @@ struct SessionMonitorView: View {
     private var mainContent: some View {
         VStack(spacing: 0) {
             controlBar
+            if !controlBarHintDismissed {
+                HStack {
+                    Text("Hover over buttons to show help.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("Dismiss") {
+                        controlBarHintDismissed = true
+                    }
+                    .font(.caption)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+            }
             if sessionManager.sessions.isEmpty {
                 ContentUnavailableView(
                     "No Sessions",
@@ -303,7 +320,7 @@ struct SessionMonitorView: View {
                          help: "Auto-advance: go to next session when current goes busy")
             toggleButton(isOn: $autoRestartOnIdle, icon: "autostartstop",
                          activeColor: CyclingColors.palette[3],
-                         help: "Auto-restart: jump to session when it becomes idle and all others are busy")
+                         help: "Auto-restart: when all sessions are busy and one becomes idle, jump to it")
             toggleButton(isOn: $beaconEnabled, icon: "light.panel",
                          activeColor: CyclingColors.palette[4],
                          help: "Beacon: show session name when cycling")

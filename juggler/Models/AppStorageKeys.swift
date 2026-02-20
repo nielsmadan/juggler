@@ -5,6 +5,7 @@ enum AppStorageKeys {
     static let launchAtLogin = "launchAtLogin"
     static let hasCompletedOnboarding = "hasCompletedOnboarding"
     static let sessionTitleMode = "sessionTitleMode"
+    static let controlBarHintDismissed = "controlBarHintDismissed"
 
     // Queue
     static let queueOrderMode = "queueOrderMode"
