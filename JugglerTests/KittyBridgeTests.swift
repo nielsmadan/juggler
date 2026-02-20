@@ -153,3 +153,35 @@ import Testing
     // Won't have valid data since socket doesn't exist, but shouldn't crash
     #expect(info == nil)
 }
+
+// MARK: - rgbToHex Tests
+
+@Test func rgbToHex_standardColor() async {
+    let bridge = KittyBridge.shared
+    let result = await bridge.rgbToHex([255, 128, 0])
+    #expect(result == "#FF8000")
+}
+
+@Test func rgbToHex_black() async {
+    let bridge = KittyBridge.shared
+    let result = await bridge.rgbToHex([0, 0, 0])
+    #expect(result == "#000000")
+}
+
+@Test func rgbToHex_white() async {
+    let bridge = KittyBridge.shared
+    let result = await bridge.rgbToHex([255, 255, 255])
+    #expect(result == "#FFFFFF")
+}
+
+@Test func rgbToHex_tooFewElements_returnsFallback() async {
+    let bridge = KittyBridge.shared
+    let result = await bridge.rgbToHex([255])
+    #expect(result == "#FF0000")
+}
+
+@Test func rgbToHex_emptyArray_returnsFallback() async {
+    let bridge = KittyBridge.shared
+    let result = await bridge.rgbToHex([])
+    #expect(result == "#FF0000")
+}

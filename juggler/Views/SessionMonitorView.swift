@@ -526,73 +526,30 @@ struct SessionMonitorView: View {
     // MARK: - Duration Formatting
 
     private func formatDuration(_ seconds: TimeInterval) -> String {
-        if seconds < 60 { return "<1m" }
-        let minutes = Int(seconds) / 60
-        if minutes < 60 { return "\(minutes)m" }
-        let hours = minutes / 60
-        let remainingMinutes = minutes % 60
-        return "\(hours)h\(String(format: "%02d", remainingMinutes))"
+        SessionStatsCalculator.formatDuration(seconds)
     }
 
     // MARK: - Stats Footer
 
     private var totalIdleTimeForFooter: TimeInterval {
-        guard !isPaused else { return 0 }
-        return sessionManager.sessions.reduce(0) { total, session in
-            guard let resetDate = globalStatsResetDate else {
-                return total + session.totalIdleTime
-            }
-
-            // Only count idle time after reset
-            if session.startedAt >= resetDate {
-                return total + session.totalIdleTime
-            }
-
-            // Session existed before reset - only count current idle period if it started after reset
-            if let lastBecameIdle = session.lastBecameIdle, lastBecameIdle >= resetDate {
-                return total + (session.currentIdleDuration ?? 0)
-            }
-
-            return total
-        }
+        SessionStatsCalculator.totalIdleTime(
+            sessions: sessionManager.sessions, resetDate: globalStatsResetDate, isPaused: isPaused
+        )
     }
 
     private var totalWorkingTimeForFooter: TimeInterval {
-        guard !isPaused else { return 0 }
-        return sessionManager.sessions.reduce(0) { total, session in
-            guard let resetDate = globalStatsResetDate else {
-                return total + session.totalWorkingTime
-            }
-
-            // Only count working time after reset
-            if session.startedAt >= resetDate {
-                return total + session.totalWorkingTime
-            }
-
-            // Session existed before reset - only count current working period if it started after reset
-            if let lastBecameWorking = session.lastBecameWorking, lastBecameWorking >= resetDate {
-                return total + (session.currentWorkingDuration ?? 0)
-            }
-
-            return total
-        }
+        SessionStatsCalculator.totalWorkingTime(
+            sessions: sessionManager.sessions, resetDate: globalStatsResetDate, isPaused: isPaused
+        )
     }
 
     private var idlePercentage: Double {
-        guard !sessionManager.sessions.isEmpty else { return 1.0 }
-        let idleCount = sessionManager.sessions.filter {
-            $0.state == .idle || $0.state == .permission
-        }.count
-        return Double(idleCount) / Double(sessionManager.sessions.count)
+        SessionStatsCalculator.idlePercentage(sessions: sessionManager.sessions)
     }
 
     private var footerGradientColor: Color {
-        // Muted green (0% idle = all working) to muted red (100% idle = all waiting)
-        Color(
-            red: 0.3 + (0.3 * idlePercentage),
-            green: 0.5 - (0.2 * idlePercentage),
-            blue: 0.3
-        )
+        let c = SessionStatsCalculator.footerGradientComponents(idlePercentage: idlePercentage)
+        return Color(red: c.red, green: c.green, blue: c.blue)
     }
 
     @ViewBuilder

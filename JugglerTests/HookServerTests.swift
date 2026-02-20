@@ -476,6 +476,95 @@ import Testing
     #expect(HookEventMapper.map(event: "session.status.retry", agent: "opencode") == .updateState(.working))
 }
 
+// MARK: - processRequest Route Tests
+
+@Test func processRequest_getNonPost_returns405() async {
+    let server = HookServer()
+    let request = HTTPRequest(method: "GET", path: "/hook", body: "")
+    let response = await server.processRequest(request)
+    #expect(response.status == 405)
+}
+
+@Test func processRequest_postUnknownPath_returns404() async {
+    let server = HookServer()
+    let request = HTTPRequest(method: "POST", path: "/unknown", body: "")
+    let response = await server.processRequest(request)
+    #expect(response.status == 404)
+}
+
+@Test func processRequest_postHook_invalidJSON_returns400() async {
+    let server = HookServer()
+    let request = HTTPRequest(method: "POST", path: "/hook", body: "not json")
+    let response = await server.processRequest(request)
+    #expect(response.status == 400)
+}
+
+@Test func processRequest_postHook_validPayload_returns200() async {
+    let server = HookServer()
+    let body = """
+    {"agent":"claude-code","event":"Stop","terminal":{"sessionId":"s1","cwd":"/test","terminalType":"iterm2"}}
+    """
+    let request = HTTPRequest(method: "POST", path: "/hook", body: body)
+    let response = await server.processRequest(request)
+    #expect(response.status == 200)
+}
+
+@Test func processRequest_postKittyEvent_invalidJSON_returns400() async {
+    let server = HookServer()
+    let request = HTTPRequest(method: "POST", path: "/kitty-event", body: "bad")
+    let response = await server.processRequest(request)
+    #expect(response.status == 400)
+}
+
+@Test func processRequest_postKittyEvent_valid_returns200() async {
+    let server = HookServer()
+    let body = #"{"event":"focus_changed","window_id":"42"}"#
+    let request = HTTPRequest(method: "POST", path: "/kitty-event", body: body)
+    let response = await server.processRequest(request)
+    #expect(response.status == 200)
+}
+
+@Test func processRequest_putMethod_returns405() async {
+    let server = HookServer()
+    let request = HTTPRequest(method: "PUT", path: "/hook", body: "{}")
+    let response = await server.processRequest(request)
+    #expect(response.status == 405)
+}
+
+// MARK: - decodeUnifiedPayload Tests
+
+@Test func decodeUnifiedPayload_validMinimal_succeeds() async {
+    let server = HookServer()
+    let body = #"{"agent":"claude-code","event":"Stop"}"#
+    let payload = await server.decodeUnifiedPayload(body)
+    #expect(payload != nil)
+    #expect(payload?.agent == "claude-code")
+    #expect(payload?.event == "Stop")
+}
+
+@Test func decodeUnifiedPayload_withAllFields_succeeds() async {
+    let server = HookServer()
+    let body = """
+    {"agent":"opencode","event":"session.created","hookInput":{"session_id":"abc","transcript_path":"/tmp/t.jsonl"},\
+    "terminal":{"sessionId":"s1","cwd":"/test","terminalType":"kitty","kittyListenOn":"unix:/tmp/kitty",\
+    "kittyPid":"123"},"git":{"branch":"main","repo":"myrepo"},"tmux":{"pane":"%1","sessionName":"dev"}}
+    """
+    let payload = await server.decodeUnifiedPayload(body)
+    #expect(payload != nil)
+    #expect(payload?.agent == "opencode")
+    #expect(payload?.hookInput?.sessionId == "abc")
+    #expect(payload?.terminal?.kittyListenOn == "unix:/tmp/kitty")
+    #expect(payload?.git?.branch == "main")
+    #expect(payload?.tmux?.pane == "%1")
+    #expect(payload?.tmux?.sessionName == "dev")
+}
+
+@Test func decodeUnifiedPayload_invalidJSON_returnsNil() async {
+    let server = HookServer()
+    let payload = await server.decodeUnifiedPayload("not json")
+    #expect(payload == nil)
+}
+
 @Test func mapClaudeCode_allEvents() {
     #expect(HookEventMapper.map(event: "SessionStart") == .updateState(.idle))
     #expect(HookEventMapper.map(event: "Stop") == .updateState(.idle))

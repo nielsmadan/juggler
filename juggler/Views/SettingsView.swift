@@ -429,16 +429,9 @@ struct IntegrationSettingsView: View {
         kittyInstalled = FileManager.default.fileExists(atPath: "/Applications/kitty.app")
 
         if let contents = try? String(contentsOfFile: kittyConfPath, encoding: .utf8) {
-            kittyRemoteControl = contents.split(separator: "\n").contains { line in
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                return !trimmed.hasPrefix("#") && trimmed.hasPrefix("allow_remote_control")
-                    && (trimmed.contains("yes") || trimmed.contains("socket"))
-            }
-            kittyListenOn = contents.split(separator: "\n").contains { line in
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                return trimmed.hasPrefix("listen_on") && !trimmed.hasPrefix("#")
-            }
-            kittyWatcherInstalled = contents.contains("juggler_watcher.py")
+            kittyRemoteControl = KittyConfigParser.hasRemoteControl(in: contents)
+            kittyListenOn = KittyConfigParser.hasListenOn(in: contents)
+            kittyWatcherInstalled = KittyConfigParser.hasWatcher(in: contents)
         } else {
             kittyRemoteControl = false
             kittyListenOn = false
@@ -519,8 +512,7 @@ struct IntegrationSettingsView: View {
 
         do {
             let contents = try String(contentsOfFile: tmuxConfPath, encoding: .utf8)
-            tmuxConfigured = contents.contains("update-environment")
-                && (contents.contains("ITERM_SESSION_ID") || contents.contains("KITTY_WINDOW_ID"))
+            tmuxConfigured = TmuxConfigValidator.isConfigured(contents: contents)
         } catch {
             tmuxConfigured = false
         }

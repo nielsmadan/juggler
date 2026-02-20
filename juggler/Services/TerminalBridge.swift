@@ -79,40 +79,55 @@ enum TerminalActivation {
     }
 
     private static func tabHighlightConfig(for session: Session) -> HighlightConfig? {
-        let enabled = UserDefaults.standard.bool(forKey: AppStorageKeys.tabHighlightEnabled)
-        guard enabled else { return nil }
-
-        let duration = UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightDuration)
-        let useCycling = UserDefaults.standard.bool(forKey: AppStorageKeys.useTerminalCyclingColors)
-
-        let color: [Int] = if useCycling {
-            CyclingColors.paletteRGB[sessionColorIndex(for: session)]
-        } else {
-            [
+        buildTabHighlightConfig(
+            enabled: UserDefaults.standard.bool(forKey: AppStorageKeys.tabHighlightEnabled),
+            useCycling: UserDefaults.standard.bool(forKey: AppStorageKeys.useTerminalCyclingColors),
+            colorIndex: sessionColorIndex(for: session),
+            customColor: [
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorRed)),
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorGreen)),
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorBlue)),
-            ]
-        }
-        return HighlightConfig(enabled: true, color: color, duration: duration > 0 ? duration : 2.0)
+            ],
+            duration: UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightDuration)
+        )
     }
 
     private static func paneHighlightConfig(for session: Session) -> HighlightConfig? {
-        let enabled = UserDefaults.standard.bool(forKey: AppStorageKeys.paneHighlightEnabled)
-        guard enabled else { return nil }
-
-        let duration = UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightDuration)
-        let useCycling = UserDefaults.standard.bool(forKey: AppStorageKeys.useTerminalCyclingColors)
-
-        let color: [Int] = if useCycling {
-            CyclingColors.darkPaletteRGB[sessionColorIndex(for: session)]
-        } else {
-            [
+        buildPaneHighlightConfig(
+            enabled: UserDefaults.standard.bool(forKey: AppStorageKeys.paneHighlightEnabled),
+            useCycling: UserDefaults.standard.bool(forKey: AppStorageKeys.useTerminalCyclingColors),
+            colorIndex: sessionColorIndex(for: session),
+            customColor: [
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorRed)),
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorGreen)),
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorBlue)),
-            ]
-        }
+            ],
+            duration: UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightDuration)
+        )
+    }
+
+    static func buildTabHighlightConfig(
+        enabled: Bool,
+        useCycling: Bool,
+        colorIndex: Int,
+        customColor: [Int],
+        duration: Double
+    ) -> HighlightConfig? {
+        guard enabled else { return nil }
+        let color = useCycling ? CyclingColors.paletteRGB[colorIndex % CyclingColors.paletteRGB.count] : customColor
+        return HighlightConfig(enabled: true, color: color, duration: duration > 0 ? duration : 2.0)
+    }
+
+    static func buildPaneHighlightConfig(
+        enabled: Bool,
+        useCycling: Bool,
+        colorIndex: Int,
+        customColor: [Int],
+        duration: Double
+    ) -> HighlightConfig? {
+        guard enabled else { return nil }
+        let color = useCycling
+            ? CyclingColors.darkPaletteRGB[colorIndex % CyclingColors.darkPaletteRGB.count] : customColor
         return HighlightConfig(enabled: true, color: color, duration: duration > 0 ? duration : 1.0)
     }
 

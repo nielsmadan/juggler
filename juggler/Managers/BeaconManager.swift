@@ -150,36 +150,11 @@ final class BeaconManager {
             screen.visibleFrame
         }
 
-        let margin: CGFloat = 40
-
-        let origin = switch position {
-        case .center:
-            NSPoint(
-                x: referenceFrame.midX - panelSize.width / 2,
-                y: referenceFrame.midY - panelSize.height / 2
-            )
-        case .topLeft:
-            NSPoint(
-                x: referenceFrame.minX + margin,
-                y: referenceFrame.maxY - panelSize.height - margin
-            )
-        case .topRight:
-            NSPoint(
-                x: referenceFrame.maxX - panelSize.width - margin,
-                y: referenceFrame.maxY - panelSize.height - margin
-            )
-        case .bottomLeft:
-            NSPoint(
-                x: referenceFrame.minX + margin,
-                y: referenceFrame.minY + margin
-            )
-        case .bottomRight:
-            NSPoint(
-                x: referenceFrame.maxX - panelSize.width - margin,
-                y: referenceFrame.minY + margin
-            )
-        }
-
+        let origin = BeaconPositionCalculator.calculateOrigin(
+            position: position,
+            referenceFrame: referenceFrame,
+            panelSize: panelSize
+        )
         panel?.setFrameOrigin(origin)
     }
 }

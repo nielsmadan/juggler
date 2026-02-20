@@ -853,3 +853,320 @@ import Testing
     #expect(result?.id == "s1")
     #expect(manager.lastActiveSessionID == nil) // anchor consumed
 }
+
+// MARK: - Auto-advance Tests
+
+@Test @MainActor func autoAdvance_on_focusedSessionGoesBusy_postsNotification() {
+    UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
+    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+
+    var posted = false
+    let token = NotificationCenter.default.addObserver(
+        forName: .shouldAutoAdvance, object: nil, queue: nil
+    ) { _ in posted = true }
+    defer { NotificationCenter.default.removeObserver(token) }
+
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
+    manager.testSetFocusedSessionID("s1")
+
+    manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+
+    #expect(posted == true)
+}
+
+@Test @MainActor func autoAdvance_off_focusedSessionGoesBusy_setsAnchor() {
+    UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
+    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
+    manager.testSetFocusedSessionID("s1")
+
+    manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+
+    #expect(manager.lastActiveSessionID == "s1")
+}
+
+@Test @MainActor func autoAdvance_sessionGoesBusy_notFocused_noAction() {
+    UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
+    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
+    manager.testSetFocusedSessionID("s2") // focused on s2, not s1
+
+    manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+
+    // Not focused on s1, so no anchor should be set
+    #expect(manager.lastActiveSessionID == nil)
+}
+
+@Test @MainActor func autoAdvance_sessionGoesBusy_noFocus_noAction() {
+    UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
+    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .idle)])
+    // No focused session
+
+    manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+
+    #expect(manager.lastActiveSessionID == nil)
+}
+
+// MARK: - Auto-restart Tests
+
+@Test @MainActor func autoRestart_on_soleCyclable_postsNotification() {
+    UserDefaults.standard.set(true, forKey: AppStorageKeys.autoRestartOnIdle)
+    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
+
+    var postedSessionID: String?
+    let token = NotificationCenter.default.addObserver(
+        forName: .shouldAutoRestart, object: nil, queue: nil
+    ) { note in postedSessionID = note.userInfo?["sessionID"] as? String }
+    defer { NotificationCenter.default.removeObserver(token) }
+
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .working), makeSession("s2", state: .backburner)])
+
+    manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
+
+    #expect(postedSessionID == "s1")
+}
+
+@Test @MainActor func autoRestart_on_multipleCyclable_noAutoRestart() {
+    UserDefaults.standard.set(true, forKey: AppStorageKeys.autoRestartOnIdle)
+    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
+
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .working), makeSession("s2", state: .idle)])
+
+    manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
+
+    // Both are now cyclable — auto-restart guard (cyclableCount == 1) prevents firing
+    let cyclable = manager.sessions.filter(\.state.isIncludedInCycle)
+    #expect(cyclable.count == 2)
+}
+
+@Test @MainActor func autoRestart_off_soleCyclable_noAutoRestart() {
+    UserDefaults.standard.set(false, forKey: AppStorageKeys.autoRestartOnIdle)
+    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
+
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .working)])
+
+    manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
+
+    let s1 = manager.sessions.first { $0.id == "s1" }
+    #expect(s1?.state == .idle)
+}
+
+// MARK: - Anchor Clearing on State Return Tests
+
+@Test @MainActor func anchorCleared_whenAnchoredSessionBecomesIdle() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .working)])
+    manager.testSetLastActiveSessionID("s1")
+
+    manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
+
+    #expect(manager.lastActiveSessionID == nil)
+}
+
+@Test @MainActor func anchorNotCleared_whenDifferentSessionBecomesIdle() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .working)])
+    manager.testSetLastActiveSessionID("s1")
+
+    manager.testApplyStateChange(sessionID: "s2", from: .working, to: .idle)
+
+    #expect(manager.lastActiveSessionID == "s1")
+}
+
+// MARK: - Snap-back (resolveEffectiveFocus) Tests
+
+@Test func cycleForward_terminalNotFrontmost_snapsBackToFocused() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
+    manager.testSetFocusedSessionID("s1")
+
+    let result = manager.cycleForward(wasTerminalFrontmost: false)
+
+    #expect(result?.id == "s1") // snap-back, not cycle to s2
+}
+
+@Test func cycleBackward_terminalNotFrontmost_snapsBackToFocused() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
+    manager.testSetFocusedSessionID("s1")
+
+    let result = manager.cycleBackward(wasTerminalFrontmost: false)
+
+    #expect(result?.id == "s1") // snap-back, not cycle to s2
+}
+
+@Test func cycleForward_terminalNotFrontmost_focusedNotCyclable_cyclesNormally() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .working), makeSession("s2", state: .idle)])
+    manager.testSetFocusedSessionID("s1")
+
+    let result = manager.cycleForward(wasTerminalFrontmost: false)
+
+    // s1 is working (not cyclable), so no snap-back match — normal cycle to s2
+    #expect(result?.id == "s2")
+}
+
+// MARK: - updateFocusedSession Tests
+
+@MainActor
+@Test func updateFocusedSession_setsFocusedSessionID() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1")])
+
+    manager.updateFocusedSession(terminalSessionID: "s1")
+
+    #expect(manager.focusedSessionID == "s1")
+}
+
+@MainActor
+@Test func updateFocusedSession_nil_clearsFocus() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1")])
+    manager.updateFocusedSession(terminalSessionID: "s1")
+
+    manager.updateFocusedSession(terminalSessionID: nil)
+
+    #expect(manager.focusedSessionID == nil)
+}
+
+@MainActor
+@Test func updateFocusedSession_bareUUID_notOverwriteComposite() {
+    let manager = SessionManager()
+    let session = Session(
+        claudeSessionID: "c1", terminalSessionID: "w0t0p0:abc-uuid",
+        terminalType: .iterm2, agent: "claude-code",
+        projectPath: "/test", state: .idle, startedAt: Date()
+    )
+    manager.testSetSessions([session])
+
+    manager.updateFocusedSession(terminalSessionID: "w0t0p0:abc-uuid")
+    #expect(manager.focusedSessionID == "w0t0p0:abc-uuid")
+
+    // A bare UUID that's a substring shouldn't overwrite
+    manager.updateFocusedSession(terminalSessionID: "abc-uuid")
+    #expect(manager.focusedSessionID == "w0t0p0:abc-uuid")
+}
+
+@MainActor
+@Test func updateFocusedSession_activationGuard_suppressesIntermediate() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1"), makeSession("s2")])
+
+    manager.beginActivation(targetSessionID: "s2")
+    manager.updateFocusedSession(terminalSessionID: "s1")
+
+    #expect(manager.focusedSessionID == nil)
+}
+
+@MainActor
+@Test func updateFocusedSession_activationGuard_acceptsTarget() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1"), makeSession("s2")])
+
+    manager.beginActivation(targetSessionID: "s2")
+    manager.updateFocusedSession(terminalSessionID: "s2")
+
+    #expect(manager.focusedSessionID == "s2")
+}
+
+@MainActor
+@Test func endActivation_clearsGuard() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1")])
+
+    manager.beginActivation(targetSessionID: "s1")
+    manager.endActivation()
+    manager.updateFocusedSession(terminalSessionID: "s1")
+
+    #expect(manager.focusedSessionID == "s1")
+}
+
+// MARK: - isSessionFocused with isTerminalAppActive Tests
+
+@MainActor
+@Test func isSessionFocused_terminalActiveAndFocused_returnsTrue() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1")])
+    manager.updateFocusedSession(terminalSessionID: "s1")
+    manager.isTerminalAppActive = true
+
+    #expect(manager.isSessionFocused == true)
+}
+
+@MainActor
+@Test func isSessionFocused_terminalNotActive_returnsFalse() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1")])
+    manager.updateFocusedSession(terminalSessionID: "s1")
+    manager.isTerminalAppActive = false
+
+    #expect(manager.isSessionFocused == false)
+}
+
+// MARK: - backburnerSession / reactivateSession Tests
+
+@Test @MainActor func backburnerSession_changesStateToBackburner() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .idle)])
+
+    manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .backburner)
+
+    #expect(manager.sessions.first { $0.id == "s1" }?.state == .backburner)
+}
+
+@Test @MainActor func reactivateSession_changesStateToIdle() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .backburner)])
+
+    manager.testApplyStateChange(sessionID: "s1", from: .backburner, to: .idle)
+
+    #expect(manager.sessions.first { $0.id == "s1" }?.state == .idle)
+}
+
+// MARK: - reorderForMode Tests
+
+@Test func reorderForMode_fair_permissionGroupedWithIdle() {
+    let manager = SessionManager()
+    manager.testSetSessions([
+        makeSession("work1", state: .working),
+        makeSession("perm1", state: .permission),
+        makeSession("idle1", state: .idle),
+    ])
+
+    manager.reorderForMode(.fair)
+
+    let states = manager.sessions.map(\.state)
+    let firstWorkingIdx = states.firstIndex(of: .working)!
+    let idleTypes: Set<SessionState> = [.idle, .permission]
+    for i in 0 ..< firstWorkingIdx {
+        #expect(idleTypes.contains(states[i]))
+    }
+}
+
+@Test func reorderForMode_fair_compactingGroupedWithWorking() {
+    let manager = SessionManager()
+    manager.testSetSessions([
+        makeSession("idle1", state: .idle),
+        makeSession("compact1", state: .compacting),
+        makeSession("work1", state: .working),
+        makeSession("back1", state: .backburner),
+    ])
+
+    manager.reorderForMode(.fair)
+
+    #expect(manager.sessions[0].state == .idle)
+    let midStates = Set([manager.sessions[1].state, manager.sessions[2].state])
+    #expect(midStates == Set([.working, .compacting]))
+    #expect(manager.sessions[3].state == .backburner)
+}

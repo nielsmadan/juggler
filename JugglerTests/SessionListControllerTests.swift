@@ -153,3 +153,101 @@ import Testing
 
     #expect(result == "nonexistent")
 }
+
+// MARK: - hasShortcutForKeyCode Tests
+
+@Test func hasShortcutForKeyCode_matchingCode_returnsTrue() {
+    let controller = SessionListController()
+    // Default shortcuts include togglePause with keyCode 1 (S)
+    #expect(controller.hasShortcutForKeyCode(1) == true)
+}
+
+@Test func hasShortcutForKeyCode_nonMatchingCode_returnsFalse() {
+    let controller = SessionListController()
+    #expect(controller.hasShortcutForKeyCode(999) == false)
+}
+
+// MARK: - backburnerSelected Tests
+
+@Test @MainActor func backburnerSelected_validIndex_backburners() {
+    let controller = SessionListController()
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
+
+    controller.moveSelection(by: 1, sessionCount: 2) // selectedIndex = 0 → s1
+    let selectedSession = manager.sessions[controller.selectedIndex!]
+    #expect(selectedSession.id == "s1")
+    manager.testApplyStateChange(sessionID: selectedSession.id, from: .idle, to: .backburner)
+
+    #expect(manager.sessions.first { $0.id == "s1" }?.state == .backburner)
+}
+
+@Test func backburnerSelected_nilIndex_noOp() {
+    let controller = SessionListController()
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1")])
+
+    controller.backburnerSelected(sessionManager: manager)
+
+    #expect(manager.sessions[0].state == .idle)
+}
+
+// MARK: - reactivateSelected Tests
+
+@Test @MainActor func reactivateSelected_validIndex_reactivates() {
+    let controller = SessionListController()
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .backburner)])
+
+    controller.moveSelection(by: 1, sessionCount: 1)
+    let selectedSession = manager.sessions[controller.selectedIndex!]
+    manager.testApplyStateChange(sessionID: selectedSession.id, from: .backburner, to: .idle)
+
+    #expect(manager.sessions.first { $0.id == "s1" }?.state == .idle)
+}
+
+@Test func reactivateSelected_nilIndex_noOp() {
+    let controller = SessionListController()
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1", state: .backburner)])
+
+    controller.reactivateSelected(sessionManager: manager)
+
+    #expect(manager.sessions[0].state == .backburner)
+}
+
+// MARK: - renameSelected Tests
+
+@Test func renameSelected_validIndex_setsSessionToRename() {
+    let controller = SessionListController()
+    let sessions = [makeSession("s1"), makeSession("s2")]
+
+    controller.moveSelection(by: 1, sessionCount: 2)
+    controller.renameSelected(sessions: sessions)
+
+    #expect(controller.sessionToRename?.terminalSessionID == "s1")
+}
+
+@Test func renameSelected_nilIndex_noOp() {
+    let controller = SessionListController()
+    let sessions = [makeSession("s1")]
+
+    controller.renameSelected(sessions: sessions)
+
+    #expect(controller.sessionToRename == nil)
+}
+
+// MARK: - trackSelectedSession Tests
+
+@Test func trackSelectedSession_updatesInternalID() {
+    let controller = SessionListController()
+    let sessions = [makeSession("A"), makeSession("B")]
+
+    controller.moveSelection(by: 1, sessionCount: 2) // → 0
+    controller.trackSelectedSession(sessions: sessions)
+
+    let reordered = [sessions[1], sessions[0]] // B, A
+    controller.syncSelection(sessions: reordered)
+
+    #expect(controller.selectedIndex == 1) // "A" moved to index 1
+}

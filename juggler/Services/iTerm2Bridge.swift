@@ -332,7 +332,7 @@ actor ITerm2Bridge: TerminalBridge {
 
     // MARK: - Connection Recovery
 
-    private func shouldAttemptRecovery(_ error: Error) -> Bool {
+    func shouldAttemptRecovery(_ error: Error) -> Bool {
         if let bridgeError = error as? TerminalBridgeError {
             switch bridgeError {
             case .daemonNotRunning, .connectionFailed, .connectionTimeout,
@@ -593,7 +593,7 @@ actor ITerm2Bridge: TerminalBridge {
 
 // MARK: - Daemon Protocol Types
 
-private struct DaemonRequest: Sendable {
+struct DaemonRequest: Sendable {
     let command: String
     var sessionID: String?
     var tab: HighlightConfig?
@@ -617,7 +617,7 @@ extension DaemonRequest: Encodable {
     }
 }
 
-private struct DaemonResponse: Sendable {
+struct DaemonResponse: Sendable {
     let status: String
     var message: String?
     var tabName: String?
@@ -647,7 +647,7 @@ extension DaemonResponse: Decodable {
     }
 }
 
-private struct DaemonEvent: Sendable {
+struct DaemonEvent: Sendable {
     let event: String
     let sessionID: String?
     let tabName: String?

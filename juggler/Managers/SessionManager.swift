@@ -29,9 +29,15 @@ final class SessionManager {
         lastActiveSessionID = id
     }
 
+    /// Test-only: synchronously apply a state change (bypasses Task dispatch).
+    @MainActor
+    func testApplyStateChange(sessionID: String, from oldState: SessionState, to newState: SessionState) {
+        applyStateChange(sessionID: sessionID, from: oldState, to: newState)
+    }
+
     private(set) var cyclingState = CyclingState.initial
     private(set) var focusedSessionID: String? // terminalSessionID of actually focused session in iTerm2
-    private(set) var isTerminalAppActive = false
+    internal(set) var isTerminalAppActive = false
 
     /// Tracks the session the user was last focused on, even after it goes busy.
     /// Used when auto-advance is OFF to keep the busy session highlighted as "current".
@@ -175,11 +181,16 @@ final class SessionManager {
         if wasCyclable, !isCyclable {
             // Only act if the user is still focused on this session.
             // If they already cycled away, the hook arrived late — don't yank them.
-            let isStillFocused = focusedSessionID.map { fid in
-                sessions[index].id == fid
-                    || sessions[index].terminalSessionID == fid
-                    || sessions[index].terminalSessionID.hasSuffix(fid)
-            } ?? false
+            // Re-find the session after handleStateTransition may have reordered the array.
+            let isStillFocused: Bool = if let fid = focusedSessionID,
+                                          let session = sessions.first(where: { $0.id == sessionID })
+            {
+                session.id == fid
+                    || session.terminalSessionID == fid
+                    || session.terminalSessionID.hasSuffix(fid)
+            } else {
+                false
+            }
 
             if isStillFocused {
                 let autoAdvance = UserDefaults.standard.bool(forKey: AppStorageKeys.autoAdvanceOnBusy)

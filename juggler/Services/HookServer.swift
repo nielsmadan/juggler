@@ -128,11 +128,11 @@ actor HookServer {
         })
     }
 
-    private func decodeUnifiedPayload(_ body: String) -> UnifiedHookPayload? {
+    func decodeUnifiedPayload(_ body: String) -> UnifiedHookPayload? {
         try? JSONDecoder().decode(UnifiedHookPayload.self, from: Data(body.utf8))
     }
 
-    private func processRequest(_ request: HTTPRequest) async -> HTTPResponse {
+    func processRequest(_ request: HTTPRequest) async -> HTTPResponse {
         guard request.method == "POST" else {
             return HTTPResponse(status: 405, body: #"{"status":"error","message":"Method not allowed"}"#)
         }

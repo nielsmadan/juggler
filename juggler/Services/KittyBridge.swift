@@ -175,7 +175,7 @@ actor KittyBridge: TerminalBridge {
 
     // MARK: - Helpers
 
-    private func rgbToHex(_ color: [Int]) -> String {
+    func rgbToHex(_ color: [Int]) -> String {
         guard color.count >= 3 else { return "#FF0000" }
         return String(format: "#%02X%02X%02X", color[0], color[1], color[2])
     }
