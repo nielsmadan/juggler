@@ -57,7 +57,6 @@ import Testing
 
     manager.reorderForMode(.fair)
 
-    // Fair = oldest idle first (FIFO)
     #expect(manager.sessions[0].terminalSessionID == "s2")
     #expect(manager.sessions[1].terminalSessionID == "s1")
 }
@@ -76,7 +75,6 @@ import Testing
 
     manager.reorderForMode(.prio)
 
-    // Prio = newest idle first (LIFO)
     #expect(manager.sessions[0].terminalSessionID == "s2")
     #expect(manager.sessions[1].terminalSessionID == "s1")
 }
@@ -122,14 +120,13 @@ import Testing
         claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .backburner
     )
 
-    // Non-UserPromptSubmit event should preserve backburner
     manager.addOrUpdateSession(
         claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p",
         state: .working, event: "PreToolUse", gitBranch: "new-branch"
     )
 
     #expect(manager.sessions[0].state == .backburner)
-    #expect(manager.sessions[0].gitBranch == "new-branch") // metadata still updated
+    #expect(manager.sessions[0].gitBranch == "new-branch")
 }
 
 @Test func addOrUpdateSession_backburnered_exitsOnUserPromptSubmit() {
@@ -187,7 +184,6 @@ import Testing
         claudeSessionID: "c2", terminalSessionID: "s2", projectPath: "/same-project", state: .idle
     )
 
-    // updateSessionTerminalInfo sets paneIndex
     manager.updateSessionTerminalInfo(terminalSessionID: "s1", tabName: nil, paneIndex: 0, paneCount: 2)
     manager.updateSessionTerminalInfo(terminalSessionID: "s2", tabName: nil, paneIndex: 1, paneCount: 2)
 
@@ -215,7 +211,6 @@ import Testing
     let name1 = manager.disambiguatedDisplayName(for: manager.sessions[0], titleMode: .folderName)
     let name2 = manager.disambiguatedDisplayName(for: manager.sessions[1], titleMode: .folderName)
 
-    // Both should be "project" in folder mode, so they get disambiguated
     #expect(name1 == "project (1)")
     #expect(name2 == "project (2)")
 }
@@ -431,7 +426,6 @@ import Testing
     let s3 = makeSession("other-session")
     manager.testSetSessions([s1, s2, s3])
 
-    // Both sessions share the terminal ID
     manager.removeSessionsByTerminalID("w0t0p0:shared-uuid")
 
     #expect(manager.sessions.count == 1)
@@ -499,7 +493,6 @@ import Testing
 @Test func updateSessionTerminalInfo_nonexistentSession_noOp() {
     let manager = SessionManager()
 
-    // Should not crash
     manager.updateSessionTerminalInfo(
         terminalSessionID: "nonexistent", tabName: "Tab", paneIndex: 0, paneCount: 1
     )
@@ -542,7 +535,6 @@ import Testing
         terminalSessionID: "w0t0p0:abc", tabName: "Shared Tab", paneIndex: 0, paneCount: 2
     )
 
-    // Both sessions should be updated
     #expect(manager.sessions[0].terminalTabName == "Shared Tab")
     #expect(manager.sessions[1].terminalTabName == "Shared Tab")
 }
@@ -618,11 +610,11 @@ import Testing
     )
 
     let s = manager.sessions[0]
-    #expect(s.state == .backburner) // preserved
-    #expect(s.tmuxSessionName == "dev") // updated
-    #expect(s.gitBranch == "main") // updated
-    #expect(s.gitRepoName == "repo") // updated
-    #expect(s.transcriptPath == "/path") // updated
+    #expect(s.state == .backburner)
+    #expect(s.tmuxSessionName == "dev")
+    #expect(s.gitBranch == "main")
+    #expect(s.gitRepoName == "repo")
+    #expect(s.transcriptPath == "/path")
 }
 
 // MARK: - cycleForward / cycleBackward Tests

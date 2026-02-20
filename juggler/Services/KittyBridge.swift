@@ -10,9 +10,7 @@ actor KittyBridge: TerminalBridge {
 
     // Maps window ID → Unix socket path (populated from hook payloads)
     private var socketPaths: [String: String] = [:]
-    // Tracks original background colors for highlight reset
     private var originalColors: [String: String] = [:]
-    // Manages timed highlight resets (separate for tab and pane)
     private var activeTabResetTasks: [String: Task<Void, Never>] = [:]
     private var activePaneResetTasks: [String: Task<Void, Never>] = [:]
 
@@ -25,10 +23,8 @@ actor KittyBridge: TerminalBridge {
     }
 
     func start() async throws {
-        // Already started
         if kittenPath != nil { return }
 
-        // Find kitten binary
         let candidates = [
             "/Applications/kitty.app/Contents/MacOS/kitten",
             "/usr/local/bin/kitten",
@@ -43,7 +39,6 @@ actor KittyBridge: TerminalBridge {
             return
         }
 
-        // Try PATH lookup
         let result = try? await runKittenCommand(["--version"], socketPath: nil, kittenOverride: "/usr/bin/env")
         if result != nil {
             kittenPath = "/usr/bin/env"
@@ -87,13 +82,11 @@ actor KittyBridge: TerminalBridge {
             logDebug(.kitty, "Activating kitty window: \(sessionID) via \(socketPath)")
         }
 
-        // Focus the window via kitten remote control
         _ = try await runKittenCommand(
             ["@", "focus-window", "--match", "id:\(sessionID)"],
             socketPath: socketPath
         )
 
-        // Bring Kitty app to front via AppleScript
         let script = NSAppleScript(source: #"tell application "kitty" to activate"#)
         var error: NSDictionary?
         script?.executeAndReturnError(&error)
@@ -106,7 +99,6 @@ actor KittyBridge: TerminalBridge {
     func highlight(sessionID: String, tabConfig: HighlightConfig?, paneConfig: HighlightConfig?) async throws {
         guard let socketPath = socketPaths[sessionID] else { return }
 
-        // Tab highlight via set-tab-color
         if let tabConfig, tabConfig.enabled {
             activeTabResetTasks[sessionID]?.cancel()
 
@@ -130,11 +122,9 @@ actor KittyBridge: TerminalBridge {
             }
         }
 
-        // Pane highlight via set-colors
         if let paneConfig, paneConfig.enabled {
             activePaneResetTasks[sessionID]?.cancel()
 
-            // Save original color if not already saved
             if originalColors[sessionID] == nil {
                 if let lsOutput = try? await runKittenCommand(
                     ["@", "get-colors", "--match", "id:\(sessionID)"],
@@ -240,7 +230,6 @@ actor KittyBridge: TerminalBridge {
             args.append("kitten")
         }
 
-        // Split arguments: first element should be "@", rest are subcommand + flags
         if let atIdx = arguments.firstIndex(of: "@") {
             args.append("@")
             if let socketPath {

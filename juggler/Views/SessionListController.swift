@@ -12,7 +12,6 @@ final class SessionListController {
     // NSEvent monitor needed because SwiftUI intercepts Tab before onKeyPress
     private var tabEventMonitor: Any?
 
-    // Shortcuts — refreshed via reloadShortcuts()
     private(set) var shortcutMoveDown: LocalShortcut?
     private(set) var shortcutMoveUp: LocalShortcut?
     private(set) var shortcutBackburner: LocalShortcut?
@@ -205,7 +204,6 @@ final class SessionListController {
         return false
     }
 
-    /// Handle shared key press. Returns .handled or .ignored.
     func handleKeyPress(_ press: KeyPress, sessionManager: SessionManager, queueOrderMode: inout String) -> KeyPress
         .Result
     {

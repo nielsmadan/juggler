@@ -6,7 +6,7 @@ actor HookServer {
 
     private var listener: NWListener?
     private let port: UInt16 = 7483
-    private let maxRequestSize = 1_048_576 // 1 MB
+    private let maxRequestSize = 1_048_576
 
     init() {}
 
@@ -71,7 +71,6 @@ actor HookServer {
     ) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, isComplete, error in
             guard let data, error == nil else {
-                // Try to parse whatever we have
                 if !buffer.isEmpty, let request = HTTPRequest.parse(buffer) {
                     completion(request)
                 } else {
@@ -104,7 +103,6 @@ actor HookServer {
     nonisolated func hasCompleteHTTPBody(_ data: Data) -> Bool {
         let string = String(decoding: data, as: UTF8.self)
 
-        // Need the header/body separator first
         guard let separatorRange = string.range(of: "\r\n\r\n") else {
             return false
         }
@@ -113,7 +111,6 @@ actor HookServer {
         let bodyStartIndex = separatorRange.upperBound
         let currentBodyLength = string[bodyStartIndex...].utf8.count
 
-        // Parse Content-Length from headers
         for line in headerPart.split(separator: "\r\n") where line.lowercased().hasPrefix("content-length:") {
             let value = line.dropFirst("content-length:".count).trimmingCharacters(in: .whitespaces)
             if let contentLength = Int(value) {
@@ -176,7 +173,6 @@ actor HookServer {
         let tmuxPane = payload.tmux?.pane
         let tmuxSessionName = payload.tmux?.sessionName
 
-        // Derive terminal type from payload
         let terminalType: TerminalType = if let typeStr = payload.terminal?.terminalType,
                                             let type = TerminalType(rawValue: typeStr)
         {
@@ -185,7 +181,6 @@ actor HookServer {
             .iterm2
         }
 
-        // Register Kitty socket path if present
         if terminalType == .kitty, let socketPath = payload.terminal?.kittyListenOn, !socketPath.isEmpty,
            socketPath.hasPrefix("unix:"), socketPath.contains("kitty")
         {
@@ -230,7 +225,6 @@ actor HookServer {
             }
             await updateTerminalInfo(terminalSessionID: terminalSessionID, terminalType: terminalType)
 
-            // Send notifications for specific states
             let notifyID: String = if let pane = tmuxPane {
                 "\(terminalSessionID):\(pane)"
             } else {

@@ -14,7 +14,6 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Content
             Group {
                 switch currentStep {
                 case 0:
@@ -35,7 +34,6 @@ struct OnboardingView: View {
 
             Divider()
 
-            // Navigation
             HStack {
                 if currentStep > 0 {
                     Button("Back") {
@@ -45,7 +43,6 @@ struct OnboardingView: View {
 
                 Spacer()
 
-                // Step indicators
                 HStack(spacing: 8) {
                     ForEach(0 ..< 5) { index in
                         Circle()
@@ -229,7 +226,6 @@ struct FinishStep: View {
                         try? await TerminalBridgeRegistry.shared.start(.kitty)
                     }
                 }
-                // Open main window and show dock icon
                 openWindow(id: "main")
                 NSApp.setActivationPolicy(.regular)
                 dismiss()

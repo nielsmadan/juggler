@@ -75,7 +75,6 @@ import Testing
 
     controller.animateTransition(sessionID: "s1", from: .idle, to: .working)
 
-    // Should trigger a down animation (idle→working moves down)
     #expect(controller.isDownAnimating(sessionID: "s1") == true)
     #expect(controller.isDownAnimating(sessionID: "s2") == false)
 }
@@ -128,7 +127,6 @@ import Testing
     var session = makeSession("s1", state: .working)
     let section = controller.effectiveSection(for: session)
 
-    // During departing phase, should show in source section (idle)
     #expect(section == .idle)
 }
 

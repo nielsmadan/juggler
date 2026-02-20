@@ -26,7 +26,6 @@ struct LogsSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Controls
             HStack {
                 Toggle("Verbose Logging", isOn: $verboseLogging)
 
@@ -54,7 +53,6 @@ struct LogsSettingsView: View {
 
             Divider()
 
-            // Log entries
             ScrollViewReader { proxy in
                 List(filteredEntries) { entry in
                     LogEntryRow(entry: entry)
@@ -69,7 +67,6 @@ struct LogsSettingsView: View {
 
             Divider()
 
-            // Footer
             HStack {
                 Text("\(filteredEntries.count) entries")
                     .foregroundStyle(.secondary)

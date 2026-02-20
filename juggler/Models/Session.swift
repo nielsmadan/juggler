@@ -5,7 +5,6 @@ struct Session: Identifiable, Codable, Equatable {
     let terminalSessionID: String // e.g., "w0t0p0:UUID"
     var tmuxPane: String? // e.g., "%1", nil if not inside tmux
 
-    // Composite ID: unique per terminal pane, including tmux panes
     var id: String {
         if let pane = tmuxPane {
             return "\(terminalSessionID):\(pane)"
@@ -14,7 +13,7 @@ struct Session: Identifiable, Codable, Equatable {
     }
 
     let terminalType: TerminalType
-    let agent: String // "claude-code" or "opencode"
+    let agent: String
     let projectPath: String
     var terminalTabName: String?
     var terminalWindowName: String?
@@ -111,7 +110,6 @@ struct Session: Identifiable, Codable, Equatable {
             lhs.transcriptPath == rhs.transcriptPath
     }
 
-    // Full display name including window/tab context
     var fullDisplayName: String {
         if paneCount > 1 {
             return "\(displayName) (\(paneIndex + 1)/\(paneCount))"

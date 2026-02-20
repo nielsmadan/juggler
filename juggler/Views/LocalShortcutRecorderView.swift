@@ -192,7 +192,6 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
 
         startRecording()
 
-        // Hide caret
         DispatchQueue.main.async { [weak self] in
             if let textView = self?.currentEditor() as? NSTextView {
                 textView.insertionPointColor = .clear
@@ -203,7 +202,7 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
         return true
     }
 
-    // MARK: - NSTextViewDelegate - Block text changes at this level too
+    // MARK: - NSTextViewDelegate
 
     func textView(_: NSTextView, shouldChangeTextIn _: NSRange, replacementString _: String?) -> Bool {
         false
@@ -212,7 +211,6 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
     // MARK: - Event Handling
 
     private func handleEvent(_ event: NSEvent) -> NSEvent? {
-        // Handle mouse clicks outside the field
         if event.type == .leftMouseUp || event.type == .rightMouseUp {
             let clickPoint = convert(event.locationInWindow, from: nil)
             let clickMargin: CGFloat = 3.0
@@ -226,19 +224,16 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
 
         guard event.type == .keyDown else { return event }
 
-        // Normalize modifiers
         let modifiers = event.modifierFlags
             .intersection(.deviceIndependentFlagsMask)
             .subtracting([.capsLock, .numericPad, .function])
 
-        // Escape without modifiers: cancel recording
         if modifiers.isEmpty, event.keyCode == UInt16(kVK_Escape) {
             endRecording()
             blur()
             return nil
         }
 
-        // Delete/Backspace without modifiers: clear shortcut
         if modifiers.isEmpty,
            event.keyCode == UInt16(kVK_Delete) || event.keyCode == UInt16(kVK_ForwardDelete)
         {
@@ -250,7 +245,6 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
             return nil
         }
 
-        // Record the shortcut
         let newShortcut = LocalShortcut(keyCode: event.keyCode, modifiers: modifiers)
         shortcut = newShortcut
         onShortcutChange?(newShortcut)

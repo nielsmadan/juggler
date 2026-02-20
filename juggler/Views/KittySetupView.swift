@@ -88,7 +88,6 @@ struct KittySetupView: View {
 
                     Divider()
 
-                    // Watcher (optional)
                     HStack(alignment: .top, spacing: 12) {
                         if watcherInstalled {
                             Image(systemName: "checkmark.circle.fill")
@@ -126,7 +125,6 @@ struct KittySetupView: View {
                             .foregroundStyle(.red)
                     }
 
-                    // Test connection
                     HStack(alignment: .top, spacing: 12) {
                         if connectionTested {
                             Image(systemName: "checkmark.circle.fill")

@@ -467,7 +467,6 @@ import Testing
 // MARK: - HookEventMapper additional Tests
 
 @Test func mapOpenCode_allRemoveEvents() {
-    // Both should map to removeSession
     #expect(HookEventMapper.map(event: "session.deleted", agent: "opencode") == .removeSession)
     #expect(HookEventMapper.map(event: "server.instance.disposed", agent: "opencode") == .removeSession)
 }

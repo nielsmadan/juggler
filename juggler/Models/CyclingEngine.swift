@@ -137,7 +137,6 @@ struct DefaultCyclingEngine: CyclingEngine {
             return (fallbackIndex + 1) % cyclable.count
         }
 
-        // Check if focused session is cyclable
         if let idx = findSessionIndex(in: cyclable, matching: focusedID) {
             return (idx + 1) % cyclable.count
         }
@@ -147,7 +146,6 @@ struct DefaultCyclingEngine: CyclingEngine {
             return (fallbackIndex + 1) % cyclable.count
         }
 
-        // Find first cyclable session AFTER the focused position
         for (i, session) in cyclable.enumerated() {
             if let sessionAllIdx = allSessions.firstIndex(where: { $0.id == session.id }),
                sessionAllIdx > allIdx
@@ -155,7 +153,6 @@ struct DefaultCyclingEngine: CyclingEngine {
                 return i
             }
         }
-        // Wrap around to first cyclable
         return 0
     }
 
@@ -169,7 +166,6 @@ struct DefaultCyclingEngine: CyclingEngine {
             return (fallbackIndex - 1 + cyclable.count) % cyclable.count
         }
 
-        // Check if focused session is cyclable
         if let idx = findSessionIndex(in: cyclable, matching: focusedID) {
             return (idx - 1 + cyclable.count) % cyclable.count
         }
@@ -179,7 +175,6 @@ struct DefaultCyclingEngine: CyclingEngine {
             return (fallbackIndex - 1 + cyclable.count) % cyclable.count
         }
 
-        // Find last cyclable session BEFORE the focused position
         for (i, session) in cyclable.enumerated().reversed() {
             if let sessionAllIdx = allSessions.firstIndex(where: { $0.id == session.id }),
                sessionAllIdx < allIdx
@@ -187,7 +182,6 @@ struct DefaultCyclingEngine: CyclingEngine {
                 return i
             }
         }
-        // Wrap around to last cyclable
         return cyclable.count - 1
     }
 }

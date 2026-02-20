@@ -39,7 +39,6 @@ struct IntegrationHubView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
 
-            // Terminal cards
             VStack(spacing: 8) {
                 Text("Terminals")
                     .font(.headline)
@@ -70,7 +69,6 @@ struct IntegrationHubView: View {
                 )
             }
 
-            // Agent cards
             VStack(spacing: 8) {
                 Text("Agents")
                     .font(.headline)

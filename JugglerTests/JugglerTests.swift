@@ -505,11 +505,9 @@ import Testing
         lastBecameIdle: tenSecondsAgo,
         accumulatedIdleTime: 60
     )
-    // Total should be accumulated (60) + current (~10)
     let total = session.totalIdleTime
     #expect(total >= 69 && total <= 72)
 
-    // When not idle, total is just accumulated
     session.state = .working
     #expect(session.totalIdleTime == 60)
 }
@@ -557,7 +555,6 @@ import Testing
         state: .idle,
         startedAt: Date()
     )
-    // tmux branch: customName ?? tmuxSessionName ?? projectFolderName
     #expect(session.displayName == "tmux-sess")
 }
 
@@ -771,7 +768,6 @@ import Testing
     )
     var s2 = s1
 
-    // Timing fields should be ignored by ==
     s1.accumulatedIdleTime = 100
     s2.accumulatedIdleTime = 200
     s1.lastBecameIdle = Date(timeIntervalSince1970: 100)

@@ -116,7 +116,6 @@ final class LogManager {
     }
 }
 
-// Convenience logging functions
 @MainActor
 func logDebug(_ category: LogCategory, _ message: String) {
     LogManager.shared.log(.debug, category: category, message)

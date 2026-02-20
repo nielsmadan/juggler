@@ -76,7 +76,6 @@ struct GeneralSettingsView: View {
                             }
                         } catch {
                             print("Failed to update launch at login: \(error)")
-                            // Revert the toggle on failure
                             launchAtLogin = !newValue
                         }
                     }
@@ -105,24 +104,20 @@ struct GeneralSettingsView: View {
         .formStyle(.grouped)
         .padding()
         .onAppear {
-            // Sync with actual system state
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
     }
 }
 
 struct IntegrationSettingsView: View {
-    // Permissions state
     @State private var hasAccessibility = false
     @State private var hasAutomation = false
     @State private var hasNotifications = false
 
-    // Claude Code Hooks state
     @State private var hooksInstalled = false
     @State private var isInstallingHooks = false
     @State private var hookInstallError: String?
 
-    // Kitty state
     @State private var kittyInstalled = false
     @State private var kittyRemoteControl = false
     @State private var kittyListenOn = false
@@ -131,12 +126,10 @@ struct IntegrationSettingsView: View {
     @State private var kittyWatcherError: String?
     @State private var kittyConfigError: String?
 
-    // tmux configuration state
     @State private var tmuxConfigured = false
     @State private var isConfiguringTmux = false
     @State private var tmuxConfigError: String?
 
-    // OpenCode state
     @State private var openCodePluginInstalled = false
     @State private var isInstallingOpenCodePlugin = false
     @State private var openCodeInstallError: String?
@@ -461,7 +454,6 @@ struct IntegrationSettingsView: View {
             let configDir = FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".config/kitty")
 
-            // Create config directory if needed
             try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
 
             if FileManager.default.fileExists(atPath: kittyConfPath) {
@@ -734,32 +726,26 @@ struct LocalShortcutRow: View {
 }
 
 struct HighlightingSettingsView: View {
-    // Session list highlighting
     @AppStorage(AppStorageKeys.useCyclingColors) private var useCyclingColors = true
 
-    // Terminal highlighting cycling
     @AppStorage(AppStorageKeys.useTerminalCyclingColors) private var useTerminalCyclingColors = true
 
-    // Tab bar settings
     @AppStorage(AppStorageKeys.tabHighlightEnabled) private var tabHighlightEnabled = true
     @AppStorage(AppStorageKeys.tabHighlightDuration) private var tabHighlightDuration = 2.0
     @AppStorage(AppStorageKeys.tabHighlightColorRed) private var tabHighlightColorRed = 255.0
     @AppStorage(AppStorageKeys.tabHighlightColorGreen) private var tabHighlightColorGreen = 165.0
     @AppStorage(AppStorageKeys.tabHighlightColorBlue) private var tabHighlightColorBlue = 0.0
 
-    // Pane settings
     @AppStorage(AppStorageKeys.paneHighlightEnabled) private var paneHighlightEnabled = true
     @AppStorage(AppStorageKeys.paneHighlightDuration) private var paneHighlightDuration = 1.0
     @AppStorage(AppStorageKeys.paneHighlightColorRed) private var paneHighlightColorRed = 255.0
     @AppStorage(AppStorageKeys.paneHighlightColorGreen) private var paneHighlightColorGreen = 165.0
     @AppStorage(AppStorageKeys.paneHighlightColorBlue) private var paneHighlightColorBlue = 0.0
 
-    // Per-trigger highlighting
     @AppStorage(AppStorageKeys.highlightOnHotkey) private var highlightOnHotkey = true
     @AppStorage(AppStorageKeys.highlightOnGuiSelect) private var highlightOnGuiSelect = true
     @AppStorage(AppStorageKeys.highlightOnNotification) private var highlightOnNotification = true
 
-    // Backburner behavior
     @AppStorage(AppStorageKeys.goToNextOnBackburner) private var goToNextOnBackburner = true
 
     private var tabHighlightColor: Binding<Color> {

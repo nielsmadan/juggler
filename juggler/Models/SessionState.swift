@@ -1,11 +1,11 @@
 import Foundation
 
 enum SessionState: String, Codable, CaseIterable {
-    case working // Claude is working
-    case idle // Waiting for user input
-    case permission // Waiting for user permission
+    case working
+    case idle
+    case permission
     case backburner // Manually deprioritized
-    case compacting // Claude is compacting context
+    case compacting
 
     var isIncludedInCycle: Bool {
         switch self {

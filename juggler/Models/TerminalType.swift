@@ -3,8 +3,8 @@ import Foundation
 enum TerminalType: String, Codable, CaseIterable {
     case iterm2
     case kitty
-    case ghostty // Future
-    case wezterm // Future
+    case ghostty
+    case wezterm
 
     var displayName: String {
         switch self {

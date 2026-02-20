@@ -99,7 +99,6 @@ struct JugglerApp: App {
     @State private var sessionManager = SessionManager.shared
 
     init() {
-        // Set default values for settings
         UserDefaults.standard.register(defaults: [
             // Highlight triggers (all on by default)
             "highlightOnHotkey": true,
@@ -140,14 +139,11 @@ struct JugglerApp: App {
             "beaconAnchor": BeaconAnchor.screen.rawValue,
         ])
 
-        // Set up default local shortcuts if not already configured
         setupDefaultLocalShortcuts()
 
-        // Request notification permission
         NotificationManager.shared.requestPermission()
 
         Task {
-            // Register bridges
             await TerminalBridgeRegistry.shared.register(ITerm2Bridge.shared, for: .iterm2)
             await TerminalBridgeRegistry.shared.register(KittyBridge.shared, for: .kitty)
 
@@ -171,8 +167,6 @@ struct JugglerApp: App {
     }
 
     var body: some Scene {
-        // Main window - Session Monitor
-        // Use screen's visible height for max vertical space
         let screenHeight = NSScreen.main?.visibleFrame.height ?? 800
         let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: AppStorageKeys.hasCompletedOnboarding)
 
@@ -217,7 +211,6 @@ struct AboutCommands: Commands {
     }
 }
 
-/// Set up default local shortcuts if not already configured
 private func setupDefaultLocalShortcuts() {
     let defaults: [(key: String, keyCode: Int, shift: Bool)] = [
         (AppStorageKeys.localShortcutMoveDown, kVK_ANSI_K, false),

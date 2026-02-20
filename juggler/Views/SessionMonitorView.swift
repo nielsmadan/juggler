@@ -31,14 +31,12 @@ struct SessionMonitorView: View {
     @State private var isPaused = false
     @State private var showModesInfo = false
 
-    // Namespace for matchedGeometryEffect animations between sections
     @Namespace private var sessionAnimation
 
     private var groupedSessions: [(key: String, value: [Session])] {
         let grouped = Dictionary(grouping: sessionManager.sessions) { session in
             session.terminalWindowName ?? "Unknown"
         }
-        // Sort groups alphabetically, and sessions within groups by startedAt
         return grouped.map { (key: $0.key, value: $0.value.sorted { $0.startedAt < $1.startedAt }) }
             .sorted { $0.key < $1.key }
     }
@@ -172,7 +170,6 @@ struct SessionMonitorView: View {
             }
         }
         .onChange(of: sessionManager.currentSession?.id) { _, _ in
-            // Sync selectedIndex when currentSession changes
             if let current = sessionManager.currentSession,
                let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id })
             {
@@ -224,7 +221,6 @@ struct SessionMonitorView: View {
     @ViewBuilder
     private var sessionList: some View {
         if queueOrderMode == QueueOrderMode.grouped.rawValue {
-            // Grouped mode: grouped by terminal window
             List {
                 ForEach(groupedSessions, id: \.key) { windowName, sessions in
                     Section(header: Text(windowName)) {
@@ -235,7 +231,6 @@ struct SessionMonitorView: View {
                 }
             }
         } else if queueOrderMode == QueueOrderMode.static.rawValue {
-            // Static mode: flat list, no grouping
             List {
                 ForEach(sessionManager.sessions) { session in
                     listSessionRow(session)
@@ -260,7 +255,6 @@ struct SessionMonitorView: View {
                         }
                     }
                 }
-                // Animate layout changes when session ordering changes.
                 .animation(
                     .easeInOut(duration: SectionAnimationTiming.upMoveDuration),
                     value: sessionManager.sessions.map(\.id)
@@ -492,11 +486,9 @@ struct SessionMonitorView: View {
     }
 
     private func handleKeyPress(_ press: KeyPress) -> KeyPress.Result {
-        // Try shared shortcuts first
         let result = controller.handleKeyPress(press, sessionManager: sessionManager, queueOrderMode: &queueOrderMode)
         if result == .handled { return .handled }
 
-        // Monitor-specific keys
         if enableStats, let shortcut = controller.shortcutTogglePause, shortcut.matches(press) {
             isPaused.toggle()
             return .handled

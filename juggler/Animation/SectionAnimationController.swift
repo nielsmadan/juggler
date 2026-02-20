@@ -89,9 +89,6 @@ final class SectionAnimationController {
             }
         }
 
-        // UP animation: session is always in its actual section (matchedGeometryEffect handles movement)
-        // No special handling needed - just return actual section
-
         return SectionType(from: session.state)
     }
 
@@ -136,7 +133,6 @@ final class SectionAnimationController {
     // MARK: - DOWN Animation
 
     private func startDownAnimation(sessionID: String, from fromState: SessionState) {
-        // Phase 1: departing (still visible in source section).
         downAnimation = DownAnimationState(
             sessionID: sessionID,
             fromState: fromState,
@@ -144,11 +140,10 @@ final class SectionAnimationController {
         )
 
         Task { @MainActor in
-            // Small delay then trigger removal
+            // Brief delay lets SwiftUI commit the initial state before the phase transition triggers layout changes.
             try? await Task.sleep(for: .milliseconds(50))
             guard downAnimation?.sessionID == sessionID else { return }
 
-            // Phase 2: inFlight (row removed, offscreen delay starts).
             withAnimation(.easeInOut(duration: SectionAnimationTiming.downDepartureDuration)) {
                 downAnimation = DownAnimationState(
                     sessionID: sessionID,
@@ -157,13 +152,11 @@ final class SectionAnimationController {
                 )
             }
 
-            // Wait for removal + offscreen delay.
             try? await Task
                 .sleep(for: .seconds(SectionAnimationTiming.downDepartureDuration + SectionAnimationTiming
                         .downOffscreenDelay))
             guard downAnimation?.sessionID == sessionID else { return }
 
-            // Phase 3: arriving (row inserted in target section).
             withAnimation(.easeInOut(duration: SectionAnimationTiming.downArrivalDuration)) {
                 downAnimation = DownAnimationState(
                     sessionID: sessionID,
@@ -172,7 +165,6 @@ final class SectionAnimationController {
                 )
             }
 
-            // Wait for insertion, then clear
             try? await Task.sleep(for: .seconds(SectionAnimationTiming.downArrivalDuration))
             if downAnimation?.sessionID == sessionID {
                 downAnimation = nil
@@ -190,7 +182,6 @@ final class SectionAnimationController {
         )
 
         Task { @MainActor in
-            // Clear after animation duration
             try? await Task.sleep(for: .seconds(SectionAnimationTiming.upMoveDuration))
             if upAnimation?.sessionID == sessionID {
                 upAnimation = nil

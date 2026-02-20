@@ -99,7 +99,7 @@ actor ITerm2Bridge: TerminalBridge {
                 startHealthCheck()
                 return
             }
-            try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            try await Task.sleep(nanoseconds: 100_000_000)
         }
 
         await MainActor.run { logWarning(.daemon, "Daemon socket not found after 5 seconds") }
@@ -203,7 +203,6 @@ actor ITerm2Bridge: TerminalBridge {
         if bytesRead < 0 {
             // EAGAIN/EWOULDBLOCK = no data available (normal for non-blocking recv)
             if errno == EAGAIN || errno == EWOULDBLOCK { return }
-            // Actual error — connection is broken
             Task { await self.cancelEventListener() }
             return
         }
@@ -310,12 +309,10 @@ actor ITerm2Bridge: TerminalBridge {
         // Check if process is still running (signal 0 = existence check)
         if kill(pid, 0) == 0 {
             kill(pid, SIGTERM)
-            // Brief wait for graceful shutdown
             for _ in 0 ..< 10 {
-                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                try? await Task.sleep(nanoseconds: 100_000_000)
                 if kill(pid, 0) != 0 { break }
             }
-            // Force kill if still alive
             if kill(pid, 0) == 0 {
                 kill(pid, SIGKILL)
             }
@@ -355,7 +352,7 @@ actor ITerm2Bridge: TerminalBridge {
     func restart() async throws {
         await MainActor.run { logWarning(.daemon, "Restarting daemon due to stale connection...") }
         await stop()
-        try await Task.sleep(nanoseconds: 500_000_000) // 500ms grace period
+        try await Task.sleep(nanoseconds: 500_000_000)
         try await start()
     }
 
@@ -405,7 +402,6 @@ actor ITerm2Bridge: TerminalBridge {
             throw TerminalBridgeError.authenticationFailed("No cookie returned")
         }
 
-        // Format is "cookie key" - we need both
         let parts = cookieAndKey.split(separator: " ")
         guard parts.count >= 1 else {
             throw TerminalBridgeError.authenticationFailed("Invalid cookie format")

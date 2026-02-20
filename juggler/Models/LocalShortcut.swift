@@ -32,16 +32,13 @@ struct LocalShortcut: Codable, Equatable {
 
     /// Check if this shortcut matches a SwiftUI KeyPress event
     func matches(_ press: KeyPress) -> Bool {
-        // For simple shortcuts without modifiers, just compare characters
         if modifierFlags.isEmpty {
             return matchesKey(press)
         }
 
-        // For shortcuts with modifiers, we need to check both
         let pressModifiers = Self.eventModifiersToNSModifiers(press.modifiers)
         guard pressModifiers == modifierFlags else { return false }
 
-        // Compare the key
         return matchesKey(press)
     }
 
@@ -87,12 +84,10 @@ struct LocalShortcut: Codable, Equatable {
     var displayString: String {
         let modifierString = modifierFlags.symbolicRepresentation
 
-        // Check for special keys first
         if let specialKeyString = Self.specialKeyString(keyCode: keyCode) {
             return modifierString + specialKeyString
         }
 
-        // Otherwise translate key code to character
         if let char = Self.keyToCharacter(keyCode: keyCode) {
             return modifierString + char.uppercased()
         }
@@ -194,14 +189,12 @@ extension Notification.Name {
 // MARK: - UserDefaults Storage
 
 extension LocalShortcut {
-    /// Store to UserDefaults
     func save(to key: String) {
         if let data = try? JSONEncoder().encode(self) {
             UserDefaults.standard.set(data, forKey: key)
         }
     }
 
-    /// Load from UserDefaults
     static func load(from key: String) -> LocalShortcut? {
         guard let data = UserDefaults.standard.data(forKey: key) else {
             return nil
@@ -209,7 +202,6 @@ extension LocalShortcut {
         return try? JSONDecoder().decode(LocalShortcut.self, from: data)
     }
 
-    /// Remove from UserDefaults
     static func remove(from key: String) {
         UserDefaults.standard.removeObject(forKey: key)
     }

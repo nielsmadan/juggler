@@ -111,7 +111,7 @@ import Testing
 // MARK: - LocalShortcut Codable Tests
 
 @Test func localShortcut_codableRoundtrip() throws {
-    let original = LocalShortcut(keyCode: 38, modifiers: [.command, .shift]) // ⌘⇧J
+    let original = LocalShortcut(keyCode: 38, modifiers: [.command, .shift])
 
     let encoder = JSONEncoder()
     let data = try encoder.encode(original)
@@ -125,7 +125,7 @@ import Testing
 }
 
 @Test func localShortcut_codableRoundtrip_noModifiers() throws {
-    let original = LocalShortcut(keyCode: 36, modifiers: []) // Return key, no modifiers
+    let original = LocalShortcut(keyCode: 36, modifiers: [])
 
     let encoder = JSONEncoder()
     let data = try encoder.encode(original)
@@ -161,20 +161,16 @@ import Testing
 }
 
 @Test func displayString_modifierWithLetter() {
-    // keyCode 38 = J on US keyboard
     let shortcut = LocalShortcut(keyCode: 38, modifiers: [.command, .shift])
     let display = shortcut.displayString
     #expect(display.contains("⇧"))
     #expect(display.contains("⌘"))
-    // Should end with the character
     #expect(display.count >= 3)
 }
 
 @Test func displayString_letterOnly() {
-    // keyCode 1 = S on US keyboard
     let shortcut = LocalShortcut(keyCode: 1, modifiers: [])
     let display = shortcut.displayString
-    // Should just be the letter (uppercase)
     #expect(display == "S")
 }
 

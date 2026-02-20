@@ -124,6 +124,5 @@ import Testing
     }
 
     #expect(manager.entries.count == 500)
-    // Oldest entries should have been trimmed
     #expect(manager.entries.first?.message == "entry 10")
 }

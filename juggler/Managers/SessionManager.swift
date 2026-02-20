@@ -12,7 +12,6 @@ enum QueuePosition: Equatable {
 final class SessionManager {
     static let shared = SessionManager()
 
-    // internal(set) to allow @testable import to manipulate sessions in tests
     private(set) var sessions: [Session] = []
 
     /// Test-only: directly set session properties. Only accessible via @testable import.
@@ -93,7 +92,6 @@ final class SessionManager {
         let wasIdle = oldState == .idle || oldState == .permission
         let isIdle = newState == .idle || newState == .permission
 
-        // Leaving idle: accumulate the completed idle time
         if wasIdle, !isIdle {
             if let lastBecameIdle = sessions[index].lastBecameIdle {
                 let idleDuration = Date().timeIntervalSince(lastBecameIdle)
@@ -101,7 +99,6 @@ final class SessionManager {
             }
         }
 
-        // Entering idle: mark timestamp
         if isIdle, !wasIdle {
             sessions[index].lastBecameIdle = Date()
         }
@@ -109,7 +106,6 @@ final class SessionManager {
         let wasWorking = oldState == .working || oldState == .compacting
         let isWorking = newState == .working || newState == .compacting
 
-        // Leaving working: accumulate the completed working time
         if wasWorking, !isWorking {
             if let lastBecameWorking = sessions[index].lastBecameWorking {
                 let workingDuration = Date().timeIntervalSince(lastBecameWorking)
@@ -117,7 +113,6 @@ final class SessionManager {
             }
         }
 
-        // Entering working: mark timestamp
         if isWorking, !wasWorking {
             sessions[index].lastBecameWorking = Date()
         }
@@ -140,7 +135,6 @@ final class SessionManager {
             targetPosition = queueOrderMode == .prio ? .topOfIdle : .bottomOfIdle
         }
 
-        // Move session to correct position in array
         if let position = targetPosition {
             let targetIdx = targetIndex(for: position, in: sessions)
             if index != targetIdx {
@@ -415,22 +409,18 @@ final class SessionManager {
         gitRepoName: String? = nil,
         transcriptPath: String? = nil
     ) {
-        // Compute composite ID for lookup (includes tmux pane if present)
         let compositeID: String = if let pane = tmuxPane {
             "\(terminalSessionID):\(pane)"
         } else {
             terminalSessionID
         }
 
-        // Key by composite ID for uniqueness - each terminal pane (including tmux) has unique ID
         if let index = sessions.firstIndex(where: { $0.id == compositeID }) {
             let oldState = sessions[index].state
 
             // Preserve backburner state - only UserPromptSubmit should exit backburner
             // (explicit reactivation via UI uses updateSessionState, not this method)
             if oldState == .backburner, event != "UserPromptSubmit" {
-                // Update metadata but preserve backburner state
-
                 if let tmuxSessionName, !tmuxSessionName.isEmpty {
                     sessions[index].tmuxSessionName = tmuxSessionName
                 }
@@ -446,7 +436,6 @@ final class SessionManager {
                 return
             }
 
-            // Update metadata (doesn't need animation)
             if let tmuxSessionName, !tmuxSessionName.isEmpty {
                 sessions[index].tmuxSessionName = tmuxSessionName
             }
@@ -460,7 +449,7 @@ final class SessionManager {
                 sessions[index].transcriptPath = transcriptPath
             }
 
-            // State change with animation
+
             if oldState != state {
                 let sessionID = sessions[index].id
                 Task { @MainActor in

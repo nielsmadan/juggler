@@ -22,18 +22,18 @@ import Testing
 
 @Test func moveSelection_wrapsForward() {
     let controller = SessionListController()
-    controller.moveSelection(by: 1, sessionCount: 3) // → 0
-    controller.moveSelection(by: 1, sessionCount: 3) // → 1
-    controller.moveSelection(by: 1, sessionCount: 3) // → 2
-    controller.moveSelection(by: 1, sessionCount: 3) // → 0 (wrap)
+    controller.moveSelection(by: 1, sessionCount: 3)
+    controller.moveSelection(by: 1, sessionCount: 3)
+    controller.moveSelection(by: 1, sessionCount: 3)
+    controller.moveSelection(by: 1, sessionCount: 3)
 
     #expect(controller.selectedIndex == 0)
 }
 
 @Test func moveSelection_wrapsBackward() {
     let controller = SessionListController()
-    controller.moveSelection(by: 1, sessionCount: 3) // → 0
-    controller.moveSelection(by: -1, sessionCount: 3) // → 2 (wrap)
+    controller.moveSelection(by: 1, sessionCount: 3)
+    controller.moveSelection(by: -1, sessionCount: 3)
 
     #expect(controller.selectedIndex == 2)
 }
@@ -53,8 +53,8 @@ import Testing
     let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
 
     // Select "B" (index 1)
-    controller.moveSelection(by: 1, sessionCount: 3) // → 0
-    controller.moveSelection(by: 1, sessionCount: 3) // → 1
+    controller.moveSelection(by: 1, sessionCount: 3)
+    controller.moveSelection(by: 1, sessionCount: 3)
     controller.trackSelectedSession(sessions: sessions)
 
     #expect(controller.selectedIndex == 1)
@@ -72,8 +72,8 @@ import Testing
     let sessions = [makeSession("A"), makeSession("B")]
 
     // Select "B" (index 1)
-    controller.moveSelection(by: 1, sessionCount: 2) // → 0
-    controller.moveSelection(by: 1, sessionCount: 2) // → 1
+    controller.moveSelection(by: 1, sessionCount: 2)
+    controller.moveSelection(by: 1, sessionCount: 2)
     controller.trackSelectedSession(sessions: sessions)
 
     // Session B removed
@@ -101,9 +101,9 @@ import Testing
 
     // Simulate stale index by selecting far then shrinking
     let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
-    controller.moveSelection(by: 1, sessionCount: 3) // → 0
-    controller.moveSelection(by: 1, sessionCount: 3) // → 1
-    controller.moveSelection(by: 1, sessionCount: 3) // → 2
+    controller.moveSelection(by: 1, sessionCount: 3)
+    controller.moveSelection(by: 1, sessionCount: 3)
+    controller.moveSelection(by: 1, sessionCount: 3)
     // Don't track by ID — simulate stale index
 
     let smaller = [makeSession("X")]
