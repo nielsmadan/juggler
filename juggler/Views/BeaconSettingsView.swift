@@ -10,12 +10,6 @@ struct BeaconSettingsView: View {
     var body: some View {
         Form {
             Section("Beacon HUD") {
-                SettingWithDescription(
-                    description: "Briefly shows the session name on screen when cycling with hotkeys"
-                ) {
-                    Toggle("Show session name overlay when cycling", isOn: $beaconEnabled)
-                }
-
                 Picker("Position", selection: $beaconPosition) {
                     ForEach(BeaconPosition.allCases, id: \.rawValue) { position in
                         Text(position.displayName).tag(position.rawValue)

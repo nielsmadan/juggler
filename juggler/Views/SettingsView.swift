@@ -31,7 +31,7 @@ struct SettingsView: View {
 
             BeaconSettingsView()
                 .tabItem {
-                    Label("Beacon", systemImage: "text.bubble")
+                    Label("Beacon", systemImage: "light.panel")
                 }
 
             ShortcutsSettingsView()
@@ -49,7 +49,7 @@ struct SettingsView: View {
                     Label("Logs", systemImage: "doc.text")
                 }
         }
-        .frame(minWidth: 450)
+        .frame(minWidth: 480, minHeight: 640)
     }
 }
 
@@ -62,6 +62,7 @@ struct GeneralSettingsView: View {
     @AppStorage(AppStorageKeys.playSound) private var playSound = true
     @AppStorage(AppStorageKeys.enableStats) private var enableStats = true
     @AppStorage(AppStorageKeys.idleSessionColoring) private var idleSessionColoring = true
+    @AppStorage(AppStorageKeys.goToNextOnBackburner) private var goToNextOnBackburner = true
 
     var body: some View {
         Form {
@@ -99,6 +100,10 @@ struct GeneralSettingsView: View {
                     Toggle("Idle Status Coloring", isOn: $idleSessionColoring)
                         .disabled(!enableStats)
                 }
+            }
+
+            Section("Backburner") {
+                Toggle("Go to next session on backburner", isOn: $goToNextOnBackburner)
             }
         }
         .formStyle(.grouped)
@@ -738,8 +743,6 @@ struct HighlightingSettingsView: View {
     @AppStorage(AppStorageKeys.highlightOnGuiSelect) private var highlightOnGuiSelect = true
     @AppStorage(AppStorageKeys.highlightOnNotification) private var highlightOnNotification = true
 
-    @AppStorage(AppStorageKeys.goToNextOnBackburner) private var goToNextOnBackburner = true
-
     private var tabHighlightColor: Binding<Color> {
         Binding(
             get: {
@@ -792,45 +795,38 @@ struct HighlightingSettingsView: View {
                 }
             }
 
-            Section("Tab Bar") {
-                Toggle("Enable tab bar highlighting", isOn: $tabHighlightEnabled)
-
+            Section("Terminal Highlighting") {
                 Toggle("Use cycling colors", isOn: $useTerminalCyclingColors)
-                    .disabled(!tabHighlightEnabled)
+
+                Toggle("Tab bar highlighting", isOn: $tabHighlightEnabled)
 
                 if !useTerminalCyclingColors {
-                    ColorPicker("Color", selection: tabHighlightColor)
+                    ColorPicker("Tab color", selection: tabHighlightColor)
                         .disabled(!tabHighlightEnabled)
                 }
 
-                Picker("Duration", selection: $tabHighlightDuration) {
+                Picker("Tab duration", selection: $tabHighlightDuration) {
                     Text("1 second").tag(1.0)
                     Text("2 seconds").tag(2.0)
                     Text("3 seconds").tag(3.0)
                     Text("5 seconds").tag(5.0)
                 }
                 .disabled(!tabHighlightEnabled)
-            }
 
-            Section("Pane Background") {
-                Toggle("Enable pane highlighting", isOn: $paneHighlightEnabled)
+                Toggle("Pane highlighting", isOn: $paneHighlightEnabled)
 
                 if !useTerminalCyclingColors {
-                    ColorPicker("Color", selection: paneHighlightColor)
+                    ColorPicker("Pane color", selection: paneHighlightColor)
                         .disabled(!paneHighlightEnabled)
                 }
 
-                Picker("Duration", selection: $paneHighlightDuration) {
+                Picker("Pane duration", selection: $paneHighlightDuration) {
                     Text("1 second").tag(1.0)
                     Text("2 seconds").tag(2.0)
                     Text("3 seconds").tag(3.0)
                     Text("5 seconds").tag(5.0)
                 }
                 .disabled(!paneHighlightEnabled)
-            }
-
-            Section("Backburner") {
-                Toggle("Go to next session on backburner", isOn: $goToNextOnBackburner)
             }
         }
         .formStyle(.grouped)
