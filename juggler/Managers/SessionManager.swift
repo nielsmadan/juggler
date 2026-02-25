@@ -406,6 +406,7 @@ final class SessionManager {
         }
     }
 
+    @MainActor
     func addOrUpdateSession(
         claudeSessionID: String,
         terminalSessionID: String,
@@ -463,9 +464,7 @@ final class SessionManager {
 
             if oldState != state {
                 let sessionID = sessions[index].id
-                Task { @MainActor in
-                    self.applyStateChange(sessionID: sessionID, from: oldState, to: state)
-                }
+                applyStateChange(sessionID: sessionID, from: oldState, to: state)
             }
         } else {
             let now = Date()
@@ -499,20 +498,17 @@ final class SessionManager {
                 )
             }
 
-            Task { @MainActor in
-                logInfo(.session, "New session added: \(session.displayName)")
-            }
+            logInfo(.session, "New session added: \(session.displayName)")
         }
     }
 
+    @MainActor
     func updateSessionState(terminalSessionID: String, state: SessionState) {
         guard let index = sessions.firstIndex(where: { $0.id == terminalSessionID }) else { return }
         let oldState = sessions[index].state
         if oldState != state {
             let sessionID = sessions[index].id
-            Task { @MainActor in
-                self.applyStateChange(sessionID: sessionID, from: oldState, to: state)
-            }
+            applyStateChange(sessionID: sessionID, from: oldState, to: state)
         }
     }
 

@@ -81,7 +81,7 @@ import Testing
 
 // MARK: - addOrUpdateSession Tests
 
-@Test func addOrUpdateSession_newSession_appendsToList() {
+@Test @MainActor func addOrUpdateSession_newSession_appendsToList() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -97,7 +97,7 @@ import Testing
     #expect(manager.sessions[0].state == .idle)
 }
 
-@Test func addOrUpdateSession_existingSession_updatesMetadata() {
+@Test @MainActor func addOrUpdateSession_existingSession_updatesMetadata() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -113,7 +113,7 @@ import Testing
     #expect(manager.sessions[0].gitRepoName == "my-repo")
 }
 
-@Test func addOrUpdateSession_backburnered_preservesState_unlessUserPromptSubmit() {
+@Test @MainActor func addOrUpdateSession_backburnered_preservesState_unlessUserPromptSubmit() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -129,7 +129,7 @@ import Testing
     #expect(manager.sessions[0].gitBranch == "new-branch")
 }
 
-@Test func addOrUpdateSession_backburnered_exitsOnUserPromptSubmit() {
+@Test @MainActor func addOrUpdateSession_backburnered_exitsOnUserPromptSubmit() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -140,12 +140,12 @@ import Testing
         state: .working, event: "UserPromptSubmit"
     )
 
-    // UserPromptSubmit bypasses backburner guard — state change dispatched via Task
-    // Verify the guard was not hit by checking metadata was updated (not the early return path)
+    // UserPromptSubmit bypasses backburner guard — state changes synchronously via @MainActor
     #expect(manager.sessions.count == 1)
+    #expect(manager.sessions[0].state == .working)
 }
 
-@Test func addOrUpdateSession_tmuxPane_createsCompositeID() {
+@Test @MainActor func addOrUpdateSession_tmuxPane_createsCompositeID() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -159,7 +159,7 @@ import Testing
 
 // MARK: - disambiguatedDisplayName Tests
 
-@Test func disambiguatedDisplayName_uniqueName_returnsBaseName() {
+@Test @MainActor func disambiguatedDisplayName_uniqueName_returnsBaseName() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -173,7 +173,7 @@ import Testing
     #expect(name == "project-a")
 }
 
-@Test func disambiguatedDisplayName_duplicateNames_appendsIndex() {
+@Test @MainActor func disambiguatedDisplayName_duplicateNames_appendsIndex() {
     let manager = SessionManager()
 
     // Both sessions share the same project path
@@ -194,7 +194,7 @@ import Testing
     #expect(name2 == "same-project (2)")
 }
 
-@Test func disambiguatedDisplayName_folderMode_disambiguatesCollisions() {
+@Test @MainActor func disambiguatedDisplayName_folderMode_disambiguatesCollisions() {
     let manager = SessionManager()
 
     // Different paths but same folder name
@@ -215,7 +215,7 @@ import Testing
     #expect(name2 == "project (2)")
 }
 
-@Test func disambiguatedDisplayName_parentFolderMode_uniqueParents_noSuffix() {
+@Test @MainActor func disambiguatedDisplayName_parentFolderMode_uniqueParents_noSuffix() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -235,7 +235,7 @@ import Testing
 
 // MARK: - removeSession Tests
 
-@Test func removeSession_removesFromList() {
+@Test @MainActor func removeSession_removesFromList() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -251,7 +251,7 @@ import Testing
     #expect(manager.sessions[0].terminalSessionID == "s2")
 }
 
-@Test func removeSession_clearsFocusedSessionID() {
+@Test @MainActor func removeSession_clearsFocusedSessionID() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -263,7 +263,7 @@ import Testing
     #expect(manager.focusedSessionID == nil)
 }
 
-@Test func removeSession_nonexistent_noOp() {
+@Test @MainActor func removeSession_nonexistent_noOp() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -277,7 +277,7 @@ import Testing
 
 // MARK: - renameSession Tests
 
-@Test func renameSession_setsCustomName() {
+@Test @MainActor func renameSession_setsCustomName() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -290,7 +290,7 @@ import Testing
     #expect(manager.sessions[0].displayName == "My Session")
 }
 
-@Test func renameSession_emptyString_clearsName() {
+@Test @MainActor func renameSession_emptyString_clearsName() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -474,7 +474,7 @@ import Testing
 
 // MARK: - updateSessionTerminalInfo Tests
 
-@Test func updateSessionTerminalInfo_updatesTabAndPaneInfo() {
+@Test @MainActor func updateSessionTerminalInfo_updatesTabAndPaneInfo() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -500,7 +500,7 @@ import Testing
     #expect(manager.sessions.isEmpty)
 }
 
-@Test func updateSessionTerminalInfo_windowName() {
+@Test @MainActor func updateSessionTerminalInfo_windowName() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -541,7 +541,7 @@ import Testing
 
 // MARK: - addOrUpdateSession metadata Tests
 
-@Test func addOrUpdateSession_newSession_withAllMetadata() {
+@Test @MainActor func addOrUpdateSession_newSession_withAllMetadata() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -565,7 +565,7 @@ import Testing
     #expect(s.transcriptPath == "/tmp/transcript.jsonl")
 }
 
-@Test func addOrUpdateSession_emptyMetadata_treatedAsNil() {
+@Test @MainActor func addOrUpdateSession_emptyMetadata_treatedAsNil() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -581,7 +581,7 @@ import Testing
     #expect(s.transcriptPath == nil)
 }
 
-@Test func addOrUpdateSession_updatesTranscriptPath() {
+@Test @MainActor func addOrUpdateSession_updatesTranscriptPath() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -595,7 +595,7 @@ import Testing
     #expect(manager.sessions[0].transcriptPath == "/new/transcript.jsonl")
 }
 
-@Test func addOrUpdateSession_backburnered_updatesMetadata_preservesState() {
+@Test @MainActor func addOrUpdateSession_backburnered_updatesMetadata_preservesState() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -712,7 +712,7 @@ import Testing
 
 // MARK: - renameSession edge cases
 
-@Test func renameSession_nonexistentSession_noOp() {
+@Test @MainActor func renameSession_nonexistentSession_noOp() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
@@ -724,7 +724,7 @@ import Testing
     #expect(manager.sessions[0].customName == nil)
 }
 
-@Test func renameSession_nilClears() {
+@Test @MainActor func renameSession_nilClears() {
     let manager = SessionManager()
 
     manager.addOrUpdateSession(
