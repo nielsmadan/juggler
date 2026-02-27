@@ -6,6 +6,8 @@ enum QueueOrderMode: String, CaseIterable {
     case `static`
     case grouped // Grouped by terminal window
 
+    static let `default`: QueueOrderMode = .fair
+
     var displayName: String {
         switch self {
         case .fair: "Fair"

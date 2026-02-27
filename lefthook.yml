@@ -2,17 +2,17 @@ pre-commit:
   commands:
     swiftformat:
       glob: "*.swift"
-      run: just format files="{staged_files}" && git add {staged_files}
+      run: just format {staged_files} && git add {staged_files}
       stage_fixed: true
       priority: 1
     swiftlint-fix:
       glob: "*.swift"
-      run: just lint-fix files="{staged_files}" && git add {staged_files}
+      run: just lint-fix {staged_files} && git add {staged_files}
       stage_fixed: true
       priority: 2
     swiftlint-check:
       glob: "*.swift"
-      run: just lint files="{staged_files}"
+      run: just lint {staged_files}
       priority: 3
 
 pre-push:

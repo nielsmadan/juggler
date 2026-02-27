@@ -7,6 +7,8 @@ enum SessionTitleMode: String, CaseIterable {
     case folderName
     case parentAndFolderName
 
+    static let `default`: SessionTitleMode = .parentAndFolderName
+
     var displayName: String {
         switch self {
         case .tabTitle: "Tab Title"

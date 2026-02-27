@@ -18,14 +18,14 @@ final class BeaconManager {
 
     private var position: BeaconPosition {
         let raw = UserDefaults.standard.string(forKey: AppStorageKeys.beaconPosition)
-            ?? BeaconPosition.center.rawValue
-        return BeaconPosition(rawValue: raw) ?? .center
+            ?? BeaconPosition.default.rawValue
+        return BeaconPosition(rawValue: raw) ?? .default
     }
 
     private var size: BeaconSize {
         let raw = UserDefaults.standard.string(forKey: AppStorageKeys.beaconSize)
-            ?? BeaconSize.m.rawValue
-        return BeaconSize(rawValue: raw) ?? .m
+            ?? BeaconSize.default.rawValue
+        return BeaconSize(rawValue: raw) ?? .default
     }
 
     private var duration: Double {
@@ -35,8 +35,8 @@ final class BeaconManager {
 
     private var anchor: BeaconAnchor {
         let raw = UserDefaults.standard.string(forKey: AppStorageKeys.beaconAnchor)
-            ?? BeaconAnchor.screen.rawValue
-        return BeaconAnchor(rawValue: raw) ?? .screen
+            ?? BeaconAnchor.default.rawValue
+        return BeaconAnchor(rawValue: raw) ?? .default
     }
 
     func show(sessionName: String) {

@@ -7,6 +7,8 @@ enum BeaconPosition: String, CaseIterable {
     case bottomLeft
     case bottomRight
 
+    static let `default`: BeaconPosition = .center
+
     var displayName: String {
         switch self {
         case .center: "Center"

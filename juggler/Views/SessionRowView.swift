@@ -14,11 +14,11 @@ struct SessionRowView: View {
     @Environment(SessionManager.self) private var sessionManager
     @State private var showRenameSheet = false
     @AppStorage(AppStorageKeys.useCyclingColors) private var useCyclingColors = true
-    @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode.tabTitle
-        .rawValue
+    @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode
+        .default.rawValue
 
     private var titleMode: SessionTitleMode {
-        SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .tabTitle
+        SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .default
     }
 
     private var isCurrent: Bool {

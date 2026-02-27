@@ -2,9 +2,9 @@ import SwiftUI
 
 struct BeaconSettingsView: View {
     @AppStorage(AppStorageKeys.beaconEnabled) private var beaconEnabled = true
-    @AppStorage(AppStorageKeys.beaconPosition) private var beaconPosition: String = BeaconPosition.center.rawValue
-    @AppStorage(AppStorageKeys.beaconAnchor) private var beaconAnchor: String = BeaconAnchor.screen.rawValue
-    @AppStorage(AppStorageKeys.beaconSize) private var beaconSize: String = BeaconSize.m.rawValue
+    @AppStorage(AppStorageKeys.beaconPosition) private var beaconPosition: String = BeaconPosition.default.rawValue
+    @AppStorage(AppStorageKeys.beaconAnchor) private var beaconAnchor: String = BeaconAnchor.default.rawValue
+    @AppStorage(AppStorageKeys.beaconSize) private var beaconSize: String = BeaconSize.default.rawValue
     @AppStorage(AppStorageKeys.beaconDuration) private var beaconDuration: Double = 1.5
 
     var body: some View {

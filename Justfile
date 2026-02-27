@@ -56,14 +56,14 @@ clean:
     @rm -rf {{build_dir}}
     @echo "Build directory cleaned."
 
-lint files=".":
-    @swiftlint {{files}}
+lint *files:
+    @swiftlint {{ if files == "" { "." } else { files } }}
 
-lint-fix files=".":
-    @swiftlint --fix {{files}}
+lint-fix *files:
+    @swiftlint --fix {{ if files == "" { "." } else { files } }}
 
-format files=".":
-    @swiftformat {{files}}
+format *files:
+    @swiftformat {{ if files == "" { "." } else { files } }}
 
 unused-check:
     @periphery scan

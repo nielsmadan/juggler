@@ -13,7 +13,7 @@ struct MenuBarView: View {
     @Environment(SessionManager.self) private var sessionManager
     @Environment(\.dismiss) private var dismiss
     @State private var controller = SessionListController()
-    @AppStorage(AppStorageKeys.queueOrderMode) private var queueOrderMode: String = QueueOrderMode.fair.rawValue
+    @AppStorage(AppStorageKeys.queueOrderMode) private var queueOrderMode: String = QueueOrderMode.default.rawValue
     @AppStorage(AppStorageKeys.showShortcutHelper) private var showShortcutHelper = true
 
     var body: some View {
@@ -86,8 +86,7 @@ struct MenuBarView: View {
                             Text("\(rename.displayString) rename")
                         }
                         if let forward = controller.shortcutCycleModeForward,
-                           let backward = controller.shortcutCycleModeBackward
-                        {
+                           let backward = controller.shortcutCycleModeBackward {
                             Text("\(forward.displayString)/\(backward.displayString) mode")
                         }
                     }
@@ -178,7 +177,11 @@ struct QueueModePicker: View {
                         .padding(.horizontal, 8)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
-                        .background(selection == mode.rawValue ? Color(red: 144 / 255, green: 104 / 255, blue: 212 / 255) : Color.clear)
+                        .background(selection == mode.rawValue ? Color(
+                            red: 144 / 255,
+                            green: 104 / 255,
+                            blue: 212 / 255
+                        ) : Color.clear)
                         .foregroundStyle(selection == mode.rawValue ? .white : .primary)
                         .contentShape(Rectangle())
                         .help(mode.helpText)

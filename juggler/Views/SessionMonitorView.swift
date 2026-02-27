@@ -12,7 +12,7 @@ import SwiftUI
 struct SessionMonitorView: View {
     @Environment(SessionManager.self) private var sessionManager
     @Environment(\.colorScheme) private var colorScheme
-    @AppStorage(AppStorageKeys.queueOrderMode) private var queueOrderMode: String = QueueOrderMode.fair.rawValue
+    @AppStorage(AppStorageKeys.queueOrderMode) private var queueOrderMode: String = QueueOrderMode.default.rawValue
     @AppStorage(AppStorageKeys.useCyclingColors) private var useCyclingColors = true
     @AppStorage(AppStorageKeys.enableStats) private var enableStats = true
     @AppStorage(AppStorageKeys.idleSessionColoring) private var idleSessionColoring = true
@@ -20,12 +20,12 @@ struct SessionMonitorView: View {
     @AppStorage(AppStorageKeys.beaconEnabled) private var beaconEnabled = true
     @AppStorage(AppStorageKeys.autoAdvanceOnBusy) private var autoAdvanceOnBusy = false
     @AppStorage(AppStorageKeys.autoRestartOnIdle) private var autoRestartOnIdle = false
-    @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode.tabTitle
-        .rawValue
+    @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode
+        .default.rawValue
     @AppStorage(AppStorageKeys.controlBarHintDismissed) private var controlBarHintDismissed = false
 
     private var titleMode: SessionTitleMode {
-        SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .tabTitle
+        SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .default
     }
 
     private var controlBarDividerColor: Color {
@@ -87,7 +87,7 @@ struct SessionMonitorView: View {
         let sections: [(SectionType, String)] = [
             (.idle, "Idle"),
             (.working, "Working"),
-            (.backburner, "Backburner"),
+            (.backburner, "Backburner")
         ]
 
         for (section, title) in sections {
@@ -178,8 +178,7 @@ struct SessionMonitorView: View {
         }
         .onChange(of: sessionManager.currentSession?.id) { _, _ in
             if let current = sessionManager.currentSession,
-               let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id })
-            {
+               let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id }) {
                 controller.selectedIndex = index
                 controller.trackSelectedSession(sessions: sessionManager.sessions)
             }
@@ -653,7 +652,6 @@ struct SessionMonitorView: View {
                 .truncationMode(.tail)
         }
     }
-
 }
 
 // MARK: - Parabolic Arc Transition for DOWN Animations
@@ -706,5 +704,3 @@ extension AnyTransition {
         ).combined(with: .opacity)
     }
 }
-
-

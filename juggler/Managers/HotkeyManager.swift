@@ -100,7 +100,7 @@ final class HotkeyManager {
                 SessionManager.shared.endActivation()
                 let titleMode = SessionTitleMode(
                     rawValue: UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
-                ) ?? .tabTitle
+                ) ?? .default
                 let displayName = SessionManager.shared.disambiguatedDisplayName(
                     for: target, titleMode: titleMode
                 )

@@ -174,16 +174,14 @@ actor HookServer {
         let tmuxSessionName = payload.tmux?.sessionName
 
         let terminalType: TerminalType = if let typeStr = payload.terminal?.terminalType,
-                                            let type = TerminalType(rawValue: typeStr)
-        {
+                                            let type = TerminalType(rawValue: typeStr) {
             type
         } else {
             .iterm2
         }
 
         if terminalType == .kitty, let socketPath = payload.terminal?.kittyListenOn, !socketPath.isEmpty,
-           socketPath.hasPrefix("unix:"), socketPath.contains("kitty")
-        {
+           socketPath.hasPrefix("unix:"), socketPath.contains("kitty") {
             // Ensure the bridge is started (finds kitten binary, etc.)
             try? await TerminalBridgeRegistry.shared.start(.kitty)
             await KittyBridge.shared.registerSocket(windowID: terminalSessionID, socketPath: socketPath)
@@ -277,7 +275,7 @@ actor HookServer {
                     title: title,
                     body: session.title(for: SessionTitleMode(
                         rawValue: UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
-                    ) ?? .tabTitle),
+                    ) ?? .default),
                     sessionID: sessionID
                 )
             }

@@ -7,6 +7,8 @@ enum BeaconSize: String, CaseIterable {
     case l
     case xl
 
+    static let `default`: BeaconSize = .m
+
     var displayName: String {
         rawValue.uppercased()
     }
