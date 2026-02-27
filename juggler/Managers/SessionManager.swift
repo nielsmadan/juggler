@@ -175,10 +175,11 @@ final class SessionManager {
             handleStateTransition(at: index, from: oldState, to: newState)
         }
 
-        // Handle auto-advance when a session goes busy
+        // Handle auto-advance when a session goes busy (not backburner — that's a deliberate user action
+        // handled by HotkeyManager.handleBackburner directly)
         let wasCyclable = oldState.isIncludedInCycle
         let isCyclable = newState.isIncludedInCycle
-        if wasCyclable, !isCyclable {
+        if wasCyclable, !isCyclable, newState != .backburner {
             // Only act if the user is still focused on this session.
             // If they already cycled away, the hook arrived late — don't yank them.
             // Re-find the session after handleStateTransition may have reordered the array.

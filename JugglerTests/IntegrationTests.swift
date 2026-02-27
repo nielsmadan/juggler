@@ -425,6 +425,64 @@ private func simulateHook(
     #expect(manager.sessions[0].state == .working)
 }
 
+// MARK: - Backburner Does Not Trigger Auto-Advance
+
+@Test @MainActor func integration_goToNextOnBackburner_doesNotAnchor() {
+    UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
+    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+
+    let manager = SessionManager()
+
+    simulateHook(
+        manager: manager,
+        event: "SessionStart",
+        claudeSessionID: "c1",
+        terminalSessionID: "s1",
+        projectPath: "/a"
+    )
+    simulateHook(
+        manager: manager,
+        event: "SessionStart",
+        claudeSessionID: "c2",
+        terminalSessionID: "s2",
+        projectPath: "/b"
+    )
+
+    manager.updateFocusedSession(terminalSessionID: "s1")
+
+    // Backburner s1 — should NOT set lastActiveSessionID anchor
+    manager.backburnerSession(terminalSessionID: "s1")
+
+    #expect(manager.lastActiveSessionID == nil)
+    // currentSession should return s2 (next cyclable), not s1 via anchor
+    #expect(manager.currentSession?.id == "s2")
+}
+
+@Test @MainActor func integration_backburner_doesNotPostAutoAdvance() {
+    UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
+    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+
+    var posted = false
+    let token = NotificationCenter.default.addObserver(
+        forName: .shouldAutoAdvance, object: nil, queue: nil
+    ) { _ in posted = true }
+    defer { NotificationCenter.default.removeObserver(token) }
+
+    let manager = SessionManager()
+
+    simulateHook(
+        manager: manager,
+        event: "SessionStart",
+        claudeSessionID: "c1",
+        terminalSessionID: "s1",
+        projectPath: "/a"
+    )
+    manager.updateFocusedSession(terminalSessionID: "s1")
+
+    manager.backburnerSession(terminalSessionID: "s1")
+    #expect(posted == false)
+}
+
 // MARK: - Tmux Pane Composite ID
 
 @Test @MainActor func integration_tmuxPane_compositeID_lifecycle() {
