@@ -4,13 +4,13 @@
   },
   "permissions": {
     "allow": [
-      "Bash(make lint:*)",
-      "Bash(make format:*)",
-      "Bash(make reset:*)",
-      "Bash(make build:*)",
-      "Bash(make clean:*)",
-      "Bash(make test:*)",
-      "Bash(make build-strict:*)"
+      "Bash(just lint:*)",
+      "Bash(just format:*)",
+      "Bash(just reset:*)",
+      "Bash(just build:*)",
+      "Bash(just clean:*)",
+      "Bash(just test:*)",
+      "Bash(just build-strict:*)"
     ]
   }
 }

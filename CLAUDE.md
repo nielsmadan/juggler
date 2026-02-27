@@ -5,22 +5,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Run
 
 ```bash
-make build    # Build the app
-make run      # Build and run
-make test     # Run unit tests only (fast, no UI)
-make test-ui  # Run UI tests only (launches app)
-make test-all # Run all tests (unit + UI)
-make clean    # Remove build directory
-make lint     # Run SwiftLint
-make format       # Run SwiftFormat
-make unused-check # Check for unused code (Periphery)
-make coverage     # Run tests and print coverage summary
-make reset        # Clear all app preferences (for testing fresh state)
+just build    # Build the app
+just run      # Build and run
+just test     # Run unit tests only (fast, no UI)
+just test-ui  # Run UI tests only (launches app)
+just test-all # Run all tests (unit + UI)
+just clean    # Remove build directory
+just lint     # Run SwiftLint
+just format       # Run SwiftFormat
+just unused-check # Check for unused code (Periphery)
+just coverage     # Run tests and print coverage summary
+just reset-all    # Clear all app preferences (for testing fresh state)
 ```
 
 Or use Xcode: `⌘B` to build, `⌘R` to run.
 
-**Testing workflow:** Don't run `make run` - the user will run and test the app themselves. Just run `make build` and tell the user when it's ready for testing.
+**Testing workflow:** Don't run `just run` - the user will run and test the app themselves. Just run `just build` and tell the user when it's ready for testing.
 
 ## Testing Hooks
 

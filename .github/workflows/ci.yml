@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Build (strict, zero warnings)
-        run: make build-strict XCCONFIG=ci.xcconfig
+        run: just build-strict xcconfig=ci.xcconfig
 
       - name: Run tests with coverage
         run: |
@@ -39,7 +39,7 @@ jobs:
         run: brew install swiftlint
 
       - name: Lint
-        run: make lint
+        run: just lint
 
   unused-check:
     runs-on: macos-26
@@ -50,4 +50,4 @@ jobs:
         run: brew install --cask peripheryapp/periphery/periphery
 
       - name: Check for unused code
-        run: make unused-check
+        run: just unused-check
