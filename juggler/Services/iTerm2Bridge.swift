@@ -40,7 +40,7 @@ actor ITerm2Bridge: TerminalBridge {
         // Triggers Automation permission dialog on first run
         let cookieAndKey: String
         do {
-            cookieAndKey = try requestCookie()
+            cookieAndKey = try await requestCookie()
         } catch {
             await MainActor.run { logError(.daemon, "Failed to get iTerm2 cookie: \(error)") }
             throw error
@@ -381,33 +381,35 @@ actor ITerm2Bridge: TerminalBridge {
         }
     }
 
-    private nonisolated func requestCookie() throws -> String {
+    private func requestCookie() async throws -> String {
         let script = """
         tell application "iTerm2" to request cookie and key for app named "Juggler"
         """
 
-        var error: NSDictionary?
-        guard let appleScript = NSAppleScript(source: script) else {
-            throw TerminalBridgeError.authenticationFailed("Failed to create AppleScript")
+        return try await MainActor.run {
+            var error: NSDictionary?
+            guard let appleScript = NSAppleScript(source: script) else {
+                throw TerminalBridgeError.authenticationFailed("Failed to create AppleScript")
+            }
+
+            let result = appleScript.executeAndReturnError(&error)
+
+            if let error {
+                let errorMessage = error[NSAppleScript.errorMessage] as? String ?? "Unknown error"
+                throw TerminalBridgeError.authenticationFailed(errorMessage)
+            }
+
+            guard let cookieAndKey = result.stringValue else {
+                throw TerminalBridgeError.authenticationFailed("No cookie returned")
+            }
+
+            let parts = cookieAndKey.split(separator: " ")
+            guard parts.count >= 1 else {
+                throw TerminalBridgeError.authenticationFailed("Invalid cookie format")
+            }
+
+            return cookieAndKey
         }
-
-        let result = appleScript.executeAndReturnError(&error)
-
-        if let error {
-            let errorMessage = error[NSAppleScript.errorMessage] as? String ?? "Unknown error"
-            throw TerminalBridgeError.authenticationFailed(errorMessage)
-        }
-
-        guard let cookieAndKey = result.stringValue else {
-            throw TerminalBridgeError.authenticationFailed("No cookie returned")
-        }
-
-        let parts = cookieAndKey.split(separator: " ")
-        guard parts.count >= 1 else {
-            throw TerminalBridgeError.authenticationFailed("Invalid cookie format")
-        }
-
-        return cookieAndKey
     }
 
     func activate(sessionID: String) async throws {

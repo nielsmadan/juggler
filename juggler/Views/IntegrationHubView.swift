@@ -295,13 +295,11 @@ struct ITerm2SetupView: View {
         tell application "iTerm2" to request cookie and key for app named "Juggler"
         """
 
-        DispatchQueue.global(qos: .userInitiated).async {
+        Task { @MainActor in
             var error: NSDictionary?
             if let appleScript = NSAppleScript(source: script) {
                 let result = appleScript.executeAndReturnError(&error)
-                DispatchQueue.main.async {
-                    runtimeInstalled = (error == nil && result.stringValue != nil)
-                }
+                runtimeInstalled = (error == nil && result.stringValue != nil)
             }
         }
     }

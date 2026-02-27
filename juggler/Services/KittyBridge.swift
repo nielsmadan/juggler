@@ -124,9 +124,11 @@ actor KittyBridge: TerminalBridge {
             socketPath: socketPath
         )
 
-        let script = NSAppleScript(source: #"tell application "kitty" to activate"#)
-        var error: NSDictionary?
-        script?.executeAndReturnError(&error)
+        await MainActor.run {
+            let script = NSAppleScript(source: #"tell application "kitty" to activate"#)
+            var error: NSDictionary?
+            script?.executeAndReturnError(&error)
+        }
 
         await MainActor.run {
             logDebug(.kitty, "Kitty window activated: \(sessionID)")
