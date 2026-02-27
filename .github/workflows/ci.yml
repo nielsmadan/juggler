@@ -16,6 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
+      - name: Install Just
+        run: brew install just
+
       - name: Build (strict, zero warnings)
         run: just build-strict xcconfig=ci.xcconfig
 
@@ -35,8 +38,8 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
-      - name: Install SwiftLint
-        run: brew install swiftlint
+      - name: Install Just and SwiftLint
+        run: brew install just swiftlint
 
       - name: Lint
         run: just lint
@@ -46,8 +49,10 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
-      - name: Install Periphery
-        run: brew install --cask peripheryapp/periphery/periphery
+      - name: Install Just and Periphery
+        run: |
+          brew install just
+          brew install --cask peripheryapp/periphery/periphery
 
       - name: Check for unused code
         run: just unused-check
