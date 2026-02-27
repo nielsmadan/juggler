@@ -123,7 +123,6 @@ struct IntegrationSettingsView: View {
     @State private var isInstallingHooks = false
     @State private var hookInstallError: String?
 
-    @State private var kittyInstalled = false
     @State private var kittyRemoteControl = false
     @State private var kittyListenOn = false
     @State private var kittyWatcherInstalled = false
@@ -232,18 +231,6 @@ struct IntegrationSettingsView: View {
             }
 
             Section("Kitty") {
-                HStack {
-                    Text("Kitty App")
-                    Spacer()
-                    if kittyInstalled {
-                        Label("Installed", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                    } else {
-                        Label("Not Found", systemImage: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Remote Control")
@@ -256,7 +243,7 @@ struct IntegrationSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    if !kittyRemoteControl, kittyInstalled {
+                    if !kittyRemoteControl {
                         Text("Adds allow_remote_control socket-only to kitty.conf")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -278,7 +265,7 @@ struct IntegrationSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    if !kittyListenOn, kittyInstalled {
+                    if !kittyListenOn {
                         Text("Adds listen_on unix:/tmp/kitty-{kitty_pid} to kitty.conf")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -380,6 +367,14 @@ struct IntegrationSettingsView: View {
     }
 
     private func checkAutomation() {
+        // Only check if iTerm2 is already running to avoid launching it as a side effect
+        let isRunning = NSWorkspace.shared.runningApplications.contains {
+            $0.bundleIdentifier == "com.googlecode.iterm2"
+        }
+        guard isRunning else {
+            hasAutomation = false
+            return
+        }
         let script = NSAppleScript(source: "tell application \"iTerm2\" to name")
         var error: NSDictionary?
         script?.executeAndReturnError(&error)
@@ -431,8 +426,6 @@ struct IntegrationSettingsView: View {
     }
 
     private func checkKittyStatus() {
-        kittyInstalled = FileManager.default.fileExists(atPath: "/Applications/kitty.app")
-
         if let contents = try? String(contentsOfFile: kittyConfPath, encoding: .utf8) {
             kittyRemoteControl = KittyConfigParser.hasRemoteControl(in: contents)
             kittyListenOn = KittyConfigParser.hasListenOn(in: contents)
@@ -456,7 +449,20 @@ struct IntegrationSettingsView: View {
 
             if FileManager.default.fileExists(atPath: kittyConfPath) {
                 let existingContent = try String(contentsOfFile: kittyConfPath, encoding: .utf8)
+
+                // Skip if directive already present (non-commented)
+                let directiveKey = String(line.split(separator: " ").first ?? "")
+                let alreadyPresent = existingContent.split(separator: "\n").contains { l in
+                    let trimmed = l.trimmingCharacters(in: .whitespaces)
+                    return !trimmed.hasPrefix("#") && trimmed.hasPrefix(directiveKey)
+                }
+                if alreadyPresent {
+                    checkKittyStatus()
+                    return
+                }
+
                 let handle = try FileHandle(forWritingTo: fileURL)
+                defer { handle.closeFile() }
                 handle.seekToEndOfFile()
 
                 var lineToAppend = line + "\n"
@@ -465,7 +471,6 @@ struct IntegrationSettingsView: View {
                 }
 
                 handle.write(Data(lineToAppend.utf8))
-                handle.closeFile()
             } else {
                 try (line + "\n").write(toFile: kittyConfPath, atomically: true, encoding: .utf8)
             }
@@ -532,7 +537,16 @@ struct IntegrationSettingsView: View {
 
             if FileManager.default.fileExists(atPath: tmuxConfPath) {
                 let existingContent = try String(contentsOfFile: tmuxConfPath, encoding: .utf8)
+
+                // Skip if our line is already present
+                if existingContent.contains(tmuxUpdateEnvironmentLine) {
+                    checkTmuxConfigured()
+                    isConfiguringTmux = false
+                    return
+                }
+
                 let handle = try FileHandle(forWritingTo: fileURL)
+                defer { handle.closeFile() }
                 handle.seekToEndOfFile()
 
                 var lineToAppend = tmuxUpdateEnvironmentLine + "\n"
@@ -541,7 +555,6 @@ struct IntegrationSettingsView: View {
                 }
 
                 handle.write(Data(lineToAppend.utf8))
-                handle.closeFile()
             } else {
                 try (tmuxUpdateEnvironmentLine + "\n").write(toFile: tmuxConfPath, atomically: true, encoding: .utf8)
             }
@@ -1000,16 +1013,22 @@ func runProcess(executableURL: String, arguments: [String]) async -> String? {
         return error.localizedDescription
     }
 
-    return await withCheckedContinuation { continuation in
+    // Drain pipe on a non-cooperative thread to prevent buffer-full deadlock
+    let readTask = Task.detached { pipe.fileHandleForReading.readDataToEndOfFile() }
+
+    let exitStatus = await withCheckedContinuation { (continuation: CheckedContinuation<Int32, Never>) in
         process.terminationHandler = { proc in
-            if proc.terminationStatus == 0 {
-                continuation.resume(returning: nil)
-            } else {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(decoding: data, as: UTF8.self)
-                continuation.resume(returning: output.isEmpty ? "Process failed" : output)
-            }
+            continuation.resume(returning: proc.terminationStatus)
         }
+    }
+
+    let data = await readTask.value
+
+    if exitStatus == 0 {
+        return nil
+    } else {
+        let output = String(decoding: data, as: UTF8.self)
+        return output.isEmpty ? "Process failed" : output
     }
 }
 

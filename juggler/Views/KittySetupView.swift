@@ -10,7 +10,6 @@ struct KittySetupView: View {
     @Binding var isEnabled: Bool
     @Environment(\.dismiss) private var dismiss
 
-    @State private var kittyInstalled = false
     @State private var remoteControlEnabled = false
     @State private var listenOnConfigured = false
     @State private var watcherInstalled = false
@@ -21,7 +20,7 @@ struct KittySetupView: View {
     @State private var testError: String?
 
     var allReady: Bool {
-        kittyInstalled && remoteControlEnabled && listenOnConfigured
+        remoteControlEnabled && listenOnConfigured
     }
 
     var body: some View {
@@ -32,12 +31,6 @@ struct KittySetupView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    SetupCheckRow(
-                        title: "Kitty Installed",
-                        detail: "Checks /Applications/kitty.app",
-                        isComplete: kittyInstalled
-                    )
-
                     HStack(alignment: .top, spacing: 12) {
                         if remoteControlEnabled {
                             Image(systemName: "checkmark.circle.fill")
@@ -52,13 +45,6 @@ struct KittySetupView: View {
                             Text("allow_remote_control socket-only in kitty.conf")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-
-                            if !remoteControlEnabled, kittyInstalled {
-                                Button("Add to kitty.conf") {
-                                    appendToKittyConf("allow_remote_control socket-only")
-                                }
-                                .padding(.top, 2)
-                            }
                         }
                     }
 
@@ -76,13 +62,6 @@ struct KittySetupView: View {
                             Text("listen_on unix:/tmp/kitty-{kitty_pid} in kitty.conf")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-
-                            if !listenOnConfigured, kittyInstalled {
-                                Button("Add to kitty.conf") {
-                                    appendToKittyConf("listen_on unix:/tmp/kitty-{kitty_pid}")
-                                }
-                                .padding(.top, 2)
-                            }
                         }
                     }
 
@@ -97,7 +76,7 @@ struct KittySetupView: View {
                                 .foregroundStyle(.secondary)
                         }
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Install Watcher (Recommended)")
+                            Text("Install Watcher")
                                 .fontWeight(.medium)
                             Text("Enables focus tracking and session termination detection.")
                                 .font(.caption)
@@ -108,12 +87,6 @@ struct KittySetupView: View {
                                     .font(.caption)
                                     .foregroundStyle(.red)
                             }
-
-                            Button(watcherInstalled ? "Reinstall Watcher" : "Install Watcher") {
-                                installWatcher()
-                            }
-                            .disabled(isInstallingWatcher)
-                            .padding(.top, 4)
                         }
                     }
 
@@ -147,42 +120,49 @@ struct KittySetupView: View {
                             }
                         }
                     }
-                    Text("Restart Kitty after making configuration changes.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 4)
                 }
                 .padding()
                 .background(Color.secondary.opacity(0.1))
                 .cornerRadius(8)
+
+                if allReady {
+                    Button("Test Connection") {
+                        testConnection()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding(.top, 8)
+
+                    if !connectionTested {
+                        Label(
+                            "Please restart Kitty for configuration changes to take effect.",
+                            systemImage: "arrow.clockwise"
+                        )
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                        .padding(.top, 4)
+                    }
+                } else {
+                    Button("Setup Kitty") {
+                        setupIntegration()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding(.top, 8)
+                }
             }
 
-            HStack(spacing: 12) {
-                Button("Check Configuration") {
-                    checkConfiguration()
-                }
+            Spacer()
 
-                Button("Test Connection") {
-                    testConnection()
+            if connectionTested {
+                Button("Done") {
+                    isConfigured = true
+                    isEnabled = true
+                    dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!kittyInstalled)
-            }
-
-            HStack {
+            } else {
                 Button("Cancel") {
                     dismiss()
                 }
-
-                Spacer()
-
-                Button("Done") {
-                    isConfigured = allReady
-                    isEnabled = allReady
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!allReady)
             }
         }
         .padding()
@@ -194,6 +174,18 @@ struct KittySetupView: View {
     private var kittyConfPath: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".config/kitty/kitty.conf").path
+    }
+
+    private func setupIntegration() {
+        if !remoteControlEnabled {
+            appendToKittyConf("allow_remote_control socket-only")
+        }
+        if !listenOnConfigured {
+            appendToKittyConf("listen_on unix:/tmp/kitty-{kitty_pid}")
+        }
+        if !watcherInstalled {
+            installWatcher()
+        }
     }
 
     private func appendToKittyConf(_ line: String) {
@@ -208,7 +200,20 @@ struct KittySetupView: View {
 
             if FileManager.default.fileExists(atPath: kittyConfPath) {
                 let existingContent = try String(contentsOfFile: kittyConfPath, encoding: .utf8)
+
+                // Skip if directive already present (non-commented)
+                let directiveKey = String(line.split(separator: " ").first ?? "")
+                let alreadyPresent = existingContent.split(separator: "\n").contains { l in
+                    let trimmed = l.trimmingCharacters(in: .whitespaces)
+                    return !trimmed.hasPrefix("#") && trimmed.hasPrefix(directiveKey)
+                }
+                if alreadyPresent {
+                    checkConfiguration()
+                    return
+                }
+
                 let handle = try FileHandle(forWritingTo: fileURL)
+                defer { handle.closeFile() }
                 handle.seekToEndOfFile()
 
                 var lineToAppend = line + "\n"
@@ -217,7 +222,6 @@ struct KittySetupView: View {
                 }
 
                 handle.write(Data(lineToAppend.utf8))
-                handle.closeFile()
             } else {
                 try (line + "\n").write(toFile: kittyConfPath, atomically: true, encoding: .utf8)
             }
@@ -229,8 +233,6 @@ struct KittySetupView: View {
     }
 
     private func checkConfiguration() {
-        kittyInstalled = FileManager.default.fileExists(atPath: "/Applications/kitty.app")
-
         if let contents = try? String(contentsOfFile: kittyConfPath, encoding: .utf8) {
             remoteControlEnabled = contents.split(separator: "\n").contains { line in
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -279,36 +281,11 @@ struct KittySetupView: View {
 
         Task {
             do {
-                try await KittyBridge.shared.start()
+                try await KittyBridge.shared.testConnection()
                 connectionTested = true
             } catch {
-                testError = "Could not find kitten binary: \(error.localizedDescription)"
+                testError = "Could not connect to Kitty: \(error.localizedDescription)"
                 connectionTested = false
-            }
-        }
-    }
-}
-
-private struct SetupCheckRow: View {
-    let title: String
-    let detail: String
-    let isComplete: Bool
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            if isComplete {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else {
-                Image(systemName: "xmark.circle")
-                    .foregroundStyle(.secondary)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .fontWeight(.medium)
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
     }

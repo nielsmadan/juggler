@@ -5,6 +5,7 @@
 //  Created by Niels Madan on 22.01.26.
 //
 
+import KeyboardShortcuts
 import ServiceManagement
 import SwiftUI
 
@@ -21,7 +22,7 @@ struct OnboardingView: View {
                 case 1:
                     AccessibilityStep()
                 case 2:
-                    IntegrationHubView()
+                    IntegrationHubView(onContinue: { currentStep += 1 })
                 case 3:
                     ShortcutsStep()
                 case 4:
@@ -53,7 +54,7 @@ struct OnboardingView: View {
 
                 Spacer()
 
-                if currentStep < 4 {
+                if currentStep < 4, currentStep != 2 {
                     Button("Continue") {
                         currentStep += 1
                     }
@@ -69,18 +70,13 @@ struct OnboardingView: View {
 struct WelcomeStep: View {
     var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: "circle.grid.3x3.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(.tint)
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 128, height: 128)
 
             Text("Welcome to Juggler")
                 .font(.largeTitle)
                 .fontWeight(.bold)
-
-            Text("Navigate Claude Code sessions with global hotkeys.")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
         }
         .padding()
     }
@@ -88,6 +84,7 @@ struct WelcomeStep: View {
 
 struct AccessibilityStep: View {
     @State private var hasPermission = false
+    @State private var pollTimer: Timer?
 
     var body: some View {
         VStack(spacing: 20) {
@@ -123,6 +120,15 @@ struct AccessibilityStep: View {
         .padding()
         .onAppear {
             checkPermission()
+            pollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+                Task { @MainActor in
+                    checkPermission()
+                }
+            }
+        }
+        .onDisappear {
+            pollTimer?.invalidate()
+            pollTimer = nil
         }
     }
 
@@ -138,43 +144,26 @@ struct ShortcutsStep: View {
                 .font(.system(size: 60))
                 .foregroundStyle(.tint)
 
-            Text("Default Shortcuts")
+            Text("Global Shortcuts")
                 .font(.title)
                 .fontWeight(.bold)
 
-            VStack(alignment: .leading, spacing: 12) {
-                ShortcutRow(keys: "Shift+Cmd+J", description: "Cycle forward through idle sessions")
-                ShortcutRow(keys: "Shift+Cmd+K", description: "Cycle backward through idle sessions")
-                ShortcutRow(keys: "Shift+Cmd+L", description: "Backburner current session")
-                ShortcutRow(keys: "Shift+Cmd+H", description: "Reactivate all backburnered sessions")
-                ShortcutRow(keys: "Shift+Cmd+;", description: "Show session monitor")
+            Form {
+                Section("Global Shortcuts") {
+                    KeyboardShortcuts.Recorder("Cycle Forward:", name: .cycleForward)
+                    KeyboardShortcuts.Recorder("Cycle Backward:", name: .cycleBackward)
+                    KeyboardShortcuts.Recorder("Backburner Current:", name: .backburner)
+                    KeyboardShortcuts.Recorder("Reactivate All:", name: .reactivateAll)
+                    KeyboardShortcuts.Recorder("Show Monitor:", name: .showMonitor)
+                }
             }
-            .padding()
-            .background(Color.secondary.opacity(0.1))
-            .cornerRadius(8)
+            .formStyle(.grouped)
 
-            Text("You can customize these in Settings.")
+            Text("You can also change these later in Settings.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .padding()
-    }
-}
-
-struct ShortcutRow: View {
-    let keys: String
-    let description: String
-
-    var body: some View {
-        HStack {
-            Text(keys)
-                .font(.system(.body, design: .monospaced))
-                .fontWeight(.semibold)
-                .frame(width: 120, alignment: .leading)
-
-            Text(description)
-                .foregroundStyle(.secondary)
-        }
     }
 }
 

@@ -10,7 +10,7 @@ EXPORT_PATH = $(RELEASE_DIR)/export
 ZIP_PATH = $(RELEASE_DIR)/Juggler.zip
 DMG_PATH = $(RELEASE_DIR)/Juggler.dmg
 
-.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all unused-check coverage reset-data reset-permissions reset-all release archive export notarize notarize-ci dmg release-clean tag-release tag-release-patch tag-release-minor tag-release-major
+.PHONY: build build-strict run clean lint lint-fix format setup test test-ui test-all unused-check coverage reset-data reset-permissions reset-integration reset-all release archive export notarize notarize-ci dmg release-clean tag-release tag-release-patch tag-release-minor tag-release-major
 
 FILES ?= .
 XCCONFIG_FLAG = $(if $(XCCONFIG),-xcconfig $(XCCONFIG),)
@@ -77,7 +77,17 @@ reset-permissions:
 	@tccutil reset Accessibility $(BUNDLE_ID) 2>/dev/null || true
 	@echo "Done. You'll be prompted for permissions on next launch."
 
-reset-all: reset-data reset-permissions
+reset-integration:
+	@echo "Resetting Juggler integrations..."
+	@rm -rf ~/.claude/hooks/juggler
+	@printf 'import json,os\np=os.path.expanduser("~/.claude/settings.json")\ntry:\n f=open(p);s=json.load(f);f.close()\nexcept:exit(0)\nh=s.get("hooks",{})\nfor k in list(h):\n h[k]=[e for e in h[k] if "juggler/notify.sh" not in str(e)]\n if not h[k]:del h[k]\nf=open(p,"w");json.dump(s,f,indent=2);f.close()\n' | python3 2>/dev/null || true
+	@rm -f ~/.config/kitty/juggler_watcher.py
+	@sed -i '' '/juggler_watcher\.py/d; /^allow_remote_control/d; /^listen_on/d' ~/.config/kitty/kitty.conf 2>/dev/null || true
+	@sed -i '' '/update-environment.*ITERM_SESSION_ID/d' ~/.tmux.conf 2>/dev/null || true
+	@rm -f ~/.config/opencode/plugins/juggler-opencode.ts
+	@echo "Done. Integration configs removed."
+
+reset-all: reset-data reset-permissions reset-integration
 	@echo "All resets complete."
 
 setup:

@@ -3,6 +3,7 @@
 //  Juggler
 //
 
+import AppKit
 import Foundation
 
 actor KittyBridge: TerminalBridge {
@@ -51,6 +52,42 @@ actor KittyBridge: TerminalBridge {
         await MainActor.run {
             logWarning(.kitty, "kitten binary not found")
         }
+    }
+
+    func testConnection() async throws {
+        try await start()
+
+        guard kittenPath != nil else {
+            throw TerminalBridgeError.commandFailed("Could not find the kitten binary")
+        }
+
+        let isRunning = await MainActor.run {
+            NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "net.kovidgoyal.kitty" }
+        }
+        guard isRunning else {
+            throw TerminalBridgeError.commandFailed("Kitty is not running. Please start Kitty and try again.")
+        }
+
+        // GUI apps don't inherit KITTY_LISTEN_ON, so kitten @ ls without --to hangs.
+        // Discover a socket on disk instead.
+        let socketPath = try discoverKittySocket()
+        _ = try await runKittenCommand(["@", "ls"], socketPath: socketPath)
+    }
+
+    private func discoverKittySocket() throws -> String {
+        let tmpURL = URL(fileURLWithPath: "/tmp")
+        let contents = (try? FileManager.default.contentsOfDirectory(
+            at: tmpURL,
+            includingPropertiesForKeys: nil
+        )) ?? []
+
+        if let socket = contents.first(where: { $0.lastPathComponent.hasPrefix("kitty-") }) {
+            return "unix:\(socket.path)"
+        }
+
+        throw TerminalBridgeError.commandFailed(
+            "No Kitty socket found. Ensure listen_on is configured in kitty.conf and restart Kitty."
+        )
     }
 
     func stop() async {
@@ -250,20 +287,43 @@ actor KittyBridge: TerminalBridge {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
-        try process.run()
-        process.waitUntilExit()
+        // Drain pipes on detached tasks to prevent buffer-full deadlock
+        let stdoutTask = Task.detached { stdoutPipe.fileHandleForReading.readDataToEndOfFile() }
+        let stderrTask = Task.detached { stderrPipe.fileHandleForReading.readDataToEndOfFile() }
 
-        guard process.terminationStatus == 0 else {
-            let errData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+        // Set up a timeout that terminates the process after 5 seconds
+        let timeoutTask = Task.detached {
+            try? await Task.sleep(for: .seconds(5))
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        let status = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, any Error>) in
+            process.terminationHandler = { proc in
+                continuation.resume(returning: proc.terminationStatus)
+            }
+            do {
+                try process.run()
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+
+        timeoutTask.cancel()
+
+        let data = await stdoutTask.value
+        let errData = await stderrTask.value
+
+        guard status == 0 else {
             let errOutput = String(decoding: errData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
             throw TerminalBridgeError.commandFailed(
                 errOutput.isEmpty
-                    ? "kitten command failed with status \(process.terminationStatus)"
+                    ? "kitten command failed with status \(status)"
                     : errOutput
             )
         }
 
-        let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
         return String(decoding: data, as: UTF8.self)
     }
 }

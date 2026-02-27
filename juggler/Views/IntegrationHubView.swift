@@ -6,6 +6,8 @@
 import SwiftUI
 
 struct IntegrationHubView: View {
+    let onContinue: () -> Void
+
     @AppStorage(AppStorageKeys.iterm2Enabled) private var iterm2Enabled = true
     @AppStorage(AppStorageKeys.kittyEnabled) private var kittyEnabled = false
 
@@ -21,8 +23,14 @@ struct IntegrationHubView: View {
     @State private var claudeCodeConfigured = false
     @State private var openCodeConfigured = false
 
+    @State private var showingIncompleteAlert = false
+
     var hasAnyTerminal: Bool {
         iterm2Configured || kittyConfigured
+    }
+
+    var hasAnyAgent: Bool {
+        claudeCodeConfigured || openCodeConfigured
     }
 
     var body: some View {
@@ -59,6 +67,12 @@ struct IntegrationHubView: View {
                     isConfigured: kittyConfigured,
                     action: { showingKittySetup = true }
                 )
+            }
+
+            VStack(spacing: 8) {
+                Text("Multiplexer (Optional)")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 IntegrationCard(
                     icon: "rectangle.split.3x1",
@@ -91,13 +105,24 @@ struct IntegrationHubView: View {
                 )
             }
 
-            if !hasAnyTerminal {
-                Text("Configure at least one terminal to continue.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+            Button("Continue") {
+                if hasAnyTerminal, hasAnyAgent {
+                    onContinue()
+                } else {
+                    showingIncompleteAlert = true
+                }
             }
+            .buttonStyle(.borderedProminent)
         }
         .padding()
+        .alert("Incomplete Setup", isPresented: $showingIncompleteAlert) {
+            Button("Go Back", role: .cancel) {}
+            Button("Continue Anyway", role: .destructive) {
+                onContinue()
+            }
+        } message: {
+            Text("Juggler needs at least one terminal and one agent integration to function correctly.")
+        }
         .sheet(isPresented: $showingITerm2Setup) {
             ITerm2SetupView(isConfigured: $iterm2Configured, isEnabled: $iterm2Enabled)
                 .frame(width: 540, height: 480)
@@ -180,6 +205,8 @@ struct ITerm2SetupView: View {
     @Binding var isEnabled: Bool
     @Environment(\.dismiss) private var dismiss
     @State private var runtimeInstalled = false
+    @State private var isITerm2Running = false
+    @State private var pollTimer: Timer?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -213,38 +240,54 @@ struct ITerm2SetupView: View {
             .background(Color.secondary.opacity(0.1))
             .cornerRadius(8)
 
-            HStack(spacing: 12) {
+            if isITerm2Running {
+                Button("Check") {
+                    checkRuntime()
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
                 Button("Open iTerm2") {
                     if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.googlecode.iterm2") {
                         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
                     }
-                }
-
-                Button("Check") {
-                    checkRuntime()
                 }
                 .buttonStyle(.borderedProminent)
             }
 
             Spacer()
 
-            HStack {
-                Button("Cancel") {
-                    dismiss()
-                }
-
-                Spacer()
-
+            if runtimeInstalled {
                 Button("Done") {
-                    isConfigured = runtimeInstalled
-                    isEnabled = runtimeInstalled
+                    isConfigured = true
+                    isEnabled = true
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!runtimeInstalled)
+            } else {
+                Button("Cancel") {
+                    dismiss()
+                }
             }
         }
         .padding()
+        .onAppear {
+            checkITerm2Running()
+            pollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+                Task { @MainActor in
+                    checkITerm2Running()
+                }
+            }
+        }
+        .onDisappear {
+            pollTimer?.invalidate()
+            pollTimer = nil
+        }
+    }
+
+    private func checkITerm2Running() {
+        isITerm2Running = NSWorkspace.shared.runningApplications.contains {
+            $0.bundleIdentifier == "com.googlecode.iterm2"
+        }
     }
 
     private func checkRuntime() {
@@ -326,19 +369,16 @@ struct TmuxSetupView: View {
 
             Spacer()
 
-            HStack {
-                Button("Skip") {
-                    dismiss()
-                }
-
-                Spacer()
-
+            if envConfigured {
                 Button("Done") {
-                    isConfigured = envConfigured
+                    isConfigured = true
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!envConfigured)
+            } else {
+                Button("Cancel") {
+                    dismiss()
+                }
             }
         }
         .padding()
@@ -371,7 +411,16 @@ struct TmuxSetupView: View {
 
             if FileManager.default.fileExists(atPath: tmuxConfPath) {
                 let existingContent = try String(contentsOfFile: tmuxConfPath, encoding: .utf8)
+
+                // Skip if our line is already present
+                if existingContent.contains(updateEnvironmentLine) {
+                    checkTmuxConfigured()
+                    isConfiguring = false
+                    return
+                }
+
                 let handle = try FileHandle(forWritingTo: fileURL)
+                defer { handle.closeFile() }
                 handle.seekToEndOfFile()
 
                 var lineToAppend = updateEnvironmentLine + "\n"
@@ -380,7 +429,6 @@ struct TmuxSetupView: View {
                 }
 
                 handle.write(Data(lineToAppend.utf8))
-                handle.closeFile()
             } else {
                 try (updateEnvironmentLine + "\n").write(toFile: tmuxConfPath, atomically: true, encoding: .utf8)
             }
@@ -452,19 +500,16 @@ struct ClaudeCodeSetupView: View {
 
             Spacer()
 
-            HStack {
-                Button("Cancel") {
-                    dismiss()
-                }
-
-                Spacer()
-
+            if isInstalled {
                 Button("Done") {
-                    isConfigured = isInstalled
+                    isConfigured = true
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!isInstalled)
+            } else {
+                Button("Cancel") {
+                    dismiss()
+                }
             }
         }
         .padding()
@@ -555,19 +600,16 @@ struct OpenCodeSetupView: View {
 
             Spacer()
 
-            HStack {
-                Button("Cancel") {
-                    dismiss()
-                }
-
-                Spacer()
-
+            if isInstalled {
                 Button("Done") {
-                    isConfigured = isInstalled
+                    isConfigured = true
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!isInstalled)
+            } else {
+                Button("Cancel") {
+                    dismiss()
+                }
             }
         }
         .padding()

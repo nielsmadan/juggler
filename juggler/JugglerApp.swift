@@ -25,10 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_: Notification) {
-        // Show in dock only if onboarding is complete (during onboarding, dock icon is hidden)
-        if UserDefaults.standard.bool(forKey: AppStorageKeys.hasCompletedOnboarding) {
-            NSApp.setActivationPolicy(.regular)
-        }
+        NSApp.setActivationPolicy(.regular)
 
         // Listen for window events to toggle dock icon
         NotificationCenter.default.addObserver(
