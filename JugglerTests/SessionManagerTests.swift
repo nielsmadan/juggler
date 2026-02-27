@@ -1041,7 +1041,7 @@ import Testing
 }
 
 @MainActor
-@Test func updateFocusedSession_bareUUID_notOverwriteComposite() {
+@Test func updateFocusedSession_bareUUID_acceptedAndMatchedViaSuffix() {
     let manager = SessionManager()
     let session = Session(
         claudeSessionID: "c1", terminalSessionID: "w0t0p0:abc-uuid",
@@ -1053,9 +1053,9 @@ import Testing
     manager.updateFocusedSession(terminalSessionID: "w0t0p0:abc-uuid")
     #expect(manager.focusedSessionID == "w0t0p0:abc-uuid")
 
-    // A bare UUID that's a substring shouldn't overwrite
+    // Bare UUID now accepted — hasSuffix matching in isSessionFocused still works
     manager.updateFocusedSession(terminalSessionID: "abc-uuid")
-    #expect(manager.focusedSessionID == "w0t0p0:abc-uuid")
+    #expect(manager.focusedSessionID == "abc-uuid")
 }
 
 @MainActor
@@ -1169,4 +1169,97 @@ import Testing
     let midStates = Set([manager.sessions[1].state, manager.sessions[2].state])
     #expect(midStates == Set([.working, .compacting]))
     #expect(manager.sessions[3].state == .backburner)
+}
+
+// MARK: - reconcileFocusForTerminal Tests
+
+private func makeKittySession(_ id: String, state: SessionState = .idle) -> Session {
+    Session(
+        claudeSessionID: id,
+        terminalSessionID: id,
+        terminalType: .kitty,
+        agent: "claude-code",
+        projectPath: "/test/\(id)",
+        terminalTabName: nil,
+        terminalWindowName: nil,
+        customName: nil,
+        state: state,
+        startedAt: Date()
+    )
+}
+
+@MainActor
+@Test func reconcileFocus_kittyActivated_noSessions_noChange() {
+    let manager = SessionManager()
+    manager.testSetFocusedSessionID("iterm-session")
+    manager.testSetSessions([makeSession("iterm-session")])
+
+    manager.testReconcileFocusForTerminal(bundleID: TerminalType.kitty.bundleIdentifier)
+
+    #expect(manager.focusedSessionID == "iterm-session")
+}
+
+@MainActor
+@Test func reconcileFocus_kittyActivated_focusAlreadyCorrect_noChange() {
+    let manager = SessionManager()
+    let kittySession = makeKittySession("kitty1")
+    manager.testSetSessions([kittySession, makeSession("iterm1")])
+    manager.testSetFocusedSessionID("kitty1")
+
+    manager.testReconcileFocusForTerminal(bundleID: TerminalType.kitty.bundleIdentifier)
+
+    #expect(manager.focusedSessionID == "kitty1")
+}
+
+@MainActor
+@Test func reconcileFocus_kittyActivated_focusStale_reconcilesToKittySession() {
+    let manager = SessionManager()
+    let kittySession = makeKittySession("kitty1")
+    manager.testSetSessions([kittySession, makeSession("iterm1")])
+    // Focus is on an iTerm2 session — stale for Kitty activation
+    manager.testSetFocusedSessionID("iterm1")
+
+    manager.testReconcileFocusForTerminal(bundleID: TerminalType.kitty.bundleIdentifier)
+
+    #expect(manager.focusedSessionID == "kitty1")
+}
+
+@MainActor
+@Test func reconcileFocus_kittyActivated_focusNil_reconcilesToKittySession() {
+    let manager = SessionManager()
+    let kittySession = makeKittySession("kitty1")
+    manager.testSetSessions([kittySession])
+
+    manager.testReconcileFocusForTerminal(bundleID: TerminalType.kitty.bundleIdentifier)
+
+    #expect(manager.focusedSessionID == "kitty1")
+}
+
+@MainActor
+@Test func reconcileFocus_iterm2Activated_noReconciliation() {
+    let manager = SessionManager()
+    let kittySession = makeKittySession("kitty1")
+    manager.testSetSessions([kittySession, makeSession("iterm1")])
+    manager.testSetFocusedSessionID("kitty1")
+
+    manager.testReconcileFocusForTerminal(bundleID: TerminalType.iterm2.bundleIdentifier)
+
+    // iTerm2 activation should not trigger reconciliation — focus unchanged
+    #expect(manager.focusedSessionID == "kitty1")
+}
+
+@MainActor
+@Test func reconcileFocus_kittySessionCreated_thenActivated_focusesNewSession() {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("iterm1")])
+    manager.testSetFocusedSessionID("iterm1")
+
+    // Simulate a new Kitty session being added
+    let kittySession = makeKittySession("kitty1")
+    manager.testSetSessions([makeSession("iterm1"), kittySession])
+
+    // Simulate Kitty activation
+    manager.testReconcileFocusForTerminal(bundleID: TerminalType.kitty.bundleIdentifier)
+
+    #expect(manager.focusedSessionID == "kitty1")
 }

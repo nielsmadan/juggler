@@ -35,6 +35,12 @@ final class SessionManager {
         applyStateChange(sessionID: sessionID, from: oldState, to: newState)
     }
 
+    /// Test-only: trigger focus reconciliation. Only accessible via @testable import.
+    @MainActor
+    func testReconcileFocusForTerminal(bundleID: String) {
+        reconcileFocusForTerminal(bundleID: bundleID)
+    }
+
     private(set) var cyclingState = CyclingState.initial
     private(set) var focusedSessionID: String? // terminalSessionID of actually focused session in iTerm2
     internal(set) var isTerminalAppActive = false
@@ -353,6 +359,9 @@ final class SessionManager {
             let isTerminal = terminalBundleIDs.contains(bundleID)
             logDebug(.session, "App focus: \(bundleID) activated, isTerminal=\(isTerminal)")
             isTerminalAppActive = isTerminal
+            if isTerminal {
+                self.reconcileFocusForTerminal(bundleID: bundleID)
+            }
         }
 
         // Initialize based on current frontmost app
@@ -360,6 +369,46 @@ final class SessionManager {
            let bundleID = frontmost.bundleIdentifier
         {
             isTerminalAppActive = terminalBundleIDs.contains(bundleID)
+            if isTerminalAppActive {
+                reconcileFocusForTerminal(bundleID: bundleID)
+            }
+        }
+    }
+
+    /// When a terminal app is activated, ensure focusedSessionID points to a session
+    /// in that terminal. Kitty uses fire-and-forget focus events (curl from a watcher script)
+    /// with no persistent connection or retry, so events can be lost. This reconciles state
+    /// on every app activation so a single missed event can't permanently break highlighting.
+    @MainActor
+    private func reconcileFocusForTerminal(bundleID: String) {
+        guard let terminalType = TerminalType.allCases.first(where: { $0.bundleIdentifier == bundleID })
+        else { return }
+
+        // Only reconcile for terminals without persistent focus tracking
+        guard terminalType == .kitty else { return }
+
+        let kittySessions = sessions.filter { $0.terminalType == terminalType }
+        logDebug(
+            .kitty,
+            "Reconcile: focusedSessionID=\(focusedSessionID ?? "nil"), "
+                + "kittySessions=\(kittySessions.map(\.terminalSessionID)), "
+                + "isSessionFocused=\(isSessionFocused)"
+        )
+
+        // Check if focusedSessionID already matches a session in this terminal
+        if let focusedID = focusedSessionID,
+           kittySessions.contains(where: { $0.id == focusedID || $0.terminalSessionID == focusedID })
+        {
+            logDebug(.kitty, "Reconcile: already focused on kitty session, no change needed")
+            return
+        }
+
+        // Set focus to a session in this terminal
+        if let session = kittySessions.first {
+            logDebug(.kitty, "Reconcile: setting focus to \(session.terminalSessionID)")
+            updateFocusedSession(terminalSessionID: session.terminalSessionID)
+        } else {
+            logDebug(.kitty, "Reconcile: no kitty sessions to reconcile")
         }
     }
 
@@ -382,15 +431,6 @@ final class SessionManager {
                 logDebug(.hotkey, "Suppressed intermediate focus event for \(newID) during activation of \(target)")
                 return
             }
-        }
-
-        // Don't let a bare UUID from iTerm2 focus events overwrite
-        // a more specific composite ID (e.g., "w0t0p0:UUID:%1" contains "UUID")
-        if let newID = terminalSessionID, let currentID = focusedSessionID,
-           currentID != newID, currentID.contains(newID)
-        {
-            logDebug(.session, "Focus event (bare UUID \(newID) subsumed by \(currentID))")
-            return
         }
 
         focusedSessionID = terminalSessionID
@@ -497,6 +537,16 @@ final class SessionManager {
                     focusedSessionID: focusedID,
                     state: cyclingState
                 )
+            }
+
+            // If this terminal is currently frontmost, reconcile focus immediately
+            // so the session highlights without waiting for the next app switch
+            let frontmostBundle = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            if session.terminalType == .kitty,
+               frontmostBundle == TerminalType.kitty.bundleIdentifier
+            {
+                logDebug(.kitty, "New kitty session \(session.terminalSessionID) created while kitty is frontmost, setting focus")
+                updateFocusedSession(terminalSessionID: session.terminalSessionID)
             }
 
             logInfo(.session, "New session added: \(session.displayName)")
