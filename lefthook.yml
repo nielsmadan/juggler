@@ -16,7 +16,6 @@ pre-commit:
       priority: 3
 
 pre-push:
-  parallel: true
   commands:
     build:
       run: just build-strict

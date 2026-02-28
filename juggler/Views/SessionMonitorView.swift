@@ -6,7 +6,6 @@
 //
 
 import Carbon.HIToolbox
-import Combine
 import SwiftUI
 
 struct SessionMonitorView: View {
