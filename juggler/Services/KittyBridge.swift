@@ -29,7 +29,7 @@ actor KittyBridge: TerminalBridge {
         let candidates = [
             "/Applications/kitty.app/Contents/MacOS/kitten",
             "/usr/local/bin/kitten",
-            "/opt/homebrew/bin/kitten",
+            "/opt/homebrew/bin/kitten"
         ]
 
         for candidate in candidates where FileManager.default.fileExists(atPath: candidate) {
@@ -119,10 +119,17 @@ actor KittyBridge: TerminalBridge {
             logDebug(.kitty, "Activating kitty window: \(sessionID) via \(socketPath)")
         }
 
-        _ = try await runKittenCommand(
-            ["@", "focus-window", "--match", "id:\(sessionID)"],
-            socketPath: socketPath
-        )
+        do {
+            _ = try await runKittenCommand(
+                ["@", "focus-window", "--match", "id:\(sessionID)"],
+                socketPath: socketPath
+            )
+        } catch {
+            await MainActor.run {
+                logWarning(.kitty, "focus-window failed for \(sessionID): \(error)")
+            }
+            throw error
+        }
 
         await MainActor.run {
             let script = NSAppleScript(source: #"tell application "kitty" to activate"#)
@@ -204,12 +211,19 @@ actor KittyBridge: TerminalBridge {
     func getSessionInfo(sessionID: String) async throws -> TerminalSessionInfo? {
         guard let socketPath = socketPaths[sessionID] else { return nil }
 
-        guard let output = try? await runKittenCommand(
-            ["@", "ls"],
-            socketPath: socketPath
-        ) else { return nil }
+        do {
+            guard let output = try await runKittenCommand(
+                ["@", "ls"],
+                socketPath: socketPath
+            ) else { return nil }
 
-        return parseKittyLsOutput(output, windowID: sessionID)
+            return parseKittyLsOutput(output, windowID: sessionID)
+        } catch {
+            await MainActor.run {
+                logDebug(.kitty, "getSessionInfo failed for \(sessionID): \(error)")
+            }
+            return nil
+        }
     }
 
     // MARK: - Helpers
@@ -301,7 +315,10 @@ actor KittyBridge: TerminalBridge {
             }
         }
 
-        let status = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, any Error>) in
+        let status = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<
+            Int32,
+            any Error
+        >) in
             process.terminationHandler = { proc in
                 continuation.resume(returning: proc.terminationStatus)
             }

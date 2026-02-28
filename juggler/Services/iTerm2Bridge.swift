@@ -428,7 +428,7 @@ actor ITerm2Bridge: TerminalBridge {
                     _ = try await withTimeout(activateTimeout) {
                         try await self.sendRequest(request)
                     }
-                    await MainActor.run { logDebug(.daemon, "Session activated after recovery: \(sessionID)") }
+                    await MainActor.run { logInfo(.daemon, "Session activated after recovery: \(sessionID)") }
                     return
                 } catch {
                     await MainActor.run { logError(.daemon, "Recovery failed: \(error)") }

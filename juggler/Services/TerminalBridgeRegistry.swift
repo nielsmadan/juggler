@@ -27,7 +27,19 @@ actor TerminalBridgeRegistry {
     }
 
     func start(_ type: TerminalType) async throws {
-        guard let bridge = bridges[type] else { return }
-        try await bridge.start()
+        guard let bridge = bridges[type] else {
+            await MainActor.run {
+                logWarning(.daemon, "start() called for '\(type.displayName)' but no bridge registered")
+            }
+            return
+        }
+        do {
+            try await bridge.start()
+        } catch {
+            await MainActor.run {
+                logError(.daemon, "Failed to start bridge for '\(type.displayName)': \(error)")
+            }
+            throw error
+        }
     }
 }

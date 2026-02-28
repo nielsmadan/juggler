@@ -96,11 +96,6 @@ final class SessionManager {
     // MARK: - State Transitions
 
     private func handleStateTransition(at index: Int, from oldState: SessionState, to newState: SessionState) {
-        let sessionName = sessions[index].displayName
-        Task { @MainActor in
-            logDebug(.session, "\(sessionName): \(oldState.rawValue) → \(newState.rawValue)")
-        }
-
         let wasIdle = oldState == .idle || oldState == .permission
         let isIdle = newState == .idle || newState == .permission
 
@@ -160,6 +155,8 @@ final class SessionManager {
     private func applyStateChange(sessionID: String, from oldState: SessionState, to newState: SessionState) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
 
+        logDebug(.session, "\(sessions[index].displayName): \(oldState.rawValue) → \(newState.rawValue)")
+
         // Trigger animation (must be before state change so effectiveState works)
         animationController.animateTransition(
             sessionID: sessions[index].id,
@@ -192,7 +189,9 @@ final class SessionManager {
             let isStillFocused: Bool = if let fid = focusedSessionID,
                                           let session = sessions.first(where: { $0.id == sessionID })
             {
-                session.id == fid || session.terminalSessionID == fid
+                session.id == fid
+                    || session.terminalSessionID == fid
+                    || session.terminalSessionID.hasSuffix(fid)
             } else {
                 false
             }
@@ -201,9 +200,11 @@ final class SessionManager {
                 let autoAdvance = UserDefaults.standard.bool(forKey: AppStorageKeys.autoAdvanceOnBusy)
                 if autoAdvance {
                     // Auto-advance ON: notify HotkeyManager to navigate to next idle session
+                    logDebug(.session, "Auto-advance triggered for \(sessionID)")
                     NotificationCenter.default.post(name: .shouldAutoAdvance, object: nil)
                 } else {
                     // Auto-advance OFF: remember this session as the anchor
+                    logDebug(.session, "Anchored lastActiveSessionID to \(sessionID)")
                     lastActiveSessionID = sessionID
                 }
             }
@@ -211,6 +212,7 @@ final class SessionManager {
 
         // Clear lastActiveSessionID when the session returns to cyclable state
         if isCyclable, lastActiveSessionID == sessionID {
+            logDebug(.session, "Cleared lastActiveSessionID for \(sessionID)")
             lastActiveSessionID = nil
         }
 
@@ -220,6 +222,7 @@ final class SessionManager {
             if autoRestart {
                 let cyclableCount = sessions.filter(\.state.isIncludedInCycle).count
                 if cyclableCount == 1 {
+                    logDebug(.session, "Auto-restart triggered for \(sessionID)")
                     NotificationCenter.default.post(
                         name: .shouldAutoRestart,
                         object: nil,
@@ -289,8 +292,7 @@ final class SessionManager {
         let autoAdvance = UserDefaults.standard.bool(forKey: AppStorageKeys.autoAdvanceOnBusy)
         if !autoAdvance, let lastID = lastActiveSessionID,
            let session = sessions.first(where: { $0.id == lastID }),
-           !session.state.isIncludedInCycle
-        {
+           !session.state.isIncludedInCycle {
             return session
         }
 
@@ -300,6 +302,7 @@ final class SessionManager {
         if let focusedID = focusedSessionID,
            let session = cyclable.first(where: {
                $0.id == focusedID || $0.terminalSessionID == focusedID
+                   || $0.terminalSessionID.hasSuffix(focusedID)
            })
         {
             return session
@@ -354,14 +357,13 @@ final class SessionManager {
             logDebug(.session, "App focus: \(bundleID) activated, isTerminal=\(isTerminal)")
             isTerminalAppActive = isTerminal
             if isTerminal {
-                self.reconcileFocusForTerminal(bundleID: bundleID)
+                reconcileFocusForTerminal(bundleID: bundleID)
             }
         }
 
         // Initialize based on current frontmost app
         if let frontmost = NSWorkspace.shared.frontmostApplication,
-           let bundleID = frontmost.bundleIdentifier
-        {
+           let bundleID = frontmost.bundleIdentifier {
             isTerminalAppActive = terminalBundleIDs.contains(bundleID)
             if isTerminalAppActive {
                 reconcileFocusForTerminal(bundleID: bundleID)
@@ -391,8 +393,7 @@ final class SessionManager {
 
         // Check if focusedSessionID already matches a session in this terminal
         if let focusedID = focusedSessionID,
-           kittySessions.contains(where: { $0.id == focusedID || $0.terminalSessionID == focusedID })
-        {
+           kittySessions.contains(where: { $0.id == focusedID || $0.terminalSessionID == focusedID }) {
             logDebug(.kitty, "Reconcile: already focused on kitty session, no change needed")
             return
         }
@@ -509,7 +510,6 @@ final class SessionManager {
                 sessions[index].transcriptPath = transcriptPath
             }
 
-
             if oldState != state {
                 let sessionID = sessions[index].id
                 applyStateChange(sessionID: sessionID, from: oldState, to: state)
@@ -547,6 +547,7 @@ final class SessionManager {
             // If this new session matches the currently focused pane, sync cycling state
             if let focusedID = focusedSessionID,
                session.terminalSessionID == focusedID || session.id == focusedID
+                   || session.terminalSessionID.hasSuffix(focusedID)
             {
                 cyclingState = cyclingEngine.syncStateToFocus(
                     sessions: sessions,
@@ -559,9 +560,11 @@ final class SessionManager {
             // so the session highlights without waiting for the next app switch
             let frontmostBundle = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
             if session.terminalType == .kitty,
-               frontmostBundle == TerminalType.kitty.bundleIdentifier
-            {
-                logDebug(.kitty, "New kitty session \(session.terminalSessionID) created while kitty is frontmost, setting focus")
+               frontmostBundle == TerminalType.kitty.bundleIdentifier {
+                logDebug(
+                    .kitty,
+                    "New kitty session \(session.terminalSessionID) created while kitty is frontmost, setting focus"
+                )
                 updateFocusedSession(terminalSessionID: session.terminalSessionID)
             }
 
@@ -613,8 +616,9 @@ final class SessionManager {
 
     func removeSession(sessionID: String) {
         if let session = sessions.first(where: { $0.id == sessionID }) {
+            let name = session.displayName
             Task { @MainActor in
-                logInfo(.session, "Session removed: \(session.displayName)")
+                logInfo(.session, "Session removed: \(name)")
             }
         }
         sessions.removeAll { $0.id == sessionID }

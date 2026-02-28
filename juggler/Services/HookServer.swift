@@ -32,9 +32,9 @@ actor HookServer {
         listener?.stateUpdateHandler = { state in
             switch state {
             case .ready:
-                print("Hook server listening on port \(self.port)")
+                Task { await MainActor.run { logInfo(.hooks, "Hook server listening on port \(self.port)") } }
             case let .failed(error):
-                print("Hook server failed: \(error)")
+                Task { await MainActor.run { logError(.hooks, "Hook server failed: \(error)") } }
             default:
                 break
             }
@@ -155,6 +155,9 @@ actor HookServer {
         case "/kitty-event":
             guard let eventPayload = try? JSONDecoder().decode(KittyEventPayload.self, from: Data(request.body.utf8))
             else {
+                await MainActor.run {
+                    logWarning(.kitty, "Invalid JSON in kitty-event request: \(request.body.prefix(200))")
+                }
                 return HTTPResponse(status: 400, body: #"{"status":"error","message":"Invalid JSON"}"#)
             }
 

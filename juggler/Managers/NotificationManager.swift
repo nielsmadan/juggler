@@ -12,7 +12,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     func requestPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, error in
             if let error {
-                print("Notification permission error: \(error)")
+                Task { await MainActor.run { logError(.session, "Notification permission error: \(error)") } }
             }
         }
     }

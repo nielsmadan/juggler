@@ -39,15 +39,18 @@ enum ActivationTrigger {
 enum TerminalActivation {
     static func activate(session: Session, trigger: ActivationTrigger) async throws {
         guard let bridge = await TerminalBridgeRegistry.shared.bridge(for: session.terminalType) else {
+            await MainActor.run {
+                logError(.session, "No bridge available for \(session.terminalType.displayName)")
+            }
             throw TerminalBridgeError.bridgeNotAvailable(session.terminalType)
         }
         do {
             try await bridge.activate(sessionID: session.terminalSessionID)
         } catch let error as TerminalBridgeError {
             if case let .commandFailed(message) = error,
-               message.localizedCaseInsensitiveContains("session not found")
-            {
+               message.localizedCaseInsensitiveContains("session not found") {
                 await MainActor.run {
+                    logWarning(.session, "Session '\(session.id)' not found in terminal, removing")
                     SessionManager.shared.removeSession(sessionID: session.id)
                 }
                 throw TerminalBridgeError.sessionNotFound(session.id)
@@ -55,7 +58,7 @@ enum TerminalActivation {
             throw error
         }
         if let tmuxPane = session.tmuxPane {
-            selectTmuxPane(tmuxPane)
+            await selectTmuxPane(tmuxPane)
         }
         guard shouldHighlight(for: trigger) else { return }
         try await bridge.highlight(
@@ -86,7 +89,7 @@ enum TerminalActivation {
             customColor: [
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorRed)),
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorGreen)),
-                Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorBlue)),
+                Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorBlue))
             ],
             duration: UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightDuration)
         )
@@ -100,7 +103,7 @@ enum TerminalActivation {
             customColor: [
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorRed)),
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorGreen)),
-                Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorBlue)),
+                Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorBlue))
             ],
             duration: UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightDuration)
         )
@@ -131,12 +134,26 @@ enum TerminalActivation {
         return HighlightConfig(enabled: true, color: color, duration: duration > 0 ? duration : 1.0)
     }
 
-    private static func selectTmuxPane(_ pane: String) {
+    private static func selectTmuxPane(_ pane: String) async {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["tmux", "select-pane", "-t", pane]
-        try? process.run()
-        process.waitUntilExit()
+        do {
+            try process.run()
+            process.waitUntilExit()
+            if process.terminationStatus != 0 {
+                await MainActor.run {
+                    logWarning(
+                        .session,
+                        "tmux select-pane failed for '\(pane)' with status \(process.terminationStatus)"
+                    )
+                }
+            }
+        } catch {
+            await MainActor.run {
+                logWarning(.session, "tmux select-pane failed for '\(pane)': \(error)")
+            }
+        }
     }
 }
 
