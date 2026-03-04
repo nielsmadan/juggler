@@ -9,9 +9,9 @@
 **Tech Stack:** Swift Testing framework (`@Test`, `#expect`), `@testable import Juggler`
 
 **Build/test commands:**
-- Build: `make build`
-- Test: `make test`
-- Coverage: `make coverage`
+- Build: `just build`
+- Test: `just test`
+- Coverage: `just coverage`
 
 **Test conventions:**
 - Swift Testing framework (NOT XCTest) — use `@Test`, `#expect`, `throws`

@@ -75,24 +75,26 @@ Or on error:
 The `HookEventMapper` (`Models/HookEventMapper.swift`) converts events to actions:
 
 ```swift
-static func map(event: String) -> MappedAction {
-    switch event {
-    case "SessionStart", "Stop":
-        return .updateState(.idle)
-    case "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "SubagentStart":
-        return .updateState(.working)
-    case "SubagentStop":
-        return .ignore
-    case "PermissionRequest":
-        return .updateState(.permission)
-    case "PreCompact":
-        return .updateState(.compacting)
-    case "SessionEnd":
-        return .removeSession
-    default:
-        return .ignore
-    }
-}
+nonisolated static func map(event: String, agent: String = "claude-code") -> MappedAction
+```
+
+Dispatches to agent-specific mapping (`mapClaudeCode` / `mapOpenCode`) based on the `agent` parameter. Claude Code mapping:
+
+```swift
+case "SessionStart", "Stop":
+    return .updateState(.idle)
+case "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "SubagentStart":
+    return .updateState(.working)
+case "SubagentStop":
+    return .ignore
+case "PermissionRequest":
+    return .updateState(.permission)
+case "PreCompact":
+    return .updateState(.compacting)
+case "SessionEnd":
+    return .removeSession
+default:
+    return .ignore
 ```
 
 ## Backburner Protection
@@ -122,6 +124,27 @@ curl -X POST "http://localhost:7483/hook" \
     "hookInput": {"session_id": "abc123"}
   }'
 ```
+
+## Kitty Event Endpoint
+
+```
+POST /kitty-event
+```
+
+Receives events from the Kitty watcher script (`juggler_watcher.py`):
+
+```json
+{"event": "focus_changed", "window_id": "123"}
+```
+
+```json
+{"event": "session_terminated", "window_id": "123"}
+```
+
+| Event | Action |
+|-------|--------|
+| `focus_changed` | Update focused session tracking |
+| `session_terminated` | Remove session from SessionManager |
 
 ---
 

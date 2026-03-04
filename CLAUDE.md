@@ -26,9 +26,9 @@ Or use Xcode: `⌘B` to build, `⌘R` to run.
 
 Test hook server manually:
 ```bash
-curl -X POST "http://localhost:7483/session/start" \
+curl -X POST "http://localhost:7483/hook" \
   -H "Content-Type: application/json" \
-  -d '{"session_id": "test123", "iterm_session_id": "w0t0p0:UUID", "cwd": "/tmp"}'
+  -d '{"agent":"claude-code","event":"SessionStart","terminal":{"sessionId":"test123","cwd":"/tmp"},"hookInput":{"session_id":"abc123"}}'
 ```
 
 ## Architecture
@@ -39,46 +39,67 @@ Juggler is a SwiftUI menu bar app (macOS 14+) that tracks Claude Code sessions v
 1. Claude Code hooks → HTTP POST to `HookServer` (port 7483)
 2. `HookServer` → updates `SessionManager` (in-memory @Observable)
 3. Global hotkeys → `HotkeyManager` → `SessionManager.cycleForward/Backward()`
-4. Activation → `ITerm2Bridge` → Python daemon (Unix socket) → iTerm2
+4. Activation → `TerminalBridge` (iTerm2Bridge/KittyBridge) → terminal
 
 **Project structure:**
 ```
 Juggler/
-├── JugglerApp.swift              # App entry point, MenuBarExtra, Window scenes
+├── JugglerApp.swift              # App entry point, Window scenes
+├── Animation/
+│   └── SectionAnimationController.swift  # Section transition animations
 ├── Managers/
+│   ├── BeaconManager.swift       # Beacon overlay for session cycling
 │   ├── HotkeyManager.swift       # Global keyboard shortcuts (KeyboardShortcuts library)
+│   ├── LogManager.swift          # In-app logging system
 │   ├── NotificationManager.swift # macOS notifications for idle/permission states
 │   ├── SessionManager.swift      # Session list, cycling logic (no persistence)
-│   ├── StatusBarManager.swift    # Menu bar icon management
+│   ├── StatusBarManager.swift    # Menu bar icon (NSStatusItem + NSPopover)
 │   └── UpdateManager.swift       # Sparkle auto-updates
 ├── Models/
+│   ├── CyclingEngine.swift       # Session cycling protocol and implementation
+│   ├── HookEventMapper.swift     # Hook event → state mapping (Claude Code + OpenCode)
 │   ├── LocalShortcut.swift       # Configurable in-app keyboard shortcuts
+│   ├── QueueOrderMode.swift      # Fair, Prio, Static, Grouped modes
 │   ├── Session.swift             # Session data model
 │   ├── SessionState.swift        # idle, working, permission, backburner, compacting
-│   └── TerminalType.swift        # Terminal app abstraction
+│   ├── TerminalType.swift        # Terminal app abstraction (iTerm2, Kitty, Ghostty, WezTerm — latter two recognized but no bridge yet)
+│   └── ...                       # BeaconPosition, ConfigValidator, SessionStatsCalculator, etc.
 ├── Services/
-│   ├── HookServer.swift          # HTTP server receiving Claude Code hooks
-│   ├── ITerm2Bridge.swift        # Unix socket communication with Python daemon
-│   └── TerminalBridge.swift      # Terminal abstraction protocol
+│   ├── HookServer.swift          # HTTP server receiving hooks (/hook, /kitty-event)
+│   ├── iTerm2Bridge.swift        # Unix socket communication with Python daemon
+│   ├── KittyBridge.swift         # Kitty terminal integration via kitten CLI
+│   ├── TerminalBridge.swift      # Terminal abstraction protocol + TerminalActivation
+│   └── TerminalBridgeRegistry.swift  # Bridge registration and lifecycle
 ├── Views/
 │   ├── AboutView.swift           # About window
+│   ├── BeaconContentView.swift   # Beacon overlay content
+│   ├── IntegrationHubView.swift  # Terminal/agent integration setup
+│   ├── KittySetupView.swift      # Kitty configuration wizard
 │   ├── LocalShortcutRecorderView.swift  # Shortcut recorder for settings
+│   ├── LogsSettingsView.swift    # In-app log viewer
 │   ├── MenuBarView.swift         # Menu bar popover
 │   ├── OnboardingView.swift      # First-run setup
 │   ├── RenameSessionView.swift   # Session rename sheet
 │   ├── SessionMonitorView.swift  # Main window session list
 │   ├── SessionRowView.swift      # Individual session row
-│   └── SettingsView.swift        # Preferences window
+│   ├── SettingsView.swift        # Preferences window
+│   └── ...                       # BeaconSettingsView, SessionListController, etc.
 └── Resources/
-    └── iterm2_daemon.py          # Python daemon for iTerm2 API
+    ├── iterm2_daemon.py          # Python daemon for iTerm2 API
+    ├── juggler_watcher.py        # Kitty event watcher
+    ├── juggler-opencode.ts       # OpenCode plugin
+    ├── install_kitty_watcher.sh  # Kitty watcher install script
+    └── hooks/
+        ├── install.sh            # Hook installation script
+        └── notify.sh             # Hook notification script
 ```
 
 **Session states:** `idle`, `permission`, `working`, `backburner` (excluded from cycle), `compacting`
 
 **Menu bar app quirks:**
-- Uses `.menuBarExtraStyle(.window)` for popover UI
+- Uses `NSStatusItem` + `NSPopover` managed by `StatusBarManager` (not SwiftUI MenuBarExtra)
 - `OnboardingView` window triggers first-run setup
-- During onboarding: `NSApp.setActivationPolicy(.regular)` shows dock icon; `.accessory` hides it when done
+- `NSApp.setActivationPolicy(.regular)` shows dock icon; `.accessory` hides it
 
 ## Hook Installation
 

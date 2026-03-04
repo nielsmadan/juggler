@@ -1,6 +1,6 @@
 # Juggler Documentation
 
-macOS menu bar app for navigating multiple Claude Code sessions in iTerm2 via global hotkeys.
+macOS menu bar app for navigating multiple Claude Code sessions in iTerm2 and Kitty via global hotkeys.
 
 ## What is Juggler?
 
@@ -16,10 +16,10 @@ Juggler solves the "context switching" problem when running multiple Claude Code
 
 ## How It Works
 
-1. Install hooks into Claude Code (`~/.claude/hooks/`)
+1. Install hooks into Claude Code (`~/.claude/hooks/`) or plugin for OpenCode
 2. Hooks notify Juggler when sessions change state
 3. Use global hotkeys to jump between sessions
-4. Juggler activates the correct iTerm2 tab and pane
+4. Juggler activates the correct terminal tab and pane
 
 ## Documentation
 

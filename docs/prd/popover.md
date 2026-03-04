@@ -8,10 +8,10 @@ The menu bar popover is Juggler's primary interface, accessible by clicking the 
 ┌──────────────────────────────────────┐
 │  Juggler                     ⚙️  📋  │  ← Header with settings & window buttons
 ├──────────────────────────────────────┤
-│  [ Fair ][ Prio ][ Static ]         │  ← Queue mode picker
+│  [ Fair ][ Prio ][ Static ][ Grouped ]│  ← Queue mode picker
 ├──────────────────────────────────────┤
 │  ● my-feature              idle  ◀── │  ← Current session indicator
-│  ● api-server [1/2]        idle      │  ← Split pane indicator
+│  ● api-server (1/2)        idle      │  ← Split pane indicator
 │  ○ api-server [2/2]      working     │
 │  ◐ juggler            backburner     │
 ├──────────────────────────────────────┤
@@ -31,6 +31,7 @@ Segmented control to switch between queue modes:
 - **Fair**: Return-to-idle goes to bottom
 - **Prio**: Return-to-idle goes to top
 - **Static**: Original order
+- **Grouped**: Static order, grouped by window
 
 See [Cycle Sessions](cycle-sessions.md#queue-modes) for details.
 
@@ -39,7 +40,7 @@ See [Cycle Sessions](cycle-sessions.md#queue-modes) for details.
 Each row shows:
 - **State icon**: `●` idle, `○` working, `◐` backburner, `◎` compacting
 - **Display name**: Project folder name or custom name
-- **Pane indicator**: `[1/2]` for split panes
+- **Pane indicator**: `(1/2)` for split panes
 - **State label**: "idle", "working", "backburner", etc.
 - **Current marker**: `◀──` indicates current cycling position
 
@@ -54,7 +55,7 @@ When enabled (Settings > Highlighting > Session List):
 ### Click
 
 Single click on a session row:
-- Activates the session in iTerm2
+- Activates the session in the terminal (iTerm2 or Kitty)
 - Focuses the corresponding tab and pane
 - Optionally highlights the tab/pane (if enabled)
 - Closes the popover
@@ -64,10 +65,10 @@ Single click on a session row:
 When popover is focused:
 - `↑`/`↓` or `J`/`K`: Navigate session list
 - `Return`: Activate selected session
-- `B`: Backburner selected session
+- `L`: Backburner selected session
 - `R`: Rename selected session
-- `A`: Reactivate selected (if backburnered)
-- `Shift+A`: Reactivate all backburnered
+- `Shift+L`: Reactivate selected (if backburnered)
+- `H`: Reactivate all backburnered
 
 ### Context Menu (Right-Click)
 

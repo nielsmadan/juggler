@@ -14,7 +14,7 @@ Starting a new Python process for each command takes ~1000ms. A persistent daemo
 - Runs as subprocess of Juggler.app
 - Communicates via Unix socket
 
-**Bridge:** `Services/ITerm2Bridge.swift`
+**Bridge:** `Services/iTerm2Bridge.swift`
 
 - Swift actor for thread-safe daemon communication
 - Handles connection, reconnection, timeouts
@@ -22,7 +22,7 @@ Starting a new Python process for each command takes ~1000ms. A persistent daemo
 
 ## Socket Protocol
 
-**Socket path:** `/tmp/juggler-iterm2.sock`
+**Socket path:** `~/Library/Application Support/Juggler/iterm2_daemon.sock`
 
 Communication is newline-delimited JSON.
 
@@ -61,11 +61,6 @@ Communication is newline-delimited JSON.
 {"command": "reset", "session_id": "w0t0p0:UUID"}
 ```
 
-**List all sessions:**
-```json
-{"command": "list"}
-```
-
 **Get session info:**
 ```json
 {"command": "get_session_info", "session_id": "w0t0p0:UUID"}
@@ -81,16 +76,6 @@ Communication is newline-delimited JSON.
 **Success:**
 ```json
 {"status": "ok"}
-```
-
-**List result:**
-```json
-{
-  "status": "ok",
-  "sessions": [
-    {"session_id": "w0t0p0:UUID", "tab_name": "Tab 1", "window_name": "Window"}
-  ]
-}
 ```
 
 **Session info:**

@@ -1,6 +1,6 @@
 # Claude Code Hooks
 
-Juggler integrates with Claude Code via the hooks system, receiving notifications when session state changes.
+Juggler integrates with Claude Code and OpenCode via hooks, receiving notifications when session state changes.
 
 ## Installation
 
@@ -12,47 +12,18 @@ Hooks are installed to `~/.claude/hooks/` by the installation script:
 
 ## Hook Script
 
-The `notify.sh` script:
+**File:** `Resources/hooks/notify.sh`
 
-1. Reads JSON from stdin (hook payload from Claude Code)
-2. Enriches with terminal info (`$ITERM_SESSION_ID`)
-3. Enriches with git info (branch, repo name)
-4. Posts to Juggler's HTTP server
+The script:
 
-```bash
-#!/bin/bash
-# Read hook input from stdin
-HOOK_INPUT=$(cat)
+1. Receives event name as `$1` (command-line argument)
+2. Reads JSON from stdin (hook payload from Claude Code)
+3. Detects terminal type (`$ITERM_SESSION_ID` for iTerm2, `$KITTY_WINDOW_ID` for Kitty)
+4. Detects tmux pane/session if running inside tmux
+5. Enriches with git info (branch, repo name)
+6. Builds unified payload via Python (avoids shell injection) and posts to Juggler
 
-# Get terminal session ID
-TERMINAL_SESSION_ID="${ITERM_SESSION_ID:-}"
-
-# Get git info
-GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
-GIT_REPO=$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "")
-
-# Build unified payload
-PAYLOAD=$(jq -n \
-  --arg agent "claude-code" \
-  --arg event "$CLAUDE_EVENT" \
-  --argjson hookInput "$HOOK_INPUT" \
-  --arg sessionId "$TERMINAL_SESSION_ID" \
-  --arg cwd "$PWD" \
-  --arg gitBranch "$GIT_BRANCH" \
-  --arg gitRepo "$GIT_REPO" \
-  '{
-    agent: $agent,
-    event: $event,
-    hookInput: $hookInput,
-    terminal: {sessionId: $sessionId, cwd: $cwd},
-    git: {branch: $gitBranch, repo: $gitRepo}
-  }')
-
-# Post to Juggler
-curl -s -X POST "http://localhost:7483/hook" \
-  -H "Content-Type: application/json" \
-  -d "$PAYLOAD" &
-```
+The script uses `python3` to build JSON safely via environment variables, piping directly to `curl`. It selectively extracts only needed fields from hookInput (`session_id`, `transcript_path`, `tool_name`) to keep payloads small.
 
 ## Hook Events
 
@@ -103,25 +74,19 @@ When a session is backburnered:
 
 ## Configuration
 
-Hooks are configured in Claude Code's settings at `~/.claude/settings.json`:
+Hooks are configured in Claude Code's settings at `~/.claude/settings.json`. The install script (`install.sh`) writes hooks in the nested format with `type`, `command`, `timeout`, and optional `matcher`:
 
 ```json
 {
   "hooks": {
-    "SessionStart": ["~/.claude/hooks/juggler/notify.sh"],
-    "UserPromptSubmit": ["~/.claude/hooks/juggler/notify.sh"],
-    "PreToolUse": ["~/.claude/hooks/juggler/notify.sh"],
-    "PostToolUse": ["~/.claude/hooks/juggler/notify.sh"],
-    "PostToolUseFailure": ["~/.claude/hooks/juggler/notify.sh"],
-    "SubagentStart": ["~/.claude/hooks/juggler/notify.sh"],
-    "SubagentStop": ["~/.claude/hooks/juggler/notify.sh"],
-    "PermissionRequest": ["~/.claude/hooks/juggler/notify.sh"],
-    "PreCompact": ["~/.claude/hooks/juggler/notify.sh"],
-    "Stop": ["~/.claude/hooks/juggler/notify.sh"],
-    "SessionEnd": ["~/.claude/hooks/juggler/notify.sh"]
+    "SessionStart": [{"hooks": [{"type": "command", "command": "~/.claude/hooks/juggler/notify.sh SessionStart", "timeout": 5}]}],
+    "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "~/.claude/hooks/juggler/notify.sh PreToolUse", "timeout": 5}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "~/.claude/hooks/juggler/notify.sh Stop", "timeout": 5}]}]
   }
 }
 ```
+
+**Note:** `SubagentStop` is intentionally **not** hooked — it fires asynchronously after `Stop` and would overwrite the idle state. The install script removes any existing `SubagentStop` hooks.
 
 ## Debugging
 
@@ -129,10 +94,10 @@ Check if hooks are working:
 
 ```bash
 # Watch for hook requests
-tail -f /tmp/juggler-hooks.log  # If logging enabled
+# Use the in-app log viewer (Settings > Logs) to monitor hook events
 
 # Test hook manually
-echo '{"session_id":"test"}' | ~/.claude/hooks/juggler/notify.sh
+echo '{"session_id":"test"}' | ~/.claude/hooks/juggler/notify.sh SessionStart
 
 # Check if server is running
 curl http://localhost:7483/hook -X POST -d '{"agent":"test","event":"ping"}'

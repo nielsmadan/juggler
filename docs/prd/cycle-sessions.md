@@ -6,8 +6,8 @@ The core feature of Juggler: cycling through Claude Code sessions using global h
 
 | Shortcut | Action |
 |----------|--------|
-| `⇧⌘J` | Cycle forward through sessions |
-| `⇧⌘K` | Cycle backward through sessions |
+| `⇧⌘K` | Cycle forward through sessions |
+| `⇧⌘J` | Cycle backward through sessions |
 | `⇧⌘L` | Backburner current session |
 | `⇧⌘H` | Reactivate all backburnered sessions |
 | `⇧⌘;` | Show session monitor window |
@@ -33,7 +33,7 @@ The order of sessions depends on the **Queue Mode** setting.
 
 ## Queue Modes
 
-Juggler offers three queue ordering modes, selectable via the segmented control in the popover or main window:
+Juggler offers four queue ordering modes, selectable via the segmented control in the popover or main window:
 
 ### Fair
 
@@ -52,6 +52,12 @@ Juggler offers three queue ordering modes, selectable via the segmented control 
 - Sessions stay in their original order (by start time)
 - No automatic reordering on state changes
 - Best for: Manual organization
+
+### Grouped
+
+- Static order, grouped by terminal window
+- Sessions from the same window appear together
+- Best for: Organizing by workspace
 
 ## Sectioned Display
 
@@ -100,7 +106,7 @@ Backburner allows temporarily removing a session from the cycling queue without 
 
 ## Terminal Highlighting
 
-When cycling to a session, Juggler can highlight the iTerm2 tab/pane to make it easy to find:
+When cycling to a session, Juggler can highlight the terminal tab/pane (iTerm2 and Kitty) to make it easy to find:
 
 ### Tab Bar Highlighting
 
@@ -120,7 +126,7 @@ Settings in **Settings > Highlighting**.
 
 When enabled (default), backburnering automatically cycles to the next idle session. This allows rapid triage: backburner current, immediately see next.
 
-Setting in **Settings > Highlighting > Backburner**.
+Setting in **Settings > General**.
 
 ---
 

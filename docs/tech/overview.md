@@ -1,6 +1,6 @@
 # Technical Overview
 
-Juggler is a SwiftUI menu bar app that tracks Claude Code sessions via HTTP hooks and provides global hotkeys for navigation. It communicates with iTerm2 through a persistent Python daemon.
+Juggler is a SwiftUI menu bar app that tracks Claude Code and OpenCode sessions via HTTP hooks and provides global hotkeys for navigation. It communicates with iTerm2 through a persistent Python daemon and with Kitty via the `kitten @` CLI.
 
 ## System Architecture
 
@@ -16,26 +16,27 @@ Juggler is a SwiftUI menu bar app that tracks Claude Code sessions via HTTP hook
 │  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
 │         ↑                │                      │               │
 │         │                ↓                      ↓               │
-│         │         ┌─────────────┐        ┌────────────┐         │
-│         │         │ Views       │        │ ITerm2     │         │
-│         │         │ SwiftUI     │        │ Bridge     │         │
-│         │         └─────────────┘        └────────────┘         │
-└─────────│─────────────────────────────────────│─────────────────┘
-          │                                     │
-   HTTP POST                              Unix Socket
-          │                                     │
-          ↓                                     ↓
-┌─────────────────┐                   ┌─────────────────────┐
-│  Claude Code    │                   │  iterm2_daemon.py   │
-│  Hooks          │                   │  (subprocess)       │
-│                 │                   │                     │
-│  notify.sh      │                   │  iTerm2 Python API  │
-└─────────────────┘                   └─────────────────────┘
-                                               │
-                                               ↓
-                                          ┌─────────┐
-                                          │ iTerm2  │
-                                          └─────────┘
+│         │         ┌─────────────┐     ┌──────────────────────┐    │
+│         │         │ Views       │     │ TerminalBridgeReg.  │    │
+│         │         │ SwiftUI     │     │ ┌────────┐┌───────┐ │    │
+│         │         └─────────────┘     │ │iTerm2  ││Kitty  │ │    │
+│         │                             │ │Bridge  ││Bridge │ │    │
+│         │                             │ └────────┘└───────┘ │    │
+└─────────│─────────────────────────────│───────│────────│────────┘
+          │                             │       │        │
+   HTTP POST                      Unix Socket   │    kitten @
+          │                             │       │        │
+          ↓                             ↓       ↓        ↓
+┌─────────────────┐           ┌──────────────┐    ┌─────────┐
+│  Claude Code /  │           │ iterm2_      │    │  Kitty  │
+│  OpenCode       │           │ daemon.py    │    │         │
+│  Hooks          │           │ (subprocess) │    └─────────┘
+│  notify.sh      │           └──────────────┘
+└─────────────────┘                  │
+                                     ↓
+                                ┌─────────┐
+                                │ iTerm2  │
+                                └─────────┘
 ```
 
 ## Components
@@ -56,17 +57,21 @@ Juggler is a SwiftUI menu bar app that tracks Claude Code sessions via HTTP hook
 |---------|------|---------|
 | `SessionManager` | `Managers/SessionManager.swift` | @Observable session list, cycling, actions |
 | `HotkeyManager` | `Managers/HotkeyManager.swift` | Global hotkeys via KeyboardShortcuts |
-| `StatusBarManager` | `Managers/StatusBarManager.swift` | Menu bar icon management |
+| `StatusBarManager` | `Managers/StatusBarManager.swift` | NSStatusItem + NSPopover management |
 | `NotificationManager` | `Managers/NotificationManager.swift` | macOS notifications |
+| `BeaconManager` | `Managers/BeaconManager.swift` | Beacon overlay for session cycling |
+| `LogManager` | `Managers/LogManager.swift` | In-app logging system |
 | `UpdateManager` | `Managers/UpdateManager.swift` | Sparkle auto-updates |
 
 ### Services
 
 | Service | File | Purpose |
 |---------|------|---------|
-| `HookServer` | `Services/HookServer.swift` | HTTP server on :7483 |
-| `ITerm2Bridge` | `Services/ITerm2Bridge.swift` | Daemon communication (Unix socket) |
+| `HookServer` | `Services/HookServer.swift` | HTTP server on :7483 (`/hook`, `/kitty-event`) |
+| `iTerm2Bridge` | `Services/iTerm2Bridge.swift` | Daemon communication (Unix socket) |
+| `KittyBridge` | `Services/KittyBridge.swift` | Kitty integration via `kitten @` CLI |
 | `TerminalBridge` | `Services/TerminalBridge.swift` | Terminal abstraction protocol |
+| `TerminalBridgeRegistry` | `Services/TerminalBridgeRegistry.swift` | Bridge registration and lifecycle |
 
 ### Views
 
@@ -102,7 +107,7 @@ Juggler is a SwiftUI menu bar app that tracks Claude Code sessions via HTTP hook
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | UI Framework | SwiftUI | Declarative, modern, less code |
-| App Lifecycle | SwiftUI App | MenuBarExtra + Window scenes built-in |
+| App Lifecycle | NSStatusItem + NSPopover | Managed by StatusBarManager; SwiftUI Window scenes for settings/monitor |
 | macOS Target | 14+ | @Observable, modern SwiftUI features |
 | Global Hotkeys | KeyboardShortcuts | Built-in recorder UI, SwiftUI integration |
 | Auto-Updates | Sparkle | Industry standard for non-App Store apps |

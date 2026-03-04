@@ -14,7 +14,7 @@ The Session Monitor is a standalone window providing an expanded view of all ses
 ┌─────────────────────────────────────────────────────────────┐
 │  Session Monitor                                    ⚙️      │
 ├─────────────────────────────────────────────────────────────┤
-│  [ Fair ][ Prio ][ Static ]                                 │
+│  [ Fair ][ Prio ][ Static ][ Grouped ]                       │
 ├─────────────────────────────────────────────────────────────┤
 │  Idle (2)                                                   │
 │  ┌─────────────────────────────────────────────────────────┐│
@@ -23,7 +23,7 @@ The Session Monitor is a standalone window providing an expanded view of all ses
 │  │   Last: "Can you add tests for the login component?"    ││
 │  └─────────────────────────────────────────────────────────┘│
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │ ● api-server [1/2]                        5m idle       ││
+│  │ ● api-server (1/2)                        5m idle       ││
 │  │   ~/Projects/api-server                                 ││
 │  │   Last: "Fix the authentication middleware"             ││
 │  └─────────────────────────────────────────────────────────┘│
@@ -67,7 +67,7 @@ Each session shows expanded information:
 |-------|-------------|
 | **State icon** | Visual state indicator |
 | **Display name** | Project folder or custom name |
-| **Pane info** | `[1/2]` for split panes |
+| **Pane info** | `(1/2)` for split panes |
 | **Time info** | Duration in current state |
 | **Project path** | Full path to project directory |
 | **Last message** | Most recent user prompt (truncated) |
@@ -102,10 +102,10 @@ When window is focused:
 |----------|--------|
 | `↑`/`↓` or `J`/`K` | Navigate sessions |
 | `Return` | Activate selected session |
-| `B` | Backburner selected |
+| `L` | Backburner selected |
 | `R` | Rename selected |
-| `A` | Reactivate selected |
-| `Shift+A` | Reactivate all |
+| `Shift+L` | Reactivate selected |
+| `H` | Reactivate all |
 | `S` | Toggle stats pause |
 | `Shift+R` | Reset stats |
 
@@ -113,7 +113,7 @@ When window is focused:
 
 ### Click Session
 
-- Activates session in iTerm2
+- Activates session in the terminal (iTerm2 or Kitty)
 - Focuses corresponding tab/pane
 - Optionally highlights tab/pane
 
@@ -130,7 +130,6 @@ When window is focused:
 Right-click on session:
 - Rename
 - Backburner / Reactivate
-- Copy project path
 - Remove
 
 ## Window Behavior

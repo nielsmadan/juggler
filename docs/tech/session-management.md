@@ -15,22 +15,28 @@ The SessionManager is the central state manager for tracking Claude Code session
 
 ```swift
 struct Session: Identifiable, Codable, Equatable {
-    let claudeSessionID: String      // Claude's session ID
-    let terminalSessionID: String    // iTerm2 pane UUID (e.g., "w0t0p0:UUID")
-    let terminalType: TerminalType   // .iterm2 (future: .kitty, etc.)
+    let claudeSessionID: String      // Claude session ID (may be shared across tmux panes)
+    let terminalSessionID: String    // e.g., "w0t0p0:UUID"
+    var tmuxPane: String?            // e.g., "%1", nil if not inside tmux
+    var id: String { ... }           // Computed: "\(terminalSessionID):\(tmuxPane)" or terminalSessionID
+    let terminalType: TerminalType   // .iterm2, .kitty
+    let agent: String                // "claude-code" or "opencode"
     let projectPath: String          // Working directory
-    var terminalTabName: String?     // Tab name from iTerm2
+    var terminalTabName: String?     // Tab name from terminal
     var terminalWindowName: String?  // Window name
+    var tmuxSessionName: String?     // tmux session name
     var customName: String?          // User-assigned name
     var state: SessionState          // Current state
-    var lastUpdated: Date            // Last state change
     var startedAt: Date              // Session start time
+    var lastBecameIdle: Date?        // For idle time tracking
+    var accumulatedIdleTime: TimeInterval
+    var lastBecameWorking: Date?     // For working time tracking
+    var accumulatedWorkingTime: TimeInterval
     var paneIndex: Int               // Pane position (for splits)
     var paneCount: Int               // Total panes in tab
     var gitBranch: String?           // Current git branch
     var gitRepoName: String?         // Repository name
     var transcriptPath: String?      // Path to transcript JSONL
-    var lastUserMessage: String?     // Most recent user prompt
 }
 ```
 
@@ -77,8 +83,8 @@ Protocol-based design for testability:
 
 ```swift
 protocol CyclingEngine {
-    func cycleForward(sessions: [Session], state: CyclingState) -> CyclingState
-    func cycleBackward(sessions: [Session], state: CyclingState) -> CyclingState
+    func cycleForward(sessions: [Session], focusedSessionID: String?, state: CyclingState) -> CyclingResult
+    func cycleBackward(sessions: [Session], focusedSessionID: String?, state: CyclingState) -> CyclingResult
     func syncStateToFocus(sessions: [Session], focusedSessionID: String?, state: CyclingState) -> CyclingState
 }
 ```
@@ -99,24 +105,23 @@ Sessions are reordered based on mode when state changes:
 | Fair | Return-to-idle → bottom of list |
 | Prio | Return-to-idle → top of list |
 | Static | No reordering |
+| Grouped | Static order, grouped by terminal window |
 
 ## Reorder Animations
 
-**File:** `Animation/ReorderAnimator.swift`
+**File:** `Animation/SectionAnimationController.swift`
 
 Handles visual transitions when sessions change sections:
 
 ### UP Animation (busy → idle)
 
-1. Session starts at current position
-2. Slides up to new position (0.6s)
-3. Fades to full opacity (0.2s)
+Smooth vertical movement via `matchedGeometryEffect` (0.4s)
 
 ### DOWN Animation (idle → busy)
 
-1. Slides right and fades out (0.4s)
-2. Moves to new section (invisible)
-3. Slides in from right (0.4s)
+1. Slides right and fades out (0.3s)
+2. Off-screen delay (1.2s)
+3. Slides in from right (0.3s)
 
 ## Backburner Handling
 
@@ -134,12 +139,11 @@ Only `UserPromptSubmit` or explicit reactivation exits backburner.
 
 ## Stale Session Cleanup
 
-Background sync removes sessions no longer in iTerm2:
+Sessions are removed reactively (no polling timer):
 
-1. Timer fires every 5 seconds
-2. Query daemon for active terminal sessions
-3. Remove sessions not found in iTerm2
-4. Also triggered on activation failure
+1. iTerm2 daemon pushes `session_terminated` events when tabs close
+2. Activation failure detection removes sessions not found in the terminal
+3. Kitty sessions are cleaned up on activation failure (no persistent daemon connection)
 
 ---
 
