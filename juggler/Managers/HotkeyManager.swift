@@ -24,12 +24,28 @@ final class HotkeyManager {
     /// The app that was frontmost before the show-monitor hotkey opened the popover.
     private var previousApp: NSRunningApplication?
 
+    /// Whether the show-monitor hotkey initiated the current popover/window cycle.
+    /// Reset when Juggler loses focus so external window opens don't confuse step 3.
+    private var monitorCycleActive = false
+
     private var autoAdvanceObserver: NSObjectProtocol?
     private var autoRestartObserver: NSObjectProtocol?
+    private var deactivationObserver: NSObjectProtocol?
 
     private init() {}
 
     func setupHotkeys() {
+        deactivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didDeactivateApplicationNotification,
+            object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                  app.bundleIdentifier == Bundle.main.bundleIdentifier else { return }
+            Task { @MainActor in
+                self?.monitorCycleActive = false
+            }
+        }
+
         autoAdvanceObserver = NotificationCenter.default.addObserver(
             forName: .shouldAutoAdvance, object: nil, queue: .main
         ) { [weak self] _ in
@@ -177,20 +193,23 @@ final class HotkeyManager {
         }
 
         if StatusBarManager.shared.isPopoverShown {
-            // State 2: popover visible → hide popover, open main window
+            // Step 2: popover visible → hide popover, open main window
             StatusBarManager.shared.hidePopover()
             StatusBarManager.shared.openMainWindow()
-        } else if mainWindowVisible {
-            // State 3: main window visible → close it, go back to original app
+            monitorCycleActive = true
+        } else if monitorCycleActive, mainWindowVisible {
+            // Step 3: main window visible (opened by this cycle) → close, return
             if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" }) {
                 window.close()
             }
             previousApp?.activate()
             previousApp = nil
+            monitorCycleActive = false
         } else {
-            // State 1: nothing visible → remember current app, show popover
+            // Step 1: nothing visible (or window opened externally) → show popover
             previousApp = NSWorkspace.shared.frontmostApplication
             StatusBarManager.shared.showPopover()
+            monitorCycleActive = true
         }
     }
 }
