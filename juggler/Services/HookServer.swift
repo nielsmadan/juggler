@@ -7,8 +7,11 @@ actor HookServer {
     private var listener: NWListener?
     private let port: UInt16 = 7483
     private let maxRequestSize = 1_048_576
+    private let sessionManager: SessionManager
 
-    init() {}
+    init(sessionManager: SessionManager? = nil) {
+        self.sessionManager = sessionManager ?? .shared
+    }
 
     func start() async throws {
         let parameters = NWParameters.tcp
@@ -206,7 +209,7 @@ actor HookServer {
         switch action {
         case let .updateState(state):
             await MainActor.run {
-                SessionManager.shared.addOrUpdateSession(
+                self.sessionManager.addOrUpdateSession(
                     claudeSessionID: claudeSessionID,
                     terminalSessionID: terminalSessionID,
                     tmuxPane: tmuxPane,
@@ -244,7 +247,7 @@ actor HookServer {
                 terminalSessionID
             }
             await MainActor.run {
-                SessionManager.shared.removeSession(sessionID: removeID)
+                self.sessionManager.removeSession(sessionID: removeID)
             }
 
         case .ignore:
@@ -256,7 +259,7 @@ actor HookServer {
 
     private func sendNotificationIfEnabled(title: String, sessionID: String) async {
         let session = await MainActor.run {
-            SessionManager.shared.sessions.first(where: { $0.id == sessionID })
+            self.sessionManager.sessions.first(where: { $0.id == sessionID })
         }
         guard let session else { return }
 
@@ -300,7 +303,7 @@ actor HookServer {
             if let info = try await bridge.getSessionInfo(sessionID: terminalSessionID) {
                 await MainActor.run {
                     logDebug(.hooks, "Got terminal info for \(terminalSessionID): tab=\(info.tabName)")
-                    SessionManager.shared.updateSessionTerminalInfo(
+                    self.sessionManager.updateSessionTerminalInfo(
                         terminalSessionID: terminalSessionID,
                         tabName: info.tabName,
                         windowName: info.windowName,
@@ -328,11 +331,11 @@ actor HookServer {
         switch payload.event {
         case "focus_changed":
             await MainActor.run {
-                SessionManager.shared.updateFocusedSession(terminalSessionID: payload.windowID)
+                self.sessionManager.updateFocusedSession(terminalSessionID: payload.windowID)
             }
         case "session_terminated":
             await MainActor.run {
-                SessionManager.shared.removeSessionsByTerminalID(payload.windowID)
+                self.sessionManager.removeSessionsByTerminalID(payload.windowID)
             }
         default:
             await MainActor.run {

@@ -479,28 +479,28 @@ import Testing
 // MARK: - processRequest Route Tests
 
 @Test func processRequest_getNonPost_returns405() async {
-    let server = HookServer()
+    let server = HookServer(sessionManager: SessionManager())
     let request = HTTPRequest(method: "GET", path: "/hook", body: "")
     let response = await server.processRequest(request)
     #expect(response.status == 405)
 }
 
 @Test func processRequest_postUnknownPath_returns404() async {
-    let server = HookServer()
+    let server = HookServer(sessionManager: SessionManager())
     let request = HTTPRequest(method: "POST", path: "/unknown", body: "")
     let response = await server.processRequest(request)
     #expect(response.status == 404)
 }
 
 @Test func processRequest_postHook_invalidJSON_returns400() async {
-    let server = HookServer()
+    let server = HookServer(sessionManager: SessionManager())
     let request = HTTPRequest(method: "POST", path: "/hook", body: "not json")
     let response = await server.processRequest(request)
     #expect(response.status == 400)
 }
 
-@Test func processRequest_postHook_validPayload_returns200() async {
-    let server = HookServer()
+@Test @MainActor func processRequest_postHook_validPayload_returns200() async {
+    let server = HookServer(sessionManager: SessionManager())
     let body = """
     {"agent":"claude-code","event":"Stop","terminal":{"sessionId":"s1","cwd":"/test","terminalType":"iterm2"}}
     """
@@ -510,14 +510,14 @@ import Testing
 }
 
 @Test func processRequest_postKittyEvent_invalidJSON_returns400() async {
-    let server = HookServer()
+    let server = HookServer(sessionManager: SessionManager())
     let request = HTTPRequest(method: "POST", path: "/kitty-event", body: "bad")
     let response = await server.processRequest(request)
     #expect(response.status == 400)
 }
 
-@Test func processRequest_postKittyEvent_valid_returns200() async {
-    let server = HookServer()
+@Test @MainActor func processRequest_postKittyEvent_valid_returns200() async {
+    let server = HookServer(sessionManager: SessionManager())
     let body = #"{"event":"focus_changed","window_id":"42"}"#
     let request = HTTPRequest(method: "POST", path: "/kitty-event", body: body)
     let response = await server.processRequest(request)
@@ -525,7 +525,7 @@ import Testing
 }
 
 @Test func processRequest_putMethod_returns405() async {
-    let server = HookServer()
+    let server = HookServer(sessionManager: SessionManager())
     let request = HTTPRequest(method: "PUT", path: "/hook", body: "{}")
     let response = await server.processRequest(request)
     #expect(response.status == 405)
@@ -534,7 +534,7 @@ import Testing
 // MARK: - decodeUnifiedPayload Tests
 
 @Test func decodeUnifiedPayload_validMinimal_succeeds() async {
-    let server = HookServer()
+    let server = HookServer(sessionManager: SessionManager())
     let body = #"{"agent":"claude-code","event":"Stop"}"#
     let payload = await server.decodeUnifiedPayload(body)
     #expect(payload != nil)
@@ -543,7 +543,7 @@ import Testing
 }
 
 @Test func decodeUnifiedPayload_withAllFields_succeeds() async {
-    let server = HookServer()
+    let server = HookServer(sessionManager: SessionManager())
     let body = """
     {"agent":"opencode","event":"session.created","hookInput":{"session_id":"abc","transcript_path":"/tmp/t.jsonl"},\
     "terminal":{"sessionId":"s1","cwd":"/test","terminalType":"kitty","kittyListenOn":"unix:/tmp/kitty",\
@@ -560,7 +560,7 @@ import Testing
 }
 
 @Test func decodeUnifiedPayload_invalidJSON_returnsNil() async {
-    let server = HookServer()
+    let server = HookServer(sessionManager: SessionManager())
     let payload = await server.decodeUnifiedPayload("not json")
     #expect(payload == nil)
 }
