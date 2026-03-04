@@ -32,3 +32,5 @@ Carthage/Build/
 # Claude
 .claude/settings.local.json
 .claude/tmp
+
+docs/tmp

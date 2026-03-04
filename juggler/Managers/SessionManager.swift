@@ -69,7 +69,7 @@ final class SessionManager {
 
     /// Set during hotkey-driven activation to suppress intermediate focus events from terminals.
     /// When non-nil, `updateFocusedSession` ignores focus events that don't match this target.
-    private var activationTarget: String?
+    private(set) var activationTarget: String?
 
     /// Animation controller for section transitions
     let animationController = SectionAnimationController()
@@ -192,9 +192,7 @@ final class SessionManager {
             let isStillFocused: Bool = if let fid = focusedSessionID,
                                           let session = sessions.first(where: { $0.id == sessionID })
             {
-                session.id == fid
-                    || session.terminalSessionID == fid
-                    || session.terminalSessionID.hasSuffix(fid)
+                session.id == fid || session.terminalSessionID == fid
             } else {
                 false
             }
@@ -298,13 +296,10 @@ final class SessionManager {
 
         guard !cyclable.isEmpty else { return nil }
 
-        // Prefer focused session if it's cyclable
-        // Try composite id first (set from hook events), then terminalSessionID with hasSuffix for bare UUID focus
-        // events
+        // Prefer focused session if it's cyclable (focusedSessionID is normalized on entry)
         if let focusedID = focusedSessionID,
            let session = cyclable.first(where: {
                $0.id == focusedID || $0.terminalSessionID == focusedID
-                   || $0.terminalSessionID.hasSuffix(focusedID)
            })
         {
             return session
@@ -332,7 +327,6 @@ final class SessionManager {
         sessions.contains(where: {
             $0.id == terminalSessionID
                 || $0.terminalSessionID == terminalSessionID
-                || $0.terminalSessionID.hasSuffix(terminalSessionID)
         })
     }
 
@@ -414,14 +408,27 @@ final class SessionManager {
 
     @MainActor
     func updateFocusedSession(terminalSessionID: String?) {
+        // Normalize: resolve bare UUIDs to the full terminalSessionID so all
+        // downstream matching can use exact equality instead of hasSuffix.
+        let resolved: String? = if let newID = terminalSessionID {
+            if sessions.contains(where: { $0.id == newID || $0.terminalSessionID == newID }) {
+                newID
+            } else if let session = sessions.first(where: { $0.terminalSessionID.hasSuffix(newID) }) {
+                session.terminalSessionID
+            } else {
+                newID
+            }
+        } else {
+            nil
+        }
+
         // During hotkey activation, ignore focus events that don't match the target.
         // This prevents intermediate events (e.g., iTerm2 briefly focusing the wrong tab
         // as the app comes to foreground) from causing UI flicker.
-        if let target = activationTarget, let newID = terminalSessionID {
+        if let target = activationTarget, let newID = resolved {
             let matchesTarget = sessions.contains(where: {
                 $0.id == target
-                    && ($0.terminalSessionID == newID || $0.terminalSessionID.hasSuffix(newID)
-                        || newID == $0.id)
+                    && ($0.terminalSessionID == newID || newID == $0.id)
             })
             if matchesTarget {
                 // Focus arrived at our target — accept it and clear the guard
@@ -433,13 +440,13 @@ final class SessionManager {
             }
         }
 
-        focusedSessionID = terminalSessionID
+        focusedSessionID = resolved
 
-        if let newID = terminalSessionID {
+        if let newID = resolved {
             logDebug(.session, "Focus updated to \(newID) → isSessionFocused=\(isSessionFocused)")
             cyclingState = cyclingEngine.syncStateToFocus(
                 sessions: sessions,
-                focusedSessionID: terminalSessionID,
+                focusedSessionID: resolved,
                 state: cyclingState
             )
         } else {
@@ -528,9 +535,18 @@ final class SessionManager {
             session.transcriptPath = transcriptPath?.isEmpty == true ? nil : transcriptPath
             sessions.append(session)
 
+            // Re-normalize focusedSessionID now that this session exists — focus events
+            // can arrive before the session is created, leaving a bare UUID stored
+            if let focusedID = focusedSessionID,
+               focusedID != session.terminalSessionID,
+               session.terminalSessionID.hasSuffix(focusedID)
+            {
+                focusedSessionID = session.terminalSessionID
+            }
+
             // If this new session matches the currently focused pane, sync cycling state
             if let focusedID = focusedSessionID,
-               session.terminalSessionID.hasSuffix(focusedID)
+               session.terminalSessionID == focusedID || session.id == focusedID
             {
                 cyclingState = cyclingEngine.syncStateToFocus(
                     sessions: sessions,
@@ -627,7 +643,6 @@ final class SessionManager {
             let cyclable = sessions.filter(\.state.isIncludedInCycle)
             if let session = cyclable.first(where: {
                 $0.id == focusedID || $0.terminalSessionID == focusedID
-                    || $0.terminalSessionID.hasSuffix(focusedID)
             }) {
                 logDebug(
                     .hotkey,

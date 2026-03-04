@@ -908,3 +908,126 @@ private func simulateHook(
     #expect(manager.currentSession?.id == "s1")
     #expect(manager.isSessionFocused == true)
 }
+
+// MARK: - Focus Normalization & Activation Guard
+
+@Test @MainActor func integration_focusBeforeSessionCreated_normalizesOnArrival() {
+    let manager = SessionManager()
+
+    // Focus arrives with bare UUID before session exists — stored as-is
+    manager.updateFocusedSession(terminalSessionID: "abc-uuid")
+    #expect(manager.focusedSessionID == "abc-uuid")
+
+    // Session arrives via hook with composite terminalSessionID
+    simulateHook(
+        manager: manager,
+        event: "SessionStart",
+        claudeSessionID: "c1",
+        terminalSessionID: "w0t0p0:abc-uuid",
+        projectPath: "/test"
+    )
+
+    // focusedSessionID should be re-normalized to the full composite ID
+    #expect(manager.focusedSessionID == "w0t0p0:abc-uuid")
+
+    // isSessionFocused should work correctly now
+    manager.isTerminalAppActive = true
+    #expect(manager.isSessionFocused == true)
+}
+
+@Test @MainActor func integration_guiActivation_suppressesFocusResyncDuringFlight() {
+    let manager = SessionManager()
+
+    // Two sessions arrive via hooks
+    simulateHook(
+        manager: manager,
+        event: "SessionStart",
+        claudeSessionID: "c1",
+        terminalSessionID: "s1",
+        projectPath: "/a"
+    )
+    simulateHook(
+        manager: manager,
+        event: "SessionStart",
+        claudeSessionID: "c2",
+        terminalSessionID: "s2",
+        projectPath: "/b"
+    )
+
+    // User is focused on s1
+    manager.updateFocusedSession(terminalSessionID: "s1")
+    manager.isTerminalAppActive = true
+    #expect(manager.focusedSessionID == "s1")
+
+    // User presses Enter in monitor to activate s2 → beginActivation
+    manager.beginActivation(targetSessionID: "s2")
+    #expect(manager.activationTarget == "s2")
+
+    // Intermediate focus event for s1 (terminal still showing s1) — should be suppressed
+    manager.updateFocusedSession(terminalSessionID: "s1")
+    #expect(manager.focusedSessionID == "s1") // unchanged from before activation
+
+    // Target focus arrives for s2 → accepted and guard auto-cleared
+    manager.updateFocusedSession(terminalSessionID: "s2")
+    #expect(manager.focusedSessionID == "s2")
+    #expect(manager.activationTarget == nil)
+}
+
+@Test @MainActor func integration_guiActivation_endActivationAllowsSubsequentFocus() {
+    let manager = SessionManager()
+
+    simulateHook(
+        manager: manager,
+        event: "SessionStart",
+        claudeSessionID: "c1",
+        terminalSessionID: "s1",
+        projectPath: "/a"
+    )
+    simulateHook(
+        manager: manager,
+        event: "SessionStart",
+        claudeSessionID: "c2",
+        terminalSessionID: "s2",
+        projectPath: "/b"
+    )
+
+    // Activation completes normally
+    manager.beginActivation(targetSessionID: "s1")
+    manager.endActivation()
+    #expect(manager.activationTarget == nil)
+
+    // Subsequent focus change should not be suppressed
+    manager.updateFocusedSession(terminalSessionID: "s2")
+    #expect(manager.focusedSessionID == "s2")
+}
+
+@Test @MainActor func integration_bareUUIDNormalization_thenCycling() {
+    let manager = SessionManager()
+
+    // Two sessions with composite IDs
+    simulateHook(
+        manager: manager,
+        event: "SessionStart",
+        claudeSessionID: "c1",
+        terminalSessionID: "w0t0p0:uuid-a",
+        projectPath: "/a"
+    )
+    simulateHook(
+        manager: manager,
+        event: "SessionStart",
+        claudeSessionID: "c2",
+        terminalSessionID: "w0t1p0:uuid-b",
+        projectPath: "/b"
+    )
+
+    // Focus via bare UUID — should be normalized to composite
+    manager.updateFocusedSession(terminalSessionID: "uuid-a")
+    #expect(manager.focusedSessionID == "w0t0p0:uuid-a")
+
+    // currentSession should resolve correctly
+    #expect(manager.currentSession?.id == "w0t0p0:uuid-a")
+
+    // Cycling should move to the other session
+    let next = manager.cycleForward()
+    #expect(next?.id == "w0t1p0:uuid-b")
+}

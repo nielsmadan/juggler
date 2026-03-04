@@ -112,19 +112,9 @@ struct DefaultCyclingEngine: CyclingEngine {
         return state
     }
 
-    /// Finds a session by trying composite id first, then terminalSessionID with hasSuffix for bare UUID focus events.
+    /// Finds a session by composite id or terminalSessionID (focusedSessionID is normalized on entry).
     private func findSessionIndex(in sessions: [Session], matching focusedID: String) -> Int? {
-        // Try composite id first (set from hook events with tmux pane info)
-        if let idx = sessions.firstIndex(where: { $0.id == focusedID }) {
-            return idx
-        }
-        // Fall back to terminalSessionID matching (for bare UUID from iTerm2 focus events)
-        if let idx = sessions.firstIndex(where: {
-            $0.terminalSessionID == focusedID || $0.terminalSessionID.hasSuffix(focusedID)
-        }) {
-            return idx
-        }
-        return nil
+        sessions.firstIndex(where: { $0.id == focusedID || $0.terminalSessionID == focusedID })
     }
 
     private func findTargetIndexForward(

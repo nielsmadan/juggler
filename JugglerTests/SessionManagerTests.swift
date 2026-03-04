@@ -1041,7 +1041,7 @@ import Testing
 }
 
 @MainActor
-@Test func updateFocusedSession_bareUUID_acceptedAndMatchedViaSuffix() {
+@Test func updateFocusedSession_bareUUID_normalizedToComposite() {
     let manager = SessionManager()
     let session = Session(
         claudeSessionID: "c1", terminalSessionID: "w0t0p0:abc-uuid",
@@ -1053,9 +1053,9 @@ import Testing
     manager.updateFocusedSession(terminalSessionID: "w0t0p0:abc-uuid")
     #expect(manager.focusedSessionID == "w0t0p0:abc-uuid")
 
-    // Bare UUID now accepted — hasSuffix matching in isSessionFocused still works
+    // Bare UUID is normalized to the full composite terminalSessionID
     manager.updateFocusedSession(terminalSessionID: "abc-uuid")
-    #expect(manager.focusedSessionID == "abc-uuid")
+    #expect(manager.focusedSessionID == "w0t0p0:abc-uuid")
 }
 
 @MainActor

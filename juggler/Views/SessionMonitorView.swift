@@ -36,6 +36,7 @@ struct SessionMonitorView: View {
     @State private var controller = SessionListController()
     @State private var globalStatsResetDate: Date?
     @State private var isPaused = false
+    @State private var isMonitorWindowKey = false
 
     @Namespace private var sessionAnimation
 
@@ -183,17 +184,41 @@ struct SessionMonitorView: View {
             }
         }
         .onChange(of: sessionManager.focusedSessionID) { _, newFocusedID in
-            // Sync selectedIndex when focus changes (direct observer for reliability)
             guard let focusedID = newFocusedID else { return }
             if let index = sessionManager.sessions.firstIndex(where: {
-                $0.terminalSessionID == focusedID || $0.terminalSessionID.hasSuffix(focusedID)
+                $0.terminalSessionID == focusedID || $0.id == focusedID
             }) {
+                controller.selectedIndex = index
+                controller.trackSelectedSession(sessions: sessionManager.sessions)
+            }
+        }
+        .onChange(of: sessionManager.isSessionFocused) { _, isFocused in
+            // Resync selectedIndex when a terminal becomes active, so arrow-key
+            // drift in the monitor doesn't persist when returning to the terminal.
+            // Skip if an activation is in flight — the focus event for the target
+            // session hasn't arrived yet, so resyncing would flash the old session.
+            if isFocused, sessionManager.activationTarget == nil,
+               let focusedID = sessionManager.focusedSessionID,
+               let index = sessionManager.sessions.firstIndex(where: {
+                   $0.terminalSessionID == focusedID || $0.id == focusedID
+               })
+            {
                 controller.selectedIndex = index
                 controller.trackSelectedSession(sessions: sessionManager.sessions)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
             controller.reloadShortcuts()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
+            if let window = notification.object as? NSWindow, window.identifier?.rawValue == "main" {
+                isMonitorWindowKey = true
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notification in
+            if let window = notification.object as? NSWindow, window.identifier?.rawValue == "main" {
+                isMonitorWindowKey = false
+            }
         }
     }
 
@@ -363,7 +388,7 @@ struct SessionMonitorView: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .listRowBackground(
-            sessionManager.isSessionFocused && controller.selectedIndex == index
+            (sessionManager.isSessionFocused || isMonitorWindowKey) && controller.selectedIndex == index
                 ? highlightColor(at: index ?? 0).opacity(0.15)
                 : Color.clear
         )
@@ -393,7 +418,7 @@ struct SessionMonitorView: View {
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            sessionManager.isSessionFocused && controller.selectedIndex == index
+            (sessionManager.isSessionFocused || isMonitorWindowKey) && controller.selectedIndex == index
                 ? highlightColor(at: index ?? 0).opacity(0.15)
                 : Color.clear
         )
@@ -530,8 +555,10 @@ struct SessionMonitorView: View {
     }
 
     private func activateSession(_ session: Session) {
+        sessionManager.beginActivation(targetSessionID: session.id)
         Task {
             try? await TerminalActivation.activate(session: session, trigger: .guiSelect)
+            sessionManager.endActivation()
         }
     }
 
