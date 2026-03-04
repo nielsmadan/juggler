@@ -117,108 +117,106 @@ struct SessionMonitorView: View {
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 5)) { _ in
-            mainContent
-        }
-        .focusable()
-        .focusEffectDisabled()
-        .onKeyPress(.downArrow) {
-            controller.moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
-            controller.trackSelectedSession(sessions: sessionManager.sessions)
-            return .handled
-        }
-        .onKeyPress(.upArrow) {
-            controller.moveSelection(by: -1, sessionCount: sessionManager.sessions.count)
-            controller.trackSelectedSession(sessions: sessionManager.sessions)
-            return .handled
-        }
-        .onKeyPress(.return) { activateSelected(); return .handled }
-        .onKeyPress { handleKeyPress($0) }
-        .sheet(item: $controller.sessionToRename) { session in
-            RenameSessionView(session: session)
-                .environment(sessionManager)
-        }
-        .onChange(of: sessionManager.sessions) { _, newSessions in
-            controller.syncSelection(sessions: newSessions)
-        }
-        .onAppear {
-            controller.syncSelection(sessions: sessionManager.sessions)
-            controller.reloadShortcuts()
-            controller.installTabMonitor(
-                sessionManager: sessionManager,
-                queueOrderMode: $queueOrderMode,
-                extraHandler: { event in
-                    if enableStats, let shortcut = controller.shortcutTogglePause, shortcut.matches(event) {
-                        isPaused.toggle()
-                        return true
+        mainContent
+            .focusable()
+            .focusEffectDisabled()
+            .onKeyPress(.downArrow) {
+                controller.moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
+                controller.trackSelectedSession(sessions: sessionManager.sessions)
+                return .handled
+            }
+            .onKeyPress(.upArrow) {
+                controller.moveSelection(by: -1, sessionCount: sessionManager.sessions.count)
+                controller.trackSelectedSession(sessions: sessionManager.sessions)
+                return .handled
+            }
+            .onKeyPress(.return) { activateSelected(); return .handled }
+            .onKeyPress { handleKeyPress($0) }
+            .sheet(item: $controller.sessionToRename) { session in
+                RenameSessionView(session: session)
+                    .environment(sessionManager)
+            }
+            .onChange(of: sessionManager.sessions) { _, newSessions in
+                controller.syncSelection(sessions: newSessions)
+            }
+            .onAppear {
+                controller.syncSelection(sessions: sessionManager.sessions)
+                controller.reloadShortcuts()
+                controller.installTabMonitor(
+                    sessionManager: sessionManager,
+                    queueOrderMode: $queueOrderMode,
+                    extraHandler: { event in
+                        if enableStats, let shortcut = controller.shortcutTogglePause, shortcut.matches(event) {
+                            isPaused.toggle()
+                            return true
+                        }
+                        if enableStats, let shortcut = controller.shortcutResetStats, shortcut.matches(event) {
+                            globalStatsResetDate = Date()
+                            return true
+                        }
+                        if let shortcut = controller.shortcutToggleAutoNext, shortcut.matches(event) {
+                            autoAdvanceOnBusy.toggle()
+                            return true
+                        }
+                        if let shortcut = controller.shortcutToggleAutoRestart, shortcut.matches(event) {
+                            autoRestartOnIdle.toggle()
+                            return true
+                        }
+                        return false
                     }
-                    if enableStats, let shortcut = controller.shortcutResetStats, shortcut.matches(event) {
-                        globalStatsResetDate = Date()
-                        return true
-                    }
-                    if let shortcut = controller.shortcutToggleAutoNext, shortcut.matches(event) {
-                        autoAdvanceOnBusy.toggle()
-                        return true
-                    }
-                    if let shortcut = controller.shortcutToggleAutoRestart, shortcut.matches(event) {
-                        autoRestartOnIdle.toggle()
-                        return true
-                    }
-                    return false
+                )
+            }
+            .onDisappear {
+                controller.removeTabMonitor()
+            }
+            .onChange(of: queueOrderMode) { _, newMode in
+                if let mode = QueueOrderMode(rawValue: newMode) {
+                    sessionManager.reorderForMode(mode)
                 }
-            )
-        }
-        .onDisappear {
-            controller.removeTabMonitor()
-        }
-        .onChange(of: queueOrderMode) { _, newMode in
-            if let mode = QueueOrderMode(rawValue: newMode) {
-                sessionManager.reorderForMode(mode)
             }
-        }
-        .onChange(of: sessionManager.currentSession?.id) { _, _ in
-            if let current = sessionManager.currentSession,
-               let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id }) {
-                controller.selectedIndex = index
-                controller.trackSelectedSession(sessions: sessionManager.sessions)
+            .onChange(of: sessionManager.currentSession?.id) { _, _ in
+                if let current = sessionManager.currentSession,
+                   let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id }) {
+                    controller.selectedIndex = index
+                    controller.trackSelectedSession(sessions: sessionManager.sessions)
+                }
             }
-        }
-        .onChange(of: sessionManager.focusedSessionID) { _, newFocusedID in
-            guard let focusedID = newFocusedID else { return }
-            if let index = sessionManager.sessions.firstIndex(where: {
-                $0.terminalSessionID == focusedID || $0.id == focusedID
-            }) {
-                controller.selectedIndex = index
-                controller.trackSelectedSession(sessions: sessionManager.sessions)
+            .onChange(of: sessionManager.focusedSessionID) { _, newFocusedID in
+                guard let focusedID = newFocusedID else { return }
+                if let index = sessionManager.sessions.firstIndex(where: {
+                    $0.terminalSessionID == focusedID || $0.id == focusedID
+                }) {
+                    controller.selectedIndex = index
+                    controller.trackSelectedSession(sessions: sessionManager.sessions)
+                }
             }
-        }
-        .onChange(of: sessionManager.isSessionFocused) { _, isFocused in
-            // Resync selectedIndex when a terminal becomes active, so arrow-key
-            // drift in the monitor doesn't persist when returning to the terminal.
-            // Skip if an activation is in flight — the focus event for the target
-            // session hasn't arrived yet, so resyncing would flash the old session.
-            if isFocused, sessionManager.activationTarget == nil,
-               let focusedID = sessionManager.focusedSessionID,
-               let index = sessionManager.sessions.firstIndex(where: {
-                   $0.terminalSessionID == focusedID || $0.id == focusedID
-               }) {
-                controller.selectedIndex = index
-                controller.trackSelectedSession(sessions: sessionManager.sessions)
+            .onChange(of: sessionManager.isSessionFocused) { _, isFocused in
+                // Resync selectedIndex when a terminal becomes active, so arrow-key
+                // drift in the monitor doesn't persist when returning to the terminal.
+                // Skip if an activation is in flight — the focus event for the target
+                // session hasn't arrived yet, so resyncing would flash the old session.
+                if isFocused, sessionManager.activationTarget == nil,
+                   let focusedID = sessionManager.focusedSessionID,
+                   let index = sessionManager.sessions.firstIndex(where: {
+                       $0.terminalSessionID == focusedID || $0.id == focusedID
+                   }) {
+                    controller.selectedIndex = index
+                    controller.trackSelectedSession(sessions: sessionManager.sessions)
+                }
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
-            controller.reloadShortcuts()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
-            if let window = notification.object as? NSWindow, window.identifier?.rawValue == "main" {
-                isMonitorWindowKey = true
+            .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
+                controller.reloadShortcuts()
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notification in
-            if let window = notification.object as? NSWindow, window.identifier?.rawValue == "main" {
-                isMonitorWindowKey = false
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
+                if let window = notification.object as? NSWindow, window.identifier?.rawValue == "main" {
+                    isMonitorWindowKey = true
+                }
             }
-        }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notification in
+                if let window = notification.object as? NSWindow, window.identifier?.rawValue == "main" {
+                    isMonitorWindowKey = false
+                }
+            }
     }
 
     @ViewBuilder
@@ -492,29 +490,31 @@ struct SessionMonitorView: View {
     @ViewBuilder
     private func idleStatsView(for session: Session) -> some View {
         if enableStats {
-            HStack(spacing: 4) {
-                if session.state == .idle || session.state == .permission {
-                    Text("idle")
-                        .frame(minWidth: 20, alignment: .trailing)
-                    Text(formatDuration(session.currentIdleDuration ?? 0))
+            TimelineView(.periodic(from: .now, by: 5)) { _ in
+                HStack(spacing: 4) {
+                    if session.state == .idle || session.state == .permission {
+                        Text("idle")
+                            .frame(minWidth: 20, alignment: .trailing)
+                        Text(formatDuration(session.currentIdleDuration ?? 0))
+                            .frame(minWidth: 28, alignment: .trailing)
+                        Text("|")
+                    }
+                    if session.state == .working || session.state == .compacting {
+                        Text("working")
+                            .frame(minWidth: 16, alignment: .trailing)
+                        Text(formatDuration(session.currentWorkingDuration ?? 0))
+                            .frame(minWidth: 28, alignment: .trailing)
+                        Text("|")
+                    }
+                    Text("total")
+                        .frame(minWidth: 24, alignment: .trailing)
+                    Text(formatDuration(session.totalIdleTime))
                         .frame(minWidth: 28, alignment: .trailing)
-                    Text("|")
                 }
-                if session.state == .working || session.state == .compacting {
-                    Text("working")
-                        .frame(minWidth: 16, alignment: .trailing)
-                    Text(formatDuration(session.currentWorkingDuration ?? 0))
-                        .frame(minWidth: 28, alignment: .trailing)
-                    Text("|")
-                }
-                Text("total")
-                    .frame(minWidth: 24, alignment: .trailing)
-                Text(formatDuration(session.totalIdleTime))
-                    .frame(minWidth: 28, alignment: .trailing)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(minHeight: 16)
             }
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .frame(minHeight: 16)
         }
     }
 
@@ -587,44 +587,46 @@ struct SessionMonitorView: View {
 
     @ViewBuilder
     private var statsFooter: some View {
-        let idleCount = sessionManager.sessions.filter {
-            $0.state == .idle || $0.state == .permission
-        }.count
-        let totalCount = sessionManager.sessions.count
+        TimelineView(.periodic(from: .now, by: 5)) { _ in
+            let idleCount = sessionManager.sessions.filter {
+                $0.state == .idle || $0.state == .permission
+            }.count
+            let totalCount = sessionManager.sessions.count
 
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(idleCount)/\(totalCount) sessions idle")
-                    .font(.subheadline)
-                Text("\(formatDuration(totalIdleTimeForFooter)) total idle")
-                    .font(.subheadline)
-                Text("\(formatDuration(totalWorkingTimeForFooter)) working time")
-                    .font(.subheadline)
-            }
-
-            Spacer()
-
-            HStack(spacing: 8) {
-                Button {
-                    globalStatsResetDate = Date()
-                } label: {
-                    Image(systemName: "stop.fill")
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(idleCount)/\(totalCount) sessions idle")
+                        .font(.subheadline)
+                    Text("\(formatDuration(totalIdleTimeForFooter)) total idle")
+                        .font(.subheadline)
+                    Text("\(formatDuration(totalWorkingTimeForFooter)) working time")
+                        .font(.subheadline)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
 
-                Button {
-                    isPaused.toggle()
-                } label: {
-                    Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                Spacer()
+
+                HStack(spacing: 8) {
+                    Button {
+                        globalStatsResetDate = Date()
+                    } label: {
+                        Image(systemName: "stop.fill")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
+
+                    Button {
+                        isPaused.toggle()
+                    } label: {
+                        Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
             }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            .background(idleSessionColoring ? footerGradientColor.opacity(0.3) : Color(nsColor: .windowBackgroundColor))
         }
-        .padding(.horizontal)
-        .padding(.vertical, 12)
-        .background(idleSessionColoring ? footerGradientColor.opacity(0.3) : Color(nsColor: .windowBackgroundColor))
     }
 
     // MARK: - Shortcuts Reference

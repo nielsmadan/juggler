@@ -10,6 +10,7 @@ import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainWindowNeedsRestore = true
+    private var hideAccessoryWorkItem: DispatchWorkItem?
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
         false // Keep running when window closes (menu bar app stays active)
@@ -70,16 +71,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Must save before window deallocs
         UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: AppStorageKeys.mainWindowFrame)
         mainWindowNeedsRestore = true
-        // Window close animation must finish before hiding dock icon
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        // Cancel any pending hide and schedule a new one. Using a cancellable
+        // work item prevents a race where the user reopens the window within
+        // the 0.1s delay, causing the dock icon to disappear while visible.
+        hideAccessoryWorkItem?.cancel()
+        let workItem = DispatchWorkItem {
             NSApp.setActivationPolicy(.accessory)
         }
+        hideAccessoryWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
     }
 
     @objc func windowDidBecomeKey(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
               window.identifier?.rawValue == "main"
         else { return }
+        hideAccessoryWorkItem?.cancel()
+        hideAccessoryWorkItem = nil
         NSApp.setActivationPolicy(.regular)
 
         // Restore saved frame on first appearance after close or app launch

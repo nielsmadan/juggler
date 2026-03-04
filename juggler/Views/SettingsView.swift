@@ -446,10 +446,15 @@ struct IntegrationSettingsView: View {
             hasAutomation = false
             return
         }
-        let script = NSAppleScript(source: "tell application \"iTerm2\" to name")
-        var error: NSDictionary?
-        script?.executeAndReturnError(&error)
-        hasAutomation = error == nil
+        Task.detached {
+            let script = NSAppleScript(source: "tell application \"iTerm2\" to name")
+            var error: NSDictionary?
+            script?.executeAndReturnError(&error)
+            let granted = error == nil
+            await MainActor.run {
+                hasAutomation = granted
+            }
+        }
     }
 
     private func checkNotifications() {
