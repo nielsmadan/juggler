@@ -80,7 +80,7 @@ struct LocalShortcut: Codable, Equatable {
         return flags
     }
 
-    /// The display string for this shortcut (e.g., "⌘J", "⇧L")
+    /// The display string for this shortcut (e.g., "⌘j", "⇧l")
     var displayString: String {
         let modifierString = modifierFlags.symbolicRepresentation
 
@@ -89,7 +89,7 @@ struct LocalShortcut: Codable, Equatable {
         }
 
         if let char = Self.keyToCharacter(keyCode: keyCode) {
-            return modifierString + char.uppercased()
+            return modifierString + char
         }
 
         return modifierString + "?"
@@ -158,7 +158,7 @@ struct LocalShortcut: Codable, Equatable {
         kVK_F9: "F9",
         kVK_F10: "F10",
         kVK_F11: "F11",
-        kVK_F12: "F12",
+        kVK_F12: "F12"
     ]
 
     static func specialKeyString(keyCode: UInt16) -> String? {

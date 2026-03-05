@@ -171,7 +171,7 @@ import Testing
 @Test func displayString_letterOnly() {
     let shortcut = LocalShortcut(keyCode: 1, modifiers: [])
     let display = shortcut.displayString
-    #expect(display == "S")
+    #expect(display == "s")
 }
 
 // MARK: - keyToCharacter Tests
