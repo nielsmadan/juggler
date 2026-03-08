@@ -21,9 +21,11 @@ build xcconfig="":
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build
 
 build-strict xcconfig="":
-    @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
-        {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build 2>&1 | tee /dev/stderr | \
-        (! grep -E "warning:.*Juggler/" >/dev/null 2>&1)
+    #!/usr/bin/env bash
+    set -euo pipefail
+    xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
+        {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build 2>&1 | tee /tmp/build-output.log
+    ! grep -qE "warning:.*Juggler/" /tmp/build-output.log
 
 # Fast unit tests only (no UI, no app launch)
 test xcconfig="":

@@ -785,203 +785,207 @@ import Testing
     #expect(manager.lastActiveSessionID == nil)
 }
 
-@Test func currentSession_autoAdvanceOff_busySessionReturnedViaAnchor() {
-    let manager = SessionManager()
-    UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
+// MARK: - Auto-advance, Auto-restart & Anchor Tests (serialized — shared UserDefaults/NotificationCenter)
 
-    manager.testSetSessions([
-        makeSession("s1", state: .working),
-        makeSession("s2", state: .idle),
-    ])
-    manager.testSetLastActiveSessionID("s1")
+@Suite(.serialized)
+struct AutoAdvanceAndAnchorTests {
+    @Test @MainActor func currentSession_autoAdvanceOff_busySessionReturnedViaAnchor() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
+        defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
-    // With anchor set and auto-advance OFF, currentSession should return the busy session
-    let current = manager.currentSession
-    #expect(current?.id == "s1")
-}
+        manager.testSetSessions([
+            makeSession("s1", state: .working),
+            makeSession("s2", state: .idle),
+        ])
+        manager.testSetLastActiveSessionID("s1")
 
-@Test func currentSession_autoAdvanceOn_busySessionNotReturnedViaAnchor() {
-    let manager = SessionManager()
-    UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
+        // With anchor set and auto-advance OFF, currentSession should return the busy session
+        let current = manager.currentSession
+        #expect(current?.id == "s1")
+    }
 
-    manager.testSetSessions([
-        makeSession("s1", state: .working),
-        makeSession("s2", state: .idle),
-    ])
-    manager.testSetLastActiveSessionID("s1")
+    @Test @MainActor func currentSession_autoAdvanceOn_busySessionNotReturnedViaAnchor() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
+        defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
-    // With auto-advance ON, the anchor is ignored for currentSession
-    let current = manager.currentSession
-    #expect(current?.id != "s1")
+        manager.testSetSessions([
+            makeSession("s1", state: .working),
+            makeSession("s2", state: .idle),
+        ])
+        manager.testSetLastActiveSessionID("s1")
 
-    // Clean up
-    UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy)
-}
+        // With auto-advance ON, the anchor is ignored for currentSession
+        let current = manager.currentSession
+        #expect(current?.id != "s1")
+    }
 
-@Test func cycleForward_withAnchor_usesAnchorAsEffectiveFocus() {
-    let manager = SessionManager()
+    @Test @MainActor func cycleForward_withAnchor_usesAnchorAsEffectiveFocus() {
+        let manager = SessionManager()
 
-    // s1=idle, s2=working (anchored), s3=idle
-    manager.testSetSessions([
-        makeSession("s1", state: .idle),
-        makeSession("s2", state: .working),
-        makeSession("s3", state: .idle),
-    ])
-    manager.testSetLastActiveSessionID("s2")
-    manager.testSetFocusedSessionID("s2")
+        // s1=idle, s2=working (anchored), s3=idle
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .working),
+            makeSession("s3", state: .idle),
+        ])
+        manager.testSetLastActiveSessionID("s2")
+        manager.testSetFocusedSessionID("s2")
 
-    // Cycling forward from s2 (working, anchored) should advance to s3
-    let result = manager.cycleForward()
-    #expect(result?.id == "s3")
-    #expect(manager.lastActiveSessionID == nil) // anchor consumed
-}
+        // Cycling forward from s2 (working, anchored) should advance to s3
+        let result = manager.cycleForward()
+        #expect(result?.id == "s3")
+        #expect(manager.lastActiveSessionID == nil) // anchor consumed
+    }
 
-@Test func cycleBackward_withAnchor_usesAnchorAsEffectiveFocus() {
-    let manager = SessionManager()
+    @Test @MainActor func cycleBackward_withAnchor_usesAnchorAsEffectiveFocus() {
+        let manager = SessionManager()
 
-    // s1=idle, s2=working (anchored), s3=idle
-    manager.testSetSessions([
-        makeSession("s1", state: .idle),
-        makeSession("s2", state: .working),
-        makeSession("s3", state: .idle),
-    ])
-    manager.testSetLastActiveSessionID("s2")
-    manager.testSetFocusedSessionID("s2")
+        // s1=idle, s2=working (anchored), s3=idle
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .working),
+            makeSession("s3", state: .idle),
+        ])
+        manager.testSetLastActiveSessionID("s2")
+        manager.testSetFocusedSessionID("s2")
 
-    // Cycling backward from s2 should go to s1
-    let result = manager.cycleBackward()
-    #expect(result?.id == "s1")
-    #expect(manager.lastActiveSessionID == nil) // anchor consumed
-}
+        // Cycling backward from s2 should go to s1
+        let result = manager.cycleBackward()
+        #expect(result?.id == "s1")
+        #expect(manager.lastActiveSessionID == nil) // anchor consumed
+    }
 
-// MARK: - Auto-advance Tests
+    // MARK: - Auto-advance Tests
 
-@Test @MainActor func autoAdvance_on_focusedSessionGoesBusy_postsNotification() {
-    UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
-    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+    @Test @MainActor func autoAdvance_on_focusedSessionGoesBusy_postsNotification() {
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
+        defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
-    var posted = false
-    let token = NotificationCenter.default.addObserver(
-        forName: .shouldAutoAdvance, object: nil, queue: nil
-    ) { _ in posted = true }
-    defer { NotificationCenter.default.removeObserver(token) }
+        var posted = false
+        let token = NotificationCenter.default.addObserver(
+            forName: .shouldAutoAdvance, object: nil, queue: nil
+        ) { _ in posted = true }
+        defer { NotificationCenter.default.removeObserver(token) }
 
-    let manager = SessionManager()
-    manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
-    manager.testSetFocusedSessionID("s1")
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
+        manager.testSetFocusedSessionID("s1")
 
-    manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
 
-    #expect(posted == true)
-}
+        #expect(posted == true)
+    }
 
-@Test @MainActor func autoAdvance_off_focusedSessionGoesBusy_setsAnchor() {
-    UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
-    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+    @Test @MainActor func autoAdvance_off_focusedSessionGoesBusy_setsAnchor() {
+        UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
+        defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
-    let manager = SessionManager()
-    manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
-    manager.testSetFocusedSessionID("s1")
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
+        manager.testSetFocusedSessionID("s1")
 
-    manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
 
-    #expect(manager.lastActiveSessionID == "s1")
-}
+        #expect(manager.lastActiveSessionID == "s1")
+    }
 
-@Test @MainActor func autoAdvance_sessionGoesBusy_notFocused_noAction() {
-    UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
-    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+    @Test @MainActor func autoAdvance_sessionGoesBusy_notFocused_noAction() {
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
+        defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
-    let manager = SessionManager()
-    manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
-    manager.testSetFocusedSessionID("s2") // focused on s2, not s1
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
+        manager.testSetFocusedSessionID("s2") // focused on s2, not s1
 
-    manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
 
-    // Not focused on s1, so no anchor should be set
-    #expect(manager.lastActiveSessionID == nil)
-}
+        // Not focused on s1, so no anchor should be set
+        #expect(manager.lastActiveSessionID == nil)
+    }
 
-@Test @MainActor func autoAdvance_sessionGoesBusy_noFocus_noAction() {
-    UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
-    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+    @Test @MainActor func autoAdvance_sessionGoesBusy_noFocus_noAction() {
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
+        defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
-    let manager = SessionManager()
-    manager.testSetSessions([makeSession("s1", state: .idle)])
-    // No focused session
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1", state: .idle)])
+        // No focused session
 
-    manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
 
-    #expect(manager.lastActiveSessionID == nil)
-}
+        #expect(manager.lastActiveSessionID == nil)
+    }
 
-// MARK: - Auto-restart Tests
+    // MARK: - Auto-restart Tests
 
-@Test @MainActor func autoRestart_on_soleCyclable_postsNotification() {
-    UserDefaults.standard.set(true, forKey: AppStorageKeys.autoRestartOnIdle)
-    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
+    @Test @MainActor func autoRestart_on_soleCyclable_postsNotification() {
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.autoRestartOnIdle)
+        defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
 
-    var postedSessionID: String?
-    let token = NotificationCenter.default.addObserver(
-        forName: .shouldAutoRestart, object: nil, queue: nil
-    ) { note in postedSessionID = note.userInfo?["sessionID"] as? String }
-    defer { NotificationCenter.default.removeObserver(token) }
+        var postedSessionID: String?
+        let token = NotificationCenter.default.addObserver(
+            forName: .shouldAutoRestart, object: nil, queue: nil
+        ) { note in postedSessionID = note.userInfo?["sessionID"] as? String }
+        defer { NotificationCenter.default.removeObserver(token) }
 
-    let manager = SessionManager()
-    manager.testSetSessions([makeSession("s1", state: .working), makeSession("s2", state: .backburner)])
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1", state: .working), makeSession("s2", state: .backburner)])
 
-    manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
+        manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
 
-    #expect(postedSessionID == "s1")
-}
+        #expect(postedSessionID == "s1")
+    }
 
-@Test @MainActor func autoRestart_on_multipleCyclable_noAutoRestart() {
-    UserDefaults.standard.set(true, forKey: AppStorageKeys.autoRestartOnIdle)
-    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
+    @Test @MainActor func autoRestart_on_multipleCyclable_noAutoRestart() {
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.autoRestartOnIdle)
+        defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
 
-    let manager = SessionManager()
-    manager.testSetSessions([makeSession("s1", state: .working), makeSession("s2", state: .idle)])
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1", state: .working), makeSession("s2", state: .idle)])
 
-    manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
+        manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
 
-    // Both are now cyclable — auto-restart guard (cyclableCount == 1) prevents firing
-    let cyclable = manager.sessions.filter(\.state.isIncludedInCycle)
-    #expect(cyclable.count == 2)
-}
+        // Both are now cyclable — auto-restart guard (cyclableCount == 1) prevents firing
+        let cyclable = manager.sessions.filter(\.state.isIncludedInCycle)
+        #expect(cyclable.count == 2)
+    }
 
-@Test @MainActor func autoRestart_off_soleCyclable_noAutoRestart() {
-    UserDefaults.standard.set(false, forKey: AppStorageKeys.autoRestartOnIdle)
-    defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
+    @Test @MainActor func autoRestart_off_soleCyclable_noAutoRestart() {
+        UserDefaults.standard.set(false, forKey: AppStorageKeys.autoRestartOnIdle)
+        defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
 
-    let manager = SessionManager()
-    manager.testSetSessions([makeSession("s1", state: .working)])
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1", state: .working)])
 
-    manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
+        manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
 
-    let s1 = manager.sessions.first { $0.id == "s1" }
-    #expect(s1?.state == .idle)
-}
+        let s1 = manager.sessions.first { $0.id == "s1" }
+        #expect(s1?.state == .idle)
+    }
 
-// MARK: - Anchor Clearing on State Return Tests
+    // MARK: - Anchor Clearing on State Return Tests
 
-@Test @MainActor func anchorCleared_whenAnchoredSessionBecomesIdle() {
-    let manager = SessionManager()
-    manager.testSetSessions([makeSession("s1", state: .working)])
-    manager.testSetLastActiveSessionID("s1")
+    @Test @MainActor func anchorCleared_whenAnchoredSessionBecomesIdle() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1", state: .working)])
+        manager.testSetLastActiveSessionID("s1")
 
-    manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
+        manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
 
-    #expect(manager.lastActiveSessionID == nil)
-}
+        #expect(manager.lastActiveSessionID == nil)
+    }
 
-@Test @MainActor func anchorNotCleared_whenDifferentSessionBecomesIdle() {
-    let manager = SessionManager()
-    manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .working)])
-    manager.testSetLastActiveSessionID("s1")
+    @Test @MainActor func anchorNotCleared_whenDifferentSessionBecomesIdle() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .working)])
+        manager.testSetLastActiveSessionID("s1")
 
-    manager.testApplyStateChange(sessionID: "s2", from: .working, to: .idle)
+        manager.testApplyStateChange(sessionID: "s2", from: .working, to: .idle)
 
-    #expect(manager.lastActiveSessionID == "s1")
+        #expect(manager.lastActiveSessionID == "s1")
+    }
 }
 
 // MARK: - Snap-back (resolveEffectiveFocus) Tests

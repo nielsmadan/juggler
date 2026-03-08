@@ -20,18 +20,10 @@ jobs:
         run: brew install just
 
       - name: Build (strict, zero warnings)
-        run: just build-strict xcconfig=ci.xcconfig
+        run: just build-strict ci.xcconfig
 
-      - name: Run tests with coverage
-        run: |
-          rm -rf build/Logs/Test/coverage.xcresult
-          xcodebuild -scheme Juggler -configuration Debug -derivedDataPath build \
-            -xcconfig ci.xcconfig -enableCodeCoverage YES \
-            -resultBundlePath build/Logs/Test/coverage.xcresult \
-            -only-testing:JugglerTests test
-
-      - name: Coverage summary
-        run: xcrun xccov view --report --only-targets build/Logs/Test/coverage.xcresult | grep -E "^--|Juggler\.app"
+      - name: Test + coverage
+        run: just coverage ci.xcconfig
 
   lint:
     runs-on: macos-26
