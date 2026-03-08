@@ -131,15 +131,13 @@ struct DefaultCyclingEngine: CyclingEngine {
             return (idx + 1) % cyclable.count
         }
 
-        // Focused session is non-cyclable - find the next cyclable after its position
         guard let allIdx = findSessionIndex(in: allSessions, matching: focusedID) else {
             return (fallbackIndex + 1) % cyclable.count
         }
 
         for (i, session) in cyclable.enumerated() {
             if let sessionAllIdx = allSessions.firstIndex(where: { $0.id == session.id }),
-               sessionAllIdx > allIdx
-            {
+               sessionAllIdx > allIdx {
                 return i
             }
         }
@@ -160,15 +158,13 @@ struct DefaultCyclingEngine: CyclingEngine {
             return (idx - 1 + cyclable.count) % cyclable.count
         }
 
-        // Focused session is non-cyclable - find the previous cyclable before its position
         guard let allIdx = findSessionIndex(in: allSessions, matching: focusedID) else {
             return (fallbackIndex - 1 + cyclable.count) % cyclable.count
         }
 
         for (i, session) in cyclable.enumerated().reversed() {
             if let sessionAllIdx = allSessions.firstIndex(where: { $0.id == session.id }),
-               sessionAllIdx < allIdx
-            {
+               sessionAllIdx < allIdx {
                 return i
             }
         }

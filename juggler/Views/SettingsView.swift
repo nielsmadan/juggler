@@ -538,7 +538,6 @@ struct IntegrationSettingsView: View {
             if FileManager.default.fileExists(atPath: tmuxConfPath) {
                 let existingContent = try String(contentsOfFile: tmuxConfPath, encoding: .utf8)
 
-                // Skip if our line is already present
                 if existingContent.contains(tmuxUpdateEnvironmentLine) {
                     checkTmuxConfigured()
                     isConfiguringTmux = false
@@ -849,14 +848,9 @@ struct HighlightingSettingsView: View {
 
 enum OpenCodePluginInstaller {
     static let pluginContent = """
-    // Juggler plugin for OpenCode
-    // Installed to ~/.config/opencode/plugins/juggler-opencode.ts
-    // Posts session events to Juggler's HTTP server for session tracking
-
     const JUGGLER_PORT = process.env.JUGGLER_PORT || "7483";
     const JUGGLER_URL = `http://localhost:${JUGGLER_PORT}/hook`;
 
-    // Detect terminal type from environment
     function getTerminalInfo(): Record<string, string> {
       const env = process.env;
       const info: Record<string, string> = {
@@ -876,7 +870,6 @@ enum OpenCodePluginInstaller {
       return info;
     }
 
-    // Get git info from working directory
     async function getGitInfo(
       $: any
     ): Promise<{ branch: string; repo: string } | null> {
@@ -894,14 +887,12 @@ enum OpenCodePluginInstaller {
       }
     }
 
-    // Get tmux info if running inside tmux
     function getTmuxInfo(): Record<string, string> | null {
       const pane = process.env.TMUX_PANE;
       if (!pane) return null;
       return { pane };
     }
 
-    // Events we care about for session tracking
     const TRACKED_EVENTS = new Set([
       "session.created",
       "session.status",
@@ -973,7 +964,6 @@ enum OpenCodePluginInstaller {
             (event as any).session_id ||
             (event as any).sessionID;
 
-          // Translate session.status into synthetic event with status type
           let eventName = event.type;
           if (event.type === "session.status") {
             const status = (event as any).properties?.status?.type;
@@ -996,8 +986,6 @@ enum OpenCodePluginInstaller {
     }
 }
 
-/// Run a process asynchronously without blocking the main thread.
-/// Returns nil on success, or an error message string on failure.
 func runProcess(executableURL: String, arguments: [String]) async -> String? {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: executableURL)

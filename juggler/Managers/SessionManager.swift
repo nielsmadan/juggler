@@ -71,7 +71,6 @@ final class SessionManager {
     /// When non-nil, `updateFocusedSession` ignores focus events that don't match this target.
     private(set) var activationTarget: String?
 
-    /// Animation controller for section transitions
     let animationController = SectionAnimationController()
 
     private var queueOrderMode: QueueOrderMode {
@@ -124,7 +123,6 @@ final class SessionManager {
             sessions[index].lastBecameWorking = Date()
         }
 
-        // Reorder for queue mode (no manual animation - List handles it)
         guard queueOrderMode != .static, queueOrderMode != .grouped else { return }
 
         let wasBusy = oldState == .working || oldState == .compacting
@@ -187,8 +185,7 @@ final class SessionManager {
             // If they already cycled away, the hook arrived late — don't yank them.
             // Re-find the session after handleStateTransition may have reordered the array.
             let isStillFocused: Bool = if let fid = focusedSessionID,
-                                          let session = sessions.first(where: { $0.id == sessionID })
-            {
+                                          let session = sessions.first(where: { $0.id == sessionID }) {
                 session.id == fid
                     || session.terminalSessionID == fid
                     || session.terminalSessionID.hasSuffix(fid)
@@ -303,8 +300,7 @@ final class SessionManager {
            let session = cyclable.first(where: {
                $0.id == focusedID || $0.terminalSessionID == focusedID
                    || $0.terminalSessionID.hasSuffix(focusedID)
-           })
-        {
+           }) {
             return session
         }
 
@@ -539,16 +535,13 @@ final class SessionManager {
             // can arrive before the session is created, leaving a bare UUID stored
             if let focusedID = focusedSessionID,
                focusedID != session.terminalSessionID,
-               session.terminalSessionID.hasSuffix(focusedID)
-            {
+               session.terminalSessionID.hasSuffix(focusedID) {
                 focusedSessionID = session.terminalSessionID
             }
 
-            // If this new session matches the currently focused pane, sync cycling state
             if let focusedID = focusedSessionID,
                session.terminalSessionID == focusedID || session.id == focusedID
-                   || session.terminalSessionID.hasSuffix(focusedID)
-            {
+               || session.terminalSessionID.hasSuffix(focusedID) {
                 cyclingState = cyclingEngine.syncStateToFocus(
                     sessions: sessions,
                     focusedSessionID: focusedID,
@@ -556,8 +549,7 @@ final class SessionManager {
                 )
             }
 
-            // If this terminal is currently frontmost, reconcile focus immediately
-            // so the session highlights without waiting for the next app switch
+            // Highlight immediately without waiting for the next app switch
             let frontmostBundle = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
             if session.terminalType == .kitty,
                frontmostBundle == TerminalType.kitty.bundleIdentifier {

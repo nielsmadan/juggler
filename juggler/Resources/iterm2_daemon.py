@@ -33,13 +33,10 @@ class iTerm2Daemon:
         self.event_subscribers: list[tuple[socket.socket, asyncio.Lock]] = []
 
     async def start(self) -> None:
-        """Start the daemon."""
         self.app = await iterm2.async_get_app(self.connection)
 
-        # Remove existing socket
         self.socket_path.unlink(missing_ok=True)
 
-        # Start Unix socket server
         self.server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.server.bind(str(self.socket_path))
         os.chmod(str(self.socket_path), 0o600)
@@ -48,13 +45,11 @@ class iTerm2Daemon:
 
         print(f"Daemon listening on {self.socket_path}", file=sys.stderr)
 
-        # Start monitors in background
         asyncio.create_task(self.run_focus_monitor())
         asyncio.create_task(self.run_session_monitor())
         asyncio.create_task(self.run_layout_monitor())
         asyncio.create_task(self._monitor_parent())
 
-        # Handle connections
         loop = asyncio.get_running_loop()
         while self.running:
             try:
@@ -65,7 +60,6 @@ class iTerm2Daemon:
                     print(f"Accept error: {e}", file=sys.stderr)
 
     async def handle_client(self, client: socket.socket) -> None:
-        """Handle a client connection."""
         loop = asyncio.get_running_loop()
         try:
             data = await loop.sock_recv(client, 65536)
@@ -97,7 +91,6 @@ class iTerm2Daemon:
         loop = asyncio.get_running_loop()
         write_lock = asyncio.Lock()
 
-        # Send acknowledgment
         try:
             await loop.sock_sendall(client, json.dumps({"status": "ok"}).encode("utf-8") + b"\n")
         except Exception as e:
@@ -105,7 +98,6 @@ class iTerm2Daemon:
             client.close()
             return
 
-        # Add to subscribers
         subscriber = (client, write_lock)
         self.event_subscribers.append(subscriber)
 
@@ -131,7 +123,6 @@ class iTerm2Daemon:
                 pass
 
     async def process_command(self, request: dict[str, Any]) -> dict[str, Any]:
-        """Process a command and return response."""
         command = request.get("command")
 
         if command == "ping":
@@ -245,7 +236,6 @@ class iTerm2Daemon:
         return sessions
 
     async def push_event(self, event: dict[str, Any]) -> None:
-        """Push an event to all subscribers."""
         if not self.event_subscribers:
             return
 
@@ -293,7 +283,6 @@ class iTerm2Daemon:
         }
 
     async def _get_window_name(self, window) -> str:
-        """Get window name, with fallback."""
         if not window:
             return "Unknown"
         window_title = await window.async_get_variable("titleOverrideFormat")
@@ -305,7 +294,6 @@ class iTerm2Daemon:
         return "Window"
 
     async def activate_session(self, session_id: str) -> dict[str, Any]:
-        """Activate a session by ID."""
         uuid = self._extract_uuid(session_id)
         session = self.app.get_session_by_id(uuid)
 
@@ -315,10 +303,8 @@ class iTerm2Daemon:
         tab = session.tab
         window = tab.window if tab else None
 
-        # Bring iTerm2 to foreground
         await self.app.async_activate()
 
-        # Activate the window if we have it
         if window:
             await window.async_activate()
 
@@ -330,7 +316,6 @@ class iTerm2Daemon:
     async def highlight_session(
         self, session_id: str, tab_config: Optional[dict[str, Any]], pane_config: Optional[dict[str, Any]]
     ) -> dict[str, Any]:
-        """Highlight a session with separate tab and pane settings."""
         uuid = self._extract_uuid(session_id)
         session = self.app.get_session_by_id(uuid)
 
@@ -358,7 +343,6 @@ class iTerm2Daemon:
 
         change = iterm2.LocalWriteOnlyProfile()
 
-        # Apply tab highlighting
         if tab_config and tab_config.get("enabled"):
             color = tab_config.get("color", [255, 165, 0])
             change.set_tab_color(iterm2.Color(color[0], color[1], color[2]))
@@ -368,7 +352,6 @@ class iTerm2Daemon:
                 task = asyncio.create_task(self._reset_tab_after_delay(session, tab_id, duration))
                 self.active_tab_reset_tasks[tab_id] = task
 
-        # Apply pane highlighting
         if pane_config and pane_config.get("enabled"):
             color = pane_config.get("color", [255, 165, 0])
             change.set_background_color(iterm2.Color(color[0], color[1], color[2]))
@@ -381,7 +364,6 @@ class iTerm2Daemon:
         return {"status": "ok"}
 
     async def _reset_tab_after_delay(self, session: iterm2.Session, tab_id: str, duration: float) -> None:
-        """Reset tab color after delay."""
         try:
             await asyncio.sleep(duration)
             reset = iterm2.LocalWriteOnlyProfile()
@@ -397,7 +379,6 @@ class iTerm2Daemon:
     async def _reset_pane_after_delay(
         self, session: iterm2.Session, uuid: str, duration: float, original_color: Optional[iterm2.Color]
     ) -> None:
-        """Reset pane background after delay."""
         try:
             await asyncio.sleep(duration)
             reset = iterm2.LocalWriteOnlyProfile()
@@ -411,7 +392,6 @@ class iTerm2Daemon:
             self.active_pane_reset_tasks.pop(uuid, None)
 
     async def reset_highlight(self, session_id: str) -> dict[str, Any]:
-        """Reset a session's pane highlight."""
         uuid = self._extract_uuid(session_id)
         session = self.app.get_session_by_id(uuid)
 
@@ -439,7 +419,6 @@ class iTerm2Daemon:
         return session_id
 
     def stop(self) -> None:
-        """Stop the daemon."""
         self.running = False
         if self.server:
             self.server.close()

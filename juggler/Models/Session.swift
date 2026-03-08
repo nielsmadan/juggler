@@ -1,7 +1,7 @@
 import Foundation
 
 struct Session: Identifiable, Codable, Equatable {
-    let claudeSessionID: String // Claude session ID (may be shared across split panes)
+    let claudeSessionID: String // May be shared across split panes
     let terminalSessionID: String // e.g., "w0t0p0:UUID"
     var tmuxPane: String? // e.g., "%1", nil if not inside tmux
 
@@ -28,11 +28,8 @@ struct Session: Identifiable, Codable, Equatable {
     var paneIndex: Int = 0
     var paneCount: Int = 1
 
-    // Git info
     var gitBranch: String?
     var gitRepoName: String?
-
-    // Claude transcript
     var transcriptPath: String?
 
     var agentShortName: String {
@@ -78,7 +75,6 @@ struct Session: Identifiable, Codable, Equatable {
         }
     }
 
-    // Explicit CodingKeys to exclude computed 'id' property
     enum CodingKeys: String, CodingKey {
         case claudeSessionID, terminalSessionID, tmuxPane, terminalType, agent, projectPath
         case terminalTabName, terminalWindowName, tmuxSessionName, customName, state, startedAt

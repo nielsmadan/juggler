@@ -196,7 +196,6 @@ actor ITerm2Bridge: TerminalBridge {
         let bytesRead = recv(sock, &buffer, buffer.count, Int32(MSG_DONTWAIT))
 
         if bytesRead == 0 {
-            // Connection closed by peer
             Task { await self.cancelEventListener() }
             return
         }
@@ -298,15 +297,12 @@ actor ITerm2Bridge: TerminalBridge {
         await MainActor.run { logInfo(.daemon, "Daemon stopped") }
     }
 
-    // MARK: - PID File Management
-
     private func killOrphanedDaemon() async {
         guard let pidString = try? String(contentsOfFile: pidFilePath, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines),
             let pid = Int32(pidString), pid > 0
         else { return }
 
-        // Check if process is still running (signal 0 = existence check)
         if kill(pid, 0) == 0 {
             kill(pid, SIGTERM)
             for _ in 0 ..< 10 {
@@ -501,8 +497,6 @@ actor ITerm2Bridge: TerminalBridge {
             isActive: false
         )
     }
-
-    // MARK: - Timeout Helper
 
     private func withTimeout<T: Sendable>(
         _ timeout: TimeInterval,

@@ -8,7 +8,6 @@ JUGGLER_PORT="${JUGGLER_PORT:-7483}"
 # Read raw JSON input from stdin (Claude Code passes hook data via stdin)
 HOOK_INPUT=$(cat)
 
-# Detect terminal type and session ID
 ITERM_SESSION_ID="${ITERM_SESSION_ID:-}"
 KITTY_WINDOW_ID="${KITTY_WINDOW_ID:-}"
 KITTY_LISTEN_ON="${KITTY_LISTEN_ON:-}"
@@ -32,7 +31,6 @@ if [ -n "$TMUX_PANE_ID" ] && command -v tmux >/dev/null 2>&1; then
     TMUX_SESSION_NAME=$(tmux display-message -p -t "$TMUX_PANE_ID" '#{session_name}' 2>/dev/null || echo "")
 fi
 
-# Get git info (if in a git repo)
 GIT_BRANCH=$(git -C "$PWD" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 GIT_REPO=$(basename "$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "")
 

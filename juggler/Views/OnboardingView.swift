@@ -206,7 +206,6 @@ struct FinishStep: View {
 
             Button("Finish") {
                 hasCompletedOnboarding = true
-                // Start configured bridges now that onboarding is complete
                 Task {
                     if UserDefaults.standard.bool(forKey: AppStorageKeys.iterm2Enabled) {
                         try? await TerminalBridgeRegistry.shared.start(.iterm2)

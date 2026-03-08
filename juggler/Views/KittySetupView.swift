@@ -201,7 +201,6 @@ struct KittySetupView: View {
             if FileManager.default.fileExists(atPath: kittyConfPath) {
                 let existingContent = try String(contentsOfFile: kittyConfPath, encoding: .utf8)
 
-                // Skip if directive already present (non-commented)
                 let directiveKey = String(line.split(separator: " ").first ?? "")
                 let alreadyPresent = existingContent.split(separator: "\n").contains { l in
                     let trimmed = l.trimmingCharacters(in: .whitespaces)
@@ -276,7 +275,7 @@ struct KittySetupView: View {
         }
     }
 
-    private func testConnection() {
+    func testConnection() {
         testError = nil
 
         Task {

@@ -27,7 +27,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_: Notification) {
         NSApp.setActivationPolicy(.regular)
 
-        // Listen for window events to toggle dock icon
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(windowWillClose),
@@ -67,10 +66,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let window = notification.object as? NSWindow,
               window.identifier?.rawValue == "main"
         else { return }
-        // Save frame synchronously while window is still valid
+        // Must save before window deallocs
         UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: AppStorageKeys.mainWindowFrame)
         mainWindowNeedsRestore = true
-        // Delay to allow window to fully close
+        // Window close animation must finish before hiding dock icon
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             NSApp.setActivationPolicy(.accessory)
         }
@@ -99,7 +98,6 @@ struct JugglerApp: App {
         // Reduce tooltip hover delay from default ~1000ms to 300ms
         UserDefaults.standard.set(300, forKey: "NSInitialToolTipDelay")
 
-        // Set default values for settings
         UserDefaults.standard.register(defaults: [
             // Highlight triggers (all on by default)
             "highlightOnHotkey": true,

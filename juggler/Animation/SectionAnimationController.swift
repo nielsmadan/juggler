@@ -10,8 +10,6 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Section Type
-
 enum SectionType: Int {
     case idle = 0
     case working = 1
@@ -29,23 +27,17 @@ enum SectionType: Int {
     }
 }
 
-// MARK: - Animation Direction
-
 enum AnimationDirection {
     case down // Idle→Busy, Busy→Backburner (slide out/in)
     case up // Busy→Idle, Backburner→Busy (vertical movement)
     case none // Same section
 }
 
-// MARK: - DOWN Animation Phases
-
 enum DownPhase {
     case departing // Still in source section
     case inFlight // Not visible (between sections)
     case arriving // Appearing in target section
 }
-
-// MARK: - Animation State
 
 struct DownAnimationState: Equatable {
     let sessionID: String
@@ -57,8 +49,6 @@ struct UpAnimationState: Equatable {
     let sessionID: String
 }
 
-// MARK: - Animation Timing
-
 enum SectionAnimationTiming {
     static let downDepartureDuration: Double = 0.3
     static let downOffscreenDelay: Double = 1.2
@@ -66,24 +56,19 @@ enum SectionAnimationTiming {
     static let upMoveDuration: Double = 0.4
 }
 
-// MARK: - Section Animation Controller
-
 @Observable
 final class SectionAnimationController {
     private(set) var downAnimation: DownAnimationState?
     private(set) var upAnimation: UpAnimationState?
 
-    // MARK: - Public API
-
     /// Returns the effective section for a session, or nil if it shouldn't be shown (during DOWN inFlight).
     func effectiveSection(for session: Session) -> SectionType? {
-        // Check DOWN animation
         if let down = downAnimation, down.sessionID == session.id {
             switch down.phase {
             case .departing:
                 return SectionType(from: down.fromState)
             case .inFlight:
-                return nil // Not visible during transition
+                return nil
             case .arriving:
                 return SectionType(from: session.state)
             }
@@ -115,8 +100,6 @@ final class SectionAnimationController {
         }
     }
 
-    // MARK: - Direction Helper
-
     private static func direction(from: SessionState, to: SessionState) -> AnimationDirection {
         let fromSection = SectionType(from: from)
         let toSection = SectionType(from: to)
@@ -129,8 +112,6 @@ final class SectionAnimationController {
             return .none
         }
     }
-
-    // MARK: - DOWN Animation
 
     private func startDownAnimation(sessionID: String, from fromState: SessionState) {
         downAnimation = DownAnimationState(
@@ -172,11 +153,7 @@ final class SectionAnimationController {
         }
     }
 
-    // MARK: - UP Animation
-
     private func startUpAnimation(sessionID: String) {
-        // For UP, we just track that an animation is happening
-        // The actual animation is handled by matchedGeometryEffect in the view
         upAnimation = UpAnimationState(
             sessionID: sessionID
         )

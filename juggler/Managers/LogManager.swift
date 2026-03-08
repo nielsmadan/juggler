@@ -70,7 +70,6 @@ final class LogManager {
     private init() {}
 
     func log(_ level: LogLevel, category: LogCategory, _ message: String) {
-        // Xcode console: errors/warnings always, debug/info per category flag
         let shouldPrint: Bool = if level == .error || level == .warning {
             true
         } else {
@@ -87,7 +86,6 @@ final class LogManager {
             print("[\(level.rawValue.uppercased())] [\(category.rawValue)] \(message)")
         }
 
-        // In-app log window: errors/warnings always, debug/info if verbose enabled
         guard level == .error || level == .warning || verboseLogging else { return }
 
         let entry = LogEntry(

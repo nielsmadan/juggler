@@ -17,7 +17,6 @@ import Testing
     var s3 = makeSession("s3")
     s3.startedAt = t3
 
-    // Insert in non-chronological order
     manager.testSetSessions([s2, s3, s1])
 
     manager.reorderForMode(.static)

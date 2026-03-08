@@ -9,7 +9,7 @@ import Foundation
 actor KittyBridge: TerminalBridge {
     static let shared = KittyBridge()
 
-    // Maps window ID → Unix socket path (populated from hook payloads)
+    // Populated from hook payloads
     private var socketPaths: [String: String] = [:]
     private var originalColors: [String: String] = [:]
     private var activeTabResetTasks: [String: Task<Void, Never>] = [:]
@@ -226,8 +226,6 @@ actor KittyBridge: TerminalBridge {
         }
     }
 
-    // MARK: - Helpers
-
     func rgbToHex(_ color: [Int]) -> String {
         guard color.count >= 3 else { return "#FF0000" }
         return String(format: "#%02X%02X%02X", color[0], color[1], color[2])
@@ -276,8 +274,6 @@ actor KittyBridge: TerminalBridge {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
 
-        // Build args: kitten @ --to <socket> <subcommand> <args...>
-        // The @ must come first, then --to, then the rest of the arguments
         var args: [String] = []
         if executable == "/usr/bin/env", kittenOverride == nil {
             args.append("kitten")
@@ -290,7 +286,6 @@ actor KittyBridge: TerminalBridge {
             }
             args.append(contentsOf: arguments[(atIdx + 1)...])
         } else {
-            // No @ prefix (e.g. --version), just pass through
             if let socketPath {
                 args.append(contentsOf: ["--to", socketPath])
             }
@@ -307,7 +302,6 @@ actor KittyBridge: TerminalBridge {
         let stdoutTask = Task.detached { stdoutPipe.fileHandleForReading.readDataToEndOfFile() }
         let stderrTask = Task.detached { stderrPipe.fileHandleForReading.readDataToEndOfFile() }
 
-        // Set up a timeout that terminates the process after 5 seconds
         let timeoutTask = Task.detached {
             try? await Task.sleep(for: .seconds(5))
             if process.isRunning {

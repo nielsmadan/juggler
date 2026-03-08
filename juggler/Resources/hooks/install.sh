@@ -9,15 +9,12 @@ SETTINGS_FILE="$HOME/.claude/settings.json"
 
 echo "Installing Juggler hooks..."
 
-# Create directories
 mkdir -p "$JUGGLER_HOOKS_DIR"
 
-# Copy hook script
 SCRIPT_DIR="$(dirname "$0")"
 cp "$SCRIPT_DIR/notify.sh" "$JUGGLER_HOOKS_DIR/"
 chmod +x "$JUGGLER_HOOKS_DIR/notify.sh"
 
-# Check if settings.json exists
 if [ ! -f "$SETTINGS_FILE" ]; then
     echo "{}" > "$SETTINGS_FILE"
 fi
@@ -40,7 +37,6 @@ if "hooks" not in settings:
 
 hooks = settings["hooks"]
 
-# Define Juggler hook command
 notify_cmd = "~/.claude/hooks/juggler/notify.sh"
 
 # All Claude Code hook events we want to capture
@@ -117,7 +113,6 @@ for event, configs in hook_configs.items():
     # Remove any existing Juggler hooks for this event
     hooks[event] = [h for h in hooks[event] if "juggler/notify.sh" not in str(h)]
 
-    # Add current Juggler hooks
     hooks[event].extend(configs)
 
 with open(settings_path, "w") as f:

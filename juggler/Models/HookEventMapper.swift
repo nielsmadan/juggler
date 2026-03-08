@@ -1,15 +1,12 @@
 import Foundation
 
-/// Maps raw hook event names from coding agents to Juggler session states
 enum HookEventMapper {
-    /// The action to take based on a hook event
     enum MappedAction: Equatable {
         case updateState(SessionState)
         case removeSession
         case ignore
     }
 
-    /// Maps a hook event name to a Juggler action, dispatching by agent
     nonisolated static func map(event: String, agent: String = "claude-code") -> MappedAction {
         switch agent {
         case "opencode":

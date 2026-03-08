@@ -102,7 +102,6 @@ actor HookServer {
         }
     }
 
-    /// Check if accumulated data contains a complete HTTP request (headers + full body per Content-Length)
     nonisolated func hasCompleteHTTPBody(_ data: Data) -> Bool {
         let string = String(decoding: data, as: UTF8.self)
 
@@ -405,7 +404,6 @@ struct HTTPResponse: Sendable {
 
 // MARK: - Unified Hook Payload
 
-/// Unified payload format for all coding agent hooks
 struct UnifiedHookPayload: Sendable {
     let agent: String
     let event: String

@@ -2,8 +2,6 @@
 //  LocalShortcutRecorderView.swift
 //  Juggler
 //
-//  A SwiftUI view for recording local (in-app) keyboard shortcuts.
-//
 
 import AppKit
 import Carbon.HIToolbox
@@ -41,7 +39,6 @@ struct LocalShortcutRecorderView: NSViewRepresentable {
 
 /// NSSearchField subclass that captures keyboard shortcuts
 final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NSTextViewDelegate {
-    /// True when any recorder instance is actively capturing a shortcut
     static var isAnyRecording = false
 
     private let minimumWidth: CGFloat = 130
@@ -130,7 +127,7 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [
             .keyDown,
             .leftMouseUp,
-            .rightMouseUp,
+            .rightMouseUp
         ]) { [weak self] event in
             guard let self, isRecording else { return event }
             return handleEvent(event)
@@ -168,8 +165,7 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
 
     // Prevent typed characters from appearing — all input handled via event monitor
     func control(_: NSControl, textView _: NSTextView, shouldChangeTextIn _: NSRange,
-                 replacementString _: String?) -> Bool
-    {
+                 replacementString _: String?) -> Bool {
         false
     }
 
@@ -181,8 +177,6 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
         onShortcutChange?(nil)
         updateDisplay()
     }
-
-    // MARK: - First Responder
 
     override func becomeFirstResponder() -> Bool {
         guard window != nil else { return false }
@@ -207,8 +201,6 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
     func textView(_: NSTextView, shouldChangeTextIn _: NSRange, replacementString _: String?) -> Bool {
         false
     }
-
-    // MARK: - Event Handling
 
     private func handleEvent(_ event: NSEvent) -> NSEvent? {
         if event.type == .leftMouseUp || event.type == .rightMouseUp {
@@ -235,8 +227,7 @@ final class LocalShortcutRecorderField: NSSearchField, NSSearchFieldDelegate, NS
         }
 
         if modifiers.isEmpty,
-           event.keyCode == UInt16(kVK_Delete) || event.keyCode == UInt16(kVK_ForwardDelete)
-        {
+           event.keyCode == UInt16(kVK_Delete) || event.keyCode == UInt16(kVK_ForwardDelete) {
             shortcut = nil
             onShortcutChange?(nil)
             updateDisplay()

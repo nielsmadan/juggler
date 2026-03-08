@@ -201,8 +201,7 @@ struct SessionMonitorView: View {
                let focusedID = sessionManager.focusedSessionID,
                let index = sessionManager.sessions.firstIndex(where: {
                    $0.terminalSessionID == focusedID || $0.id == focusedID
-               })
-            {
+               }) {
                 controller.selectedIndex = index
                 controller.trackSelectedSession(sessions: sessionManager.sessions)
             }
@@ -426,8 +425,6 @@ struct SessionMonitorView: View {
         .onTapGesture {
             activateSession(session)
         }
-        // New sessions: fade in from above. DOWN arrivals: parabolic arc from right.
-        // DOWN removal: parabolic arc out (right + down). UP: matchedGeometryEffect handles vertical move.
         .transition(.asymmetric(
             insertion: isDownAnimation ? .curvedEnterFromAbove : .fadeInFromAbove,
             removal: isDownAnimation ? .curvedExitDown : .identity
@@ -436,7 +433,6 @@ struct SessionMonitorView: View {
         if isDownAnimation {
             row
         } else {
-            // Keep matchedGeometryEffect enabled so UP moves can interpolate from the previous layout.
             row.matchedGeometryEffect(id: session.id, in: sessionAnimation)
         }
     }
@@ -561,8 +557,6 @@ struct SessionMonitorView: View {
             sessionManager.endActivation()
         }
     }
-
-    // MARK: - Duration Formatting
 
     private func formatDuration(_ seconds: TimeInterval) -> String {
         SessionStatsCalculator.formatDuration(seconds)

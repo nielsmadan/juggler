@@ -410,7 +410,6 @@ struct TmuxSetupView: View {
             if FileManager.default.fileExists(atPath: tmuxConfPath) {
                 let existingContent = try String(contentsOfFile: tmuxConfPath, encoding: .utf8)
 
-                // Skip if our line is already present
                 if existingContent.contains(updateEnvironmentLine) {
                     checkTmuxConfigured()
                     isConfiguring = false

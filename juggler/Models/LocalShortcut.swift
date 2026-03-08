@@ -50,7 +50,6 @@ struct LocalShortcut: Codable, Equatable {
         return Self.keyToCharacter(keyCode: keyCode)?.lowercased() == press.characters.lowercased()
     }
 
-    /// Map key codes to SwiftUI KeyEquivalent for special keys
     private static func specialKeyEquivalent(keyCode: UInt16) -> KeyEquivalent? {
         switch Int(keyCode) {
         case kVK_Tab: .tab
@@ -70,7 +69,6 @@ struct LocalShortcut: Codable, Equatable {
         }
     }
 
-    /// Convert SwiftUI EventModifiers to NSEvent.ModifierFlags
     private static func eventModifiersToNSModifiers(_ modifiers: SwiftUI.EventModifiers) -> NSEvent.ModifierFlags {
         var flags = NSEvent.ModifierFlags()
         if modifiers.contains(.command) { flags.insert(.command) }
@@ -80,7 +78,7 @@ struct LocalShortcut: Codable, Equatable {
         return flags
     }
 
-    /// The display string for this shortcut (e.g., "⌘j", "⇧l")
+    /// e.g., "⌘j", "⇧l"
     var displayString: String {
         let modifierString = modifierFlags.symbolicRepresentation
 
@@ -95,7 +93,6 @@ struct LocalShortcut: Codable, Equatable {
         return modifierString + "?"
     }
 
-    /// Translate key code to character using the current keyboard layout
     static func keyToCharacter(keyCode: UInt16) -> String? {
         guard
             let source = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue(),
@@ -131,7 +128,6 @@ struct LocalShortcut: Codable, Equatable {
         return String(utf16CodeUnits: characters, count: length)
     }
 
-    /// String representation for special keys
     private static let specialKeyNames: [Int: String] = [
         kVK_Return: "↩",
         kVK_Delete: "⌫",
@@ -169,7 +165,7 @@ struct LocalShortcut: Codable, Equatable {
 // MARK: - NSEvent.ModifierFlags Extension
 
 extension NSEvent.ModifierFlags {
-    /// Symbolic representation of modifier flags (e.g., "⌃⌥⇧⌘")
+    /// e.g., "⌃⌥⇧⌘"
     var symbolicRepresentation: String {
         var result = ""
         if contains(.control) { result += "⌃" }
@@ -180,13 +176,9 @@ extension NSEvent.ModifierFlags {
     }
 }
 
-// MARK: - Notifications
-
 extension Notification.Name {
     static let localShortcutsDidChange = Notification.Name("localShortcutsDidChange")
 }
-
-// MARK: - UserDefaults Storage
 
 extension LocalShortcut {
     func save(to key: String) {

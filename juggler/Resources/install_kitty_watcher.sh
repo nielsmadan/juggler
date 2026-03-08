@@ -18,10 +18,8 @@ if [ ! -f "$WATCHER_SOURCE" ]; then
     exit 1
 fi
 
-# Create config directory if needed
 mkdir -p "$KITTY_CONFIG_DIR"
 
-# Copy watcher script
 cp "$WATCHER_SOURCE" "$WATCHER_DEST"
 echo "Installed watcher to $WATCHER_DEST"
 
