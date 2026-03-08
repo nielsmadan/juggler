@@ -26,6 +26,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_: Notification) {
         NSApp.setActivationPolicy(.regular)
+        NSApp.activate()
 
         NotificationCenter.default.addObserver(
             self,
