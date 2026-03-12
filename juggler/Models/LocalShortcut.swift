@@ -32,13 +32,8 @@ struct LocalShortcut: Codable, Equatable {
 
     /// Check if this shortcut matches a SwiftUI KeyPress event
     func matches(_ press: KeyPress) -> Bool {
-        if modifierFlags.isEmpty {
-            return matchesKey(press)
-        }
-
         let pressModifiers = Self.eventModifiersToNSModifiers(press.modifiers)
         guard pressModifiers == modifierFlags else { return false }
-
         return matchesKey(press)
     }
 
