@@ -79,17 +79,14 @@ reset-data:
 reset-permissions:
     @echo "Resetting Juggler permissions..."
     @tccutil reset AppleEvents {{bundle_id}} 2>/dev/null || true
-    @tccutil reset Accessibility {{bundle_id}} 2>/dev/null || true
-    @echo "Done. You'll be prompted for permissions on next launch."
+    @# Note: Accessibility permission must be removed manually in System Settings
+    @echo "Done. Remove Accessibility permission manually in System Settings > Privacy & Security > Accessibility."
 
 reset-integration:
     @echo "Resetting Juggler integrations..."
-    @rm -rf ~/.claude/hooks/juggler
-    @printf 'import json,os\np=os.path.expanduser("~/.claude/settings.json")\ntry:\n f=open(p);s=json.load(f);f.close()\nexcept:exit(0)\nh=s.get("hooks",{})\nfor k in list(h):\n h[k]=[e for e in h[k] if "juggler/notify.sh" not in str(e)]\n if not h[k]:del h[k]\nf=open(p,"w");json.dump(s,f,indent=2);f.close()\n' | python3 2>/dev/null || true
-    @rm -f ~/.config/kitty/juggler_watcher.py
+    @bash juggler/Resources/hooks/uninstall.sh
     @sed -i '' '/juggler_watcher\.py/d; /^allow_remote_control/d; /^listen_on/d' ~/.config/kitty/kitty.conf 2>/dev/null || true
     @sed -i '' '/update-environment.*ITERM_SESSION_ID/d' ~/.tmux.conf 2>/dev/null || true
-    @rm -f ~/.config/opencode/plugins/juggler-opencode.ts
     @echo "Done. Integration configs removed."
 
 reset-all: reset-data reset-permissions reset-integration

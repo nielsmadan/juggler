@@ -64,6 +64,10 @@ struct GeneralSettingsView: View {
     @AppStorage(AppStorageKeys.idleSessionColoring) private var idleSessionColoring = true
     @AppStorage(AppStorageKeys.goToNextOnBackburner) private var goToNextOnBackburner = true
 
+    @State private var showingUninstallConfirm = false
+    @State private var showingUninstallSummary = false
+    @State private var uninstallSummary = ""
+
     var body: some View {
         Form {
             Section("General") {
@@ -105,12 +109,79 @@ struct GeneralSettingsView: View {
             Section("Backburner") {
                 Toggle("Go to next session on backburner", isOn: $goToNextOnBackburner)
             }
+
+            Section("Uninstall") {
+                Text(
+                    "Removes all integrations (Claude Code hooks, Kitty watcher, OpenCode plugin), resets Automation permission, clears settings, and quits the app. Accessibility permission must be removed manually in System Settings."
+                )
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                Button("Uninstall Juggler...") {
+                    showingUninstallConfirm = true
+                }
+                .foregroundStyle(.red)
+            }
         }
         .formStyle(.grouped)
         .padding()
         .onAppear {
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
+        .alert("Uninstall Juggler?", isPresented: $showingUninstallConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Uninstall", role: .destructive) {
+                Task {
+                    uninstallSummary = await performUninstall()
+                    showingUninstallSummary = true
+                }
+            }
+        } message: {
+            Text("This will remove all integrations, permissions, and settings. You can then delete the app.")
+        }
+        .alert("Uninstall Complete", isPresented: $showingUninstallSummary) {
+            Button("Quit") {
+                NSApp.terminate(nil)
+            }
+        } message: {
+            Text(uninstallSummary)
+        }
+    }
+
+    private func performUninstall() async -> String {
+        var actions: [String] = []
+        let fm = FileManager.default
+        let bundleId = Bundle.main.bundleIdentifier ?? "com.nielsmadan.Juggler"
+
+        // 1. Unregister login item
+        try? await SMAppService.mainApp.unregister()
+        actions.append("Removed login item")
+
+        // 2. Run bundled uninstall.sh for integration cleanup
+        if let scriptURL = Bundle.main.url(forResource: "uninstall", withExtension: "sh") {
+            _ = await runProcess(executableURL: "/bin/bash", arguments: [scriptURL.path])
+            actions.append("Removed integrations (Claude hooks, Kitty watcher, OpenCode plugin)")
+            actions.append("Reset Automation permission")
+        }
+        actions
+            .append(
+                "Note: Remove Accessibility permission manually in System Settings > Privacy & Security > Accessibility"
+            )
+
+        // 3. Clear UserDefaults
+        UserDefaults.standard.removePersistentDomain(forName: bundleId)
+        UserDefaults.standard.synchronize()
+        actions.append("Cleared all settings")
+
+        // 4. Clear caches
+        if let cachesDir = fm.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            let appCache = cachesDir.appendingPathComponent(bundleId)
+            if fm.fileExists(atPath: appCache.path) {
+                try? fm.removeItem(at: appCache)
+                actions.append("Cleared caches")
+            }
+        }
+
+        return actions.joined(separator: "\n")
     }
 }
 

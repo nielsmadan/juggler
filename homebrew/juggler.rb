@@ -16,6 +16,11 @@ cask "juggler" do
 
   app "Juggler.app"
 
+  uninstall quit:   "com.nielsmadan.Juggler",
+            script: {
+              executable: "/Applications/Juggler.app/Contents/Resources/uninstall.sh",
+            }
+
   zap trash: [
     "~/Library/Application Support/Juggler",
     "~/Library/Preferences/com.nielsmadan.Juggler.plist",
