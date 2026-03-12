@@ -63,7 +63,7 @@ Juggler/
 │   ├── Session.swift             # Session data model
 │   ├── SessionState.swift        # idle, working, permission, backburner, compacting
 │   ├── TerminalType.swift        # Terminal app abstraction (iTerm2, Kitty, Ghostty, WezTerm — latter two recognized but no bridge yet)
-│   └── ...                       # BeaconPosition, ConfigValidator, SessionStatsCalculator, etc.
+│   └── ...                       # AppConstants, AppStorageKeys, BeaconPosition/Size/Anchor, ConfigValidator, SessionStatsCalculator, SessionTitleMode
 ├── Services/
 │   ├── HookServer.swift          # HTTP server receiving hooks (/hook, /kitty-event)
 │   ├── iTerm2Bridge.swift        # Unix socket communication with Python daemon
@@ -83,7 +83,7 @@ Juggler/
 │   ├── SessionMonitorView.swift  # Main window session list
 │   ├── SessionRowView.swift      # Individual session row
 │   ├── SettingsView.swift        # Preferences window
-│   └── ...                       # BeaconSettingsView, SessionListController, etc.
+│   └── ...                       # BeaconSettingsView, SessionListController, SettingWithDescription
 └── Resources/
     ├── iterm2_daemon.py          # Python daemon for iTerm2 API
     ├── juggler_watcher.py        # Kitty event watcher
@@ -91,7 +91,8 @@ Juggler/
     ├── install_kitty_watcher.sh  # Kitty watcher install script
     └── hooks/
         ├── install.sh            # Hook installation script
-        └── notify.sh             # Hook notification script
+        ├── notify.sh             # Hook notification script
+        └── uninstall.sh          # Integration cleanup (single source of truth)
 ```
 
 **Session states:** `idle`, `permission`, `working`, `backburner` (excluded from cycle), `compacting`
