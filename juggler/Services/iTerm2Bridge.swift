@@ -350,6 +350,18 @@ actor ITerm2Bridge: TerminalBridge {
         await stop()
         try await Task.sleep(nanoseconds: 500_000_000)
         try await start()
+        await resetAllHighlights()
+    }
+
+    private func resetAllHighlights() async {
+        let request = DaemonRequest(command: "reset_all_highlights")
+        do {
+            _ = try await withTimeout(highlightTimeout) {
+                try await self.sendRequest(request)
+            }
+        } catch {
+            await MainActor.run { logDebug(.daemon, "Reset all highlights failed (cosmetic): \(error)") }
+        }
     }
 
     @MainActor

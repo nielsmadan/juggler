@@ -146,6 +146,9 @@ class iTerm2Daemon:
             session_id = request.get("session_id")
             return await self.reset_highlight(session_id)
 
+        elif command == "reset_all_highlights":
+            return await self.reset_all_highlights()
+
         elif command == "subscribe":
             # Handled specially in handle_client
             return None
@@ -363,15 +366,35 @@ class iTerm2Daemon:
 
         return {"status": "ok"}
 
+    async def _apply_profile_with_retry(
+        self, session: iterm2.Session, profile: iterm2.LocalWriteOnlyProfile,
+        label: str, escape_fallback: Optional[str] = None
+    ) -> None:
+        """Apply profile properties with one retry and optional escape sequence fallback."""
+        try:
+            await session.async_set_profile_properties(profile)
+        except Exception as e:
+            print(f"{label} failed, retrying: {e}", file=sys.stderr)
+            try:
+                await asyncio.sleep(1)
+                await session.async_set_profile_properties(profile)
+            except Exception as e2:
+                if escape_fallback:
+                    print(f"{label} retry failed, using escape sequence: {e2}", file=sys.stderr)
+                    try:
+                        await session.async_send_text(escape_fallback)
+                    except Exception:
+                        print(f"All {label} attempts failed", file=sys.stderr)
+                else:
+                    print(f"{label} retry also failed: {e2}", file=sys.stderr)
+
     async def _reset_tab_after_delay(self, session: iterm2.Session, tab_id: str, duration: float) -> None:
         try:
             await asyncio.sleep(duration)
             reset = iterm2.LocalWriteOnlyProfile()
             reset.set_use_tab_color(False)
-            await session.async_set_profile_properties(reset)
+            await self._apply_profile_with_retry(session, reset, f"Tab reset ({tab_id})")
         except asyncio.CancelledError:
-            pass
-        except Exception:
             pass
         finally:
             self.active_tab_reset_tasks.pop(tab_id, None)
@@ -383,13 +406,38 @@ class iTerm2Daemon:
             await asyncio.sleep(duration)
             reset = iterm2.LocalWriteOnlyProfile()
             reset.set_background_color(original_color)
-            await session.async_set_profile_properties(reset)
+            await self._apply_profile_with_retry(
+                session, reset, f"Pane reset ({uuid})",
+                escape_fallback='\033]1337;SetColors=bg=default\a'
+            )
         except asyncio.CancelledError:
-            pass
-        except Exception:
             pass
         finally:
             self.active_pane_reset_tasks.pop(uuid, None)
+
+    async def reset_all_highlights(self) -> dict[str, Any]:
+        """Cancel all active reset tasks and reset all highlighted panes/tabs."""
+        for tab_id, task in list(self.active_tab_reset_tasks.items()):
+            task.cancel()
+        for uuid, task in list(self.active_pane_reset_tasks.items()):
+            task.cancel()
+
+        reset_count = 0
+        for window in self.app.terminal_windows:
+            for tab in window.tabs:
+                for session in tab.sessions:
+                    try:
+                        await session.async_send_text('\033]1337;SetColors=bg=default\a')
+                        reset = iterm2.LocalWriteOnlyProfile()
+                        reset.set_use_tab_color(False)
+                        await session.async_set_profile_properties(reset)
+                        reset_count += 1
+                    except Exception:
+                        pass
+
+        self.active_tab_reset_tasks.clear()
+        self.active_pane_reset_tasks.clear()
+        return {"status": "ok", "reset_count": reset_count}
 
     async def reset_highlight(self, session_id: str) -> dict[str, Any]:
         uuid = self._extract_uuid(session_id)
