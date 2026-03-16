@@ -9,6 +9,12 @@ import Foundation
 @testable import Juggler
 import Testing
 
+private func makeShortcutKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
+    let event = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)!
+    event.flags = CGEventFlags(rawValue: UInt64(modifiers.rawValue))
+    return NSEvent(cgEvent: event)!
+}
+
 // MARK: - Special Key String Tests
 
 @Test func specialKeyString_returnKey() {
@@ -146,6 +152,39 @@ import Testing
     #expect(shortcut.modifierFlags.contains(.option))
     #expect(!shortcut.modifierFlags.contains(.shift))
     #expect(!shortcut.modifierFlags.contains(.control))
+}
+
+// MARK: - LocalShortcut Event Matching Tests
+
+@Test func localShortcut_matchesEvent_sameKeyAndModifiers_returnsTrue() {
+    let shortcut = LocalShortcut(keyCode: UInt16(kVK_Tab), modifiers: [.command, .shift])
+    let event = makeShortcutKeyEvent(keyCode: UInt16(kVK_Tab), modifiers: [.command, .shift])
+
+    #expect(shortcut.matches(event) == true)
+}
+
+@Test func localShortcut_matchesEvent_wrongModifiers_returnsFalse() {
+    let shortcut = LocalShortcut(keyCode: UInt16(kVK_Tab), modifiers: [.command])
+    let event = makeShortcutKeyEvent(keyCode: UInt16(kVK_Tab), modifiers: [.command, .shift])
+
+    #expect(shortcut.matches(event) == false)
+}
+
+@Test func localShortcut_matchesEvent_wrongKey_returnsFalse() {
+    let shortcut = LocalShortcut(keyCode: UInt16(kVK_Tab), modifiers: [.command])
+    let event = makeShortcutKeyEvent(keyCode: UInt16(kVK_Return), modifiers: [.command])
+
+    #expect(shortcut.matches(event) == false)
+}
+
+@Test func localShortcut_matchesEvent_ignoresNonShortcutFlags() {
+    let shortcut = LocalShortcut(keyCode: UInt16(kVK_Tab), modifiers: [.command])
+    let event = makeShortcutKeyEvent(
+        keyCode: UInt16(kVK_Tab),
+        modifiers: [.command, .capsLock, .numericPad]
+    )
+
+    #expect(shortcut.matches(event) == true)
 }
 
 // MARK: - Display String Tests

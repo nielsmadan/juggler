@@ -82,7 +82,8 @@ import Testing
     manager.log(.debug, category: .session, "debug msg")
     manager.log(.info, category: .hooks, "info msg")
 
-    #expect(manager.entries.count == 2)
+    #expect(manager.entries.count >= 2)
+    #expect(manager.entries.suffix(2).map(\.message) == ["debug msg", "info msg"])
 }
 
 @MainActor

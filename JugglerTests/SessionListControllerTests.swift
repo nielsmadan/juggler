@@ -1,5 +1,13 @@
+import AppKit
 @testable import Juggler
 import Testing
+
+private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
+    let cgFlags = CGEventFlags(rawValue: UInt64(modifiers.rawValue))
+    let event = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)!
+    event.flags = cgFlags
+    return NSEvent(cgEvent: event)!
+}
 
 // MARK: - moveSelection Tests
 
@@ -250,4 +258,144 @@ import Testing
     controller.syncSelection(sessions: reordered)
 
     #expect(controller.selectedIndex == 1) // "A" moved to index 1
+}
+
+// MARK: - reloadShortcuts Tests
+
+@Test @MainActor func reloadShortcuts_usesDefaultsWhenUnset() {
+    let keys = [
+        AppStorageKeys.localShortcutTogglePause,
+        AppStorageKeys.localShortcutResetStats,
+        AppStorageKeys.localShortcutToggleBeacon,
+        AppStorageKeys.localShortcutToggleAutoNext,
+        AppStorageKeys.localShortcutToggleAutoRestart,
+    ]
+    for key in keys {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+    defer {
+        for key in keys {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+
+    let controller = SessionListController()
+
+    #expect(controller.shortcutTogglePause == LocalShortcut(keyCode: 1, modifiers: []))
+    #expect(controller.shortcutResetStats == LocalShortcut(keyCode: 1, modifiers: .shift))
+    #expect(controller.shortcutToggleBeacon == LocalShortcut(keyCode: 11, modifiers: []))
+    #expect(controller.shortcutToggleAutoNext == LocalShortcut(keyCode: 0, modifiers: []))
+    #expect(controller.shortcutToggleAutoRestart == LocalShortcut(keyCode: 12, modifiers: []))
+}
+
+@Test @MainActor func reloadShortcuts_prefersSavedValues() {
+    let savedMoveDown = LocalShortcut(keyCode: 15, modifiers: .command)
+    let savedRename = LocalShortcut(keyCode: 17, modifiers: .shift)
+    savedMoveDown.save(to: AppStorageKeys.localShortcutMoveDown)
+    savedRename.save(to: AppStorageKeys.localShortcutRename)
+    defer {
+        LocalShortcut.remove(from: AppStorageKeys.localShortcutMoveDown)
+        LocalShortcut.remove(from: AppStorageKeys.localShortcutRename)
+    }
+
+    let controller = SessionListController()
+
+    #expect(controller.shortcutMoveDown == savedMoveDown)
+    #expect(controller.shortcutRename == savedRename)
+}
+
+// MARK: - reactivateAll Tests
+
+@Test @MainActor func reactivateAll_reactivatesBackburneredSessions() {
+    let controller = SessionListController()
+    let manager = SessionManager()
+    manager.testSetSessions([
+        makeSession("s1", state: .backburner),
+        makeSession("s2", state: .backburner),
+    ])
+
+    controller.reactivateAll(sessionManager: manager)
+
+    #expect(manager.sessions.allSatisfy { $0.state == .idle })
+}
+
+// MARK: - handleKeyEvent Tests
+
+@Test @MainActor func handleKeyEvent_moveDown_updatesSelectionAndTracksSession() {
+    let controller = SessionListController()
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1"), makeSession("s2")])
+    let shortcut = LocalShortcut(keyCode: 125, modifiers: [])
+    shortcut.save(to: AppStorageKeys.localShortcutMoveDown)
+    defer { LocalShortcut.remove(from: AppStorageKeys.localShortcutMoveDown) }
+    controller.reloadShortcuts()
+    var queueMode = QueueOrderMode.fair.rawValue
+
+    let handled = controller.handleKeyEvent(
+        makeKeyEvent(keyCode: 125),
+        sessionManager: manager,
+        queueOrderMode: &queueMode
+    )
+
+    #expect(handled == true)
+    #expect(controller.selectedIndex == 0)
+
+    manager.testSetSessions([manager.sessions[1], manager.sessions[0]])
+    controller.syncSelection(sessions: manager.sessions)
+    #expect(controller.selectedIndex == 1)
+}
+
+@Test @MainActor func handleKeyEvent_cycleModeForward_updatesQueueMode() {
+    let controller = SessionListController()
+    let manager = SessionManager()
+    let shortcut = LocalShortcut(keyCode: 124, modifiers: .command)
+    shortcut.save(to: AppStorageKeys.localShortcutCycleModeForward)
+    defer { LocalShortcut.remove(from: AppStorageKeys.localShortcutCycleModeForward) }
+    controller.reloadShortcuts()
+    var queueMode = QueueOrderMode.fair.rawValue
+
+    let handled = controller.handleKeyEvent(
+        makeKeyEvent(keyCode: 124, modifiers: .command),
+        sessionManager: manager,
+        queueOrderMode: &queueMode
+    )
+
+    #expect(handled == true)
+    #expect(queueMode == QueueOrderMode.prio.rawValue)
+}
+
+@Test @MainActor func handleKeyEvent_backburnerShortcut_updatesSelectedSession() {
+    let controller = SessionListController()
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("s1"), makeSession("s2")])
+    controller.moveSelection(by: 1, sessionCount: 2)
+    let shortcut = LocalShortcut(keyCode: 11, modifiers: .shift)
+    shortcut.save(to: AppStorageKeys.localShortcutBackburner)
+    defer { LocalShortcut.remove(from: AppStorageKeys.localShortcutBackburner) }
+    controller.reloadShortcuts()
+    var queueMode = QueueOrderMode.fair.rawValue
+
+    let handled = controller.handleKeyEvent(
+        makeKeyEvent(keyCode: 11, modifiers: .shift),
+        sessionManager: manager,
+        queueOrderMode: &queueMode
+    )
+
+    #expect(handled == true)
+    #expect(manager.sessions.first { $0.id == "s1" }?.state == .backburner)
+}
+
+@Test @MainActor func handleKeyEvent_unmatchedShortcut_returnsFalse() {
+    let controller = SessionListController()
+    let manager = SessionManager()
+    var queueMode = QueueOrderMode.fair.rawValue
+
+    let handled = controller.handleKeyEvent(
+        makeKeyEvent(keyCode: 123),
+        sessionManager: manager,
+        queueOrderMode: &queueMode
+    )
+
+    #expect(handled == false)
+    #expect(queueMode == QueueOrderMode.fair.rawValue)
 }

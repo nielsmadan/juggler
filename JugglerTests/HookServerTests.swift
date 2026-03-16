@@ -509,6 +509,115 @@ import Testing
     #expect(response.status == 200)
 }
 
+@Test @MainActor func processRequest_postHook_createsSessionInManager() async {
+    let manager = SessionManager()
+    let server = HookServer(sessionManager: manager)
+    let body = """
+    {"agent":"claude-code","event":"SessionStart","hookInput":{"session_id":"claude-1"},\
+    "terminal":{"sessionId":"s1","cwd":"/test/project","terminalType":"iterm2"},\
+    "git":{"branch":"main","repo":"juggler"}}
+    """
+
+    let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+    #expect(response.status == 200)
+    #expect(manager.sessions.count == 1)
+    #expect(manager.sessions[0].claudeSessionID == "claude-1")
+    #expect(manager.sessions[0].terminalSessionID == "s1")
+    #expect(manager.sessions[0].projectPath == "/test/project")
+    #expect(manager.sessions[0].gitBranch == "main")
+    #expect(manager.sessions[0].gitRepoName == "juggler")
+    #expect(manager.sessions[0].state == .idle)
+}
+
+@Test @MainActor func processRequest_postHook_updatesExistingSessionState() async {
+    let manager = SessionManager()
+    manager.addOrUpdateSession(
+        claudeSessionID: "claude-1",
+        terminalSessionID: "s1",
+        projectPath: "/test/project",
+        state: .idle
+    )
+    let server = HookServer(sessionManager: manager)
+    let body = """
+    {"agent":"claude-code","event":"PreToolUse","hookInput":{"session_id":"claude-1"},\
+    "terminal":{"sessionId":"s1","cwd":"/test/project","terminalType":"iterm2"}}
+    """
+
+    let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+    #expect(response.status == 200)
+    #expect(manager.sessions.count == 1)
+    #expect(manager.sessions[0].state == .working)
+}
+
+@Test @MainActor func processRequest_postHook_unknownEvent_isIgnored() async {
+    let manager = SessionManager()
+    let server = HookServer(sessionManager: manager)
+    let body = """
+    {"agent":"claude-code","event":"SomethingUnexpected","hookInput":{"session_id":"claude-1"},\
+    "terminal":{"sessionId":"s1","cwd":"/test/project","terminalType":"iterm2"}}
+    """
+
+    let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+    #expect(response.status == 200)
+    #expect(manager.sessions.isEmpty)
+}
+
+@Test @MainActor func processRequest_postHook_invalidTerminalType_defaultsToITerm2() async {
+    let manager = SessionManager()
+    let server = HookServer(sessionManager: manager)
+    let body = """
+    {"agent":"claude-code","event":"SessionStart","hookInput":{"session_id":"claude-1"},\
+    "terminal":{"sessionId":"s1","cwd":"/test/project","terminalType":"unknown-terminal"}}
+    """
+
+    let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+    #expect(response.status == 200)
+    #expect(manager.sessions.count == 1)
+    #expect(manager.sessions[0].terminalType == .iterm2)
+}
+
+@Test @MainActor func processRequest_postHook_kittyWithoutSocket_stillCreatesSession() async {
+    let manager = SessionManager()
+    let server = HookServer(sessionManager: manager)
+    let body = """
+    {"agent":"claude-code","event":"SessionStart","hookInput":{"session_id":"claude-1"},\
+    "terminal":{"sessionId":"kitty-window","cwd":"/test/project","terminalType":"kitty"}}
+    """
+
+    let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+    #expect(response.status == 200)
+    #expect(manager.sessions.count == 1)
+    #expect(manager.sessions[0].terminalType == .kitty)
+    #expect(manager.sessions[0].terminalSessionID == "kitty-window")
+}
+
+@Test @MainActor func processRequest_postHook_removeEvent_removesCompositeTmuxSession() async {
+    let manager = SessionManager()
+    manager.addOrUpdateSession(
+        claudeSessionID: "claude-1",
+        terminalSessionID: "s1",
+        tmuxPane: "%1",
+        projectPath: "/test/project",
+        state: .idle
+    )
+    let server = HookServer(sessionManager: manager)
+    let body = """
+    {"agent":"claude-code","event":"SessionEnd","hookInput":{"session_id":"claude-1"},\
+    "terminal":{"sessionId":"s1","cwd":"/test/project","terminalType":"iterm2"},\
+    "tmux":{"pane":"%1","sessionName":"dev"}}
+    """
+
+    let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+    #expect(response.status == 200)
+    #expect(manager.sessions.isEmpty)
+}
+
 @Test func processRequest_postKittyEvent_invalidJSON_returns400() async {
     let server = HookServer(sessionManager: SessionManager())
     let request = HTTPRequest(method: "POST", path: "/kitty-event", body: "bad")
@@ -522,6 +631,54 @@ import Testing
     let request = HTTPRequest(method: "POST", path: "/kitty-event", body: body)
     let response = await server.processRequest(request)
     #expect(response.status == 200)
+}
+
+@Test @MainActor func processRequest_postKittyEvent_focusChanged_updatesFocusedSession() async {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("42")])
+    let server = HookServer(sessionManager: manager)
+
+    let response = await server.processRequest(
+        HTTPRequest(method: "POST", path: "/kitty-event", body: #"{"event":"focus_changed","window_id":"42"}"#)
+    )
+
+    #expect(response.status == 200)
+    #expect(manager.focusedSessionID == "42")
+}
+
+@Test @MainActor func processRequest_postKittyEvent_sessionTerminated_removesMatchingSessions() async {
+    let manager = SessionManager()
+    manager.testSetSessions([
+        makeSession("42"),
+        makeSession("99"),
+    ])
+    let server = HookServer(sessionManager: manager)
+
+    let response = await server.processRequest(
+        HTTPRequest(
+            method: "POST",
+            path: "/kitty-event",
+            body: #"{"event":"session_terminated","window_id":"42"}"#
+        )
+    )
+
+    #expect(response.status == 200)
+    #expect(manager.sessions.map(\.terminalSessionID) == ["99"])
+}
+
+@Test @MainActor func processRequest_postKittyEvent_unknownEvent_isNoOp() async {
+    let manager = SessionManager()
+    manager.testSetSessions([makeSession("42")])
+    manager.updateFocusedSession(terminalSessionID: "42")
+    let server = HookServer(sessionManager: manager)
+
+    let response = await server.processRequest(
+        HTTPRequest(method: "POST", path: "/kitty-event", body: #"{"event":"future_event","window_id":"99"}"#)
+    )
+
+    #expect(response.status == 200)
+    #expect(manager.sessions.map(\.terminalSessionID) == ["42"])
+    #expect(manager.focusedSessionID == "42")
 }
 
 @Test func processRequest_putMethod_returns405() async {

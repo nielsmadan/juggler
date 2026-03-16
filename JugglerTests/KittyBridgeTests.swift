@@ -141,6 +141,50 @@ import Testing
     #expect(info?.paneCount == 1)
 }
 
+@Test func parseKittyLsOutput_missingTitles_usesFallbacks() async {
+    let bridge = KittyBridge.shared
+    let json = """
+    [
+        {
+            "id": 1,
+            "tabs": [
+                {
+                    "id": 1,
+                    "windows": [
+                        {
+                            "id": 42,
+                            "is_focused": false
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+    """
+
+    let info = await bridge.parseKittyLsOutput(json, windowID: "42")
+
+    #expect(info != nil)
+    #expect(info?.tabName == "Tab 1")
+    #expect(info?.windowName == "Kitty")
+    #expect(info?.isActive == false)
+}
+
+@Test func parseKittyLsOutput_missingTabs_returnsNil() async {
+    let bridge = KittyBridge.shared
+    let json = """
+    [
+        {
+            "id": 1
+        }
+    ]
+    """
+
+    let info = await bridge.parseKittyLsOutput(json, windowID: "42")
+
+    #expect(info == nil)
+}
+
 // MARK: - Socket Registration Tests
 
 @Test func registerSocket_storesPath() async {
@@ -151,6 +195,52 @@ import Testing
     // will return nil gracefully (proving the path was set but socket is not real)
     let info = try? await bridge.getSessionInfo(sessionID: "test-123")
     // Won't have valid data since socket doesn't exist, but shouldn't crash
+    #expect(info == nil)
+}
+
+@Test func getSessionInfo_unregisteredSession_returnsNil() async throws {
+    let bridge = KittyBridge.shared
+
+    let info = try await bridge.getSessionInfo(sessionID: "missing-window")
+
+    #expect(info == nil)
+}
+
+@Test func activate_unregisteredSession_throwsConnectionFailed() async {
+    let bridge = KittyBridge.shared
+
+    do {
+        try await bridge.activate(sessionID: "missing-window")
+        Issue.record("Expected connectionFailed for missing socket registration")
+    } catch let error as TerminalBridgeError {
+        switch error {
+        case .connectionFailed:
+            break
+        default:
+            Issue.record("Unexpected TerminalBridgeError: \(error)")
+        }
+    } catch {
+        Issue.record("Unexpected error: \(error)")
+    }
+}
+
+@Test func highlight_unregisteredSession_isNoOp() async throws {
+    let bridge = KittyBridge.shared
+
+    try await bridge.highlight(
+        sessionID: "missing-window",
+        tabConfig: HighlightConfig(enabled: true, color: [255, 0, 0], duration: 1.0),
+        paneConfig: HighlightConfig(enabled: true, color: [0, 0, 0], duration: 1.0)
+    )
+}
+
+@Test func stop_clearsRegisteredSockets() async throws {
+    let bridge = KittyBridge.shared
+    await bridge.registerSocket(windowID: "window-1", socketPath: "unix:/tmp/kitty-test")
+    await bridge.stop()
+
+    let info = try await bridge.getSessionInfo(sessionID: "window-1")
+
     #expect(info == nil)
 }
 

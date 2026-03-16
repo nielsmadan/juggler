@@ -78,6 +78,18 @@ import Testing
     #expect(manager.sessions[1].terminalSessionID == "s1")
 }
 
+@Test func init_migratesLegacyQueueOrderModeValues() {
+    UserDefaults.standard.set("filo", forKey: "queueOrderMode")
+    _ = SessionManager()
+    #expect(UserDefaults.standard.string(forKey: "queueOrderMode") == QueueOrderMode.fair.rawValue)
+
+    UserDefaults.standard.set("fifo", forKey: "queueOrderMode")
+    _ = SessionManager()
+    #expect(UserDefaults.standard.string(forKey: "queueOrderMode") == QueueOrderMode.prio.rawValue)
+
+    UserDefaults.standard.removeObject(forKey: "queueOrderMode")
+}
+
 // MARK: - addOrUpdateSession Tests
 
 @Test @MainActor func addOrUpdateSession_newSession_appendsToList() {
