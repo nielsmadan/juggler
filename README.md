@@ -16,18 +16,13 @@ Yes, you can configure it to always use the same color or disable the tab/pane h
 
 ## Why Juggler
 
-I usually have 3-6 terminals open, each of which will have 2-6 tabs focused on various repos. I was constantly
-either alt tabbing around or taking my hands off the keyboard to find the next session. Then after a while I would
-realize that there was some session that just needed me to press enter that I completely forgot about. All the
-solutions I found for this force you to use their workflow, requiring worktrees or tmux,
-limiting to one repo, and making you use some embedded SwiftTerminal. I didn't want that. I wanted to keep my workflow
-and the terminal I already set up just the way I like. So I built Juggler.
+I usually have 3-6 terminals open, each of which will have 2-6 tabs focused on various repos. I was constantly either alt tabbing around or taking my hands off the keyboard to find the next session. Then after a while I would realize that there was some session that just needed me to press enter that I completely forgot about. All the solutions I found for this force you to use their workflow, requiring worktrees or tmux, limiting to one repo, and making you use some embedded SwiftTerminal or bloated Electron app. I didn't want that. I wanted to keep my workflow and the terminal I already set up just the way I like. So I built Juggler.
 
 ### What sets it apart:
 
 - **Instant switching** — Press one global hotkey from anywhere and Juggler takes you straight to the next session waiting for input
 - **Never lose a window** — Color-coded tab and pane highlighting lets you spot the active session immediately, even across monitors
-- **Zero workflow changes** — No new terminal to learn, no forced worktrees, no single-repo limits. Your existing setup stays exactly as it was
+- **Zero workflow changes** — No new terminal to learn and set up, no forced worktrees, no single-repo limit. Your existing setup stays exactly as it was
 
 ## Installation
 
@@ -52,9 +47,10 @@ brew install --cask nielsmadan/juggler/juggler
 
 - **Global hotkeys** — Cycle forward, backward, backburner, reactivate, toggle UI — all from any app, all customizable
 - **Tab & pane highlighting** — Cycling color palette marks the active session's tab and pane
+- **Quick orientation** — Briefly flash the name of the session in the middle of the screen, immediately see where you are.
 - **Notifications** — Native macOS alerts when a session goes idle or needs permission. Click to jump there
 - **Menu bar & monitor** — Popover for a quick glance. Full session monitor window with jugglery animations and stats
-- **Queue modes** — Fair (round-robin), Priority (most recent first), Static (creation order), or Grouped (by state)
+- **Queue modes** — Fair (round-robin), Priority (most recent first), Static (creation order), or Grouped (by window)
 - **Backburner** — Park sessions you don't need right now. They stay tracked but won't appear in your cycle
 - **Idle time stats** — Per-session and global idle vs. working time
 - **Guided setup** — Onboarding walks you through permissions, terminal integration, and hook installation
@@ -125,18 +121,12 @@ Juggler tracks agent sessions through lifecycle hooks that fire on events like s
 
 **Waiting on hook support:**
 
-- [Codex CLI](https://github.com/openai/codex) — only has `agent-turn-complete` notify, no session lifecycle hooks ([discussion](https://github.com/openai/codex/discussions/2150))
+- [Codex CLI](https://github.com/openai/codex) — only has `agent-turn-complete` notify, minimal session lifecycle hooks ([discussion](https://github.com/openai/codex/discussions/2150))
 - [Aider](https://github.com/Aider-AI/aider) — no lifecycle hooks
 
 ### Linux & Windows
 
 Juggler is currently macOS-only. [WezTerm](https://wezfurlong.org/wezterm/), [Wave](https://github.com/wavetermdev/waveterm), and [Tabby](https://github.com/Eugeny/tabby) run on macOS, Linux, and Windows. [Kitty](https://sw.kovidgoyal.net/kitty/) and [Konsole](https://konsole.kde.org/) (D-Bus API) already run on Linux. If there's popular demand, I'm happy to port it.
-
-## Development
-
-- [CLAUDE.md](CLAUDE.md) — Development documentation and build instructions
-- [docs/tech/overview.md](docs/tech/overview.md) — Technical architecture
-- [docs/requirements.md](docs/requirements.md) — Feature requirements
 
 ## License
 
