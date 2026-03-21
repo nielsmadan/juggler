@@ -386,55 +386,23 @@ struct TmuxSetupView: View {
     }
 
     private func checkTmuxConfigured() {
-        guard FileManager.default.fileExists(atPath: tmuxConfPath) else {
+        guard FileManager.default.fileExists(atPath: tmuxConfPath),
+              let contents = try? String(contentsOfFile: tmuxConfPath, encoding: .utf8)
+        else {
             envConfigured = false
             return
         }
-
-        do {
-            let contents = try String(contentsOfFile: tmuxConfPath, encoding: .utf8)
-            envConfigured = contents.contains("update-environment")
-                && (contents.contains("ITERM_SESSION_ID") || contents.contains("KITTY_WINDOW_ID"))
-        } catch {
-            envConfigured = false
-        }
+        envConfigured = TmuxConfigValidator.isConfigured(contents: contents)
     }
 
     private func configureTmux() {
         isConfiguring = true
-        configError = nil
-
-        do {
-            let fileURL = URL(fileURLWithPath: tmuxConfPath)
-
-            if FileManager.default.fileExists(atPath: tmuxConfPath) {
-                let existingContent = try String(contentsOfFile: tmuxConfPath, encoding: .utf8)
-
-                if existingContent.contains(updateEnvironmentLine) {
-                    checkTmuxConfigured()
-                    isConfiguring = false
-                    return
-                }
-
-                let handle = try FileHandle(forWritingTo: fileURL)
-                defer { handle.closeFile() }
-                handle.seekToEndOfFile()
-
-                var lineToAppend = updateEnvironmentLine + "\n"
-                if !existingContent.isEmpty, !existingContent.hasSuffix("\n") {
-                    lineToAppend = "\n" + lineToAppend
-                }
-
-                handle.write(Data(lineToAppend.utf8))
-            } else {
-                try (updateEnvironmentLine + "\n").write(toFile: tmuxConfPath, atomically: true, encoding: .utf8)
-            }
-
-            checkTmuxConfigured()
-        } catch {
-            configError = "Failed to update ~/.tmux.conf: \(error.localizedDescription)"
-        }
-
+        configError = ConfigFileWriter.appendLine(
+            updateEnvironmentLine,
+            toFileAt: tmuxConfPath,
+            duplicateCheck: .exactMatch
+        )
+        checkTmuxConfigured()
         isConfiguring = false
     }
 }
@@ -519,14 +487,8 @@ struct ClaudeCodeSetupView: View {
         isInstalling = true
         errorMessage = nil
 
-        guard let scriptPath = Bundle.main.path(forResource: "install", ofType: "sh") else {
-            errorMessage = "Install script not found in bundle"
-            isInstalling = false
-            return
-        }
-
         Task {
-            let result = await runProcess(executableURL: "/bin/bash", arguments: [scriptPath])
+            let result = await ScriptInstaller.installHooks()
             await MainActor.run {
                 if let error = result {
                     errorMessage = error
@@ -549,8 +511,7 @@ struct OpenCodeSetupView: View {
     @State private var errorMessage: String?
 
     private var pluginPath: String {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/opencode/plugins/juggler-opencode.ts").path
+        OpenCodePluginInstaller.pluginFilePath
     }
 
     var body: some View {
@@ -560,7 +521,7 @@ struct OpenCodeSetupView: View {
                 .fontWeight(.bold)
 
             Text(
-                "Juggler needs to install a plugin in ~/.config/opencode/plugins to detect when OpenCode sessions become idle or need input."
+                "Juggler needs to install a plugin for OpenCode to detect when sessions become idle or need input."
             )
             .font(.callout)
             .foregroundStyle(.secondary)
@@ -571,7 +532,7 @@ struct OpenCodeSetupView: View {
                     number: 1,
                     isComplete: isInstalled,
                     title: "Install Plugin",
-                    detail: "Adds juggler-opencode.ts to ~/.config/opencode/plugins/"
+                    detail: "Adds juggler-opencode.ts to the OpenCode plugins directory"
                 )
             }
             .padding()
@@ -630,19 +591,38 @@ struct OpenCodeSetupView: View {
 }
 
 struct SetupStep: View {
-    let number: Int
+    let number: Int?
     let isComplete: Bool
     let title: String
     let detail: String
+
+    /// Numbered step style (shows "1.", "2." when incomplete)
+    init(number: Int, isComplete: Bool, title: String, detail: String) {
+        self.number = number
+        self.isComplete = isComplete
+        self.title = title
+        self.detail = detail
+    }
+
+    /// Check style (shows xmark when incomplete, no number)
+    init(isComplete: Bool, title: String, detail: String) {
+        number = nil
+        self.isComplete = isComplete
+        self.title = title
+        self.detail = detail
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             if isComplete {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
-            } else {
+            } else if let number {
                 Text("\(number).")
                     .fontWeight(.bold)
+            } else {
+                Image(systemName: "xmark.circle")
+                    .foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)

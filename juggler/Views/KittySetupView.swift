@@ -31,63 +31,30 @@ struct KittySetupView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .top, spacing: 12) {
-                        if remoteControlEnabled {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                        } else {
-                            Image(systemName: "xmark.circle")
-                                .foregroundStyle(.secondary)
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Remote Control Enabled")
-                                .fontWeight(.medium)
-                            Text("allow_remote_control socket-only in kitty.conf")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                    SetupStep(
+                        isComplete: remoteControlEnabled,
+                        title: "Remote Control Enabled",
+                        detail: "allow_remote_control socket-only in kitty.conf"
+                    )
 
-                    HStack(alignment: .top, spacing: 12) {
-                        if listenOnConfigured {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                        } else {
-                            Image(systemName: "xmark.circle")
-                                .foregroundStyle(.secondary)
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Listen Socket Configured")
-                                .fontWeight(.medium)
-                            Text("listen_on unix:/tmp/kitty-{kitty_pid} in kitty.conf")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                    SetupStep(
+                        isComplete: listenOnConfigured,
+                        title: "Listen Socket Configured",
+                        detail: "listen_on unix:/tmp/kitty-{kitty_pid} in kitty.conf"
+                    )
 
                     Divider()
 
-                    HStack(alignment: .top, spacing: 12) {
-                        if watcherInstalled {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                        } else {
-                            Image(systemName: "circle")
-                                .foregroundStyle(.secondary)
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Install Watcher")
-                                .fontWeight(.medium)
-                            Text("Enables focus tracking and session termination detection.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    SetupStep(
+                        isComplete: watcherInstalled,
+                        title: "Install Watcher",
+                        detail: "Enables focus tracking and session termination detection."
+                    )
 
-                            if let error = watcherInstallError {
-                                Text(error)
-                                    .font(.caption)
-                                    .foregroundStyle(.red)
-                            }
-                        }
+                    if let error = watcherInstallError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
 
                     Divider()
@@ -98,27 +65,16 @@ struct KittySetupView: View {
                             .foregroundStyle(.red)
                     }
 
-                    HStack(alignment: .top, spacing: 12) {
-                        if connectionTested {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                        } else {
-                            Image(systemName: "circle")
-                                .foregroundStyle(.secondary)
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Test Connection")
-                                .fontWeight(.medium)
-                            Text("Verifies Juggler can communicate with Kitty.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    SetupStep(
+                        isComplete: connectionTested,
+                        title: "Test Connection",
+                        detail: "Verifies Juggler can communicate with Kitty."
+                    )
 
-                            if let error = testError {
-                                Text(error)
-                                    .font(.caption)
-                                    .foregroundStyle(.red)
-                            }
-                        }
+                    if let error = testError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
                 }
                 .padding()
@@ -167,103 +123,39 @@ struct KittySetupView: View {
         }
         .padding()
         .onAppear {
-            checkConfiguration()
+            refreshStatus()
         }
-    }
-
-    private var kittyConfPath: String {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/kitty/kitty.conf").path
     }
 
     private func setupIntegration() {
         if !remoteControlEnabled {
-            appendToKittyConf("allow_remote_control socket-only")
+            configError = KittyConfigParser.appendToConf("allow_remote_control socket-only")
+            refreshStatus()
+            if configError != nil { return }
         }
         if !listenOnConfigured {
-            appendToKittyConf("listen_on unix:/tmp/kitty-{kitty_pid}")
+            configError = KittyConfigParser.appendToConf("listen_on unix:/tmp/kitty-{kitty_pid}")
+            refreshStatus()
+            if configError != nil { return }
         }
         if !watcherInstalled {
             installWatcher()
         }
     }
 
-    private func appendToKittyConf(_ line: String) {
-        configError = nil
-
-        do {
-            let fileURL = URL(fileURLWithPath: kittyConfPath)
-            let configDir = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".config/kitty")
-
-            try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-
-            if FileManager.default.fileExists(atPath: kittyConfPath) {
-                let existingContent = try String(contentsOfFile: kittyConfPath, encoding: .utf8)
-
-                let directiveKey = String(line.split(separator: " ").first ?? "")
-                let alreadyPresent = existingContent.split(separator: "\n").contains { l in
-                    let trimmed = l.trimmingCharacters(in: .whitespaces)
-                    return !trimmed.hasPrefix("#") && trimmed.hasPrefix(directiveKey)
-                }
-                if alreadyPresent {
-                    checkConfiguration()
-                    return
-                }
-
-                let handle = try FileHandle(forWritingTo: fileURL)
-                defer { handle.closeFile() }
-                handle.seekToEndOfFile()
-
-                var lineToAppend = line + "\n"
-                if !existingContent.isEmpty, !existingContent.hasSuffix("\n") {
-                    lineToAppend = "\n" + lineToAppend
-                }
-
-                handle.write(Data(lineToAppend.utf8))
-            } else {
-                try (line + "\n").write(toFile: kittyConfPath, atomically: true, encoding: .utf8)
-            }
-
-            checkConfiguration()
-        } catch {
-            configError = "Failed to update kitty.conf: \(error.localizedDescription)"
-        }
-    }
-
-    private func checkConfiguration() {
-        if let contents = try? String(contentsOfFile: kittyConfPath, encoding: .utf8) {
-            remoteControlEnabled = contents.split(separator: "\n").contains { line in
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                return !trimmed.hasPrefix("#") && trimmed.hasPrefix("allow_remote_control")
-                    && (trimmed.contains("yes") || trimmed.contains("socket"))
-            }
-
-            listenOnConfigured = contents.split(separator: "\n").contains { line in
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                return trimmed.hasPrefix("listen_on") && !trimmed.hasPrefix("#")
-            }
-
-            watcherInstalled = contents.contains("juggler_watcher.py")
-        } else {
-            remoteControlEnabled = false
-            listenOnConfigured = false
-            watcherInstalled = false
-        }
+    private func refreshStatus() {
+        let status = KittyConfigParser.status()
+        remoteControlEnabled = status.remoteControlEnabled
+        listenOnConfigured = status.listenOnConfigured
+        watcherInstalled = status.watcherInstalled
     }
 
     private func installWatcher() {
         isInstallingWatcher = true
         watcherInstallError = nil
 
-        guard let scriptPath = Bundle.main.path(forResource: "install_kitty_watcher", ofType: "sh") else {
-            watcherInstallError = "Install script not found in bundle"
-            isInstallingWatcher = false
-            return
-        }
-
         Task {
-            let result = await runProcess(executableURL: "/bin/bash", arguments: [scriptPath])
+            let result = await ScriptInstaller.installKittyWatcher()
             await MainActor.run {
                 if let error = result {
                     watcherInstallError = error

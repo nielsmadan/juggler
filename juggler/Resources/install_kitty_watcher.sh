@@ -4,10 +4,21 @@
 
 set -e
 
-KITTY_CONFIG_DIR="$HOME/.config/kitty"
+# Resolve kitty config directory following kitty's search order:
+# 1. $KITTY_CONFIG_DIRECTORY (exclusive override)
+# 2. $XDG_CONFIG_HOME/kitty
+# 3. ~/.config/kitty (default)
+if [ -n "$KITTY_CONFIG_DIRECTORY" ]; then
+    KITTY_CONFIG_DIR="$KITTY_CONFIG_DIRECTORY"
+elif [ -n "$XDG_CONFIG_HOME" ]; then
+    KITTY_CONFIG_DIR="$XDG_CONFIG_HOME/kitty"
+else
+    KITTY_CONFIG_DIR="$HOME/.config/kitty"
+fi
 WATCHER_DEST="$KITTY_CONFIG_DIR/juggler_watcher.py"
 KITTY_CONF="$KITTY_CONFIG_DIR/kitty.conf"
-WATCHER_LINE="watcher ~/.config/kitty/juggler_watcher.py"
+# Use tilde path when possible for portability in dotfiles
+WATCHER_LINE="watcher ${KITTY_CONFIG_DIR/#$HOME/\~}/juggler_watcher.py"
 
 # Get the watcher source from the app bundle
 SCRIPT_DIR="$(dirname "$0")"

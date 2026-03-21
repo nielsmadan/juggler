@@ -157,10 +157,13 @@ struct GeneralSettingsView: View {
         actions.append("Removed login item")
 
         // 2. Run bundled uninstall.sh for integration cleanup
-        if let scriptURL = Bundle.main.url(forResource: "uninstall", withExtension: "sh") {
-            _ = await runProcess(executableURL: "/bin/bash", arguments: [scriptURL.path])
-            actions.append("Removed integrations (Claude hooks, Kitty watcher, OpenCode plugin)")
-            actions.append("Reset Automation permission")
+        if Bundle.main.path(forResource: "uninstall", ofType: "sh") != nil {
+            if let error = await ScriptInstaller.runBundledScript(resource: "uninstall") {
+                actions.append("Integration cleanup failed: \(error)")
+            } else {
+                actions.append("Removed integrations (Claude hooks, Kitty watcher, OpenCode plugin)")
+                actions.append("Reset Automation permission")
+            }
         }
         actions
             .append(
@@ -220,8 +223,7 @@ struct IntegrationSettingsView: View {
     }
 
     private var openCodePluginPath: String {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/opencode/plugins/juggler-opencode.ts").path
+        OpenCodePluginInstaller.pluginFilePath
     }
 
     private let tmuxUpdateEnvironmentLine =
@@ -475,14 +477,8 @@ struct IntegrationSettingsView: View {
         isInstallingHooks = true
         hookInstallError = nil
 
-        guard let scriptPath = Bundle.main.path(forResource: "install", ofType: "sh") else {
-            hookInstallError = "Install script not found in bundle"
-            isInstallingHooks = false
-            return
-        }
-
         Task {
-            let result = await runProcess(executableURL: "/bin/bash", arguments: [scriptPath])
+            let result = await ScriptInstaller.installHooks()
             await MainActor.run {
                 if let error = result {
                     hookInstallError = error
@@ -496,65 +492,16 @@ struct IntegrationSettingsView: View {
 
     // MARK: - Kitty
 
-    private var kittyConfPath: String {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/kitty/kitty.conf").path
-    }
-
     private func checkKittyStatus() {
-        if let contents = try? String(contentsOfFile: kittyConfPath, encoding: .utf8) {
-            kittyRemoteControl = KittyConfigParser.hasRemoteControl(in: contents)
-            kittyListenOn = KittyConfigParser.hasListenOn(in: contents)
-            kittyWatcherInstalled = KittyConfigParser.hasWatcher(in: contents)
-        } else {
-            kittyRemoteControl = false
-            kittyListenOn = false
-            kittyWatcherInstalled = false
-        }
+        let status = KittyConfigParser.status()
+        kittyRemoteControl = status.remoteControlEnabled
+        kittyListenOn = status.listenOnConfigured
+        kittyWatcherInstalled = status.watcherInstalled
     }
 
     private func appendToKittyConf(_ line: String) {
-        kittyConfigError = nil
-
-        do {
-            let fileURL = URL(fileURLWithPath: kittyConfPath)
-            let configDir = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".config/kitty")
-
-            try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-
-            if FileManager.default.fileExists(atPath: kittyConfPath) {
-                let existingContent = try String(contentsOfFile: kittyConfPath, encoding: .utf8)
-
-                // Skip if directive already present (non-commented)
-                let directiveKey = String(line.split(separator: " ").first ?? "")
-                let alreadyPresent = existingContent.split(separator: "\n").contains { l in
-                    let trimmed = l.trimmingCharacters(in: .whitespaces)
-                    return !trimmed.hasPrefix("#") && trimmed.hasPrefix(directiveKey)
-                }
-                if alreadyPresent {
-                    checkKittyStatus()
-                    return
-                }
-
-                let handle = try FileHandle(forWritingTo: fileURL)
-                defer { handle.closeFile() }
-                handle.seekToEndOfFile()
-
-                var lineToAppend = line + "\n"
-                if !existingContent.isEmpty, !existingContent.hasSuffix("\n") {
-                    lineToAppend = "\n" + lineToAppend
-                }
-
-                handle.write(Data(lineToAppend.utf8))
-            } else {
-                try (line + "\n").write(toFile: kittyConfPath, atomically: true, encoding: .utf8)
-            }
-
-            checkKittyStatus()
-        } catch {
-            kittyConfigError = "Failed to update kitty.conf: \(error.localizedDescription)"
-        }
+        kittyConfigError = KittyConfigParser.appendToConf(line)
+        checkKittyStatus()
     }
 
     private func configureKittyRemoteControl() {
@@ -569,14 +516,8 @@ struct IntegrationSettingsView: View {
         isInstallingKittyWatcher = true
         kittyWatcherError = nil
 
-        guard let scriptPath = Bundle.main.path(forResource: "install_kitty_watcher", ofType: "sh") else {
-            kittyWatcherError = "Install script not found in bundle"
-            isInstallingKittyWatcher = false
-            return
-        }
-
         Task {
-            let result = await runProcess(executableURL: "/bin/bash", arguments: [scriptPath])
+            let result = await ScriptInstaller.installKittyWatcher()
             await MainActor.run {
                 if let error = result {
                     kittyWatcherError = error
@@ -606,39 +547,12 @@ struct IntegrationSettingsView: View {
 
     private func configureTmux() {
         isConfiguringTmux = true
-        tmuxConfigError = nil
-
-        do {
-            let fileURL = URL(fileURLWithPath: tmuxConfPath)
-
-            if FileManager.default.fileExists(atPath: tmuxConfPath) {
-                let existingContent = try String(contentsOfFile: tmuxConfPath, encoding: .utf8)
-
-                if existingContent.contains(tmuxUpdateEnvironmentLine) {
-                    checkTmuxConfigured()
-                    isConfiguringTmux = false
-                    return
-                }
-
-                let handle = try FileHandle(forWritingTo: fileURL)
-                defer { handle.closeFile() }
-                handle.seekToEndOfFile()
-
-                var lineToAppend = tmuxUpdateEnvironmentLine + "\n"
-                if !existingContent.isEmpty, !existingContent.hasSuffix("\n") {
-                    lineToAppend = "\n" + lineToAppend
-                }
-
-                handle.write(Data(lineToAppend.utf8))
-            } else {
-                try (tmuxUpdateEnvironmentLine + "\n").write(toFile: tmuxConfPath, atomically: true, encoding: .utf8)
-            }
-
-            checkTmuxConfigured()
-        } catch {
-            tmuxConfigError = "Failed to update ~/.tmux.conf: \(error.localizedDescription)"
-        }
-
+        tmuxConfigError = ConfigFileWriter.appendLine(
+            tmuxUpdateEnvironmentLine,
+            toFileAt: tmuxConfPath,
+            duplicateCheck: .exactMatch
+        )
+        checkTmuxConfigured()
         isConfiguringTmux = false
     }
 
@@ -919,180 +833,6 @@ struct HighlightingSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
-    }
-}
-
-enum OpenCodePluginInstaller {
-    static let pluginContent = """
-    const JUGGLER_PORT = process.env.JUGGLER_PORT || "7483";
-    const JUGGLER_URL = `http://localhost:${JUGGLER_PORT}/hook`;
-
-    function getTerminalInfo(): Record<string, string> {
-      const env = process.env;
-      const info: Record<string, string> = {
-        cwd: process.cwd(),
-      };
-
-      if (env.KITTY_WINDOW_ID) {
-        info.terminalType = "kitty";
-        info.sessionId = env.KITTY_WINDOW_ID;
-        if (env.KITTY_LISTEN_ON) info.kittyListenOn = env.KITTY_LISTEN_ON;
-        if (env.KITTY_PID) info.kittyPid = env.KITTY_PID;
-      } else if (env.ITERM_SESSION_ID) {
-        info.terminalType = "iterm2";
-        info.sessionId = env.ITERM_SESSION_ID;
-      }
-
-      return info;
-    }
-
-    async function getGitInfo(
-      $: any
-    ): Promise<{ branch: string; repo: string } | null> {
-      try {
-        const branch = (await $`git rev-parse --abbrev-ref HEAD 2>/dev/null`)
-          .text()
-          .trim();
-        const toplevel = (await $`git rev-parse --show-toplevel 2>/dev/null`)
-          .text()
-          .trim();
-        const repo = toplevel.split("/").pop() || "";
-        return { branch, repo };
-      } catch {
-        return null;
-      }
-    }
-
-    function getTmuxInfo(): Record<string, string> | null {
-      const pane = process.env.TMUX_PANE;
-      if (!pane) return null;
-      return { pane };
-    }
-
-    const TRACKED_EVENTS = new Set([
-      "session.created",
-      "session.status",
-      "session.deleted",
-      "session.compacted",
-      "permission.asked",
-      "server.instance.disposed",
-    ]);
-
-    export const JugglerPlugin = async ({
-      $,
-    }: {
-      project: any;
-      client: any;
-      $: any;
-      directory: string;
-      worktree: string;
-    }) => {
-      const terminal = getTerminalInfo();
-      const git = await getGitInfo($);
-      const tmux = getTmuxInfo();
-
-      // Post session.created on plugin load so Juggler sees the session immediately,
-      // even when OpenCode resumes a previous session (which skips session.created)
-      await postEvent("session.created");
-
-      async function postEvent(eventType: string, sessionId?: string) {
-        const payload: Record<string, any> = {
-          agent: "opencode",
-          event: eventType,
-          terminal,
-        };
-
-        if (sessionId) {
-          payload.hookInput = { session_id: sessionId };
-        }
-
-        if (git) {
-          payload.git = git;
-        }
-
-        if (tmux) {
-          payload.tmux = tmux;
-        }
-
-        try {
-          await fetch(JUGGLER_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-            signal: AbortSignal.timeout(2000),
-          });
-        } catch {
-          // Juggler not running — silently ignore
-        }
-      }
-
-      return {
-        event: async ({
-          event,
-        }: {
-          event: { type: string; [key: string]: any };
-        }) => {
-          if (!TRACKED_EVENTS.has(event.type)) return;
-
-          const sessionId =
-            (event as any).properties?.sessionID ||
-            (event as any).properties?.info?.id ||
-            (event as any).session_id ||
-            (event as any).sessionID;
-
-          let eventName = event.type;
-          if (event.type === "session.status") {
-            const status = (event as any).properties?.status?.type;
-            if (!status) return;
-            eventName = `session.status.${status}`;
-          }
-
-          await postEvent(eventName, sessionId);
-        },
-      };
-    };
-    """
-
-    static func install() throws {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let pluginsDir = home.appendingPathComponent(".config/opencode/plugins")
-        try FileManager.default.createDirectory(at: pluginsDir, withIntermediateDirectories: true)
-        let pluginFile = pluginsDir.appendingPathComponent("juggler-opencode.ts")
-        try pluginContent.write(to: pluginFile, atomically: true, encoding: .utf8)
-    }
-}
-
-func runProcess(executableURL: String, arguments: [String]) async -> String? {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: executableURL)
-    process.arguments = arguments
-
-    let pipe = Pipe()
-    process.standardOutput = pipe
-    process.standardError = pipe
-
-    do {
-        try process.run()
-    } catch {
-        return error.localizedDescription
-    }
-
-    // Drain pipe on a non-cooperative thread to prevent buffer-full deadlock
-    let readTask = Task.detached { pipe.fileHandleForReading.readDataToEndOfFile() }
-
-    let exitStatus = await withCheckedContinuation { (continuation: CheckedContinuation<Int32, Never>) in
-        process.terminationHandler = { proc in
-            continuation.resume(returning: proc.terminationStatus)
-        }
-    }
-
-    let data = await readTask.value
-
-    if exitStatus == 0 {
-        return nil
-    } else {
-        let output = String(decoding: data, as: UTF8.self)
-        return output.isEmpty ? "Process failed" : output
     }
 }
 
