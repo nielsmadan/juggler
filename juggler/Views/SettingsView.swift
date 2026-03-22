@@ -7,6 +7,7 @@
 
 import KeyboardShortcuts
 import ServiceManagement
+import ShortcutField
 import Sparkle
 import SwiftUI
 import UserNotifications
@@ -628,78 +629,78 @@ struct ShortcutsSettingsView: View {
 }
 
 struct SessionListShortcutsSection: View {
-    @State private var moveDown = LocalShortcut.load(from: AppStorageKeys.localShortcutMoveDown)
-    @State private var moveUp = LocalShortcut.load(from: AppStorageKeys.localShortcutMoveUp)
-    @State private var backburner = LocalShortcut.load(from: AppStorageKeys.localShortcutBackburner)
-    @State private var reactivateSelected = LocalShortcut.load(from: AppStorageKeys.localShortcutReactivateSelected)
-    @State private var reactivateAll = LocalShortcut.load(from: AppStorageKeys.localShortcutReactivateAll)
-    @State private var rename = LocalShortcut.load(from: AppStorageKeys.localShortcutRename)
-    @State private var cycleModeForward = LocalShortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
-    @State private var cycleModeBackward = LocalShortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
-    @State private var togglePause: LocalShortcut? = LocalShortcut.load(from: AppStorageKeys.localShortcutTogglePause)
-        ?? LocalShortcut(keyCode: 1, modifiers: []) // S
-    @State private var resetStats: LocalShortcut? = LocalShortcut.load(from: AppStorageKeys.localShortcutResetStats)
-        ?? LocalShortcut(keyCode: 1, modifiers: .shift) // ⇧S
-    @State private var toggleBeacon: LocalShortcut? = LocalShortcut.load(from: AppStorageKeys.localShortcutToggleBeacon)
-        ?? LocalShortcut(keyCode: 11, modifiers: []) // B
-    @State private var toggleAutoNext: LocalShortcut? = LocalShortcut
+    @State private var moveDown = Shortcut.load(from: AppStorageKeys.localShortcutMoveDown)
+    @State private var moveUp = Shortcut.load(from: AppStorageKeys.localShortcutMoveUp)
+    @State private var backburner = Shortcut.load(from: AppStorageKeys.localShortcutBackburner)
+    @State private var reactivateSelected = Shortcut.load(from: AppStorageKeys.localShortcutReactivateSelected)
+    @State private var reactivateAll = Shortcut.load(from: AppStorageKeys.localShortcutReactivateAll)
+    @State private var rename = Shortcut.load(from: AppStorageKeys.localShortcutRename)
+    @State private var cycleModeForward = Shortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
+    @State private var cycleModeBackward = Shortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
+    @State private var togglePause: Shortcut? = Shortcut.load(from: AppStorageKeys.localShortcutTogglePause)
+        ?? Shortcut(keyCode: 1, modifiers: []) // S
+    @State private var resetStats: Shortcut? = Shortcut.load(from: AppStorageKeys.localShortcutResetStats)
+        ?? Shortcut(keyCode: 1, modifiers: .shift) // ⇧S
+    @State private var toggleBeacon: Shortcut? = Shortcut.load(from: AppStorageKeys.localShortcutToggleBeacon)
+        ?? Shortcut(keyCode: 11, modifiers: []) // B
+    @State private var toggleAutoNext: Shortcut? = Shortcut
         .load(from: AppStorageKeys.localShortcutToggleAutoNext)
-        ?? LocalShortcut(keyCode: 0, modifiers: []) // A
-    @State private var toggleAutoRestart: LocalShortcut? = LocalShortcut
+        ?? Shortcut(keyCode: 0, modifiers: []) // A
+    @State private var toggleAutoRestart: Shortcut? = Shortcut
         .load(from: AppStorageKeys.localShortcutToggleAutoRestart)
-        ?? LocalShortcut(keyCode: 12, modifiers: []) // Q
+        ?? Shortcut(keyCode: 12, modifiers: []) // Q
 
     var body: some View {
         Section("Session List Shortcuts") {
-            LocalShortcutRow(label: "Move Down", shortcut: $moveDown, storageKey: AppStorageKeys.localShortcutMoveDown)
-            LocalShortcutRow(label: "Move Up", shortcut: $moveUp, storageKey: AppStorageKeys.localShortcutMoveUp)
-            LocalShortcutRow(
+            ShortcutRow(label: "Move Down", shortcut: $moveDown, storageKey: AppStorageKeys.localShortcutMoveDown)
+            ShortcutRow(label: "Move Up", shortcut: $moveUp, storageKey: AppStorageKeys.localShortcutMoveUp)
+            ShortcutRow(
                 label: "Backburner",
                 shortcut: $backburner,
                 storageKey: AppStorageKeys.localShortcutBackburner
             )
-            LocalShortcutRow(
+            ShortcutRow(
                 label: "Reactivate Selected",
                 shortcut: $reactivateSelected,
                 storageKey: AppStorageKeys.localShortcutReactivateSelected
             )
-            LocalShortcutRow(
+            ShortcutRow(
                 label: "Reactivate All",
                 shortcut: $reactivateAll,
                 storageKey: AppStorageKeys.localShortcutReactivateAll
             )
-            LocalShortcutRow(label: "Rename", shortcut: $rename, storageKey: AppStorageKeys.localShortcutRename)
-            LocalShortcutRow(
+            ShortcutRow(label: "Rename", shortcut: $rename, storageKey: AppStorageKeys.localShortcutRename)
+            ShortcutRow(
                 label: "Cycle Mode Forward",
                 shortcut: $cycleModeForward,
                 storageKey: AppStorageKeys.localShortcutCycleModeForward
             )
-            LocalShortcutRow(
+            ShortcutRow(
                 label: "Cycle Mode Backward",
                 shortcut: $cycleModeBackward,
                 storageKey: AppStorageKeys.localShortcutCycleModeBackward
             )
-            LocalShortcutRow(
+            ShortcutRow(
                 label: "Start/Pause Stats",
                 shortcut: $togglePause,
                 storageKey: AppStorageKeys.localShortcutTogglePause
             )
-            LocalShortcutRow(
+            ShortcutRow(
                 label: "Reset Stats",
                 shortcut: $resetStats,
                 storageKey: AppStorageKeys.localShortcutResetStats
             )
-            LocalShortcutRow(
+            ShortcutRow(
                 label: "Toggle Beacon",
                 shortcut: $toggleBeacon,
                 storageKey: AppStorageKeys.localShortcutToggleBeacon
             )
-            LocalShortcutRow(
+            ShortcutRow(
                 label: "Auto Next",
                 shortcut: $toggleAutoNext,
                 storageKey: AppStorageKeys.localShortcutToggleAutoNext
             )
-            LocalShortcutRow(
+            ShortcutRow(
                 label: "Auto Restart",
                 shortcut: $toggleAutoRestart,
                 storageKey: AppStorageKeys.localShortcutToggleAutoRestart
@@ -708,18 +709,26 @@ struct SessionListShortcutsSection: View {
     }
 }
 
-struct LocalShortcutRow: View {
+struct ShortcutRow: View {
     let label: String
-    @Binding var shortcut: LocalShortcut?
+    @Binding var shortcut: Shortcut?
     let storageKey: String
 
     var body: some View {
         HStack {
             Text(label)
             Spacer()
-            LocalShortcutRecorderView(shortcut: $shortcut, storageKey: storageKey)
+            ShortcutRecorderView($shortcut)
                 .frame(width: 130)
                 .padding(.trailing, 4)
+                .onChange(of: shortcut) { _, newValue in
+                    if let newValue {
+                        newValue.save(to: storageKey)
+                    } else {
+                        Shortcut.remove(from: storageKey)
+                    }
+                    NotificationCenter.default.post(name: .localShortcutsDidChange, object: nil)
+                }
         }
     }
 }

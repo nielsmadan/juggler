@@ -6,6 +6,7 @@
 //
 
 import Carbon.HIToolbox
+import ShortcutField
 import SwiftUI
 
 struct MenuBarView: View {

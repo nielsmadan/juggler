@@ -1,4 +1,5 @@
 import Carbon.HIToolbox
+import ShortcutField
 import SwiftUI
 
 @Observable
@@ -12,43 +13,43 @@ final class SessionListController {
     // NSEvent monitor needed because SwiftUI intercepts Tab before onKeyPress
     private var tabEventMonitor: Any?
 
-    private(set) var shortcutMoveDown: LocalShortcut?
-    private(set) var shortcutMoveUp: LocalShortcut?
-    private(set) var shortcutBackburner: LocalShortcut?
-    private(set) var shortcutReactivateSelected: LocalShortcut?
-    private(set) var shortcutReactivateAll: LocalShortcut?
-    private(set) var shortcutRename: LocalShortcut?
-    private(set) var shortcutCycleModeForward: LocalShortcut?
-    private(set) var shortcutCycleModeBackward: LocalShortcut?
-    private(set) var shortcutTogglePause: LocalShortcut?
-    private(set) var shortcutResetStats: LocalShortcut?
-    private(set) var shortcutToggleBeacon: LocalShortcut?
-    private(set) var shortcutToggleAutoNext: LocalShortcut?
-    private(set) var shortcutToggleAutoRestart: LocalShortcut?
+    private(set) var shortcutMoveDown: Shortcut?
+    private(set) var shortcutMoveUp: Shortcut?
+    private(set) var shortcutBackburner: Shortcut?
+    private(set) var shortcutReactivateSelected: Shortcut?
+    private(set) var shortcutReactivateAll: Shortcut?
+    private(set) var shortcutRename: Shortcut?
+    private(set) var shortcutCycleModeForward: Shortcut?
+    private(set) var shortcutCycleModeBackward: Shortcut?
+    private(set) var shortcutTogglePause: Shortcut?
+    private(set) var shortcutResetStats: Shortcut?
+    private(set) var shortcutToggleBeacon: Shortcut?
+    private(set) var shortcutToggleAutoNext: Shortcut?
+    private(set) var shortcutToggleAutoRestart: Shortcut?
 
     init() {
         reloadShortcuts()
     }
 
     func reloadShortcuts() {
-        shortcutMoveDown = LocalShortcut.load(from: AppStorageKeys.localShortcutMoveDown)
-        shortcutMoveUp = LocalShortcut.load(from: AppStorageKeys.localShortcutMoveUp)
-        shortcutBackburner = LocalShortcut.load(from: AppStorageKeys.localShortcutBackburner)
-        shortcutReactivateSelected = LocalShortcut.load(from: AppStorageKeys.localShortcutReactivateSelected)
-        shortcutReactivateAll = LocalShortcut.load(from: AppStorageKeys.localShortcutReactivateAll)
-        shortcutRename = LocalShortcut.load(from: AppStorageKeys.localShortcutRename)
-        shortcutCycleModeForward = LocalShortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
-        shortcutCycleModeBackward = LocalShortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
-        shortcutTogglePause = LocalShortcut.load(from: AppStorageKeys.localShortcutTogglePause)
-            ?? LocalShortcut(keyCode: 1, modifiers: []) // S
-        shortcutResetStats = LocalShortcut.load(from: AppStorageKeys.localShortcutResetStats)
-            ?? LocalShortcut(keyCode: 1, modifiers: .shift) // ⇧S
-        shortcutToggleBeacon = LocalShortcut.load(from: AppStorageKeys.localShortcutToggleBeacon)
-            ?? LocalShortcut(keyCode: 11, modifiers: []) // B
-        shortcutToggleAutoNext = LocalShortcut.load(from: AppStorageKeys.localShortcutToggleAutoNext)
-            ?? LocalShortcut(keyCode: 0, modifiers: []) // A
-        shortcutToggleAutoRestart = LocalShortcut.load(from: AppStorageKeys.localShortcutToggleAutoRestart)
-            ?? LocalShortcut(keyCode: 12, modifiers: []) // Q
+        shortcutMoveDown = Shortcut.load(from: AppStorageKeys.localShortcutMoveDown)
+        shortcutMoveUp = Shortcut.load(from: AppStorageKeys.localShortcutMoveUp)
+        shortcutBackburner = Shortcut.load(from: AppStorageKeys.localShortcutBackburner)
+        shortcutReactivateSelected = Shortcut.load(from: AppStorageKeys.localShortcutReactivateSelected)
+        shortcutReactivateAll = Shortcut.load(from: AppStorageKeys.localShortcutReactivateAll)
+        shortcutRename = Shortcut.load(from: AppStorageKeys.localShortcutRename)
+        shortcutCycleModeForward = Shortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
+        shortcutCycleModeBackward = Shortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
+        shortcutTogglePause = Shortcut.load(from: AppStorageKeys.localShortcutTogglePause)
+            ?? Shortcut(keyCode: 1, modifiers: []) // S
+        shortcutResetStats = Shortcut.load(from: AppStorageKeys.localShortcutResetStats)
+            ?? Shortcut(keyCode: 1, modifiers: .shift) // ⇧S
+        shortcutToggleBeacon = Shortcut.load(from: AppStorageKeys.localShortcutToggleBeacon)
+            ?? Shortcut(keyCode: 11, modifiers: []) // B
+        shortcutToggleAutoNext = Shortcut.load(from: AppStorageKeys.localShortcutToggleAutoNext)
+            ?? Shortcut(keyCode: 0, modifiers: []) // A
+        shortcutToggleAutoRestart = Shortcut.load(from: AppStorageKeys.localShortcutToggleAutoRestart)
+            ?? Shortcut(keyCode: 12, modifiers: []) // Q
     }
 
     // MARK: - Selection
@@ -65,8 +66,7 @@ final class SessionListController {
     /// Sync selection to the current sessions array, preserving selection by ID across reorders.
     func syncSelection(sessions: [Session]) {
         if let id = selectedSessionID,
-           let newIndex = sessions.firstIndex(where: { $0.id == id })
-        {
+           let newIndex = sessions.firstIndex(where: { $0.id == id }) {
             selectedIndex = newIndex
         } else if sessions.isEmpty {
             selectedIndex = nil
@@ -135,7 +135,7 @@ final class SessionListController {
         tabEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
             guard event.keyCode == UInt16(kVK_Tab) else { return event }
-            guard !LocalShortcutRecorderField.isAnyRecording else { return event }
+            guard !ShortcutRecorderField.isAnyRecording else { return event }
             guard event.window?.isKeyWindow == true else { return event }
             guard hasShortcutForKeyCode(UInt16(kVK_Tab)) else { return event }
             var mode = queueOrderMode.wrappedValue
@@ -161,12 +161,12 @@ final class SessionListController {
 
     /// Whether any configured shortcut uses the given key code (used to decide if NSEvent monitor should intercept)
     func hasShortcutForKeyCode(_ keyCode: UInt16) -> Bool {
-        let all: [LocalShortcut?] = [
+        let all: [Shortcut?] = [
             shortcutMoveDown, shortcutMoveUp, shortcutBackburner,
             shortcutReactivateSelected, shortcutReactivateAll, shortcutRename,
             shortcutCycleModeForward, shortcutCycleModeBackward,
             shortcutTogglePause, shortcutResetStats,
-            shortcutToggleAutoNext, shortcutToggleAutoRestart,
+            shortcutToggleAutoNext, shortcutToggleAutoRestart
         ]
         return all.contains { $0?.keyCode == keyCode }
     }
@@ -205,8 +205,7 @@ final class SessionListController {
     }
 
     func handleKeyPress(_ press: KeyPress, sessionManager: SessionManager, queueOrderMode: inout String) -> KeyPress
-        .Result
-    {
+        .Result {
         if let shortcut = shortcutMoveDown, shortcut.matches(press) {
             moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
             trackSelectedSession(sessions: sessionManager.sessions)

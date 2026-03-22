@@ -1,5 +1,5 @@
 {
-  "originHash" : "bd98f0be2af71cea5645be75ecf05037da9d09ea8295306d01254963541210cb",
+  "originHash" : "524597ac8ddb4eca03915bdd132bc8745f25b408613116846bc7bc157e202a74",
   "pins" : [
     {
       "identity" : "keyboardshortcuts",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "1aef85578fdd4f9eaeeb8d53b7b4fc31bf08fe27",
         "version" : "2.4.0"
+      }
+    },
+    {
+      "identity" : "shortcutfield",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/nielsmadan/ShortcutField",
+      "state" : {
+        "revision" : "41ab9638e53e97695e0209ac41cc90a41ae2e063",
+        "version" : "1.0.0"
       }
     },
     {

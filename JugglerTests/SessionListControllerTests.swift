@@ -1,5 +1,6 @@
 import AppKit
 @testable import Juggler
+import ShortcutField
 import Testing
 
 private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
@@ -281,21 +282,21 @@ private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []
 
     let controller = SessionListController()
 
-    #expect(controller.shortcutTogglePause == LocalShortcut(keyCode: 1, modifiers: []))
-    #expect(controller.shortcutResetStats == LocalShortcut(keyCode: 1, modifiers: .shift))
-    #expect(controller.shortcutToggleBeacon == LocalShortcut(keyCode: 11, modifiers: []))
-    #expect(controller.shortcutToggleAutoNext == LocalShortcut(keyCode: 0, modifiers: []))
-    #expect(controller.shortcutToggleAutoRestart == LocalShortcut(keyCode: 12, modifiers: []))
+    #expect(controller.shortcutTogglePause == Shortcut(keyCode: 1, modifiers: []))
+    #expect(controller.shortcutResetStats == Shortcut(keyCode: 1, modifiers: .shift))
+    #expect(controller.shortcutToggleBeacon == Shortcut(keyCode: 11, modifiers: []))
+    #expect(controller.shortcutToggleAutoNext == Shortcut(keyCode: 0, modifiers: []))
+    #expect(controller.shortcutToggleAutoRestart == Shortcut(keyCode: 12, modifiers: []))
 }
 
 @Test @MainActor func reloadShortcuts_prefersSavedValues() {
-    let savedMoveDown = LocalShortcut(keyCode: 15, modifiers: .command)
-    let savedRename = LocalShortcut(keyCode: 17, modifiers: .shift)
+    let savedMoveDown = Shortcut(keyCode: 15, modifiers: .command)
+    let savedRename = Shortcut(keyCode: 17, modifiers: .shift)
     savedMoveDown.save(to: AppStorageKeys.localShortcutMoveDown)
     savedRename.save(to: AppStorageKeys.localShortcutRename)
     defer {
-        LocalShortcut.remove(from: AppStorageKeys.localShortcutMoveDown)
-        LocalShortcut.remove(from: AppStorageKeys.localShortcutRename)
+        Shortcut.remove(from: AppStorageKeys.localShortcutMoveDown)
+        Shortcut.remove(from: AppStorageKeys.localShortcutRename)
     }
 
     let controller = SessionListController()
@@ -325,9 +326,9 @@ private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []
     let controller = SessionListController()
     let manager = SessionManager()
     manager.testSetSessions([makeSession("s1"), makeSession("s2")])
-    let shortcut = LocalShortcut(keyCode: 125, modifiers: [])
+    let shortcut = Shortcut(keyCode: 125, modifiers: [])
     shortcut.save(to: AppStorageKeys.localShortcutMoveDown)
-    defer { LocalShortcut.remove(from: AppStorageKeys.localShortcutMoveDown) }
+    defer { Shortcut.remove(from: AppStorageKeys.localShortcutMoveDown) }
     controller.reloadShortcuts()
     var queueMode = QueueOrderMode.fair.rawValue
 
@@ -348,9 +349,9 @@ private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []
 @Test @MainActor func handleKeyEvent_cycleModeForward_updatesQueueMode() {
     let controller = SessionListController()
     let manager = SessionManager()
-    let shortcut = LocalShortcut(keyCode: 124, modifiers: .command)
+    let shortcut = Shortcut(keyCode: 124, modifiers: .command)
     shortcut.save(to: AppStorageKeys.localShortcutCycleModeForward)
-    defer { LocalShortcut.remove(from: AppStorageKeys.localShortcutCycleModeForward) }
+    defer { Shortcut.remove(from: AppStorageKeys.localShortcutCycleModeForward) }
     controller.reloadShortcuts()
     var queueMode = QueueOrderMode.fair.rawValue
 
@@ -369,9 +370,9 @@ private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []
     let manager = SessionManager()
     manager.testSetSessions([makeSession("s1"), makeSession("s2")])
     controller.moveSelection(by: 1, sessionCount: 2)
-    let shortcut = LocalShortcut(keyCode: 11, modifiers: .shift)
+    let shortcut = Shortcut(keyCode: 11, modifiers: .shift)
     shortcut.save(to: AppStorageKeys.localShortcutBackburner)
-    defer { LocalShortcut.remove(from: AppStorageKeys.localShortcutBackburner) }
+    defer { Shortcut.remove(from: AppStorageKeys.localShortcutBackburner) }
     controller.reloadShortcuts()
     var queueMode = QueueOrderMode.fair.rawValue
 

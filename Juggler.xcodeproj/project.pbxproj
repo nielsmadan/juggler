@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		19A2F3EB2F70715F00ACEE1C /* ShortcutField in Frameworks */ = {isa = PBXBuildFile; productRef = 19A2F3EA2F70715F00ACEE1C /* ShortcutField */; };
 		19E7C7C62F2752EC00708D20 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 19E7C7C52F2752EC00708D20 /* Sparkle */; };
 		19F658642F22BA5700CB4D71 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 19F658632F22BA5700CB4D71 /* KeyboardShortcuts */; };
 /* End PBXBuildFile section */
@@ -72,6 +73,7 @@
 			files = (
 				19F658642F22BA5700CB4D71 /* KeyboardShortcuts in Frameworks */,
 				19E7C7C62F2752EC00708D20 /* Sparkle in Frameworks */,
+				19A2F3EB2F70715F00ACEE1C /* ShortcutField in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -142,6 +144,7 @@
 			packageProductDependencies = (
 				19F658632F22BA5700CB4D71 /* KeyboardShortcuts */,
 				19E7C7C52F2752EC00708D20 /* Sparkle */,
+				19A2F3EA2F70715F00ACEE1C /* ShortcutField */,
 			);
 			productName = Juggler;
 			productReference = 19F6582C2F22B72E00CB4D71 /* Juggler.app */;
@@ -228,6 +231,7 @@
 			packageReferences = (
 				19F658622F22BA5700CB4D71 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				19F658652F22BA7600CB4D71 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				190EAA1D2F7043EF002C2C4B /* XCRemoteSwiftPackageReference "ShortcutField" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 19F6582D2F22B72E00CB4D71 /* Products */;
@@ -453,8 +457,8 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -489,8 +493,8 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -510,8 +514,8 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Juggler.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Juggler";
 			};
@@ -532,8 +536,8 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Juggler.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Juggler";
 			};
@@ -552,8 +556,8 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = Juggler;
 			};
@@ -572,8 +576,8 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = Juggler;
 			};
@@ -621,6 +625,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		190EAA1D2F7043EF002C2C4B /* XCRemoteSwiftPackageReference "ShortcutField" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/nielsmadan/ShortcutField";
+			requirement = {
+				kind = exactVersion;
+				version = 1.0.0;
+			};
+		};
 		19F658622F22BA5700CB4D71 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
@@ -640,6 +652,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		19A2F3EA2F70715F00ACEE1C /* ShortcutField */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 190EAA1D2F7043EF002C2C4B /* XCRemoteSwiftPackageReference "ShortcutField" */;
+			productName = ShortcutField;
+		};
 		19E7C7C52F2752EC00708D20 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 19F658652F22BA7600CB4D71 /* XCRemoteSwiftPackageReference "Sparkle" */;
