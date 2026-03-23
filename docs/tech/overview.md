@@ -115,6 +115,14 @@ Juggler is a SwiftUI menu bar app that tracks Claude Code and OpenCode sessions 
 | iTerm2 Integration | Persistent Python daemon | Fast (~50ms vs ~1000ms per-command) |
 | Terminal Abstraction | Protocol-based | Clean path to support other terminals |
 
+## Known Platform Limitations
+
+### Notification Click Activation
+
+macOS always brings the posting app to the foreground when a notification banner is clicked. This is system-level behavior with no opt-out API (confirmed via Apple documentation, open-source survey, and [FB13131879](https://github.com/feedback-assistant/reports/issues/418)). The activation is two-phase: once before `didReceive`, once after `completionHandler()`.
+
+Juggler works with this by letting the activation complete, then yielding focus to the terminal via `yieldActivation` + `NSRunningApplication.activate()` after a short settling delay. This causes a brief flash of Juggler before the terminal takes focus. Custom `UNNotificationAction` buttons without `.foreground` can run in the background, but the default banner click cannot be intercepted.
+
 ## Topic Documentation
 
 - [Hook Server](hook-server.md) - HTTP API for hooks

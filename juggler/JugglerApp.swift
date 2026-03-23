@@ -27,6 +27,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_: Notification) {
+        // If another instance is already running, activate it and exit.
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
+            .filter { $0 != .current }
+        if let existing = others.first {
+            existing.activate()
+            NSApp.terminate(nil)
+            return
+        }
+
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
 
@@ -87,14 +96,54 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let window = notification.object as? NSWindow,
               window.identifier?.rawValue == "main"
         else { return }
+
+        let wasInAccessoryMode = NSApp.activationPolicy() == .accessory
+
         hideAccessoryWorkItem?.cancel()
         hideAccessoryWorkItem = nil
+
+        // When a notification click activated us, yield focus to the terminal
+        // after the system's activation lifecycle has settled (see comment in
+        // NotificationManager.didReceive for details).
+        if let bundleID = notificationTerminalBundleID() {
+            scheduleTerminalActivation(bundleID: bundleID)
+            return
+        }
+
         NSApp.setActivationPolicy(.regular)
 
-        // Restore saved frame on first appearance after close or app launch
         if mainWindowNeedsRestore {
             mainWindowNeedsRestore = false
             restoreSavedFrame(for: window)
+        }
+
+        // Window was auto-created from accessory mode. Hide it immediately to
+        // prevent a flash, then decide on the next run loop (didReceive fires
+        // after windowDidBecomeKey, so the notification flag isn't set yet).
+        if wasInAccessoryMode {
+            window.alphaValue = 0
+            DispatchQueue.main.async {
+                if let bundleID = self.notificationTerminalBundleID() {
+                    self.scheduleTerminalActivation(bundleID: bundleID)
+                    window.close()
+                } else {
+                    window.alphaValue = 1
+                }
+            }
+        }
+    }
+
+    private func notificationTerminalBundleID() -> String? {
+        guard NotificationManager.shared.isHandlingNotificationClick else { return nil }
+        return NotificationManager.shared.pendingTerminalBundleID
+    }
+
+    private func scheduleTerminalActivation(bundleID: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            NSApp.yieldActivation(toApplicationWithBundleIdentifier: bundleID)
+            if let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
+                app.activate()
+            }
         }
     }
 }
