@@ -51,8 +51,21 @@ coverage xcconfig="":
         -resultBundlePath {{xcresult}} -only-testing:JugglerTests test
     @xcrun xccov view --report --only-targets {{xcresult}} | grep -E "^--|Juggler\.app"
 
-run: build
+run: build clean-registrations
     @{{app_path}}/Contents/MacOS/Juggler
+
+# Unregister stale copies of Juggler from LaunchServices so macOS doesn't
+# launch the wrong one when e.g. clicking a notification.
+clean-registrations:
+    #!/usr/bin/env bash
+    lsregister="/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister"
+    current="$(cd "{{app_path}}" && pwd -P)"
+    "$lsregister" -dump \
+        | awk -v current="$current" '/^-{10}/{path=""} /^path:/{path=$2} /identifier:.*{{bundle_id}}/{if(path!="" && path!=current) print path}' \
+        | while IFS= read -r p; do
+            "$lsregister" -u "$p" 2>/dev/null && echo "Unregistered: $p"
+        done
+    "$lsregister" -f -R -trusted "$current"
 
 clean:
     @rm -rf {{build_dir}}
