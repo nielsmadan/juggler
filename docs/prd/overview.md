@@ -31,6 +31,7 @@ Sessions in `idle` and `permission` states are included in the cycling queue. Wo
 - [Notifications](notification.md) - Notification system and settings
 - [Menu Bar Popover](popover.md) - Popover UI and interactions
 - [Main Window](main-window.md) - Session monitor window
+- [Beacon](beacon.md) - HUD overlay for cycle feedback
 
 ## Related Documentation
 

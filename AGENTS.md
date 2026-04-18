@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-`juggler/` contains the macOS app source. Key folders are `Models/`, `Managers/`, `Services/`, `Views/`, `Animation/`, and `Resources/` for bundled scripts such as hooks and terminal helpers. UI assets live in `juggler/Assets.xcassets/`. Unit tests are in `JugglerTests/`; UI and launch tests are in `JugglerUITests/`. Product, technical, and planning docs live under `docs/`. Build output is written to `build/` and should not be committed.
+`Juggler/` contains the macOS app source. Key folders are `Models/`, `Managers/`, `Services/`, `Views/`, `Animation/`, and `Resources/` for bundled scripts such as hooks and terminal helpers. UI assets live in `Juggler/Assets.xcassets/`. Unit tests are in `JugglerTests/`; UI and launch tests are in `JugglerUITests/`. Product, technical, and planning docs live under `docs/`. Build output is written to `build/` and should not be committed.
 
 ## Build, Test, and Development Commands
 

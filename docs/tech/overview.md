@@ -46,8 +46,7 @@ Juggler is a SwiftUI menu bar app that tracks Claude Code and OpenCode sessions 
 | Model | File | Purpose |
 |-------|------|---------|
 | `Session` | `Models/Session.swift` | Session data (ID, state, path, timestamps) |
-| `SessionState` | `Models/SessionState.swift` | State enum (working, idle, permission, backburner) |
-| `LocalShortcut` | `Models/LocalShortcut.swift` | In-app keyboard shortcuts |
+| `SessionState` | `Models/SessionState.swift` | State enum (working, idle, permission, backburner, compacting) |
 | `CyclingEngine` | `Models/CyclingEngine.swift` | Session cycling logic |
 | `HookEventMapper` | `Models/HookEventMapper.swift` | Hook event → state mapping |
 
@@ -126,9 +125,12 @@ Juggler works with this by letting the activation complete, then yielding focus 
 ## Topic Documentation
 
 - [Hook Server](hook-server.md) - HTTP API for hooks
+- [Claude Code Hooks](hooks.md) - Shell hook integration and payload contract
+- [OpenCode Plugin](opencode-plugin.md) - TypeScript plugin integration
 - [iTerm2 Daemon](iterm2-daemon.md) - Python daemon protocol
+- [Kitty Integration](kitty-integration.md) - Kitten CLI and watcher
+- [Terminal Bridges](terminal-bridges.md) - Bridge protocol and how to add a terminal
 - [Session Management](session-management.md) - Cycling and state logic
-- [Claude Code Hooks](hooks.md) - Hook integration
 
 ---
 

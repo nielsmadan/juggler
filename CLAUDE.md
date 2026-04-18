@@ -58,7 +58,7 @@ Juggler/
 ├── Models/
 │   ├── CyclingEngine.swift       # Session cycling protocol and implementation
 │   ├── HookEventMapper.swift     # Hook event → state mapping (Claude Code + OpenCode)
-│   ├── LocalShortcut.swift       # Configurable in-app keyboard shortcuts
+│   ├── Shortcut+Persistence.swift # Save/load shortcuts via UserDefaults (extends ShortcutField's Shortcut)
 │   ├── QueueOrderMode.swift      # Fair, Prio, Static, Grouped modes
 │   ├── Session.swift             # Session data model
 │   ├── SessionState.swift        # idle, working, permission, backburner, compacting
@@ -75,7 +75,6 @@ Juggler/
 │   ├── BeaconContentView.swift   # Beacon overlay content
 │   ├── IntegrationHubView.swift  # Terminal/agent integration setup
 │   ├── KittySetupView.swift      # Kitty configuration wizard
-│   ├── LocalShortcutRecorderView.swift  # Shortcut recorder for settings
 │   ├── LogsSettingsView.swift    # In-app log viewer
 │   ├── MenuBarView.swift         # Menu bar popover
 │   ├── OnboardingView.swift      # First-run setup

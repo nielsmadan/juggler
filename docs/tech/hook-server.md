@@ -97,6 +97,23 @@ default:
     return .ignore
 ```
 
+OpenCode mapping:
+
+```swift
+case "session.created", "session.status.idle":
+    return .updateState(.idle)
+case "session.status.busy", "session.status.retry":
+    return .updateState(.working)
+case "permission.asked":
+    return .updateState(.permission)
+case "session.compacted":
+    return .updateState(.compacting)
+case "session.deleted", "server.instance.disposed":
+    return .removeSession
+default:
+    return .ignore
+```
+
 ## Backburner Protection
 
 When a session is backburnered, most events are ignored to preserve the backburner state. Only `UserPromptSubmit` will exit backburner (indicating explicit user action).

@@ -23,7 +23,73 @@ The script:
 5. Enriches with git info (branch, repo name)
 6. Builds unified payload via Python (avoids shell injection) and posts to Juggler
 
-The script uses `python3` to build JSON safely via environment variables, piping directly to `curl`. It selectively extracts only needed fields from hookInput (`session_id`, `transcript_path`, `tool_name`) to keep payloads small.
+The script uses `python3` with a quoted heredoc to build JSON safely from environment variables, piping directly into `curl --connect-timeout 1`. This avoids shell interpolation of user-controlled fields.
+
+## Payload Contract
+
+### Input (from Claude Code, via stdin)
+
+Claude Code invokes the hook with the event name as `$1` and a JSON blob on stdin. The blob may be very large (e.g., `PostToolUse` includes full `tool_input` and `tool_result`). `notify.sh` extracts only three fields to keep Juggler's payload small:
+
+| Input field | Kept |
+|-------------|------|
+| `session_id` | yes |
+| `transcript_path` | yes |
+| `tool_name` | yes |
+| everything else | dropped |
+
+Source: `Resources/hooks/notify.sh:64-72`.
+
+### Environment variables consumed
+
+| Variable | Source | Use |
+|----------|--------|-----|
+| `ITERM_SESSION_ID` | iTerm2 | Terminal session ID (iTerm2) |
+| `KITTY_WINDOW_ID` | Kitty | Terminal session ID (Kitty) |
+| `KITTY_LISTEN_ON` | Kitty | Socket path (Kitty) |
+| `KITTY_PID` | Kitty | Kitty process ID |
+| `TMUX_PANE` | tmux | Current pane ID (e.g., `%0`) |
+| `PWD` | shell | Working directory; also used for git detection |
+| `JUGGLER_PORT` | optional | Override port (default `7483`) |
+
+Terminal type is detected by presence: `KITTY_WINDOW_ID` wins over `ITERM_SESSION_ID`. Tmux session name is queried via `tmux display-message -p -t "$TMUX_PANE" '#{session_name}'`.
+
+### Output (POST body to `/hook`)
+
+```json
+{
+  "agent": "claude-code",
+  "event": "PreToolUse",
+  "terminal": {
+    "sessionId": "w0t0p0:UUID",
+    "cwd": "/path/to/cwd",
+    "terminalType": "iterm2",
+    "kittyListenOn": "unix:/tmp/kitty-12345",
+    "kittyPid": "12345"
+  },
+  "hookInput": {
+    "session_id": "...",
+    "transcript_path": "...",
+    "tool_name": "Bash"
+  },
+  "git": { "branch": "main", "repo": "app" },
+  "tmux": { "pane": "%0", "sessionName": "work" }
+}
+```
+
+Optional blocks are omitted when empty:
+- `terminal.terminalType` / `kittyListenOn` / `kittyPid` — only present if the corresponding env var is set.
+- `tmux` — only present if `$TMUX_PANE` is set; `sessionName` only if `tmux display-message` succeeded.
+- `hookInput` — always present; may be empty `{}` if stdin is empty or unparseable.
+
+### Delivery
+
+`curl -s -X POST http://localhost:${JUGGLER_PORT}/hook -d @- --connect-timeout 1 >/dev/null 2>&1 || true`. Fire-and-forget: if Juggler isn't running, the hook silently succeeds.
+
+### HookServer constraints
+
+- Port: `7483` (overridable via `$JUGGLER_PORT`).
+- Max request size: **1 MB**. Bigger payloads are rejected without a visible error. The selective field extraction above is what keeps payloads under this limit.
 
 ## Hook Events
 
