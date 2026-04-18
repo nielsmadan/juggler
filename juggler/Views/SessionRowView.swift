@@ -31,8 +31,7 @@ struct SessionRowView: View {
 
     private var highlightColor: Color {
         if useCyclingColors {
-            let index = sessionManager.sessions.firstIndex(where: { $0.id == session.id }) ?? 0
-            return CyclingColors.palette[index % CyclingColors.palette.count]
+            return CyclingColors.palette[sessionManager.activeColorIndex]
         } else {
             return Color.accentColor
         }

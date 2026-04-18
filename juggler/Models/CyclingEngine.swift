@@ -7,9 +7,8 @@ import Foundation
 
 struct CyclingState: Equatable {
     var currentIndex: Int
-    var highlightColorIndex: Int
 
-    static let initial = CyclingState(currentIndex: 0, highlightColorIndex: 0)
+    static let initial = CyclingState(currentIndex: 0)
 }
 
 struct CyclingResult: Equatable {
@@ -58,11 +57,10 @@ struct DefaultCyclingEngine: CyclingEngine {
 
         let target = cyclable[targetIdx]
         let moved = (cyclable.count > 1)
-        let newColorIdx = moved ? (state.highlightColorIndex + 1) % 5 : state.highlightColorIndex
 
         return CyclingResult(
             targetSession: target,
-            newState: CyclingState(currentIndex: targetIdx, highlightColorIndex: newColorIdx),
+            newState: CyclingState(currentIndex: targetIdx),
             colorChanged: moved
         )
     }
@@ -86,11 +84,10 @@ struct DefaultCyclingEngine: CyclingEngine {
 
         let target = cyclable[targetIdx]
         let moved = (cyclable.count > 1)
-        let newColorIdx = moved ? (state.highlightColorIndex - 1 + 5) % 5 : state.highlightColorIndex
 
         return CyclingResult(
             targetSession: target,
-            newState: CyclingState(currentIndex: targetIdx, highlightColorIndex: newColorIdx),
+            newState: CyclingState(currentIndex: targetIdx),
             colorChanged: moved
         )
     }
@@ -106,7 +103,7 @@ struct DefaultCyclingEngine: CyclingEngine {
         }
 
         if let idx = findSessionIndex(in: cyclable, matching: focusedID) {
-            return CyclingState(currentIndex: idx, highlightColorIndex: state.highlightColorIndex)
+            return CyclingState(currentIndex: idx)
         }
 
         return state

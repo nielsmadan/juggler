@@ -400,3 +400,139 @@ private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []
     #expect(handled == false)
     #expect(queueMode == QueueOrderMode.fair.rawValue)
 }
+
+// MARK: - activeColorIndex Tests (color now lives on SessionManager)
+
+@Test @MainActor func moveSelection_advancesActiveColorIndex() {
+    let manager = SessionManager.shared
+    manager.resetColorIndex()
+    let controller = SessionListController()
+
+    controller.moveSelection(by: 1, sessionCount: 5)
+    #expect(manager.activeColorIndex == 1)
+
+    controller.moveSelection(by: 1, sessionCount: 5)
+    #expect(manager.activeColorIndex == 2)
+
+    controller.moveSelection(by: -1, sessionCount: 5)
+    #expect(manager.activeColorIndex == 1)
+}
+
+@Test @MainActor func activeColorIndex_wrapsAtPaletteBoundary() {
+    let manager = SessionManager()
+
+    for _ in 0 ..< 6 {
+        manager.advanceColorIndex(by: 1)
+    }
+    // 6 steps from 0: (0+6) % 5 = 1
+    #expect(manager.activeColorIndex == 1)
+}
+
+@Test @MainActor func activeColorIndex_wrapsBackwardFromZero() {
+    let manager = SessionManager()
+
+    manager.advanceColorIndex(by: -1)
+    #expect(manager.activeColorIndex == 4)
+}
+
+@Test @MainActor func resetColorIndex_setsValue() {
+    let manager = SessionManager()
+
+    manager.resetColorIndex(to: 3)
+    #expect(manager.activeColorIndex == 3)
+}
+
+@Test @MainActor func resetColorIndex_clampsToRange() {
+    let manager = SessionManager()
+
+    manager.resetColorIndex(to: 7)
+    #expect(manager.activeColorIndex == 2) // 7 % 5
+}
+
+@Test @MainActor func syncSelection_reorder_preservesActiveColor() {
+    let manager = SessionManager.shared
+    manager.resetColorIndex()
+    let controller = SessionListController()
+    let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
+
+    controller.moveSelection(by: 1, sessionCount: 3)
+    controller.trackSelectedSession(sessions: sessions)
+    #expect(manager.activeColorIndex == 1)
+
+    // Reorder: A moves to index 2
+    let reordered = [sessions[1], sessions[2], sessions[0]]
+    controller.syncSelection(sessions: reordered)
+
+    // Color preserved across reorder
+    #expect(controller.selectedIndex == 2)
+    #expect(manager.activeColorIndex == 1)
+}
+
+@Test @MainActor func syncSelection_sessionRemoved_resetsActiveColor() {
+    let manager = SessionManager.shared
+    manager.resetColorIndex()
+    let controller = SessionListController()
+    let sessions = [makeSession("A"), makeSession("B")]
+
+    controller.moveSelection(by: 1, sessionCount: 2)
+    controller.moveSelection(by: 1, sessionCount: 2)
+    controller.trackSelectedSession(sessions: sessions)
+
+    controller.syncSelection(sessions: [sessions[0]])
+    #expect(controller.selectedIndex == 0)
+    #expect(manager.activeColorIndex == 0)
+}
+
+@Test @MainActor func syncSelection_empty_resetsActiveColor() {
+    let manager = SessionManager.shared
+    manager.resetColorIndex()
+    let controller = SessionListController()
+    let sessions = [makeSession("A")]
+
+    controller.moveSelection(by: 1, sessionCount: 1)
+    controller.trackSelectedSession(sessions: sessions)
+
+    controller.syncSelection(sessions: [])
+    #expect(controller.selectedIndex == nil)
+    #expect(manager.activeColorIndex == 0)
+}
+
+@Test @MainActor func setSelection_resetsActiveColorToIndex() {
+    let manager = SessionManager.shared
+    manager.resetColorIndex()
+    let controller = SessionListController()
+    let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
+
+    controller.setSelection(to: 2, sessions: sessions)
+
+    #expect(controller.selectedIndex == 2)
+    #expect(manager.activeColorIndex == 2)
+}
+
+@Test @MainActor func setSelection_sameIndex_preservesActiveColor() {
+    let manager = SessionManager.shared
+    manager.resetColorIndex()
+    let controller = SessionListController()
+    let sessions = [makeSession("A"), makeSession("B")]
+
+    // Navigate to index 0 via arrow key (color advances to 1)
+    controller.moveSelection(by: 1, sessionCount: 2)
+    #expect(manager.activeColorIndex == 1)
+
+    // External focus to same index — color should NOT reset
+    controller.setSelection(to: 0, sessions: sessions)
+    #expect(manager.activeColorIndex == 1)
+}
+
+@Test @MainActor func setSelection_outOfBounds_noOp() {
+    let manager = SessionManager.shared
+    manager.resetColorIndex()
+    let controller = SessionListController()
+    let sessions = [makeSession("A")]
+
+    controller.setSelection(to: 0, sessions: sessions)
+    controller.setSelection(to: 5, sessions: sessions)
+
+    #expect(controller.selectedIndex == 0)
+    #expect(manager.activeColorIndex == 0)
+}

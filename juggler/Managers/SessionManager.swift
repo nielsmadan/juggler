@@ -71,6 +71,20 @@ final class SessionManager {
     /// When non-nil, `updateFocusedSession` ignores focus events that don't match this target.
     private(set) var activationTarget: String?
 
+    /// Single source of truth for the active session's highlight color index.
+    /// Incremented/decremented on every navigation (hotkey, arrow key, click).
+    /// Read by monitor UI, menubar, and terminal bridge.
+    private(set) var activeColorIndex: Int = 0
+
+    func advanceColorIndex(by delta: Int = 1) {
+        let count = CyclingColors.palette.count
+        activeColorIndex = (activeColorIndex + delta + count) % count
+    }
+
+    func resetColorIndex(to index: Int = 0) {
+        activeColorIndex = index % CyclingColors.palette.count
+    }
+
     let animationController = SectionAnimationController()
 
     private var queueOrderMode: QueueOrderMode {
@@ -669,6 +683,7 @@ final class SessionManager {
             state: cyclingState
         )
         cyclingState = result.newState
+        if result.colorChanged { advanceColorIndex(by: 1) }
 
         logDebug(
             .hotkey,
@@ -699,6 +714,7 @@ final class SessionManager {
             state: cyclingState
         )
         cyclingState = result.newState
+        if result.colorChanged { advanceColorIndex(by: -1) }
 
         logDebug(
             .hotkey,

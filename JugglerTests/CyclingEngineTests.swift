@@ -29,7 +29,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleForward_fromFirstSession_movesToSecond() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 0)
 
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "A", state: state)
 
@@ -41,7 +41,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleForward_fromMiddle_movesToNext() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
-    let state = CyclingState(currentIndex: 1, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 1)
 
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "B", state: state)
 
@@ -52,7 +52,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleForward_fromLast_wrapsToFirst() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
-    let state = CyclingState(currentIndex: 2, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 2)
 
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "C", state: state)
 
@@ -63,7 +63,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleBackward_fromMiddle_movesToPrevious() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
-    let state = CyclingState(currentIndex: 1, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 1)
 
     let result = engine.cycleBackward(sessions: sessions, focusedSessionID: "B", state: state)
 
@@ -74,7 +74,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleBackward_fromFirst_wrapsToLast() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 0)
 
     let result = engine.cycleBackward(sessions: sessions, focusedSessionID: "A", state: state)
 
@@ -87,7 +87,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func syncStateToFocus_updatesCurrentIndex() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 0)
 
     let newState = engine.syncStateToFocus(sessions: sessions, focusedSessionID: "C", state: state)
 
@@ -97,7 +97,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func syncThenCycleBackward_fromLast_movesToPrevious() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
-    let state = CyclingState(currentIndex: 2, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 2)
 
     let result = engine.cycleBackward(sessions: sessions, focusedSessionID: "C", state: state)
 
@@ -107,7 +107,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func syncThenCycleForward_fromLast_wrapsToFirst() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
-    let state = CyclingState(currentIndex: 2, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 2)
 
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "C", state: state)
 
@@ -119,7 +119,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleForward_skipsBackburneredSession() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B", state: .backburner), makeSession("C")]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 0)
 
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "A", state: state)
 
@@ -129,7 +129,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleForward_wrapsAroundSkippingBackburnered() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B", state: .backburner), makeSession("C")]
-    let state = CyclingState(currentIndex: 1, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 1)
 
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "C", state: state)
 
@@ -139,7 +139,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleBackward_skipsBackburneredSession() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B", state: .backburner), makeSession("C")]
-    let state = CyclingState(currentIndex: 1, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 1)
 
     let result = engine.cycleBackward(sessions: sessions, focusedSessionID: "C", state: state)
 
@@ -149,7 +149,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func syncStateToFocus_backburneredSession_keepsCurrentIndex() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B", state: .backburner), makeSession("C")]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 0)
 
     let newState = engine.syncStateToFocus(sessions: sessions, focusedSessionID: "B", state: state)
 
@@ -161,7 +161,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleForward_singleSession_staysOnSame() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A")]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 0)
 
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "A", state: state)
 
@@ -172,7 +172,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleBackward_singleSession_staysOnSame() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A")]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 0)
 
     let result = engine.cycleBackward(sessions: sessions, focusedSessionID: "A", state: state)
 
@@ -185,7 +185,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleForward_allBackburnered_returnsNil() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A", state: .backburner), makeSession("B", state: .backburner)]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 0)
 
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "A", state: state)
 
@@ -196,7 +196,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleBackward_allBackburnered_returnsNil() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A", state: .backburner), makeSession("B", state: .backburner)]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 0)
 
     let result = engine.cycleBackward(sessions: sessions, focusedSessionID: "A", state: state)
 
@@ -209,7 +209,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleForward_fromBackburnered_goesToNextCyclable() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B", state: .backburner), makeSession("C")]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 0)
 
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "B", state: state)
 
@@ -219,67 +219,31 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 @Test func cycleBackward_fromBackburnered_goesToPreviousCyclable() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B", state: .backburner), makeSession("C")]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 0)
 
     let result = engine.cycleBackward(sessions: sessions, focusedSessionID: "B", state: state)
 
     #expect(result.targetSession?.terminalSessionID == "A")
 }
 
-// MARK: - Color Index Tests
+// MARK: - Moved Flag Tests
 
-@Test func colorIndex_singleSession_unchanged() {
+@Test func colorChanged_singleSession_notMoved() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A")]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 2)
+    let state = CyclingState(currentIndex: 0)
 
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "A", state: state)
 
-    #expect(result.newState.highlightColorIndex == 2)
     #expect(result.colorChanged == false)
 }
 
-@Test func colorIndex_multipleSessions_advancesOnCycle() {
+@Test func colorChanged_multipleSessions_moved() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B")]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 0)
+    let state = CyclingState(currentIndex: 0)
 
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "A", state: state)
 
-    #expect(result.newState.highlightColorIndex == 1)
     #expect(result.colorChanged == true)
-}
-
-@Test func colorIndex_cycleBackward_decrements() {
-    let engine = DefaultCyclingEngine()
-    let sessions = [makeSession("A"), makeSession("B")]
-
-    var state = CyclingState(currentIndex: 0, highlightColorIndex: 0)
-
-    var result = engine.cycleForward(sessions: sessions, focusedSessionID: "A", state: state)
-    #expect(result.newState.highlightColorIndex == 1)
-    state = result.newState
-
-    result = engine.cycleBackward(sessions: sessions, focusedSessionID: "B", state: state)
-    #expect(result.newState.highlightColorIndex == 0)
-}
-
-@Test func colorWrapsAt5() {
-    let engine = DefaultCyclingEngine()
-    let sessions = [makeSession("A"), makeSession("B")]
-    let state = CyclingState(currentIndex: 0, highlightColorIndex: 4)
-
-    let result = engine.cycleForward(sessions: sessions, focusedSessionID: "A", state: state)
-
-    #expect(result.newState.highlightColorIndex == 0)
-}
-
-@Test func colorWrapsBackwardAt0() {
-    let engine = DefaultCyclingEngine()
-    let sessions = [makeSession("A"), makeSession("B")]
-    let state = CyclingState(currentIndex: 1, highlightColorIndex: 0)
-
-    let result = engine.cycleBackward(sessions: sessions, focusedSessionID: "B", state: state)
-
-    #expect(result.newState.highlightColorIndex == 4)
 }

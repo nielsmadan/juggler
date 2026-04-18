@@ -178,8 +178,7 @@ struct SessionMonitorView: View {
             .onChange(of: sessionManager.currentSession?.id) { _, _ in
                 if let current = sessionManager.currentSession,
                    let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id }) {
-                    controller.selectedIndex = index
-                    controller.trackSelectedSession(sessions: sessionManager.sessions)
+                    controller.setSelection(to: index, sessions: sessionManager.sessions)
                 }
             }
             .onChange(of: sessionManager.focusedSessionID) { _, newFocusedID in
@@ -187,8 +186,7 @@ struct SessionMonitorView: View {
                 if let index = sessionManager.sessions.firstIndex(where: {
                     $0.terminalSessionID == focusedID || $0.id == focusedID
                 }) {
-                    controller.selectedIndex = index
-                    controller.trackSelectedSession(sessions: sessionManager.sessions)
+                    controller.setSelection(to: index, sessions: sessionManager.sessions)
                 }
             }
             .onChange(of: sessionManager.isSessionFocused) { _, isFocused in
@@ -201,8 +199,7 @@ struct SessionMonitorView: View {
                    let index = sessionManager.sessions.firstIndex(where: {
                        $0.terminalSessionID == focusedID || $0.id == focusedID
                    }) {
-                    controller.selectedIndex = index
-                    controller.trackSelectedSession(sessions: sessionManager.sessions)
+                    controller.setSelection(to: index, sessions: sessionManager.sessions)
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
@@ -387,7 +384,7 @@ struct SessionMonitorView: View {
         .contentShape(Rectangle())
         .listRowBackground(
             (sessionManager.isSessionFocused || isMonitorWindowKey) && controller.selectedIndex == index
-                ? highlightColor(at: index ?? 0).opacity(0.15)
+                ? highlightColor(at: sessionManager.activeColorIndex).opacity(0.15)
                 : Color.clear
         )
         .onTapGesture {
@@ -417,7 +414,7 @@ struct SessionMonitorView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             (sessionManager.isSessionFocused || isMonitorWindowKey) && controller.selectedIndex == index
-                ? highlightColor(at: index ?? 0).opacity(0.15)
+                ? highlightColor(at: sessionManager.activeColorIndex).opacity(0.15)
                 : Color.clear
         )
         .contentShape(Rectangle())
@@ -552,6 +549,11 @@ struct SessionMonitorView: View {
     }
 
     private func activateSession(_ session: Session) {
+        // Only update color when clicking a different session (not Enter on already-selected)
+        if let index = sessionManager.sessions.firstIndex(where: { $0.id == session.id }),
+           controller.selectedIndex != index {
+            sessionManager.resetColorIndex(to: index)
+        }
         sessionManager.beginActivation(targetSessionID: session.id)
         Task {
             try? await TerminalActivation.activate(session: session, trigger: .guiSelect)

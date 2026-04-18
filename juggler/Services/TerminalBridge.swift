@@ -76,9 +76,8 @@ enum TerminalActivation {
         }
     }
 
-    private static func sessionColorIndex(for session: Session) -> Int {
-        let idx = SessionManager.shared.sessions.firstIndex(where: { $0.id == session.id }) ?? 0
-        return idx % CyclingColors.paletteRGB.count
+    private static func sessionColorIndex(for _: Session) -> Int {
+        SessionManager.shared.activeColorIndex
     }
 
     private static func tabHighlightConfig(for session: Session) -> HighlightConfig? {

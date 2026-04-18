@@ -61,21 +61,41 @@ final class SessionListController {
         } else {
             selectedIndex = delta > 0 ? 0 : sessionCount - 1
         }
+        SessionManager.shared.advanceColorIndex(by: delta > 0 ? 1 : -1)
     }
 
     /// Sync selection to the current sessions array, preserving selection by ID across reorders.
     func syncSelection(sessions: [Session]) {
         if let id = selectedSessionID,
            let newIndex = sessions.firstIndex(where: { $0.id == id }) {
+            // Session found at new position — update index, color stays (managed by SessionManager)
             selectedIndex = newIndex
         } else if sessions.isEmpty {
             selectedIndex = nil
-        } else if selectedIndex == nil || selectedIndex! >= sessions.count {
+            SessionManager.shared.resetColorIndex()
+        } else if let idx = selectedIndex, idx < sessions.count {
+            // Selected session was removed but index is still in bounds — retarget, reset color
+            SessionManager.shared.resetColorIndex(to: idx)
+        } else {
+            // Index out of bounds or nil — fall back to 0
             selectedIndex = 0
+            SessionManager.shared.resetColorIndex()
         }
         selectedSessionID = selectedIndex.flatMap { idx in
             idx < sessions.count ? sessions[idx].id : nil
         }
+    }
+
+    /// Set selection explicitly (e.g., from external focus changes).
+    /// Skips color reset when an activation is in flight (hotkey or click already set the color)
+    /// or when the selection didn't actually change (echo from Enter key).
+    func setSelection(to index: Int, sessions: [Session]) {
+        guard index >= 0, index < sessions.count else { return }
+        if selectedIndex != index, SessionManager.shared.activationTarget == nil {
+            SessionManager.shared.resetColorIndex(to: index)
+        }
+        selectedIndex = index
+        trackSelectedSession(sessions: sessions)
     }
 
     /// Call after selectedIndex changes to keep the session ID in sync.
