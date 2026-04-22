@@ -405,7 +405,7 @@ private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []
 
 @Test @MainActor func moveSelection_advancesActiveColorIndex() {
     let manager = SessionManager.shared
-    manager.resetColorIndex()
+    manager.clearColorIndex()
     let controller = SessionListController()
 
     controller.moveSelection(by: 1, sessionCount: 5)
@@ -435,23 +435,23 @@ private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []
     #expect(manager.activeColorIndex == 4)
 }
 
-@Test @MainActor func resetColorIndex_setsValue() {
+@Test @MainActor func setColorIndex_setsValue() {
     let manager = SessionManager()
 
-    manager.resetColorIndex(to: 3)
+    manager.setColorIndex(to: 3)
     #expect(manager.activeColorIndex == 3)
 }
 
-@Test @MainActor func resetColorIndex_clampsToRange() {
+@Test @MainActor func setColorIndex_clampsToRange() {
     let manager = SessionManager()
 
-    manager.resetColorIndex(to: 7)
+    manager.setColorIndex(to: 7)
     #expect(manager.activeColorIndex == 2) // 7 % 5
 }
 
 @Test @MainActor func syncSelection_reorder_preservesActiveColor() {
     let manager = SessionManager.shared
-    manager.resetColorIndex()
+    manager.clearColorIndex()
     let controller = SessionListController()
     let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
 
@@ -470,7 +470,7 @@ private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []
 
 @Test @MainActor func syncSelection_sessionRemoved_resetsActiveColor() {
     let manager = SessionManager.shared
-    manager.resetColorIndex()
+    manager.clearColorIndex()
     let controller = SessionListController()
     let sessions = [makeSession("A"), makeSession("B")]
 
@@ -485,7 +485,7 @@ private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []
 
 @Test @MainActor func syncSelection_empty_resetsActiveColor() {
     let manager = SessionManager.shared
-    manager.resetColorIndex()
+    manager.clearColorIndex()
     let controller = SessionListController()
     let sessions = [makeSession("A")]
 
@@ -499,7 +499,7 @@ private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []
 
 @Test @MainActor func setSelection_resetsActiveColorToIndex() {
     let manager = SessionManager.shared
-    manager.resetColorIndex()
+    manager.clearColorIndex()
     let controller = SessionListController()
     let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
 
@@ -511,7 +511,7 @@ private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []
 
 @Test @MainActor func setSelection_sameIndex_preservesActiveColor() {
     let manager = SessionManager.shared
-    manager.resetColorIndex()
+    manager.clearColorIndex()
     let controller = SessionListController()
     let sessions = [makeSession("A"), makeSession("B")]
 
@@ -524,9 +524,34 @@ private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []
     #expect(manager.activeColorIndex == 1)
 }
 
+@Test @MainActor func syncColorIndex_toKnownSession_setsToItsRowIndex() {
+    let manager = SessionManager.shared
+    manager.clearColorIndex()
+    let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
+    manager.testSetSessions(sessions)
+
+    manager.syncColorIndex(toSessionID: sessions[2].id)
+    #expect(manager.activeColorIndex == 2)
+
+    manager.syncColorIndex(toSessionID: sessions[0].id)
+    #expect(manager.activeColorIndex == 0)
+}
+
+@Test @MainActor func syncColorIndex_unknownSession_isNoOp() {
+    let manager = SessionManager.shared
+    manager.clearColorIndex()
+    let sessions = [makeSession("A")]
+    manager.testSetSessions(sessions)
+    manager.setColorIndex(to: 3)
+
+    manager.syncColorIndex(toSessionID: "does-not-exist")
+
+    #expect(manager.activeColorIndex == 3)
+}
+
 @Test @MainActor func setSelection_outOfBounds_noOp() {
     let manager = SessionManager.shared
-    manager.resetColorIndex()
+    manager.clearColorIndex()
     let controller = SessionListController()
     let sessions = [makeSession("A")]
 

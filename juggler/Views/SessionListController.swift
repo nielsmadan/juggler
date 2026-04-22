@@ -72,14 +72,14 @@ final class SessionListController {
             selectedIndex = newIndex
         } else if sessions.isEmpty {
             selectedIndex = nil
-            SessionManager.shared.resetColorIndex()
+            SessionManager.shared.clearColorIndex()
         } else if let idx = selectedIndex, idx < sessions.count {
             // Selected session was removed but index is still in bounds — retarget, reset color
-            SessionManager.shared.resetColorIndex(to: idx)
+            SessionManager.shared.setColorIndex(to: idx)
         } else {
             // Index out of bounds or nil — fall back to 0
             selectedIndex = 0
-            SessionManager.shared.resetColorIndex()
+            SessionManager.shared.clearColorIndex()
         }
         selectedSessionID = selectedIndex.flatMap { idx in
             idx < sessions.count ? sessions[idx].id : nil
@@ -92,7 +92,7 @@ final class SessionListController {
     func setSelection(to index: Int, sessions: [Session]) {
         guard index >= 0, index < sessions.count else { return }
         if selectedIndex != index, SessionManager.shared.activationTarget == nil {
-            SessionManager.shared.resetColorIndex(to: index)
+            SessionManager.shared.setColorIndex(to: index)
         }
         selectedIndex = index
         trackSelectedSession(sessions: sessions)

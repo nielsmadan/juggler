@@ -131,6 +131,7 @@ Juggler works with this by letting the activation complete, then yielding focus 
 - [Kitty Integration](kitty-integration.md) - Kitten CLI and watcher
 - [Terminal Bridges](terminal-bridges.md) - Bridge protocol and how to add a terminal
 - [Session Management](session-management.md) - Cycling and state logic
+- [Session Highlight Color](highlight-color.md) - Where the highlight-color rules are implemented
 
 ---
 

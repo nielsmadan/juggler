@@ -82,7 +82,7 @@ Configurable local shortcuts for: Move Down, Move Up, Backburner, Reactivate Sel
 
 - **Tab bar highlighting:** configurable color, duration (1-5s), cycling colors (5-color palette)
 - **Pane background highlighting:** separate darker palette, configurable duration
-- **Cycling colors:** highlight color matches session's position-based row color in the list
+- **Cycling colors:** one highlight color drives the monitor row, popover row, and terminal tab/pane together. See [Highlight Color](prd/highlight-color.md) for the full rules.
 - **Per-trigger toggles:** independently enable/disable highlighting for hotkey cycling, GUI session select, and notification click
 
 ### Notifications
@@ -107,7 +107,7 @@ Configurable local shortcuts for: Move Down, Move Up, Backburner, Reactivate Sel
 - Sessions organized in three sections: Idle, Busy, Backburner
 - Per-session display: icon, name, path, git branch, state, idle/working duration, last user message
 - "Group by Window" toggle (Static mode)
-- Selection highlighting with position-based cycling colors
+- Selection highlighting with cycling colors (see Terminal Highlighting above for the color rules)
 - Animated transitions when sessions move between sections:
   - Down: slide out right, off-screen delay, slide in from right
   - Up: smooth vertical movement via matchedGeometryEffect

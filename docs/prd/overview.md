@@ -28,6 +28,7 @@ Sessions in `idle` and `permission` states are included in the cycling queue. Wo
 ## Feature Documentation
 
 - [Cycle Sessions](cycle-sessions.md) - Session cycling, queue modes, backburner
+- [Highlight Color](highlight-color.md) - Rules for the active-session highlight color
 - [Notifications](notification.md) - Notification system and settings
 - [Menu Bar Popover](popover.md) - Popover UI and interactions
 - [Main Window](main-window.md) - Session monitor window

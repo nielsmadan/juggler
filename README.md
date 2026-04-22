@@ -46,7 +46,7 @@ brew install --cask nielsmadan/juggler/juggler
 ## Features
 
 - **Global hotkeys** — Cycle forward, backward, backburner, reactivate, toggle UI — all from any app, all customizable
-- **Tab & pane highlighting** — Cycling color palette marks the active session's tab and pane
+- **Tab & pane highlighting** — One highlight color is active at a time; it advances each cycle and always matches between the monitor and the terminal tab/pane
 - **Quick orientation** — Briefly flash the name of the session in the middle of the screen, immediately see where you are.
 - **Notifications** — Native macOS alerts when a session goes idle or needs permission. Click to jump there
 - **Menu bar & monitor** — Popover for a quick glance. Full session monitor window with jugglery animations and stats

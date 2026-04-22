@@ -35,7 +35,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 
     #expect(result.targetSession?.terminalSessionID == "B")
     #expect(result.newState.currentIndex == 1)
-    #expect(result.colorChanged == true)
+    #expect(result.didMove == true)
 }
 
 @Test func cycleForward_fromMiddle_movesToNext() {
@@ -166,7 +166,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "A", state: state)
 
     #expect(result.targetSession?.terminalSessionID == "A")
-    #expect(result.colorChanged == false)
+    #expect(result.didMove == false)
 }
 
 @Test func cycleBackward_singleSession_staysOnSame() {
@@ -177,7 +177,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
     let result = engine.cycleBackward(sessions: sessions, focusedSessionID: "A", state: state)
 
     #expect(result.targetSession?.terminalSessionID == "A")
-    #expect(result.colorChanged == false)
+    #expect(result.didMove == false)
 }
 
 // MARK: - All Backburnered Tests
@@ -190,7 +190,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "A", state: state)
 
     #expect(result.targetSession == nil)
-    #expect(result.colorChanged == false)
+    #expect(result.didMove == false)
 }
 
 @Test func cycleBackward_allBackburnered_returnsNil() {
@@ -201,7 +201,7 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
     let result = engine.cycleBackward(sessions: sessions, focusedSessionID: "A", state: state)
 
     #expect(result.targetSession == nil)
-    #expect(result.colorChanged == false)
+    #expect(result.didMove == false)
 }
 
 // MARK: - Cycling From Backburnered Session
@@ -228,22 +228,22 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
 
 // MARK: - Moved Flag Tests
 
-@Test func colorChanged_singleSession_notMoved() {
+@Test func didMove_singleSession_notMoved() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A")]
     let state = CyclingState(currentIndex: 0)
 
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "A", state: state)
 
-    #expect(result.colorChanged == false)
+    #expect(result.didMove == false)
 }
 
-@Test func colorChanged_multipleSessions_moved() {
+@Test func didMove_multipleSessions_moved() {
     let engine = DefaultCyclingEngine()
     let sessions = [makeSession("A"), makeSession("B")]
     let state = CyclingState(currentIndex: 0)
 
     let result = engine.cycleForward(sessions: sessions, focusedSessionID: "A", state: state)
 
-    #expect(result.colorChanged == true)
+    #expect(result.didMove == true)
 }

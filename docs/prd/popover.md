@@ -46,9 +46,7 @@ Each row shows:
 
 ### Row Coloring
 
-When enabled (Settings > Highlighting > Session List):
-- Each session row gets a unique background color from a palette
-- Colors cycle through sessions for easy visual distinction
+When enabled (Settings > Highlighting > Session List), the currently highlighted row is drawn in a color from a 5-color palette. Only one row is highlighted at a time, and the same color is applied to the terminal tab/pane. See [Highlight Color](highlight-color.md) for the rules that govern when the color changes.
 
 ## Interactions
 

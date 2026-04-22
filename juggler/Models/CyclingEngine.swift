@@ -14,7 +14,7 @@ struct CyclingState: Equatable {
 struct CyclingResult: Equatable {
     let targetSession: Session?
     let newState: CyclingState
-    let colorChanged: Bool
+    let didMove: Bool
 }
 
 protocol CyclingEngine {
@@ -45,7 +45,7 @@ struct DefaultCyclingEngine: CyclingEngine {
     ) -> CyclingResult {
         let cyclable = sessions.filter(\.state.isIncludedInCycle)
         guard !cyclable.isEmpty else {
-            return CyclingResult(targetSession: nil, newState: state, colorChanged: false)
+            return CyclingResult(targetSession: nil, newState: state, didMove: false)
         }
 
         let targetIdx = findTargetIndexForward(
@@ -61,7 +61,7 @@ struct DefaultCyclingEngine: CyclingEngine {
         return CyclingResult(
             targetSession: target,
             newState: CyclingState(currentIndex: targetIdx),
-            colorChanged: moved
+            didMove: moved
         )
     }
 
@@ -72,7 +72,7 @@ struct DefaultCyclingEngine: CyclingEngine {
     ) -> CyclingResult {
         let cyclable = sessions.filter(\.state.isIncludedInCycle)
         guard !cyclable.isEmpty else {
-            return CyclingResult(targetSession: nil, newState: state, colorChanged: false)
+            return CyclingResult(targetSession: nil, newState: state, didMove: false)
         }
 
         let targetIdx = findTargetIndexBackward(
@@ -88,7 +88,7 @@ struct DefaultCyclingEngine: CyclingEngine {
         return CyclingResult(
             targetSession: target,
             newState: CyclingState(currentIndex: targetIdx),
-            colorChanged: moved
+            didMove: moved
         )
     }
 

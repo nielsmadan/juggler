@@ -109,12 +109,8 @@ struct SessionMonitorView: View {
         return rows
     }
 
-    private func highlightColor(at index: Int) -> Color {
-        if useCyclingColors {
-            CyclingColors.palette[index % CyclingColors.palette.count]
-        } else {
-            Color.accentColor
-        }
+    private var highlightColor: Color {
+        useCyclingColors ? sessionManager.activeColor : Color.accentColor
     }
 
     var body: some View {
@@ -384,7 +380,7 @@ struct SessionMonitorView: View {
         .contentShape(Rectangle())
         .listRowBackground(
             (sessionManager.isSessionFocused || isMonitorWindowKey) && controller.selectedIndex == index
-                ? highlightColor(at: sessionManager.activeColorIndex).opacity(0.15)
+                ? highlightColor.opacity(0.15)
                 : Color.clear
         )
         .onTapGesture {
@@ -414,7 +410,7 @@ struct SessionMonitorView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             (sessionManager.isSessionFocused || isMonitorWindowKey) && controller.selectedIndex == index
-                ? highlightColor(at: sessionManager.activeColorIndex).opacity(0.15)
+                ? highlightColor.opacity(0.15)
                 : Color.clear
         )
         .contentShape(Rectangle())
@@ -552,7 +548,7 @@ struct SessionMonitorView: View {
         // Only update color when clicking a different session (not Enter on already-selected)
         if let index = sessionManager.sessions.firstIndex(where: { $0.id == session.id }),
            controller.selectedIndex != index {
-            sessionManager.resetColorIndex(to: index)
+            sessionManager.setColorIndex(to: index)
         }
         sessionManager.beginActivation(targetSessionID: session.id)
         Task {

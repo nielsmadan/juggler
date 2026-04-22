@@ -30,11 +30,7 @@ struct SessionRowView: View {
     }
 
     private var highlightColor: Color {
-        if useCyclingColors {
-            return CyclingColors.palette[sessionManager.activeColorIndex]
-        } else {
-            return Color.accentColor
-        }
+        useCyclingColors ? sessionManager.activeColor : Color.accentColor
     }
 
     var body: some View {
@@ -94,6 +90,7 @@ struct SessionRowView: View {
     }
 
     private func activateSession() {
+        sessionManager.syncColorIndex(toSessionID: session.id)
         Task {
             try? await TerminalActivation.activate(session: session, trigger: .guiSelect)
         }

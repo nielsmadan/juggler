@@ -94,7 +94,9 @@ protocol CyclingEngine {
 1. Filter to cyclable sessions (idle/permission)
 2. Advance index based on direction
 3. Wrap around at boundaries
-4. Track highlight color index
+4. Report whether cycling moved (`didMove`) so the caller can decide whether to advance the highlight color
+
+The rules that govern the highlight color itself live in [Session Highlight Color](highlight-color.md).
 
 ### Queue Modes
 

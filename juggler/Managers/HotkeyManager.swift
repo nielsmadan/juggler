@@ -162,6 +162,8 @@ final class HotkeyManager {
 
         let goToNext = UserDefaults.standard.bool(forKey: AppStorageKeys.goToNextOnBackburner)
         guard goToNext else { return }
+        guard SessionManager.shared.currentSession != nil else { return }
+        SessionManager.shared.advanceColorIndex(by: 1)
         // Each stale session is removed on .sessionNotFound, so currentSession
         // advances until we find a live one or run out.
         while let nextSession = SessionManager.shared.currentSession {

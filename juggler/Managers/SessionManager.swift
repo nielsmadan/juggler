@@ -71,18 +71,29 @@ final class SessionManager {
     /// When non-nil, `updateFocusedSession` ignores focus events that don't match this target.
     private(set) var activationTarget: String?
 
-    /// Single source of truth for the active session's highlight color index.
-    /// Incremented/decremented on every navigation (hotkey, arrow key, click).
-    /// Read by monitor UI, menubar, and terminal bridge.
     private(set) var activeColorIndex: Int = 0
+
+    var activeColor: Color {
+        CyclingColors.palette[activeColorIndex % CyclingColors.palette.count]
+    }
 
     func advanceColorIndex(by delta: Int = 1) {
         let count = CyclingColors.palette.count
         activeColorIndex = (activeColorIndex + delta + count) % count
     }
 
-    func resetColorIndex(to index: Int = 0) {
+    func setColorIndex(to index: Int) {
         activeColorIndex = index % CyclingColors.palette.count
+    }
+
+    func clearColorIndex() {
+        activeColorIndex = 0
+    }
+
+    func syncColorIndex(toSessionID sessionID: String) {
+        guard let index = sessions.firstIndex(where: { $0.id == sessionID }),
+              activeColorIndex != index else { return }
+        setColorIndex(to: index)
     }
 
     let animationController = SectionAnimationController()
@@ -94,15 +105,15 @@ final class SessionManager {
 
     init() {
         cyclingEngine = DefaultCyclingEngine()
+        Self.migrateLegacyQueueOrderModeValues(in: .standard)
+    }
 
-        // One-time migration of legacy queue order mode values
-        let defaults = UserDefaults.standard
-        if let raw = defaults.string(forKey: "queueOrderMode") {
-            if raw == "filo" {
-                defaults.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-            } else if raw == "fifo" {
-                defaults.set(QueueOrderMode.prio.rawValue, forKey: "queueOrderMode")
-            }
+    static func migrateLegacyQueueOrderModeValues(in defaults: UserDefaults) {
+        guard let raw = defaults.string(forKey: "queueOrderMode") else { return }
+        if raw == "filo" {
+            defaults.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        } else if raw == "fifo" {
+            defaults.set(QueueOrderMode.prio.rawValue, forKey: "queueOrderMode")
         }
     }
 
@@ -465,6 +476,27 @@ final class SessionManager {
         }
     }
 
+    private func mergeSessionMetadata(
+        at index: Int,
+        tmuxSessionName: String?,
+        gitBranch: String?,
+        gitRepoName: String?,
+        transcriptPath: String?
+    ) {
+        if let tmuxSessionName, !tmuxSessionName.isEmpty {
+            sessions[index].tmuxSessionName = tmuxSessionName
+        }
+        if let gitBranch, !gitBranch.isEmpty {
+            sessions[index].gitBranch = gitBranch
+        }
+        if let gitRepoName, !gitRepoName.isEmpty {
+            sessions[index].gitRepoName = gitRepoName
+        }
+        if let transcriptPath, !transcriptPath.isEmpty {
+            sessions[index].transcriptPath = transcriptPath
+        }
+    }
+
     @MainActor
     func addOrUpdateSession(
         claudeSessionID: String,
@@ -492,33 +524,23 @@ final class SessionManager {
             // Preserve backburner state - only UserPromptSubmit should exit backburner
             // (explicit reactivation via UI uses updateSessionState, not this method)
             if oldState == .backburner, event != "UserPromptSubmit" {
-                if let tmuxSessionName, !tmuxSessionName.isEmpty {
-                    sessions[index].tmuxSessionName = tmuxSessionName
-                }
-                if let gitBranch, !gitBranch.isEmpty {
-                    sessions[index].gitBranch = gitBranch
-                }
-                if let gitRepoName, !gitRepoName.isEmpty {
-                    sessions[index].gitRepoName = gitRepoName
-                }
-                if let transcriptPath, !transcriptPath.isEmpty {
-                    sessions[index].transcriptPath = transcriptPath
-                }
+                mergeSessionMetadata(
+                    at: index,
+                    tmuxSessionName: tmuxSessionName,
+                    gitBranch: gitBranch,
+                    gitRepoName: gitRepoName,
+                    transcriptPath: transcriptPath
+                )
                 return
             }
 
-            if let tmuxSessionName, !tmuxSessionName.isEmpty {
-                sessions[index].tmuxSessionName = tmuxSessionName
-            }
-            if let gitBranch, !gitBranch.isEmpty {
-                sessions[index].gitBranch = gitBranch
-            }
-            if let gitRepoName, !gitRepoName.isEmpty {
-                sessions[index].gitRepoName = gitRepoName
-            }
-            if let transcriptPath, !transcriptPath.isEmpty {
-                sessions[index].transcriptPath = transcriptPath
-            }
+            mergeSessionMetadata(
+                at: index,
+                tmuxSessionName: tmuxSessionName,
+                gitBranch: gitBranch,
+                gitRepoName: gitRepoName,
+                transcriptPath: transcriptPath
+            )
 
             if oldState != state {
                 let sessionID = sessions[index].id
@@ -683,7 +705,7 @@ final class SessionManager {
             state: cyclingState
         )
         cyclingState = result.newState
-        if result.colorChanged { advanceColorIndex(by: 1) }
+        if result.didMove { advanceColorIndex(by: 1) }
 
         logDebug(
             .hotkey,
@@ -714,7 +736,7 @@ final class SessionManager {
             state: cyclingState
         )
         cyclingState = result.newState
-        if result.colorChanged { advanceColorIndex(by: -1) }
+        if result.didMove { advanceColorIndex(by: -1) }
 
         logDebug(
             .hotkey,

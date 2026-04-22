@@ -112,7 +112,7 @@ When cycling to a session, Juggler can highlight the terminal tab/pane (iTerm2 a
 
 - Flash the tab with a color
 - Configurable duration (1-5 seconds)
-- Optional: Use cycling colors (each session gets a unique color)
+- Optional: Use cycling colors — see [Highlight Color](highlight-color.md) for the full rule set.
 
 ### Pane Background Highlighting
 

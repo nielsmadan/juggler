@@ -78,16 +78,34 @@ import Testing
     #expect(manager.sessions[1].terminalSessionID == "s1")
 }
 
-@Test func init_migratesLegacyQueueOrderModeValues() {
-    UserDefaults.standard.set("filo", forKey: "queueOrderMode")
-    _ = SessionManager()
-    #expect(UserDefaults.standard.string(forKey: "queueOrderMode") == QueueOrderMode.fair.rawValue)
+@Test @MainActor func migrateLegacyQueueOrderModeValues_filoToFair() {
+    let suiteName = "migrate-test-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer { defaults.removePersistentDomain(forName: suiteName) }
 
-    UserDefaults.standard.set("fifo", forKey: "queueOrderMode")
-    _ = SessionManager()
-    #expect(UserDefaults.standard.string(forKey: "queueOrderMode") == QueueOrderMode.prio.rawValue)
+    defaults.set("filo", forKey: "queueOrderMode")
+    SessionManager.migrateLegacyQueueOrderModeValues(in: defaults)
+    #expect(defaults.string(forKey: "queueOrderMode") == QueueOrderMode.fair.rawValue)
+}
 
-    UserDefaults.standard.removeObject(forKey: "queueOrderMode")
+@Test @MainActor func migrateLegacyQueueOrderModeValues_fifoToPrio() {
+    let suiteName = "migrate-test-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    defaults.set("fifo", forKey: "queueOrderMode")
+    SessionManager.migrateLegacyQueueOrderModeValues(in: defaults)
+    #expect(defaults.string(forKey: "queueOrderMode") == QueueOrderMode.prio.rawValue)
+}
+
+@Test @MainActor func migrateLegacyQueueOrderModeValues_unknownValue_untouched() {
+    let suiteName = "migrate-test-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    defaults.set("static", forKey: "queueOrderMode")
+    SessionManager.migrateLegacyQueueOrderModeValues(in: defaults)
+    #expect(defaults.string(forKey: "queueOrderMode") == "static")
 }
 
 // MARK: - addOrUpdateSession Tests
