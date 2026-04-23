@@ -256,5 +256,218 @@ struct TerminalActivationTests {
 
             #expect(SessionManager.shared.sessions.map(\.id) == ["s1"])
         }
+
+        // MARK: - Highlight Trigger Matrix
+
+        @Test @MainActor func activate_hotkey_tabEnabled_paneDisabled_sendsTabConfigOnly() async throws {
+            await resetSharedState()
+            let bridge = ActivationMockBridge()
+            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.highlightOnHotkey)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.paneHighlightEnabled)
+            defer {
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.highlightOnHotkey)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.tabHighlightEnabled)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.paneHighlightEnabled)
+            }
+
+            let session = makeSession("s1")
+            SessionManager.shared.testSetSessions([session])
+
+            try await TerminalActivation.activate(session: session, trigger: .hotkey)
+
+            let highlightCalls = await bridge.recordedHighlightCalls()
+            #expect(highlightCalls.count == 1)
+            let (_, tabConfig, paneConfig) = try #require(highlightCalls.first)
+            #expect(tabConfig != nil)
+            #expect(paneConfig == nil)
+        }
+
+        @Test @MainActor func activate_hotkey_paneEnabled_tabDisabled_sendsPaneConfigOnly() async throws {
+            await resetSharedState()
+            let bridge = ActivationMockBridge()
+            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.highlightOnHotkey)
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.tabHighlightEnabled)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.paneHighlightEnabled)
+            defer {
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.highlightOnHotkey)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.tabHighlightEnabled)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.paneHighlightEnabled)
+            }
+
+            let session = makeSession("s1")
+            SessionManager.shared.testSetSessions([session])
+
+            try await TerminalActivation.activate(session: session, trigger: .hotkey)
+
+            let highlightCalls = await bridge.recordedHighlightCalls()
+            #expect(highlightCalls.count == 1)
+            let (_, tabConfig, paneConfig) = try #require(highlightCalls.first)
+            #expect(tabConfig == nil)
+            #expect(paneConfig != nil)
+        }
+
+        @Test @MainActor func activate_hotkey_triggerDisabled_skipsHighlight() async throws {
+            await resetSharedState()
+            let bridge = ActivationMockBridge()
+            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.highlightOnHotkey)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.paneHighlightEnabled)
+            defer {
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.highlightOnHotkey)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.tabHighlightEnabled)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.paneHighlightEnabled)
+            }
+
+            let session = makeSession("s1")
+            SessionManager.shared.testSetSessions([session])
+
+            try await TerminalActivation.activate(session: session, trigger: .hotkey)
+
+            let highlightCalls = await bridge.recordedHighlightCalls()
+            #expect(highlightCalls.isEmpty)
+        }
+
+        @Test @MainActor func activate_guiSelect_bothEnabled_sendsBothConfigs() async throws {
+            await resetSharedState()
+            let bridge = ActivationMockBridge()
+            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.highlightOnGuiSelect)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.paneHighlightEnabled)
+            defer {
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.highlightOnGuiSelect)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.tabHighlightEnabled)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.paneHighlightEnabled)
+            }
+
+            let session = makeSession("s1")
+            SessionManager.shared.testSetSessions([session])
+
+            try await TerminalActivation.activate(session: session, trigger: .guiSelect)
+
+            let highlightCalls = await bridge.recordedHighlightCalls()
+            #expect(highlightCalls.count == 1)
+            let (_, tabConfig, paneConfig) = try #require(highlightCalls.first)
+            #expect(tabConfig != nil)
+            #expect(paneConfig != nil)
+        }
+
+        @Test @MainActor func activate_guiSelect_triggerDisabled_skipsHighlight() async throws {
+            await resetSharedState()
+            let bridge = ActivationMockBridge()
+            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.highlightOnGuiSelect)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.paneHighlightEnabled)
+            defer {
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.highlightOnGuiSelect)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.tabHighlightEnabled)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.paneHighlightEnabled)
+            }
+
+            let session = makeSession("s1")
+            SessionManager.shared.testSetSessions([session])
+
+            try await TerminalActivation.activate(session: session, trigger: .guiSelect)
+
+            let highlightCalls = await bridge.recordedHighlightCalls()
+            #expect(highlightCalls.isEmpty)
+        }
+
+        @Test @MainActor func activate_notification_tabOnly_sendsTabConfigOnly() async throws {
+            await resetSharedState()
+            let bridge = ActivationMockBridge()
+            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.highlightOnNotification)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.paneHighlightEnabled)
+            defer {
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.highlightOnNotification)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.tabHighlightEnabled)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.paneHighlightEnabled)
+            }
+
+            let session = makeSession("s1")
+            SessionManager.shared.testSetSessions([session])
+
+            try await TerminalActivation.activate(session: session, trigger: .notification)
+
+            let highlightCalls = await bridge.recordedHighlightCalls()
+            #expect(highlightCalls.count == 1)
+            let (_, tabConfig, paneConfig) = try #require(highlightCalls.first)
+            #expect(tabConfig != nil)
+            #expect(paneConfig == nil)
+        }
+
+        @Test @MainActor func activate_notification_triggerDisabled_skipsHighlight() async throws {
+            await resetSharedState()
+            let bridge = ActivationMockBridge()
+            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.highlightOnNotification)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.paneHighlightEnabled)
+            defer {
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.highlightOnNotification)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.tabHighlightEnabled)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.paneHighlightEnabled)
+            }
+
+            let session = makeSession("s1")
+            SessionManager.shared.testSetSessions([session])
+
+            try await TerminalActivation.activate(session: session, trigger: .notification)
+
+            let highlightCalls = await bridge.recordedHighlightCalls()
+            #expect(highlightCalls.isEmpty)
+        }
+
+        @Test @MainActor func activate_highlightBridgeThrows_propagates() async {
+            actor ThrowingHighlightBridge: TerminalBridge {
+                func start() async throws {}
+                func stop() async {}
+                func activate(sessionID _: String) async throws {}
+                func highlight(
+                    sessionID _: String,
+                    tabConfig _: HighlightConfig?,
+                    paneConfig _: HighlightConfig?
+                ) async throws {
+                    throw MockActivationError.generic
+                }
+                func getSessionInfo(sessionID _: String) async throws -> TerminalSessionInfo? { nil }
+            }
+
+            await resetSharedState()
+            await TerminalBridgeRegistry.shared.register(ThrowingHighlightBridge(), for: .iterm2)
+
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.highlightOnHotkey)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
+            defer {
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.highlightOnHotkey)
+                UserDefaults.standard.removeObject(forKey: AppStorageKeys.tabHighlightEnabled)
+            }
+
+            let session = makeSession("s1")
+            SessionManager.shared.testSetSessions([session])
+
+            do {
+                try await TerminalActivation.activate(session: session, trigger: .hotkey)
+                Issue.record("Expected highlight error to propagate")
+            } catch let error as MockActivationError {
+                #expect(error == .generic)
+            } catch {
+                Issue.record("Unexpected error: \(error)")
+            }
+        }
     }
 }

@@ -277,4 +277,80 @@ struct KittyBridgeTests {
         let result = await bridge.rgbToHex([])
         #expect(result == "#FF0000")
     }
+
+    // MARK: - parseKittyLsOutput edge cases
+
+    @Test func parseKittyLsOutput_truncatedJSON_returnsNil() {
+        let bridge = KittyBridge.shared
+        let json = #"[{"id":1,"tabs":[{"id":1,"title":"a""#
+
+        let info = bridge.parseKittyLsOutput(json, windowID: "42")
+
+        #expect(info == nil)
+    }
+
+    @Test func parseKittyLsOutput_nullFieldsInWindow_usesFallbacks() {
+        let bridge = KittyBridge.shared
+        let json = """
+        [
+            {
+                "id": 1,
+                "platform_window_id": null,
+                "tabs": [
+                    {
+                        "id": 1,
+                        "title": null,
+                        "windows": [
+                            {
+                                "id": 42,
+                                "title": null,
+                                "is_focused": null
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+        """
+
+        let info = bridge.parseKittyLsOutput(json, windowID: "42")
+
+        #expect(info != nil)
+        #expect(info?.tabName == "Tab 1")
+        #expect(info?.windowName == "Kitty")
+        #expect(info?.isActive == false)
+    }
+
+    @Test func parseKittyLsOutput_topLevelObject_returnsNil() {
+        let bridge = KittyBridge.shared
+
+        let info = bridge.parseKittyLsOutput("{}", windowID: "42")
+
+        #expect(info == nil)
+    }
+
+    @Test func parseKittyLsOutput_whitespaceOnlyString_returnsNil() {
+        let bridge = KittyBridge.shared
+
+        let info = bridge.parseKittyLsOutput("   \n  ", windowID: "42")
+
+        #expect(info == nil)
+    }
+
+    @Test func parseKittyLsOutput_nonJSONText_returnsNil() {
+        let bridge = KittyBridge.shared
+
+        let info = bridge.parseKittyLsOutput("command not found", windowID: "42")
+
+        #expect(info == nil)
+    }
+
+    // MARK: - bridge error paths
+
+    @Test func stop_calledTwice_idempotent() async {
+        let bridge = KittyBridge.shared
+        await bridge.stop()
+        await bridge.stop()
+    }
+
 }

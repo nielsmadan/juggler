@@ -793,4 +793,133 @@ struct HookServerTests {
         #expect(payload.hookInput?.transcriptPath == "/path/to/transcript.jsonl")
         #expect(payload.hookInput?.toolName == "write_file")
     }
+
+    // MARK: - processRequest error & missing-field branches
+
+    @Test @MainActor func processRequest_postHook_missingTerminalSessionID_handlesGracefully() async {
+        // Pins current behavior: missing terminal.sessionId defaults to "" and a session IS still created
+        // (with empty terminalSessionID). No crash, 200 returned.
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let body = """
+        {"agent":"claude-code","event":"SessionStart","hookInput":{"session_id":"claude-1"},\
+        "terminal":{"cwd":"/test/project","terminalType":"iterm2"}}
+        """
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 200)
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].terminalSessionID == "")
+        #expect(manager.sessions[0].claudeSessionID == "claude-1")
+    }
+
+    @Test @MainActor func processRequest_postHook_missingAgent_returns400() async {
+        // Surprise: `agent` is required by the decoder (not optional), so a missing agent
+        // does NOT default to "claude-code" — the payload fails to decode and returns 400.
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let body = """
+        {"event":"SessionStart","hookInput":{"session_id":"claude-1"},\
+        "terminal":{"sessionId":"s1","cwd":"/test/project","terminalType":"iterm2"}}
+        """
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 400)
+        #expect(manager.sessions.isEmpty)
+    }
+
+    @Test @MainActor func processRequest_postHook_kittyTerminalWithoutSocket_stillCreatesSession_noBridgeSideEffect()
+        async {
+        // With kitty terminal type but no kittyListenOn field, the code logs a warning
+        // and skips bridge registration. Session is still created with .kitty terminalType.
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let body = """
+        {"agent":"claude-code","event":"SessionStart","hookInput":{"session_id":"claude-1"},\
+        "terminal":{"sessionId":"kitty-win-1","cwd":"/test/project","terminalType":"kitty"}}
+        """
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 200)
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].terminalType == .kitty)
+        #expect(manager.sessions[0].terminalSessionID == "kitty-win-1")
+    }
+
+    @Test @MainActor func processRequest_postHook_kittyTerminalWithMalformedSocket_ignored() async {
+        // Malformed socket — has "unix:" prefix but no "kitty" substring, so the bridge
+        // registration guard fails. Session is still created, no crash.
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let body = """
+        {"agent":"claude-code","event":"SessionStart","hookInput":{"session_id":"claude-1"},\
+        "terminal":{"sessionId":"kitty-win-2","cwd":"/test/project","terminalType":"kitty",\
+        "kittyListenOn":"unix:/tmp/not-a-valid-socket"}}
+        """
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 200)
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].terminalType == .kitty)
+        #expect(manager.sessions[0].terminalSessionID == "kitty-win-2")
+    }
+
+    @Test @MainActor func processRequest_postHook_emptyHookInput_treatedAsAbsent() async {
+        // hookInput: {} decodes to a non-nil HookInput with all nil fields, so claudeSessionID
+        // ends up as "" — equivalent to the missing-hookInput case for session creation.
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let body = """
+        {"agent":"claude-code","event":"SessionStart","hookInput":{},\
+        "terminal":{"sessionId":"s1","cwd":"/test/project","terminalType":"iterm2"}}
+        """
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 200)
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].claudeSessionID == "")
+        #expect(manager.sessions[0].terminalSessionID == "s1")
+    }
+
+    @Test @MainActor func processRequest_postHook_missingGitFields_createsSessionWithoutBranch() async {
+        // Payload omits the `git` object entirely — branch/repo end up nil on the session.
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let body = """
+        {"agent":"claude-code","event":"SessionStart","hookInput":{"session_id":"claude-1"},\
+        "terminal":{"sessionId":"s1","cwd":"/test/project","terminalType":"iterm2"}}
+        """
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 200)
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].gitBranch == nil)
+        #expect(manager.sessions[0].gitRepoName == nil)
+    }
+
+    @Test @MainActor func processRequest_postHook_incompleteTmuxFields_paneOnly_handledSensibly() async {
+        // Only tmux.pane is present (no sessionName). Production accepts partial tmux info:
+        // the pane is used to build a composite session ID "s1:%7" and sessionName stays nil.
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let body = """
+        {"agent":"claude-code","event":"SessionStart","hookInput":{"session_id":"claude-1"},\
+        "terminal":{"sessionId":"s1","cwd":"/test/project","terminalType":"iterm2"},\
+        "tmux":{"pane":"%7"}}
+        """
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 200)
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].tmuxPane == "%7")
+        #expect(manager.sessions[0].tmuxSessionName == nil)
+        #expect(manager.sessions[0].id == "s1:%7")
+    }
 }

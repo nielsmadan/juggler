@@ -1005,6 +1005,169 @@ struct SessionManagerTests {
 
             #expect(manager.lastActiveSessionID == "s1")
         }
+
+        // MARK: - Auto-advance × Auto-restart × Focus Races
+
+        @Test @MainActor func autoAdvance_focusedSessionCompacting_triggersAdvance() {
+            // working → compacting is non-cyclable → non-cyclable. The guard in applyStateChange
+            // only fires on cyclable → non-cyclable, so no notification should post and no
+            // anchor should be set. Pin that behavior here.
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
+            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+
+            var posted = false
+            let token = NotificationCenter.default.addObserver(
+                forName: .shouldAutoAdvance, object: nil, queue: nil
+            ) { _ in posted = true }
+            defer { NotificationCenter.default.removeObserver(token) }
+
+            let manager = SessionManager()
+            manager.testSetSessions([makeSession("s1", state: .working), makeSession("s2", state: .idle)])
+            manager.testSetFocusedSessionID("s1")
+
+            manager.testApplyStateChange(sessionID: "s1", from: .working, to: .compacting)
+
+            #expect(posted == false)
+            #expect(manager.lastActiveSessionID == nil)
+        }
+
+        @Test @MainActor func autoAdvance_off_anchorCleared_whenAnchoredSessionReturnsIdle_viaPermission() {
+            // Variant of anchorCleared_*: the anchored session first transitions to permission
+            // (still cyclable), which should clear the anchor just like idle does.
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
+            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+
+            let manager = SessionManager()
+            manager.testSetSessions([makeSession("s1", state: .working)])
+            manager.testSetLastActiveSessionID("s1")
+
+            manager.testApplyStateChange(sessionID: "s1", from: .working, to: .permission)
+
+            #expect(manager.lastActiveSessionID == nil)
+        }
+
+        @Test @MainActor func autoAdvance_off_anchorNotCleared_whenDifferentSessionGoesBusy() {
+            // Anchor is on s1 (working); a different session s2 transitions idle → working.
+            // The anchor must remain on s1 — unrelated state changes must not disturb it.
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
+            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+
+            let manager = SessionManager()
+            manager.testSetSessions([
+                makeSession("s1", state: .working),
+                makeSession("s2", state: .idle),
+            ])
+            manager.testSetLastActiveSessionID("s1")
+            manager.testSetFocusedSessionID(nil) // s2 transition is not focused-driven
+
+            manager.testApplyStateChange(sessionID: "s2", from: .idle, to: .working)
+
+            #expect(manager.lastActiveSessionID == "s1")
+        }
+
+        @Test @MainActor func autoRestart_cyclableCountBecomesOne_firesOnce() {
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.autoRestartOnIdle)
+            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
+
+            var fireCount = 0
+            let token = NotificationCenter.default.addObserver(
+                forName: .shouldAutoRestart, object: nil, queue: nil
+            ) { _ in fireCount += 1 }
+            defer { NotificationCenter.default.removeObserver(token) }
+
+            let manager = SessionManager()
+            // 2 busy, 0 cyclable initially
+            manager.testSetSessions([
+                makeSession("s1", state: .working),
+                makeSession("s2", state: .working),
+            ])
+
+            // s1 transitions to idle → cyclableCount becomes 1 → should fire exactly once
+            manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
+
+            #expect(fireCount == 1)
+        }
+
+        @Test @MainActor func autoRestart_cyclableCountBecomesTwo_doesNotFire() {
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.autoRestartOnIdle)
+            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
+
+            var fireCount = 0
+            let token = NotificationCenter.default.addObserver(
+                forName: .shouldAutoRestart, object: nil, queue: nil
+            ) { _ in fireCount += 1 }
+            defer { NotificationCenter.default.removeObserver(token) }
+
+            let manager = SessionManager()
+            // 1 busy + 1 cyclable initially
+            manager.testSetSessions([
+                makeSession("s1", state: .working),
+                makeSession("s2", state: .idle),
+            ])
+
+            // s1 transitions to idle → cyclableCount becomes 2 → should NOT fire
+            manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle)
+
+            #expect(fireCount == 0)
+        }
+
+        @Test @MainActor func autoAdvance_focusedSessionGoesBusy_withAnchor_anchorStaysOnFocused() {
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
+            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+
+            let manager = SessionManager()
+            manager.testSetSessions([
+                makeSession("s1", state: .idle),
+                makeSession("s2", state: .idle),
+            ])
+            manager.testSetFocusedSessionID("s1")
+
+            // User was on s1 and s1 goes working → anchor set to s1
+            manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+            #expect(manager.lastActiveSessionID == "s1")
+
+            // Unrelated state change on s2 (still cyclable → cyclable, no anchor clearing path)
+            // must not disturb the anchor on s1.
+            manager.testApplyStateChange(sessionID: "s2", from: .idle, to: .permission)
+            #expect(manager.lastActiveSessionID == "s1")
+        }
+
+        @Test @MainActor func autoAdvance_multipleFocusChanges_onlyLatestAnchored() {
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
+            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
+
+            let manager = SessionManager()
+            manager.testSetSessions([
+                makeSession("s1", state: .idle),
+                makeSession("s2", state: .idle),
+            ])
+
+            // Focus s1, s1 goes working → anchor=s1
+            manager.testSetFocusedSessionID("s1")
+            manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+            #expect(manager.lastActiveSessionID == "s1")
+
+            // Focus switches to s2, s2 goes working → anchor should now be s2 (latest wins)
+            manager.testSetFocusedSessionID("s2")
+            manager.testApplyStateChange(sessionID: "s2", from: .idle, to: .working)
+            #expect(manager.lastActiveSessionID == "s2")
+        }
+
+        @Test @MainActor func autoRestart_manualCycle_consumesAnchor() {
+            let manager = SessionManager()
+            manager.testSetSessions([
+                makeSession("s1", state: .working),
+                makeSession("s2", state: .idle),
+                makeSession("s3", state: .idle),
+            ])
+            manager.testSetLastActiveSessionID("s1")
+            manager.testSetFocusedSessionID("s1")
+
+            // An explicit manual cycle must consume the anchor regardless of auto-restart/advance.
+            _ = manager.cycleForward()
+
+            #expect(manager.lastActiveSessionID == nil)
+        }
     }
 
     // MARK: - Snap-back (resolveEffectiveFocus) Tests
@@ -1285,5 +1448,178 @@ struct SessionManagerTests {
         manager.testReconcileFocusForTerminal(bundleID: TerminalType.kitty.bundleIdentifier)
 
         #expect(manager.focusedSessionID == "kitty1")
+    }
+
+    // MARK: - Reorder × Mode × State Transition Matrix
+
+    @Test @MainActor func reorderDuringTransition_idleToBusy_fairMode_movesBelowIdle() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle),
+        ])
+
+        // s1 goes busy — should move below remaining idle sessions (bottom of busy section)
+        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s3", "s1"])
+    }
+
+    @Test @MainActor func reorderDuringTransition_idleToBusy_prioMode_movesBelowIdle() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.prio.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle),
+        ])
+
+        // Prio treats idle→busy the same as fair: lands at bottom of busy
+        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s3", "s1"])
+    }
+
+    @Test @MainActor func reorderDuringTransition_permissionToBusy_fairMode_treatsPermissionAsIdle() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .permission),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle),
+        ])
+
+        // permission→busy is a wasIdle→!isIdle transition, so s1 drops to bottom of busy
+        manager.testApplyStateChange(sessionID: "s1", from: .permission, to: .working)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s3", "s1"])
+    }
+
+    @Test @MainActor func reorderDuringTransition_backburnerToIdle_prioMode_toTopOfIdle() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.prio.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .backburner),
+        ])
+
+        // Prio mode: idle returns go to top
+        manager.testApplyStateChange(sessionID: "s3", from: .backburner, to: .idle)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s3", "s1", "s2"])
+    }
+
+    @Test @MainActor func reorderDuringTransition_backburnerToIdle_fairMode_toBottomOfIdle() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .backburner),
+        ])
+
+        // Fair mode: idle returns go to bottom of idle section (before any busy/backburner)
+        manager.testApplyStateChange(sessionID: "s3", from: .backburner, to: .idle)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
+    }
+
+    @Test @MainActor func reorderDuringTransition_idleToBackburner_fairMode_toBottomOfBackburner() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .backburner),
+        ])
+
+        // s1 goes to backburner — lands at bottom of backburner section
+        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .backburner)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s3", "s1"])
+    }
+
+    @Test @MainActor func reorderDuringTransition_compactingTreatedAsBusy() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .working),
+        ])
+
+        // idle→compacting is a busy transition — s1 should drop to bottom of busy
+        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .compacting)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s1"])
+    }
+
+    @Test @MainActor func reorderDuringTransition_staticMode_noReorderRegardlessOfTransition() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.static.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle),
+        ])
+
+        // Static mode: no reorder on state change — order preserved
+        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
+    }
+
+    @Test @MainActor func reorderDuringTransition_groupedMode_noReorderOnStateChange() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.grouped.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .backburner),
+        ])
+
+        // Grouped mode: no reorder on state change — order preserved
+        manager.testApplyStateChange(sessionID: "s3", from: .backburner, to: .idle)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
+    }
+
+    @Test @MainActor func reorderDuringTransition_idleToIdleStateRoundtrip_noSpuriousReorder() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle),
+        ])
+
+        // testApplyStateChange bypasses the `if oldState != state` guard, but
+        // handleStateTransition only fires a move when a category boundary is crossed.
+        // idle→idle never crosses, so order stays intact.
+        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .idle)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
     }
 }

@@ -1045,4 +1045,227 @@ struct IntegrationTests {
         let next = manager.cycleForward()
         #expect(next?.id == "w0t1p0:uuid-b")
     }
+
+    // MARK: - OpenCode Hook Integration
+
+    @Test @MainActor func integration_opencode_sessionCreated_createsSession() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.created",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1",
+            projectPath: "/Users/test/oc-project"
+        )
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].terminalSessionID == "s1")
+        #expect(manager.sessions[0].state == .idle)
+        #expect(manager.sessions[0].agent == "opencode")
+        #expect(manager.sessions[0].projectPath == "/Users/test/oc-project")
+    }
+
+    @Test @MainActor func integration_opencode_statusBusy_toWorking() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.created",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+        #expect(manager.sessions[0].state == .idle)
+
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.status.busy",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+        #expect(manager.sessions[0].state == .working)
+    }
+
+    @Test @MainActor func integration_opencode_statusBusy_then_statusIdle_returnsToIdle() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.created",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.status.busy",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+        #expect(manager.sessions[0].state == .working)
+
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.status.idle",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+        #expect(manager.sessions[0].state == .idle)
+    }
+
+    @Test @MainActor func integration_opencode_permissionAsked_state() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.created",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "permission.asked",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+
+        #expect(manager.sessions[0].state == .permission)
+        #expect(manager.sessions[0].state.isIncludedInCycle)
+    }
+
+    @Test @MainActor func integration_opencode_sessionCompacted_compactingState() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.created",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.status.busy",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.compacted",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+
+        #expect(manager.sessions[0].state == .compacting)
+    }
+
+    @Test @MainActor func integration_opencode_sessionDeleted_removesSession() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.created",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+        #expect(manager.sessions.count == 1)
+
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.deleted",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+        #expect(manager.sessions.isEmpty)
+    }
+
+    @Test @MainActor func integration_opencode_serverDisposed_removesSession() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.created",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+        #expect(manager.sessions.count == 1)
+
+        // server.instance.disposed maps to .removeSession in HookEventMapper.mapOpenCode,
+        // so the associated session should be removed from the manager.
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "server.instance.disposed",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s1"
+        )
+        #expect(manager.sessions.isEmpty)
+    }
+
+    @Test @MainActor func integration_opencode_mixedWithClaudeCode_bothTracked() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        // Claude Code session
+        await simulateHook(
+            server: server,
+            agent: "claude-code",
+            event: "SessionStart",
+            claudeSessionID: "cc-1",
+            terminalSessionID: "s-cc",
+            projectPath: "/claude/project"
+        )
+
+        // OpenCode session
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.created",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s-oc",
+            projectPath: "/opencode/project"
+        )
+
+        #expect(manager.sessions.count == 2)
+
+        let ccSession = manager.sessions.first { $0.id == "s-cc" }
+        let ocSession = manager.sessions.first { $0.id == "s-oc" }
+
+        #expect(ccSession?.agent == "claude-code")
+        #expect(ccSession?.state == .idle)
+        #expect(ocSession?.agent == "opencode")
+        #expect(ocSession?.state == .idle)
+
+        // Verify they update independently: OpenCode goes working, Claude stays idle
+        await simulateHook(
+            server: server,
+            agent: "opencode",
+            event: "session.status.busy",
+            claudeSessionID: "oc-1",
+            terminalSessionID: "s-oc",
+            projectPath: "/opencode/project"
+        )
+
+        #expect(manager.sessions.first { $0.id == "s-oc" }?.state == .working)
+        #expect(manager.sessions.first { $0.id == "s-cc" }?.state == .idle)
+    }
 }
