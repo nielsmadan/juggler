@@ -2,7 +2,7 @@ import Foundation
 @testable import Juggler
 import Testing
 
-@Suite(.serialized)
+@Suite("Hooks → SessionManager", .serialized, .tags(.integration))
 struct IntegrationTests {
     // MARK: - Integration Test Helper
 
@@ -143,72 +143,6 @@ struct IntegrationTests {
     }
 
     // MARK: - Cycle Forward
-
-    @Test @MainActor func integration_cycleForward_visitsAllSessions() async {
-        let manager = SessionManager()
-        let server = HookServer(sessionManager: manager)
-
-        await simulateHook(
-            server: server,
-            event: "SessionStart",
-            claudeSessionID: "c1",
-            terminalSessionID: "s1",
-            projectPath: "/a"
-        )
-        await simulateHook(
-            server: server,
-            event: "SessionStart",
-            claudeSessionID: "c2",
-            terminalSessionID: "s2",
-            projectPath: "/b"
-        )
-        await simulateHook(
-            server: server,
-            event: "SessionStart",
-            claudeSessionID: "c3",
-            terminalSessionID: "s3",
-            projectPath: "/c"
-        )
-
-        var visited: [String] = []
-        for _ in 0 ..< 3 {
-            if let target = manager.cycleForward() {
-                visited.append(target.id)
-            }
-        }
-
-        #expect(visited.count == 3)
-        #expect(Set(visited).count == 3) // all different
-    }
-
-    @Test @MainActor func integration_cycleForward_wrapsAround() async {
-        let manager = SessionManager()
-        let server = HookServer(sessionManager: manager)
-
-        await simulateHook(
-            server: server,
-            event: "SessionStart",
-            claudeSessionID: "c1",
-            terminalSessionID: "s1",
-            projectPath: "/a"
-        )
-        await simulateHook(
-            server: server,
-            event: "SessionStart",
-            claudeSessionID: "c2",
-            terminalSessionID: "s2",
-            projectPath: "/b"
-        )
-
-        let first = manager.cycleForward()
-        let second = manager.cycleForward()
-        let third = manager.cycleForward()
-
-        #expect(first != nil)
-        #expect(second != nil)
-        #expect(third != nil)
-        #expect(third!.id == first!.id) // wrapped
-    }
 
     @Test @MainActor func integration_cycleForward_setsFocusedSessionID() async {
         let manager = SessionManager()

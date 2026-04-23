@@ -1,6 +1,7 @@
 @testable import Juggler
 import Testing
 
+@Suite("HookEventMapper")
 struct HookEventMapperTests {
     // MARK: - Idle State Mappings
 
