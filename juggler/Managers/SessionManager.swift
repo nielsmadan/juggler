@@ -167,9 +167,12 @@ final class SessionManager {
 
         if let position = targetPosition {
             let targetIdx = targetIndex(for: position, in: sessions)
-            if index != targetIdx {
+            // Removing at `index` shifts later elements left by 1, so when moving forward
+            // (index < targetIdx) the desired insertion slot is targetIdx - 1.
+            let insertIdx = index < targetIdx ? targetIdx - 1 : targetIdx
+            if index != insertIdx {
                 let session = sessions.remove(at: index)
-                sessions.insert(session, at: min(targetIdx, sessions.count))
+                sessions.insert(session, at: insertIdx)
             }
         }
     }

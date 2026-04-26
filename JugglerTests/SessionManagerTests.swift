@@ -1469,6 +1469,23 @@ struct SessionManagerTests {
         #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s3", "s1"])
     }
 
+    @Test @MainActor func reorderDuringTransition_idleToBusy_fairMode_landsBeforeBackburner() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .backburner),
+        ])
+
+        // Bottom of busy with a backburner present: s1 lands between idle and backburner.
+        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s1", "s3"])
+    }
+
     @Test @MainActor func reorderDuringTransition_idleToBusy_prioMode_movesBelowIdle() {
         let manager = SessionManager()
         UserDefaults.standard.set(QueueOrderMode.prio.rawValue, forKey: "queueOrderMode")
@@ -1537,6 +1554,40 @@ struct SessionManagerTests {
         #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
     }
 
+    @Test @MainActor func reorderDuringTransition_busyToIdle_fairMode_landsBeforeBackburner() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .working),
+            makeSession("s3", state: .backburner),
+        ])
+
+        // Bottom of idle with a backburner present: s2 slots between s1 and s3.
+        manager.testApplyStateChange(sessionID: "s2", from: .working, to: .idle)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
+    }
+
+    @Test @MainActor func reorderDuringTransition_busyToIdle_prioMode_toTopOfIdle() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.prio.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .working),
+        ])
+
+        // Prio mode: idle returns go to top
+        manager.testApplyStateChange(sessionID: "s3", from: .working, to: .idle)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s3", "s1", "s2"])
+    }
+
     @Test @MainActor func reorderDuringTransition_idleToBackburner_fairMode_toBottomOfBackburner() {
         let manager = SessionManager()
         UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
@@ -1554,6 +1605,23 @@ struct SessionManagerTests {
         #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s3", "s1"])
     }
 
+    @Test @MainActor func reorderDuringTransition_busyToBackburner_fairMode_toBottomOfBackburner() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .working),
+            makeSession("s3", state: .backburner),
+        ])
+
+        // Backburner hotkey on a working session — lands at bottom of backburner
+        manager.testApplyStateChange(sessionID: "s2", from: .working, to: .backburner)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s3", "s2"])
+    }
+
     @Test @MainActor func reorderDuringTransition_compactingTreatedAsBusy() {
         let manager = SessionManager()
         UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
@@ -1568,6 +1636,22 @@ struct SessionManagerTests {
         manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .compacting)
 
         #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s1"])
+    }
+
+    @Test @MainActor func reorderDuringTransition_compactingToIdle_fairMode_toBottomOfIdle() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .compacting),
+        ])
+
+        // compaction completes — s2 returns to bottom of idle
+        manager.testApplyStateChange(sessionID: "s2", from: .compacting, to: .idle)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2"])
     }
 
     @Test @MainActor func reorderDuringTransition_staticMode_noReorderRegardlessOfTransition() {
