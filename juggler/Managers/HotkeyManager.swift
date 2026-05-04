@@ -28,14 +28,10 @@ final class HotkeyManager {
     /// Reset when Juggler loses focus so external window opens don't confuse step 3.
     private var monitorCycleActive = false
 
-    private var autoAdvanceObserver: NSObjectProtocol?
-    private var autoRestartObserver: NSObjectProtocol?
-    private var deactivationObserver: NSObjectProtocol?
-
     private init() {}
 
     func setupHotkeys() {
-        deactivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+        _ = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didDeactivateApplicationNotification,
             object: nil, queue: .main
         ) { [weak self] notification in
@@ -46,7 +42,7 @@ final class HotkeyManager {
             }
         }
 
-        autoAdvanceObserver = NotificationCenter.default.addObserver(
+        _ = NotificationCenter.default.addObserver(
             forName: .shouldAutoAdvance, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
@@ -54,7 +50,7 @@ final class HotkeyManager {
             }
         }
 
-        autoRestartObserver = NotificationCenter.default.addObserver(
+        _ = NotificationCenter.default.addObserver(
             forName: .shouldAutoRestart, object: nil, queue: .main
         ) { [weak self] notification in
             guard let sessionID = notification.userInfo?["sessionID"] as? String else { return }

@@ -26,6 +26,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return .terminateLater
     }
 
+    private var showInDock: Bool {
+        UserDefaults.standard.bool(forKey: AppStorageKeys.showInDock)
+    }
+
     func applicationDidFinishLaunching(_: Notification) {
         // If another instance is already running, activate it and exit.
         let others = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
@@ -36,7 +40,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        NSApp.setActivationPolicy(.regular)
+        if showInDock {
+            NSApp.setActivationPolicy(.regular)
+        } else {
+            NSApp.setActivationPolicy(.accessory)
+        }
         NSApp.activate()
 
         NotificationCenter.default.addObserver(
@@ -81,6 +89,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Must save before window deallocs
         UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: AppStorageKeys.mainWindowFrame)
         mainWindowNeedsRestore = true
+
+        if UserDefaults.standard.bool(forKey: AppStorageKeys.quitOnMonitorClose) {
+            NSApp.terminate(nil)
+            return
+        }
+
         // Cancel any pending hide and schedule a new one. Using a cancellable
         // work item prevents a race where the user reopens the window within
         // the 0.1s delay, causing the dock icon to disappear while visible.
@@ -110,7 +124,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        NSApp.setActivationPolicy(.regular)
+        if showInDock {
+            NSApp.setActivationPolicy(.regular)
+        }
 
         if mainWindowNeedsRestore {
             mainWindowNeedsRestore = false
@@ -189,6 +205,9 @@ struct JugglerApp: App {
             // Terminal enablement (iTerm2 on by default for existing users)
             AppStorageKeys.iterm2Enabled: true,
             AppStorageKeys.kittyEnabled: false,
+            // Dock & window behavior
+            AppStorageKeys.showInDock: true,
+            AppStorageKeys.quitOnMonitorClose: false,
             // Beacon HUD
             "beaconEnabled": true,
             "beaconDuration": 1.5,

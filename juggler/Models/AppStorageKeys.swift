@@ -3,6 +3,8 @@ import Foundation
 enum AppStorageKeys {
     // General
     static let launchAtLogin = "launchAtLogin"
+    static let showInDock = "showInDock"
+    static let quitOnMonitorClose = "quitOnMonitorClose"
     static let hasCompletedOnboarding = "hasCompletedOnboarding"
     static let sessionTitleMode = "sessionTitleMode"
     static let controlBarHintDismissed = "controlBarHintDismissed"

@@ -56,6 +56,8 @@ struct SettingsView: View {
 
 struct GeneralSettingsView: View {
     @AppStorage(AppStorageKeys.launchAtLogin) private var launchAtLogin = false
+    @AppStorage(AppStorageKeys.showInDock) private var showInDock = true
+    @AppStorage(AppStorageKeys.quitOnMonitorClose) private var quitOnMonitorClose = false
     @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleMode: String = SessionTitleMode
         .default.rawValue
     @AppStorage(AppStorageKeys.notifyOnIdle) private var notifyOnIdle = true
@@ -85,6 +87,17 @@ struct GeneralSettingsView: View {
                             launchAtLogin = !newValue
                         }
                     }
+
+                Toggle("Show Juggler in Dock", isOn: $showInDock)
+                    .onChange(of: showInDock) { _, newValue in
+                        if newValue {
+                            NSApp.setActivationPolicy(.regular)
+                        } else {
+                            NSApp.setActivationPolicy(.accessory)
+                        }
+                    }
+
+                Toggle("Quit when Session Monitor is closed", isOn: $quitOnMonitorClose)
 
                 Picker("Session Title", selection: $sessionTitleMode) {
                     ForEach(SessionTitleMode.allCases, id: \.rawValue) { mode in
