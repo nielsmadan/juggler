@@ -271,7 +271,7 @@ struct SessionListControllerTests {
             AppStorageKeys.localShortcutResetStats,
             AppStorageKeys.localShortcutToggleBeacon,
             AppStorageKeys.localShortcutToggleAutoNext,
-            AppStorageKeys.localShortcutToggleAutoRestart,
+            AppStorageKeys.localShortcutToggleAutoRestart
         ]
         for key in keys {
             UserDefaults.standard.removeObject(forKey: key)
@@ -314,7 +314,7 @@ struct SessionListControllerTests {
         let manager = SessionManager()
         manager.testSetSessions([
             makeSession("s1", state: .backburner),
-            makeSession("s2", state: .backburner),
+            makeSession("s2", state: .backburner)
         ])
 
         controller.reactivateAll(sessionManager: manager)

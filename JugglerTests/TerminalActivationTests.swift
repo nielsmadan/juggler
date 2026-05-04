@@ -444,6 +444,7 @@ struct TerminalActivationTests {
                 ) async throws {
                     throw MockActivationError.generic
                 }
+
                 func getSessionInfo(sessionID _: String) async throws -> TerminalSessionInfo? { nil }
             }
 

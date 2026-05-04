@@ -5,3 +5,5 @@
 --semicolons inline
 --swiftversion 5.9
 --maxwidth 120
+--commas inline
+--disable wrapMultilineStatementBraces

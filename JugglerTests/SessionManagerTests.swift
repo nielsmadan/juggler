@@ -34,7 +34,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("back", state: .backburner),
             makeSession("busy", state: .working),
-            makeSession("idle", state: .idle),
+            makeSession("idle", state: .idle)
         ])
 
         manager.reorderForMode(.fair)
@@ -344,7 +344,7 @@ struct SessionManagerTests {
             makeSession("perm1", state: .permission),
             makeSession("work1", state: .working),
             makeSession("back1", state: .backburner),
-            makeSession("comp1", state: .compacting),
+            makeSession("comp1", state: .compacting)
         ])
 
         let cyclable = manager.cyclableSessions
@@ -365,7 +365,7 @@ struct SessionManagerTests {
 
         manager.testSetSessions([
             makeSession("abc-123"),
-            makeSession("def-456"),
+            makeSession("def-456")
         ])
 
         manager.removeSessionsByTerminalID("abc-123")
@@ -403,7 +403,7 @@ struct SessionManagerTests {
 
         manager.testSetSessions([
             makeSession("s1"),
-            makeSession("s2"),
+            makeSession("s2")
         ])
 
         manager.removeSessionsByTerminalID("")
@@ -416,7 +416,7 @@ struct SessionManagerTests {
 
         manager.testSetSessions([
             makeSession("s1"),
-            makeSession("s2"),
+            makeSession("s2")
         ])
 
         manager.removeSessionsByTerminalID("nonexistent")
@@ -656,7 +656,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
-            makeSession("s3", state: .idle),
+            makeSession("s3", state: .idle)
         ])
 
         let first = manager.cycleForward()
@@ -672,7 +672,7 @@ struct SessionManagerTests {
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
-            makeSession("s2", state: .idle),
+            makeSession("s2", state: .idle)
         ])
 
         let result = manager.cycleBackward()
@@ -703,7 +703,7 @@ struct SessionManagerTests {
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
-            makeSession("s2", state: .idle),
+            makeSession("s2", state: .idle)
         ])
 
         #expect(manager.currentSession != nil)
@@ -713,7 +713,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.testSetSessions([
-            makeSession("s1", state: .backburner),
+            makeSession("s1", state: .backburner)
         ])
 
         #expect(manager.currentSession == nil)
@@ -764,7 +764,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .working),
             makeSession("s2", state: .idle),
-            makeSession("s3", state: .idle),
+            makeSession("s3", state: .idle)
         ])
         manager.testSetLastActiveSessionID("s1")
         manager.testSetFocusedSessionID("s1")
@@ -781,7 +781,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .working),
-            makeSession("s3", state: .idle),
+            makeSession("s3", state: .idle)
         ])
         manager.testSetLastActiveSessionID("s2")
         manager.testSetFocusedSessionID("s2")
@@ -796,7 +796,7 @@ struct SessionManagerTests {
 
         manager.testSetSessions([
             makeSession("s1", state: .working),
-            makeSession("s2", state: .idle),
+            makeSession("s2", state: .idle)
         ])
         manager.testSetLastActiveSessionID("s1")
 
@@ -815,7 +815,7 @@ struct SessionManagerTests {
 
             manager.testSetSessions([
                 makeSession("s1", state: .working),
-                makeSession("s2", state: .idle),
+                makeSession("s2", state: .idle)
             ])
             manager.testSetLastActiveSessionID("s1")
 
@@ -831,7 +831,7 @@ struct SessionManagerTests {
 
             manager.testSetSessions([
                 makeSession("s1", state: .working),
-                makeSession("s2", state: .idle),
+                makeSession("s2", state: .idle)
             ])
             manager.testSetLastActiveSessionID("s1")
 
@@ -847,7 +847,7 @@ struct SessionManagerTests {
             manager.testSetSessions([
                 makeSession("s1", state: .idle),
                 makeSession("s2", state: .working),
-                makeSession("s3", state: .idle),
+                makeSession("s3", state: .idle)
             ])
             manager.testSetLastActiveSessionID("s2")
             manager.testSetFocusedSessionID("s2")
@@ -865,7 +865,7 @@ struct SessionManagerTests {
             manager.testSetSessions([
                 makeSession("s1", state: .idle),
                 makeSession("s2", state: .working),
-                makeSession("s3", state: .idle),
+                makeSession("s3", state: .idle)
             ])
             manager.testSetLastActiveSessionID("s2")
             manager.testSetFocusedSessionID("s2")
@@ -1055,7 +1055,7 @@ struct SessionManagerTests {
             let manager = SessionManager()
             manager.testSetSessions([
                 makeSession("s1", state: .working),
-                makeSession("s2", state: .idle),
+                makeSession("s2", state: .idle)
             ])
             manager.testSetLastActiveSessionID("s1")
             manager.testSetFocusedSessionID(nil) // s2 transition is not focused-driven
@@ -1079,7 +1079,7 @@ struct SessionManagerTests {
             // 2 busy, 0 cyclable initially
             manager.testSetSessions([
                 makeSession("s1", state: .working),
-                makeSession("s2", state: .working),
+                makeSession("s2", state: .working)
             ])
 
             // s1 transitions to idle → cyclableCount becomes 1 → should fire exactly once
@@ -1102,7 +1102,7 @@ struct SessionManagerTests {
             // 1 busy + 1 cyclable initially
             manager.testSetSessions([
                 makeSession("s1", state: .working),
-                makeSession("s2", state: .idle),
+                makeSession("s2", state: .idle)
             ])
 
             // s1 transitions to idle → cyclableCount becomes 2 → should NOT fire
@@ -1118,7 +1118,7 @@ struct SessionManagerTests {
             let manager = SessionManager()
             manager.testSetSessions([
                 makeSession("s1", state: .idle),
-                makeSession("s2", state: .idle),
+                makeSession("s2", state: .idle)
             ])
             manager.testSetFocusedSessionID("s1")
 
@@ -1139,7 +1139,7 @@ struct SessionManagerTests {
             let manager = SessionManager()
             manager.testSetSessions([
                 makeSession("s1", state: .idle),
-                makeSession("s2", state: .idle),
+                makeSession("s2", state: .idle)
             ])
 
             // Focus s1, s1 goes working → anchor=s1
@@ -1158,7 +1158,7 @@ struct SessionManagerTests {
             manager.testSetSessions([
                 makeSession("s1", state: .working),
                 makeSession("s2", state: .idle),
-                makeSession("s3", state: .idle),
+                makeSession("s3", state: .idle)
             ])
             manager.testSetLastActiveSessionID("s1")
             manager.testSetFocusedSessionID("s1")
@@ -1327,7 +1327,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("work1", state: .working),
             makeSession("perm1", state: .permission),
-            makeSession("idle1", state: .idle),
+            makeSession("idle1", state: .idle)
         ])
 
         manager.reorderForMode(.fair)
@@ -1346,7 +1346,7 @@ struct SessionManagerTests {
             makeSession("idle1", state: .idle),
             makeSession("compact1", state: .compacting),
             makeSession("work1", state: .working),
-            makeSession("back1", state: .backburner),
+            makeSession("back1", state: .backburner)
         ])
 
         manager.reorderForMode(.fair)
@@ -1460,7 +1460,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
-            makeSession("s3", state: .idle),
+            makeSession("s3", state: .idle)
         ])
 
         // s1 goes busy — should move below remaining idle sessions (bottom of busy section)
@@ -1477,7 +1477,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
-            makeSession("s3", state: .backburner),
+            makeSession("s3", state: .backburner)
         ])
 
         // Bottom of busy with a backburner present: s1 lands between idle and backburner.
@@ -1494,7 +1494,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
-            makeSession("s3", state: .idle),
+            makeSession("s3", state: .idle)
         ])
 
         // Prio treats idle→busy the same as fair: lands at bottom of busy
@@ -1511,7 +1511,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .permission),
             makeSession("s2", state: .idle),
-            makeSession("s3", state: .idle),
+            makeSession("s3", state: .idle)
         ])
 
         // permission→busy is a wasIdle→!isIdle transition, so s1 drops to bottom of busy
@@ -1528,7 +1528,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
-            makeSession("s3", state: .backburner),
+            makeSession("s3", state: .backburner)
         ])
 
         // Prio mode: idle returns go to top
@@ -1545,7 +1545,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
-            makeSession("s3", state: .backburner),
+            makeSession("s3", state: .backburner)
         ])
 
         // Fair mode: idle returns go to bottom of idle section (before any busy/backburner)
@@ -1562,7 +1562,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .working),
-            makeSession("s3", state: .backburner),
+            makeSession("s3", state: .backburner)
         ])
 
         // Bottom of idle with a backburner present: s2 slots between s1 and s3.
@@ -1579,7 +1579,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
-            makeSession("s3", state: .working),
+            makeSession("s3", state: .working)
         ])
 
         // Prio mode: idle returns go to top
@@ -1596,7 +1596,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
-            makeSession("s3", state: .backburner),
+            makeSession("s3", state: .backburner)
         ])
 
         // s1 goes to backburner — lands at bottom of backburner section
@@ -1613,7 +1613,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .working),
-            makeSession("s3", state: .backburner),
+            makeSession("s3", state: .backburner)
         ])
 
         // Backburner hotkey on a working session — lands at bottom of backburner
@@ -1629,7 +1629,7 @@ struct SessionManagerTests {
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
-            makeSession("s2", state: .working),
+            makeSession("s2", state: .working)
         ])
 
         // idle→compacting is a busy transition — s1 should drop to bottom of busy
@@ -1645,7 +1645,7 @@ struct SessionManagerTests {
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
-            makeSession("s2", state: .compacting),
+            makeSession("s2", state: .compacting)
         ])
 
         // compaction completes — s2 returns to bottom of idle
@@ -1662,7 +1662,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
-            makeSession("s3", state: .idle),
+            makeSession("s3", state: .idle)
         ])
 
         // Static mode: no reorder on state change — order preserved
@@ -1679,7 +1679,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
-            makeSession("s3", state: .backburner),
+            makeSession("s3", state: .backburner)
         ])
 
         // Grouped mode: no reorder on state change — order preserved
@@ -1696,7 +1696,7 @@ struct SessionManagerTests {
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
-            makeSession("s3", state: .idle),
+            makeSession("s3", state: .idle)
         ])
 
         // testApplyStateChange bypasses the `if oldState != state` guard, but

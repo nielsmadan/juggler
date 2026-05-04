@@ -17,6 +17,7 @@ struct TerminalTypeTests {
         #expect(TerminalType.ghostty.iconName == "apple.terminal.fill")
         #expect(TerminalType.wezterm.iconName == "apple.terminal.fill")
     }
+
     // MARK: - TerminalType displayName Tests
 
     @Test func terminalType_displayName() {

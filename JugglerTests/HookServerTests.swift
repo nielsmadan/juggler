@@ -652,7 +652,7 @@ struct HookServerTests {
         let manager = SessionManager()
         manager.testSetSessions([
             makeSession("42"),
-            makeSession("99"),
+            makeSession("99")
         ])
         let server = HookServer(sessionManager: manager)
 

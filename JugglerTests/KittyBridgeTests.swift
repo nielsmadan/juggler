@@ -352,5 +352,4 @@ struct KittyBridgeTests {
         await bridge.stop()
         await bridge.stop()
     }
-
 }

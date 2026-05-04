@@ -28,7 +28,8 @@ struct TerminalBridgeRegistryTests {
         }
 
         func activate(sessionID _: String) async throws {}
-        func highlight(sessionID _: String, tabConfig _: HighlightConfig?, paneConfig _: HighlightConfig?) async throws {}
+        func highlight(sessionID _: String, tabConfig _: HighlightConfig?,
+                       paneConfig _: HighlightConfig?) async throws {}
         func getSessionInfo(sessionID _: String) async throws -> TerminalSessionInfo? { nil }
 
         func setStartError(_ error: MockRegistryError?) {
