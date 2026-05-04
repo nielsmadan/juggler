@@ -3,7 +3,7 @@ import AppKit
 import ShortcutField
 import Testing
 
-@Suite("SessionListController")
+@Suite("SessionListController", .serialized)
 struct SessionListControllerTests {
     private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
         let cgFlags = CGEventFlags(rawValue: UInt64(modifiers.rawValue))
