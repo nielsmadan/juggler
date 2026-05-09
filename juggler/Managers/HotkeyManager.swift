@@ -15,6 +15,7 @@ extension KeyboardShortcuts.Name {
     static let backburner = Self("backburner", default: .init(.l, modifiers: [.command, .shift]))
     static let reactivateAll = Self("reactivateAll", default: .init(.h, modifiers: [.command, .shift]))
     static let showMonitor = Self("showMonitor", default: .init(.semicolon, modifiers: [.command, .shift]))
+    static let goToLastNotification = Self("goToLastNotification", default: .init(.e, modifiers: [.command, .shift]))
 }
 
 @MainActor
@@ -81,6 +82,10 @@ final class HotkeyManager {
         KeyboardShortcuts.onKeyDown(for: .showMonitor) {
             self.handleShowMonitor()
         }
+
+        KeyboardShortcuts.onKeyDown(for: .goToLastNotification) {
+            Task { await self.handleGoToLastNotification() }
+        }
     }
 
     private func handleCycleForward(wasTerminalFrontmost: Bool) async {
@@ -146,6 +151,34 @@ final class HotkeyManager {
                 SessionManager.shared.sessions.first { $0.id == sessionID && $0.state.isIncludedInCycle }
             }
         )
+    }
+
+    private func handleGoToLastNotification() async {
+        logDebug(.hotkey, "Go to last notification triggered")
+        guard let id = SessionManager.shared.lastNotifiedSessionID,
+              let target = SessionManager.shared.sessions.first(where: { $0.id == id }) else {
+            BeaconManager.shared.show(sessionName: "No Notification")
+            return
+        }
+        SessionManager.shared.beginActivation(targetSessionID: target.id)
+        do {
+            try await TerminalActivation.activate(session: target, trigger: .hotkey)
+            SessionManager.shared.endActivation()
+            let titleMode = SessionTitleMode(
+                rawValue: UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
+            ) ?? .default
+            let displayName = SessionManager.shared.disambiguatedDisplayName(
+                for: target, titleMode: titleMode
+            )
+            BeaconManager.shared.show(sessionName: displayName)
+        } catch TerminalBridgeError.sessionNotFound {
+            SessionManager.shared.endActivation()
+            BeaconManager.shared.show(sessionName: "No Notification")
+        } catch {
+            SessionManager.shared.endActivation()
+            logError(.hotkey, "Go to last notification failed: \(error)")
+            BeaconManager.shared.show(sessionName: "No Notification")
+        }
     }
 
     private func handleBackburner() async {

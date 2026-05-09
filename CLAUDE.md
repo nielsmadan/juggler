@@ -115,6 +115,5 @@ Hooks are installed to `~/.claude/hooks/juggler/`. The `notify.sh` script reads 
 ## Related Documentation
 
 - [README.md](README.md) - User-facing documentation
-- [docs/requirements.md](docs/requirements.md) - Current requirements
 - [docs/tech/overview.md](docs/tech/overview.md) - Technical architecture
 - [docs/prd/overview.md](docs/prd/overview.md) - Product requirements document

@@ -63,6 +63,7 @@ brew install --cask nielsmadan/juggler/juggler
 | `⇧⌘J` | Cycle backward |
 | `⇧⌘L` | Backburner current session |
 | `⇧⌘H` | Reactivate all backburnered sessions |
+| `⇧⌘E` | Activate session from last notification |
 | `⇧⌘;` | Toggle popover / open monitor |
 
 All shortcuts are customizable in Settings.

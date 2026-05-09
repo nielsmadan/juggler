@@ -49,6 +49,14 @@ final class SessionManager {
     /// Used when auto-advance is OFF to keep the busy session highlighted as "current".
     private(set) var lastActiveSessionID: String?
 
+    /// Session ID from the most recent successfully delivered notification.
+    /// Consumed by the "go to last notification" hotkey.
+    private(set) var lastNotifiedSessionID: String?
+
+    func recordLastNotification(sessionID: String) {
+        lastNotifiedSessionID = sessionID
+    }
+
     /// Check whether a terminal app is currently the frontmost application (live check, no caching).
     func isTerminalFrontmost() -> Bool {
         guard let frontmost = NSWorkspace.shared.frontmostApplication,
@@ -658,6 +666,9 @@ final class SessionManager {
         }
         if lastActiveSessionID == sessionID {
             lastActiveSessionID = nil
+        }
+        if lastNotifiedSessionID == sessionID {
+            lastNotifiedSessionID = nil
         }
     }
 

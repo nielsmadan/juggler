@@ -27,9 +27,13 @@ Juggler solves the "context switching" problem when running multiple Claude Code
 
 - [**PRD Overview**](prd/overview.md) - Product features and requirements
   - [Cycle Sessions](prd/cycle-sessions.md) - Session cycling and queue modes
+  - [Highlight Color](prd/highlight-color.md) - Active-session highlight color rules
   - [Notifications](prd/notification.md) - Notification system
   - [Menu Bar Popover](prd/popover.md) - Popover UI
   - [Main Window](prd/main-window.md) - Session monitor window
+  - [Beacon](prd/beacon.md) - HUD overlay for cycle feedback
+  - [Onboarding](prd/onboarding.md) - First-launch setup
+  - [Settings](prd/settings.md) - Settings window reference
 
 ### Technical
 
@@ -39,6 +43,3 @@ Juggler solves the "context switching" problem when running multiple Claude Code
   - [Session Management](tech/session-management.md) - Cycling and state logic
   - [Claude Code Hooks](tech/hooks.md) - Hook integration and quirks
 
-### Other
-
-- [Requirements](requirements.md) - Current requirements list

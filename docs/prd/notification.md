@@ -35,6 +35,7 @@ All notification settings are in **Settings > General > Notifications**:
 - Notifications are sent once per state transition, not repeatedly
 - Backburnered sessions do not trigger notifications
 - Clicking a notification activates the corresponding session in the terminal (iTerm2 or Kitty)
+- A global hotkey (Shift+Cmd+E by default) jumps to the session from the most recent notification, even after the banner is dismissed
 - Notifications respect macOS Do Not Disturb settings
 
 ## Implementation Notes

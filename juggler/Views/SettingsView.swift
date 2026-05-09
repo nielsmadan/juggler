@@ -628,6 +628,11 @@ struct ShortcutsSettingsView: View {
                 KeyboardShortcuts.Recorder("Backburner Current:", name: .backburner)
                 KeyboardShortcuts.Recorder("Reactivate All:", name: .reactivateAll)
                 SettingWithDescription(
+                    description: "Activates the session from the most recent notification."
+                ) {
+                    KeyboardShortcuts.Recorder("Last Notification:", name: .goToLastNotification)
+                }
+                SettingWithDescription(
                     description: "Cycles: popover → monitor window → back to previous app."
                 ) {
                     KeyboardShortcuts.Recorder("Show Monitor:", name: .showMonitor)

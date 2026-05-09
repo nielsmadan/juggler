@@ -10,6 +10,7 @@ The core feature of Juggler: cycling through Claude Code sessions using global h
 | `⇧⌘J` | Cycle backward through sessions |
 | `⇧⌘L` | Backburner current session |
 | `⇧⌘H` | Reactivate all backburnered sessions |
+| `⇧⌘E` | Activate session from last notification |
 | `⇧⌘;` | Show session monitor window |
 
 All shortcuts are customizable in **Settings > Shortcuts**.

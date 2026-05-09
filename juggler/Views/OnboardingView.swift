@@ -155,6 +155,7 @@ struct ShortcutsStep: View {
                     KeyboardShortcuts.Recorder("Backburner Current:", name: .backburner)
                     KeyboardShortcuts.Recorder("Reactivate All:", name: .reactivateAll)
                     KeyboardShortcuts.Recorder("Show Monitor:", name: .showMonitor)
+                    KeyboardShortcuts.Recorder("Last Notification:", name: .goToLastNotification)
                 }
             }
             .formStyle(.grouped)

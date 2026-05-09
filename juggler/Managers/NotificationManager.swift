@@ -41,7 +41,14 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             trigger: nil
         )
 
-        UNUserNotificationCenter.current().add(request)
+        // Only record the session ID once the system confirms delivery, so the
+        // "go to last notification" hotkey can't jump to a banner the user never saw.
+        UNUserNotificationCenter.current().add(request) { error in
+            guard error == nil else { return }
+            Task { @MainActor in
+                SessionManager.shared.recordLastNotification(sessionID: sessionID)
+            }
+        }
     }
 
     // MARK: - UNUserNotificationCenterDelegate
