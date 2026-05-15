@@ -1706,4 +1706,153 @@ struct SessionManagerTests {
 
         #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
     }
+
+    // MARK: - Daily stats: rollover & terminate-commit
+
+    private func freshStatsManager() -> (SessionManager, DailyStatsStore) {
+        let suiteName = "SessionManagerStats-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let store = DailyStatsStore(defaults: defaults)
+        return (SessionManager(dailyStats: store), store)
+    }
+
+    @Test func handleDayRolloverIfNeeded_splitsWorkingSessionAtMidnight() {
+        let (manager, store) = freshStatsManager()
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date(timeIntervalSince1970: 1_700_000_000))
+        let yesterday = cal.date(byAdding: .day, value: -1, to: today)!
+        let lastBecameWorking = yesterday.addingTimeInterval(23 * 3600) // 23:00 yesterday
+
+        var session = makeSession("s1", state: .working)
+        session.lastBecameWorking = lastBecameWorking
+        session.busyTimeToday = 500
+        manager.testSetSessions([session])
+        manager.testSetLastSeenDay(yesterday)
+
+        manager.handleDayRolloverIfNeeded(now: today.addingTimeInterval(120)) // 00:02 today
+
+        // 23:00 -> 00:00 = 3600s committed to yesterday's bucket.
+        #expect(store.busySeconds(for: yesterday) == 3600)
+        // Per-session today counter reset.
+        #expect(manager.sessions[0].busyTimeToday == 0)
+        // Working clock restarted at midnight so post-midnight time accrues to today.
+        #expect(manager.sessions[0].lastBecameWorking == today)
+    }
+
+    @Test func handleDayRolloverIfNeeded_noopWhenSameDay() {
+        let (manager, store) = freshStatsManager()
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date(timeIntervalSince1970: 1_700_000_000))
+
+        var session = makeSession("s1", state: .working)
+        session.lastBecameWorking = today.addingTimeInterval(3600)
+        session.busyTimeToday = 250
+        manager.testSetSessions([session])
+        manager.testSetLastSeenDay(today)
+
+        manager.handleDayRolloverIfNeeded(now: today.addingTimeInterval(7200))
+
+        #expect(manager.sessions[0].busyTimeToday == 250) // untouched
+        #expect(store.dailyBusySeconds.isEmpty) // nothing committed
+    }
+
+    @Test func commitInProgressBusyTime_commitsAndClearsWorkingSessions() {
+        let (manager, store) = freshStatsManager()
+        let tenMinutesAgo = Date().addingTimeInterval(-600)
+
+        var working = makeSession("s1", state: .working)
+        working.lastBecameWorking = tenMinutesAgo
+        var idle = makeSession("s2", state: .idle)
+        idle.lastBecameWorking = nil
+        manager.testSetSessions([working, idle])
+
+        manager.commitInProgressBusyTime()
+
+        // ~600s committed to today's bucket and to the session's counter.
+        #expect(store.todayBusySeconds >= 590 && store.todayBusySeconds <= 610)
+        #expect(manager.sessions[0].busyTimeToday >= 590 && manager.sessions[0].busyTimeToday <= 610)
+        #expect(manager.sessions[0].lastBecameWorking == nil)
+        // Idle session untouched.
+        #expect(manager.sessions[1].busyTimeToday == 0)
+    }
+
+    @Test @MainActor func stateTransition_leaveWorking_commitsToBothCounters() {
+        let (manager, store) = freshStatsManager()
+        let lbw = Date(timeIntervalSince1970: 1_700_000_000)
+        let now = lbw.addingTimeInterval(10)
+
+        var session = makeSession("s1", state: .working)
+        session.lastBecameWorking = lbw
+        manager.testSetSessions([session])
+
+        manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle, now: now)
+
+        // Deterministic clock → exact 10s, no tolerance needed.
+        #expect(manager.sessions[0].busyTimeToday == 10)
+        #expect(store.busySeconds(for: now) == 10)
+        #expect(manager.sessions[0].busyTimeToday == store.busySeconds(for: now))
+        // Working clock cleared so the next leave-working can't double-count.
+        #expect(manager.sessions[0].lastBecameWorking == nil)
+    }
+
+    @Test @MainActor func stateTransition_enterWorking_setsClockOnly() {
+        let (manager, store) = freshStatsManager()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        var session = makeSession("s1", state: .idle)
+        session.busyTimeToday = 42
+        manager.testSetSessions([session])
+
+        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working, now: now)
+
+        #expect(manager.sessions[0].lastBecameWorking == now)
+        #expect(manager.sessions[0].busyTimeToday == 42)
+        #expect(store.todayBusySeconds == 0)
+    }
+
+    @Test @MainActor func removeSession_preservesDailyStats_chartTotalIsSupersetOfRowSum() {
+        let (manager, store) = freshStatsManager()
+        let lbw = Date(timeIntervalSince1970: 1_700_000_000)
+        let now = lbw.addingTimeInterval(10)
+
+        var session = makeSession("s1", state: .working)
+        session.lastBecameWorking = lbw
+        manager.testSetSessions([session])
+
+        manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle, now: now)
+        let committed = store.busySeconds(for: now)
+        #expect(committed == 10)
+
+        manager.removeSession(sessionID: "s1")
+
+        // Session is gone, but dailyStats kept its contribution —
+        // chart total (10) ≥ row sum (0).
+        #expect(manager.sessions.isEmpty)
+        #expect(store.busySeconds(for: now) == committed)
+    }
+
+    @Test func restart_persistsDailyStats_butSessionsStartFresh() {
+        let suiteName = "SessionManagerRestart-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+
+        // "Pre-restart": seed the store with today's bucket.
+        let store1 = DailyStatsStore(defaults: defaults)
+        store1.addBusyTime(180, on: Date())
+        #expect(store1.todayBusySeconds == 180)
+
+        // "Restart": new store reading the same defaults; fresh SessionManager.
+        let store2 = DailyStatsStore(defaults: defaults)
+        let manager = SessionManager(dailyStats: store2)
+
+        // dailyStats survived the restart.
+        #expect(store2.todayBusySeconds == 180)
+
+        // New sessions register with busyTimeToday = 0 — the manager does NOT
+        // back-fill per-session counters from the persisted store.
+        let session = makeSession("s1", state: .idle)
+        manager.testSetSessions([session])
+        #expect(manager.sessions[0].busyTimeToday == 0)
+    }
 }

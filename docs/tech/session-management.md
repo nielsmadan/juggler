@@ -28,10 +28,9 @@ struct Session: Identifiable, Codable, Equatable {
     var customName: String?          // User-assigned name
     var state: SessionState          // Current state
     var startedAt: Date              // Session start time
-    var lastBecameIdle: Date?        // For idle time tracking
-    var accumulatedIdleTime: TimeInterval
-    var lastBecameWorking: Date?     // For working time tracking
-    var accumulatedWorkingTime: TimeInterval
+    var lastBecameIdle: Date?        // Queue-ordering sort key for Fair/Prio
+    var lastBecameWorking: Date?     // Start of the current busy turn
+    var busyTimeToday: TimeInterval  // Working time accrued today (reset at midnight)
     var paneIndex: Int               // Pane position (for splits)
     var paneCount: Int               // Total panes in tab
     var gitBranch: String?           // Current git branch

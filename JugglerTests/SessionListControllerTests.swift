@@ -169,8 +169,8 @@ struct SessionListControllerTests {
 
     @Test func hasShortcutForKeyCode_matchingCode_returnsTrue() {
         let controller = SessionListController()
-        // Default shortcuts include togglePause with keyCode 1 (S)
-        #expect(controller.hasShortcutForKeyCode(1) == true)
+        // Default shortcuts include toggleAutoNext with keyCode 0 (A)
+        #expect(controller.hasShortcutForKeyCode(0) == true)
     }
 
     @Test func hasShortcutForKeyCode_nonMatchingCode_returnsFalse() {
@@ -267,8 +267,6 @@ struct SessionListControllerTests {
 
     @Test @MainActor func reloadShortcuts_usesDefaultsWhenUnset() {
         let keys = [
-            AppStorageKeys.localShortcutTogglePause,
-            AppStorageKeys.localShortcutResetStats,
             AppStorageKeys.localShortcutToggleBeacon,
             AppStorageKeys.localShortcutToggleAutoNext,
             AppStorageKeys.localShortcutToggleAutoRestart
@@ -284,8 +282,6 @@ struct SessionListControllerTests {
 
         let controller = SessionListController()
 
-        #expect(controller.shortcutTogglePause == Shortcut(keyCode: 1, modifiers: []))
-        #expect(controller.shortcutResetStats == Shortcut(keyCode: 1, modifiers: .shift))
         #expect(controller.shortcutToggleBeacon == Shortcut(keyCode: 11, modifiers: []))
         #expect(controller.shortcutToggleAutoNext == Shortcut(keyCode: 0, modifiers: []))
         #expect(controller.shortcutToggleAutoRestart == Shortcut(keyCode: 12, modifiers: []))

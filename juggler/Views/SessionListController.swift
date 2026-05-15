@@ -21,8 +21,6 @@ final class SessionListController {
     private(set) var shortcutRename: Shortcut?
     private(set) var shortcutCycleModeForward: Shortcut?
     private(set) var shortcutCycleModeBackward: Shortcut?
-    private(set) var shortcutTogglePause: Shortcut?
-    private(set) var shortcutResetStats: Shortcut?
     private(set) var shortcutToggleBeacon: Shortcut?
     private(set) var shortcutToggleAutoNext: Shortcut?
     private(set) var shortcutToggleAutoRestart: Shortcut?
@@ -40,10 +38,6 @@ final class SessionListController {
         shortcutRename = Shortcut.load(from: AppStorageKeys.localShortcutRename)
         shortcutCycleModeForward = Shortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
         shortcutCycleModeBackward = Shortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
-        shortcutTogglePause = Shortcut.load(from: AppStorageKeys.localShortcutTogglePause)
-            ?? Shortcut(keyCode: 1, modifiers: []) // S
-        shortcutResetStats = Shortcut.load(from: AppStorageKeys.localShortcutResetStats)
-            ?? Shortcut(keyCode: 1, modifiers: .shift) // ⇧S
         shortcutToggleBeacon = Shortcut.load(from: AppStorageKeys.localShortcutToggleBeacon)
             ?? Shortcut(keyCode: 11, modifiers: []) // B
         shortcutToggleAutoNext = Shortcut.load(from: AppStorageKeys.localShortcutToggleAutoNext)
@@ -145,7 +139,7 @@ final class SessionListController {
     // MARK: - Tab Event Monitor
 
     /// Install a local NSEvent monitor for Tab key events (Tab is intercepted by SwiftUI's focus system).
-    /// The `extraHandler` closure lets the calling view handle view-specific shortcuts (e.g. togglePause/resetStats).
+    /// The `extraHandler` closure lets the calling view handle view-specific shortcuts.
     func installTabMonitor(
         sessionManager: SessionManager,
         queueOrderMode: Binding<String>,
@@ -185,7 +179,6 @@ final class SessionListController {
             shortcutMoveDown, shortcutMoveUp, shortcutBackburner,
             shortcutReactivateSelected, shortcutReactivateAll, shortcutRename,
             shortcutCycleModeForward, shortcutCycleModeBackward,
-            shortcutTogglePause, shortcutResetStats,
             shortcutToggleAutoNext, shortcutToggleAutoRestart
         ]
         return all.contains { $0?.keyCode == keyCode }

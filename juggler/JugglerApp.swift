@@ -18,6 +18,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        SessionManager.shared.commitInProgressBusyTime()
         Task {
             await TerminalBridgeRegistry.shared.stopAll()
             await HookServer.shared.stop()
@@ -213,7 +214,12 @@ struct JugglerApp: App {
             "beaconDuration": 1.5,
             "beaconPosition": BeaconPosition.center.rawValue,
             "beaconSize": BeaconSize.m.rawValue,
-            "beaconAnchor": BeaconAnchor.screen.rawValue
+            "beaconAnchor": BeaconAnchor.screen.rawValue,
+            // Stats bar chart colors
+            AppStorageKeys.statsUseCyclingColors: true,
+            AppStorageKeys.statsBarColorRed: 255.0,
+            AppStorageKeys.statsBarColorGreen: 165.0,
+            AppStorageKeys.statsBarColorBlue: 0.0
         ])
 
         setupDefaultLocalShortcuts()

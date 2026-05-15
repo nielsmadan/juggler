@@ -22,9 +22,8 @@ struct Session: Identifiable, Codable, Equatable {
     var state: SessionState
     var startedAt: Date
     var lastBecameIdle: Date?
-    var accumulatedIdleTime: TimeInterval = 0
     var lastBecameWorking: Date?
-    var accumulatedWorkingTime: TimeInterval = 0
+    var busyTimeToday: TimeInterval = 0
     var paneIndex: Int = 0
     var paneCount: Int = 1
 
@@ -82,12 +81,12 @@ struct Session: Identifiable, Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case claudeSessionID, terminalSessionID, tmuxPane, terminalType, agent, projectPath
         case terminalTabName, terminalWindowName, tmuxSessionName, customName, state, startedAt
-        case lastBecameIdle, accumulatedIdleTime, lastBecameWorking, accumulatedWorkingTime
+        case lastBecameIdle, lastBecameWorking, busyTimeToday
         case paneIndex, paneCount, gitBranch, gitRepoName, transcriptPath
     }
 
     // Explicit Equatable: excludes computed 'id' and volatile timing fields
-    // (lastBecameIdle, accumulatedIdleTime, lastBecameWorking, accumulatedWorkingTime)
+    // (lastBecameIdle, lastBecameWorking, busyTimeToday)
     // to prevent .onChange(of: sessions) from firing on every hook event heartbeat.
     // Timing fields are display-only and refreshed by TimelineView on a 5-second cadence.
     static func == (lhs: Session, rhs: Session) -> Bool {
@@ -117,23 +116,14 @@ struct Session: Identifiable, Codable, Equatable {
         return displayName
     }
 
-    var currentIdleDuration: TimeInterval? {
-        guard state == .idle || state == .permission,
-              let lastBecameIdle else { return nil }
-        return Date().timeIntervalSince(lastBecameIdle)
-    }
-
-    var totalIdleTime: TimeInterval {
-        accumulatedIdleTime + (currentIdleDuration ?? 0)
-    }
-
     var currentWorkingDuration: TimeInterval? {
         guard state == .working || state == .compacting,
               let lastBecameWorking else { return nil }
         return Date().timeIntervalSince(lastBecameWorking)
     }
 
-    var totalWorkingTime: TimeInterval {
-        accumulatedWorkingTime + (currentWorkingDuration ?? 0)
+    /// Busy time accrued today by this session, including the current turn.
+    var busyTimeTodayLive: TimeInterval {
+        busyTimeToday + (currentWorkingDuration ?? 0)
     }
 }

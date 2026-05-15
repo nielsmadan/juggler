@@ -493,7 +493,7 @@ struct IntegrationTests {
         await simulateHook(server: server, event: "Stop", terminalSessionID: "s1")
         let session2 = manager.sessions[0]
         #expect(session2.lastBecameIdle != nil)
-        #expect(session2.accumulatedWorkingTime >= 0)
+        #expect(session2.busyTimeToday >= 0)
     }
 
     // MARK: - Queue Reordering

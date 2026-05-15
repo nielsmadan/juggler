@@ -18,7 +18,11 @@ enum AppStorageKeys {
 
     // Stats
     static let enableStats = "enableStats"
-    static let idleSessionColoring = "idleSessionColoring"
+    static let dailyBusyStats = "dailyBusyStats"
+    static let statsUseCyclingColors = "statsUseCyclingColors"
+    static let statsBarColorRed = "statsBarColorRed"
+    static let statsBarColorGreen = "statsBarColorGreen"
+    static let statsBarColorBlue = "statsBarColorBlue"
 
     // Session list highlighting
     static let useCyclingColors = "useCyclingColors"
@@ -82,8 +86,6 @@ enum AppStorageKeys {
     static let localShortcutRename = "localShortcutRename"
     static let localShortcutCycleModeForward = "localShortcutCycleModeForward"
     static let localShortcutCycleModeBackward = "localShortcutCycleModeBackward"
-    static let localShortcutTogglePause = "localShortcutTogglePause"
-    static let localShortcutResetStats = "localShortcutResetStats"
     static let localShortcutToggleBeacon = "localShortcutToggleBeacon"
     static let localShortcutToggleAutoNext = "localShortcutToggleAutoNext"
     static let localShortcutToggleAutoRestart = "localShortcutToggleAutoRestart"

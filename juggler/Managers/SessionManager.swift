@@ -14,6 +14,12 @@ final class SessionManager {
 
     private(set) var sessions: [Session] = []
 
+    /// Persisted per-day busy-time totals. Fed by state transitions and rollover.
+    let dailyStats: DailyStatsStore
+
+    /// Start-of-day of the last day we observed, for detecting midnight rollover.
+    private var lastSeenDay: Date
+
     /// Test-only: directly set session properties. Only accessible via @testable import.
     func testSetSessions(_ newSessions: [Session]) {
         sessions = newSessions
@@ -29,10 +35,20 @@ final class SessionManager {
         lastActiveSessionID = id
     }
 
+    /// Test-only: set the last-seen day for rollover tests.
+    func testSetLastSeenDay(_ date: Date) {
+        lastSeenDay = date
+    }
+
     /// Test-only: synchronously apply a state change (bypasses Task dispatch).
     @MainActor
-    func testApplyStateChange(sessionID: String, from oldState: SessionState, to newState: SessionState) {
-        applyStateChange(sessionID: sessionID, from: oldState, to: newState)
+    func testApplyStateChange(
+        sessionID: String,
+        from oldState: SessionState,
+        to newState: SessionState,
+        now: Date = Date()
+    ) {
+        applyStateChange(sessionID: sessionID, from: oldState, to: newState, now: now)
     }
 
     /// Test-only: trigger focus reconciliation. Only accessible via @testable import.
@@ -111,8 +127,10 @@ final class SessionManager {
         return QueueOrderMode(rawValue: rawValue) ?? .fair
     }
 
-    init() {
+    init(dailyStats: DailyStatsStore = DailyStatsStore()) {
         cyclingEngine = DefaultCyclingEngine()
+        self.dailyStats = dailyStats
+        lastSeenDay = Calendar.current.startOfDay(for: Date())
         Self.migrateLegacyQueueOrderModeValues(in: .standard)
     }
 
@@ -127,19 +145,17 @@ final class SessionManager {
 
     // MARK: - State Transitions
 
-    private func handleStateTransition(at index: Int, from oldState: SessionState, to newState: SessionState) {
+    private func handleStateTransition(
+        at index: Int,
+        from oldState: SessionState,
+        to newState: SessionState,
+        now: Date = Date()
+    ) {
         let wasIdle = oldState == .idle || oldState == .permission
         let isIdle = newState == .idle || newState == .permission
 
-        if wasIdle, !isIdle {
-            if let lastBecameIdle = sessions[index].lastBecameIdle {
-                let idleDuration = Date().timeIntervalSince(lastBecameIdle)
-                sessions[index].accumulatedIdleTime += idleDuration
-            }
-        }
-
         if isIdle, !wasIdle {
-            sessions[index].lastBecameIdle = Date()
+            sessions[index].lastBecameIdle = now
         }
 
         let wasWorking = oldState == .working || oldState == .compacting
@@ -147,13 +163,15 @@ final class SessionManager {
 
         if wasWorking, !isWorking {
             if let lastBecameWorking = sessions[index].lastBecameWorking {
-                let workingDuration = Date().timeIntervalSince(lastBecameWorking)
-                sessions[index].accumulatedWorkingTime += workingDuration
+                let workingDuration = now.timeIntervalSince(lastBecameWorking)
+                sessions[index].busyTimeToday += workingDuration
+                dailyStats.addBusyTime(workingDuration, on: now)
+                sessions[index].lastBecameWorking = nil
             }
         }
 
         if isWorking, !wasWorking {
-            sessions[index].lastBecameWorking = Date()
+            sessions[index].lastBecameWorking = now
         }
 
         guard queueOrderMode != .static, queueOrderMode != .grouped else { return }
@@ -186,7 +204,12 @@ final class SessionManager {
     }
 
     @MainActor
-    private func applyStateChange(sessionID: String, from oldState: SessionState, to newState: SessionState) {
+    private func applyStateChange(
+        sessionID: String,
+        from oldState: SessionState,
+        to newState: SessionState,
+        now: Date = Date()
+    ) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
 
         logDebug(.session, "\(sessions[index].displayName): \(oldState.rawValue) → \(newState.rawValue)")
@@ -205,11 +228,11 @@ final class SessionManager {
         if isUpMove {
             withAnimation(.easeInOut(duration: SectionAnimationTiming.upMoveDuration)) {
                 sessions[index].state = newState
-                handleStateTransition(at: index, from: oldState, to: newState)
+                handleStateTransition(at: index, from: oldState, to: newState, now: now)
             }
         } else {
             sessions[index].state = newState
-            handleStateTransition(at: index, from: oldState, to: newState)
+            handleStateTransition(at: index, from: oldState, to: newState, now: now)
         }
 
         // Handle auto-advance when a session goes busy (not backburner — that's a deliberate user action
@@ -263,6 +286,46 @@ final class SessionManager {
                     )
                 }
             }
+        }
+    }
+
+    /// Detects local-midnight rollover (called from the monitor view's periodic
+    /// tick). On a new day: splits each still-working session's in-progress
+    /// stretch at midnight (the pre-midnight portion is committed to the
+    /// previous day) and resets every session's `busyTimeToday`. Historical
+    /// daily totals are kept indefinitely — no pruning.
+    func handleDayRolloverIfNeeded(now: Date) {
+        let newDay = Calendar.current.startOfDay(for: now)
+        guard newDay > lastSeenDay else { return }
+
+        for index in sessions.indices {
+            let isBusy = sessions[index].state == .working || sessions[index].state == .compacting
+            if isBusy,
+               let lastBecameWorking = sessions[index].lastBecameWorking,
+               lastBecameWorking < newDay {
+                let beforeMidnight = newDay.timeIntervalSince(lastBecameWorking)
+                dailyStats.addBusyTime(beforeMidnight, on: lastSeenDay)
+                sessions[index].lastBecameWorking = newDay
+            }
+            sessions[index].busyTimeToday = 0
+        }
+
+        lastSeenDay = newDay
+    }
+
+    /// Best-effort commit of in-progress busy time, e.g. on app termination.
+    /// For each still-working session, commits the elapsed turn and clears the
+    /// working clock so it can't be double-counted.
+    func commitInProgressBusyTime() {
+        let now = Date()
+        for index in sessions.indices {
+            let isBusy = sessions[index].state == .working || sessions[index].state == .compacting
+            guard isBusy, let lastBecameWorking = sessions[index].lastBecameWorking else { continue }
+            let elapsed = now.timeIntervalSince(lastBecameWorking)
+            guard elapsed > 0 else { continue }
+            sessions[index].busyTimeToday += elapsed
+            dailyStats.addBusyTime(elapsed, on: now)
+            sessions[index].lastBecameWorking = nil
         }
     }
 
@@ -576,6 +639,20 @@ final class SessionManager {
             session.gitBranch = gitBranch?.isEmpty == true ? nil : gitBranch
             session.gitRepoName = gitRepoName?.isEmpty == true ? nil : gitRepoName
             session.transcriptPath = transcriptPath?.isEmpty == true ? nil : transcriptPath
+            // Initialize the state-entry timestamp so the first observed state
+            // has a sensible reference (no transition fires for new sessions).
+            // For idle/permission this also seeds the Fair/Prio queue sort key
+            // (`lastBecameIdle`) — see `reorderForMode`.
+            switch state {
+            case .working, .compacting:
+                session.lastBecameWorking = now
+            case .idle, .permission:
+                session.lastBecameIdle = now
+            case .backburner:
+                // No relevant timestamp; explicit reactivation will set
+                // `lastBecameIdle` via `handleStateTransition`.
+                break
+            }
             sessions.append(session)
 
             // Re-normalize focusedSessionID now that this session exists — focus events

@@ -64,12 +64,34 @@ struct GeneralSettingsView: View {
     @AppStorage(AppStorageKeys.notifyOnPermission) private var notifyOnPermission = true
     @AppStorage(AppStorageKeys.playSound) private var playSound = true
     @AppStorage(AppStorageKeys.enableStats) private var enableStats = true
-    @AppStorage(AppStorageKeys.idleSessionColoring) private var idleSessionColoring = true
+    @AppStorage(AppStorageKeys.statsUseCyclingColors) private var statsUseCyclingColors = true
+    @AppStorage(AppStorageKeys.statsBarColorRed) private var statsBarColorRed = 255.0
+    @AppStorage(AppStorageKeys.statsBarColorGreen) private var statsBarColorGreen = 165.0
+    @AppStorage(AppStorageKeys.statsBarColorBlue) private var statsBarColorBlue = 0.0
     @AppStorage(AppStorageKeys.goToNextOnBackburner) private var goToNextOnBackburner = true
 
     @State private var showingUninstallConfirm = false
     @State private var showingUninstallSummary = false
     @State private var uninstallSummary = ""
+
+    private var statsBarColor: Binding<Color> {
+        Binding(
+            get: {
+                Color(
+                    red: statsBarColorRed / 255,
+                    green: statsBarColorGreen / 255,
+                    blue: statsBarColorBlue / 255
+                )
+            },
+            set: { newColor in
+                if let components = NSColor(newColor).usingColorSpace(.sRGB) {
+                    statsBarColorRed = components.redComponent * 255
+                    statsBarColorGreen = components.greenComponent * 255
+                    statsBarColorBlue = components.blueComponent * 255
+                }
+            }
+        )
+    }
 
     var body: some View {
         Form {
@@ -114,8 +136,12 @@ struct GeneralSettingsView: View {
 
             Section("Stats") {
                 Toggle("Enable Stats", isOn: $enableStats)
-                SettingWithDescription(description: "Color footer from green to red depending on idle session %") {
-                    Toggle("Idle Status Coloring", isOn: $idleSessionColoring)
+                SettingWithDescription(description: "Each day's bar gets a color from the palette") {
+                    Toggle("Use cycling colors", isOn: $statsUseCyclingColors)
+                        .disabled(!enableStats)
+                }
+                if !statsUseCyclingColors {
+                    ColorPicker("Bar color", selection: statsBarColor)
                         .disabled(!enableStats)
                 }
             }
@@ -723,10 +749,6 @@ struct SessionListShortcutsSection: View {
     @State private var rename = Shortcut.load(from: AppStorageKeys.localShortcutRename)
     @State private var cycleModeForward = Shortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
     @State private var cycleModeBackward = Shortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
-    @State private var togglePause: Shortcut? = Shortcut.load(from: AppStorageKeys.localShortcutTogglePause)
-        ?? Shortcut(keyCode: 1, modifiers: []) // S
-    @State private var resetStats: Shortcut? = Shortcut.load(from: AppStorageKeys.localShortcutResetStats)
-        ?? Shortcut(keyCode: 1, modifiers: .shift) // ⇧S
     @State private var toggleBeacon: Shortcut? = Shortcut.load(from: AppStorageKeys.localShortcutToggleBeacon)
         ?? Shortcut(keyCode: 11, modifiers: []) // B
     @State private var toggleAutoNext: Shortcut? = Shortcut
@@ -765,16 +787,6 @@ struct SessionListShortcutsSection: View {
                 label: "Cycle Mode Backward",
                 shortcut: $cycleModeBackward,
                 storageKey: AppStorageKeys.localShortcutCycleModeBackward
-            )
-            ShortcutRow(
-                label: "Start/Pause Stats",
-                shortcut: $togglePause,
-                storageKey: AppStorageKeys.localShortcutTogglePause
-            )
-            ShortcutRow(
-                label: "Reset Stats",
-                shortcut: $resetStats,
-                storageKey: AppStorageKeys.localShortcutResetStats
             )
             ShortcutRow(
                 label: "Toggle Beacon",

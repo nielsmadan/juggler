@@ -15,7 +15,6 @@ struct SessionMonitorView: View {
     @AppStorage(AppStorageKeys.queueOrderMode) private var queueOrderMode: String = QueueOrderMode.default.rawValue
     @AppStorage(AppStorageKeys.useCyclingColors) private var useCyclingColors = true
     @AppStorage(AppStorageKeys.enableStats) private var enableStats = true
-    @AppStorage(AppStorageKeys.idleSessionColoring) private var idleSessionColoring = true
     @AppStorage(AppStorageKeys.showShortcutHelper) private var showShortcutHelper = true
     @AppStorage(AppStorageKeys.beaconEnabled) private var beaconEnabled = true
     @AppStorage(AppStorageKeys.autoAdvanceOnBusy) private var autoAdvanceOnBusy = false
@@ -35,9 +34,10 @@ struct SessionMonitorView: View {
     }
 
     @State private var controller = SessionListController()
-    @State private var globalStatsResetDate: Date?
-    @State private var isPaused = false
     @State private var isMonitorWindowKey = false
+    /// Per-session Today-tab rendered width, captured via PreferenceKey so the
+    /// state badge can align its horizontal center with the tab's diagonal apex.
+    @State private var todayTabWidths: [String: CGFloat] = [:]
 
     @Namespace private var sessionAnimation
 
@@ -135,6 +135,8 @@ struct SessionMonitorView: View {
             }
             .onChange(of: sessionManager.sessions) { _, newSessions in
                 controller.syncSelection(sessions: newSessions)
+                let alive = Set(newSessions.map(\.id))
+                todayTabWidths = todayTabWidths.filter { alive.contains($0.key) }
             }
             .onAppear {
                 controller.syncSelection(sessions: sessionManager.sessions)
@@ -143,14 +145,6 @@ struct SessionMonitorView: View {
                     sessionManager: sessionManager,
                     queueOrderMode: $queueOrderMode,
                     extraHandler: { event in
-                        if enableStats, let shortcut = controller.shortcutTogglePause, shortcut.matches(event) {
-                            isPaused.toggle()
-                            return true
-                        }
-                        if enableStats, let shortcut = controller.shortcutResetStats, shortcut.matches(event) {
-                            globalStatsResetDate = Date()
-                            return true
-                        }
                         if let shortcut = controller.shortcutToggleAutoNext, shortcut.matches(event) {
                             autoAdvanceOnBusy.toggle()
                             return true
@@ -247,7 +241,7 @@ struct SessionMonitorView: View {
             }
             if enableStats, !sessionManager.sessions.isEmpty {
                 Divider()
-                statsFooter
+                StatsChartView()
             }
             if showShortcutHelper, !sessionManager.sessions.isEmpty {
                 Divider()
@@ -376,12 +370,26 @@ struct SessionMonitorView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.top, 2)
-            sessionContent(session)
+            // List rows have no outer horizontal padding — the List itself manages insets.
+            sessionContent(session, rowHorizontalPadding: 0)
         }
         .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .bottomTrailing) {
+            if enableStats {
+                BusyStatsCorner(
+                    session: session,
+                    highlightColor: highlightColor,
+                    isActive: isActiveRow(index: index)
+                )
+            }
+        }
+        .onPreferenceChange(TodayTabWidthKey.self) { width in
+            if width > 0 { todayTabWidths[session.id] = width }
+        }
         .contentShape(Rectangle())
         .listRowBackground(
-            (sessionManager.isSessionFocused || isMonitorWindowKey) && controller.selectedIndex == index
+            isActiveRow(index: index)
                 ? highlightColor.opacity(0.15)
                 : Color.clear
         )
@@ -389,6 +397,10 @@ struct SessionMonitorView: View {
             activateSession(session)
         }
         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+    }
+
+    private func isActiveRow(index: Int?) -> Bool {
+        (sessionManager.isSessionFocused || isMonitorWindowKey) && controller.selectedIndex == index
     }
 
     /// Row view for ScrollView (Fair/Prio mode with animations)
@@ -405,16 +417,29 @@ struct SessionMonitorView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.top, 2)
-            sessionContent(session)
+            // ScrollView rows apply 16pt horizontal padding (see below).
+            sessionContent(session, rowHorizontalPadding: 16)
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            (sessionManager.isSessionFocused || isMonitorWindowKey) && controller.selectedIndex == index
+            isActiveRow(index: index)
                 ? highlightColor.opacity(0.15)
                 : Color.clear
         )
+        .overlay(alignment: .bottomTrailing) {
+            if enableStats {
+                BusyStatsCorner(
+                    session: session,
+                    highlightColor: highlightColor,
+                    isActive: isActiveRow(index: index)
+                )
+            }
+        }
+        .onPreferenceChange(TodayTabWidthKey.self) { width in
+            if width > 0 { todayTabWidths[session.id] = width }
+        }
         .contentShape(Rectangle())
         .onTapGesture {
             activateSession(session)
@@ -432,15 +457,32 @@ struct SessionMonitorView: View {
     }
 
     @ViewBuilder
-    private func sessionContent(_ session: Session) -> some View {
+    private func sessionContent(_ session: Session, rowHorizontalPadding: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            sessionHeader(session)
+            sessionHeader(session, rowHorizontalPadding: rowHorizontalPadding)
             sessionMetadata(session)
         }
     }
 
+    /// State-badge x offset that keeps the badge's vertical center aligned
+    /// with the Today tab's diagonal apex. Falls back to a reasonable default
+    /// (matches a short-value tab with the calendar icon) until the
+    /// PreferenceKey populates the actual rendered width.
+    ///
+    /// `rowHorizontalPadding` must match the row's outer `.padding(.horizontal, X)`
+    /// — differs between row variants (List = 0, ScrollView = 16).
+    private func stateBadgeOffset(for session: Session, rowHorizontalPadding: CGFloat) -> CGFloat {
+        // Natural badge center-x (no offset) sits at:
+        //   row_right - rowHorizontalPadding - StateBadgeLayout.centerXFromRight.
+        // Today apex_x = row_right - todayWidth + tabDiagonalOffset.
+        // Required offset = apex_x - natural center.
+        let todayWidth = todayTabWidths[session.id] ?? 65
+        return (BusyStatsCornerLayout.tabDiagonalOffset + rowHorizontalPadding + StateBadgeLayout.centerXFromRight)
+            - todayWidth
+    }
+
     @ViewBuilder
-    private func sessionHeader(_ session: Session) -> some View {
+    private func sessionHeader(_ session: Session, rowHorizontalPadding: CGFloat) -> some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -465,8 +507,12 @@ struct SessionMonitorView: View {
                 Text(session.state.displayText)
                     .font(.caption)
             }
-            .frame(width: 70)
-            .padding(.trailing, 4)
+            .frame(width: StateBadgeLayout.frameWidth)
+            .padding(.trailing, StateBadgeLayout.trailingPadding)
+            // Shift the badge horizontally so its vertical center sits at the
+            // same x as the Today tab's diagonal apex. Offset is recomputed
+            // whenever the Today tab's width changes (via PreferenceKey).
+            .offset(x: stateBadgeOffset(for: session, rowHorizontalPadding: rowHorizontalPadding))
         }
     }
 
@@ -479,38 +525,6 @@ struct SessionMonitorView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            idleStatsView(for: session)
-        }
-    }
-
-    @ViewBuilder
-    private func idleStatsView(for session: Session) -> some View {
-        if enableStats {
-            TimelineView(.periodic(from: .now, by: 5)) { _ in
-                HStack(spacing: 4) {
-                    if session.state == .idle || session.state == .permission {
-                        Text("idle")
-                            .frame(minWidth: 20, alignment: .trailing)
-                        Text(formatDuration(session.currentIdleDuration ?? 0))
-                            .frame(minWidth: 28, alignment: .trailing)
-                        Text("|")
-                    }
-                    if session.state == .working || session.state == .compacting {
-                        Text("working")
-                            .frame(minWidth: 16, alignment: .trailing)
-                        Text(formatDuration(session.currentWorkingDuration ?? 0))
-                            .frame(minWidth: 28, alignment: .trailing)
-                        Text("|")
-                    }
-                    Text("total")
-                        .frame(minWidth: 24, alignment: .trailing)
-                    Text(formatDuration(session.totalIdleTime))
-                        .frame(minWidth: 28, alignment: .trailing)
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(minHeight: 16)
-            }
         }
     }
 
@@ -518,13 +532,6 @@ struct SessionMonitorView: View {
         let result = controller.handleKeyPress(press, sessionManager: sessionManager, queueOrderMode: &queueOrderMode)
         if result == .handled { return .handled }
 
-        if enableStats, let shortcut = controller.shortcutTogglePause, shortcut.matches(press) {
-            isPaused.toggle()
-            return .handled
-        } else if enableStats, let shortcut = controller.shortcutResetStats, shortcut.matches(press) {
-            globalStatsResetDate = Date()
-            return .handled
-        }
         if let shortcut = controller.shortcutToggleBeacon, shortcut.matches(press) {
             beaconEnabled.toggle()
             return .handled
@@ -563,73 +570,6 @@ struct SessionMonitorView: View {
         SessionStatsCalculator.formatDuration(seconds)
     }
 
-    // MARK: - Stats Footer
-
-    private var totalIdleTimeForFooter: TimeInterval {
-        SessionStatsCalculator.totalIdleTime(
-            sessions: sessionManager.sessions, resetDate: globalStatsResetDate, isPaused: isPaused
-        )
-    }
-
-    private var totalWorkingTimeForFooter: TimeInterval {
-        SessionStatsCalculator.totalWorkingTime(
-            sessions: sessionManager.sessions, resetDate: globalStatsResetDate, isPaused: isPaused
-        )
-    }
-
-    private var idlePercentage: Double {
-        SessionStatsCalculator.idlePercentage(sessions: sessionManager.sessions)
-    }
-
-    private var footerGradientColor: Color {
-        let c = SessionStatsCalculator.footerGradientComponents(idlePercentage: idlePercentage)
-        return Color(red: c.red, green: c.green, blue: c.blue)
-    }
-
-    @ViewBuilder
-    private var statsFooter: some View {
-        TimelineView(.periodic(from: .now, by: 5)) { _ in
-            let idleCount = sessionManager.sessions.filter {
-                $0.state == .idle || $0.state == .permission
-            }.count
-            let totalCount = sessionManager.sessions.count
-
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(idleCount)/\(totalCount) sessions idle")
-                        .font(.subheadline)
-                    Text("\(formatDuration(totalIdleTimeForFooter)) total idle")
-                        .font(.subheadline)
-                    Text("\(formatDuration(totalWorkingTimeForFooter)) working time")
-                        .font(.subheadline)
-                }
-
-                Spacer()
-
-                HStack(spacing: 8) {
-                    Button {
-                        globalStatsResetDate = Date()
-                    } label: {
-                        Image(systemName: "stop.fill")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.regular)
-
-                    Button {
-                        isPaused.toggle()
-                    } label: {
-                        Image(systemName: isPaused ? "play.fill" : "pause.fill")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.regular)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 12)
-            .background(idleSessionColoring ? footerGradientColor.opacity(0.3) : Color(nsColor: .windowBackgroundColor))
-        }
-    }
-
     // MARK: - Shortcuts Reference
 
     @ViewBuilder
@@ -650,8 +590,6 @@ struct SessionMonitorView: View {
                 shortcutRow(controller.shortcutRename?.displayString ?? "–", "Rename")
                 shortcutRow(controller.shortcutCycleModeForward?.displayString ?? "–", "Mode →")
                 shortcutRow(controller.shortcutCycleModeBackward?.displayString ?? "–", "Mode ←")
-                shortcutRow(controller.shortcutTogglePause?.displayString ?? "–", "Start/Pause")
-                shortcutRow(controller.shortcutResetStats?.displayString ?? "–", "Reset Stats")
                 shortcutRow(controller.shortcutToggleBeacon?.displayString ?? "–", "Toggle Beacon")
                 shortcutRow(controller.shortcutToggleAutoNext?.displayString ?? "–", "Auto Next")
                 shortcutRow(controller.shortcutToggleAutoRestart?.displayString ?? "–", "Auto Restart")

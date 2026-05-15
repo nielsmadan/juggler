@@ -386,117 +386,6 @@ struct SessionTests {
         #expect(session.parentAndFolderName == "Unknown")
     }
 
-    // MARK: - Session Idle Duration Tests
-
-    @Test func currentIdleDuration_nilWhenWorking() {
-        let session = Session(
-            claudeSessionID: "test",
-            terminalSessionID: "w0t0p0:abc",
-            terminalType: .iterm2,
-            agent: "claude-code",
-            projectPath: "/test",
-            state: .working,
-            startedAt: Date(),
-            lastBecameIdle: Date()
-        )
-        #expect(session.currentIdleDuration == nil)
-    }
-
-    @Test func currentIdleDuration_nilWhenBackburner() {
-        let session = Session(
-            claudeSessionID: "test",
-            terminalSessionID: "w0t0p0:abc",
-            terminalType: .iterm2,
-            agent: "claude-code",
-            projectPath: "/test",
-            state: .backburner,
-            startedAt: Date(),
-            lastBecameIdle: Date()
-        )
-        #expect(session.currentIdleDuration == nil)
-    }
-
-    @Test func currentIdleDuration_nilWhenCompacting() {
-        let session = Session(
-            claudeSessionID: "test",
-            terminalSessionID: "w0t0p0:abc",
-            terminalType: .iterm2,
-            agent: "claude-code",
-            projectPath: "/test",
-            state: .compacting,
-            startedAt: Date(),
-            lastBecameIdle: Date()
-        )
-        #expect(session.currentIdleDuration == nil)
-    }
-
-    @Test func currentIdleDuration_nilWhenNoLastBecameIdle() {
-        let session = Session(
-            claudeSessionID: "test",
-            terminalSessionID: "w0t0p0:abc",
-            terminalType: .iterm2,
-            agent: "claude-code",
-            projectPath: "/test",
-            state: .idle,
-            startedAt: Date(),
-            lastBecameIdle: nil
-        )
-        #expect(session.currentIdleDuration == nil)
-    }
-
-    @Test func currentIdleDuration_calculatesWhenIdle() {
-        let tenSecondsAgo = Date().addingTimeInterval(-10)
-        let session = Session(
-            claudeSessionID: "test",
-            terminalSessionID: "w0t0p0:abc",
-            terminalType: .iterm2,
-            agent: "claude-code",
-            projectPath: "/test",
-            state: .idle,
-            startedAt: Date(),
-            lastBecameIdle: tenSecondsAgo
-        )
-        // Allow 1 second tolerance for test execution time
-        let duration = session.currentIdleDuration!
-        #expect(duration >= 9 && duration <= 12)
-    }
-
-    @Test func currentIdleDuration_calculatesWhenPermission() {
-        let fiveSecondsAgo = Date().addingTimeInterval(-5)
-        let session = Session(
-            claudeSessionID: "test",
-            terminalSessionID: "w0t0p0:abc",
-            terminalType: .iterm2,
-            agent: "claude-code",
-            projectPath: "/test",
-            state: .permission,
-            startedAt: Date(),
-            lastBecameIdle: fiveSecondsAgo
-        )
-        let duration = session.currentIdleDuration!
-        #expect(duration >= 4 && duration <= 7)
-    }
-
-    @Test func totalIdleTime_sumsAccumulatedAndCurrent() {
-        let tenSecondsAgo = Date().addingTimeInterval(-10)
-        var session = Session(
-            claudeSessionID: "test",
-            terminalSessionID: "w0t0p0:abc",
-            terminalType: .iterm2,
-            agent: "claude-code",
-            projectPath: "/test",
-            state: .idle,
-            startedAt: Date(),
-            lastBecameIdle: tenSecondsAgo,
-            accumulatedIdleTime: 60
-        )
-        let total = session.totalIdleTime
-        #expect(total >= 69 && total <= 72)
-
-        session.state = .working
-        #expect(session.totalIdleTime == 60)
-    }
-
     // MARK: - Session agentShortName Tests
 
     @Test func agentShortName_claudeCode() {
@@ -618,7 +507,7 @@ struct SessionTests {
         #expect(duration >= 4 && duration <= 7)
     }
 
-    @Test func totalWorkingTime_sumsAccumulatedAndCurrent() {
+    @Test func busyTimeTodayLive_sumsTodayAndCurrent() {
         var session = Session(
             claudeSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
@@ -628,13 +517,13 @@ struct SessionTests {
             state: .working,
             startedAt: Date(),
             lastBecameWorking: Date().addingTimeInterval(-10),
-            accumulatedWorkingTime: 60
+            busyTimeToday: 60
         )
-        let total = session.totalWorkingTime
+        let total = session.busyTimeTodayLive
         #expect(total >= 69 && total <= 72)
 
         session.state = .idle
-        #expect(session.totalWorkingTime == 60)
+        #expect(session.busyTimeTodayLive == 60)
     }
 
     // MARK: - Session Codable Tests
@@ -652,7 +541,6 @@ struct SessionTests {
             state: .idle,
             startedAt: Date(timeIntervalSince1970: 900),
             lastBecameIdle: Date(timeIntervalSince1970: 950),
-            accumulatedIdleTime: 30,
             paneIndex: 1,
             paneCount: 2,
             gitBranch: "main",
@@ -679,12 +567,10 @@ struct SessionTests {
         )
         var s2 = s1
 
-        s1.accumulatedIdleTime = 100
-        s2.accumulatedIdleTime = 200
         s1.lastBecameIdle = Date(timeIntervalSince1970: 100)
         s2.lastBecameIdle = Date(timeIntervalSince1970: 200)
-        s1.accumulatedWorkingTime = 50
-        s2.accumulatedWorkingTime = 75
+        s1.busyTimeToday = 50
+        s2.busyTimeToday = 75
         s1.lastBecameWorking = Date(timeIntervalSince1970: 300)
         s2.lastBecameWorking = Date(timeIntervalSince1970: 400)
 
