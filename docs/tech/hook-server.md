@@ -1,6 +1,6 @@
 # Hook Server
 
-The HookServer is an HTTP server running on `localhost:7483` that receives state change notifications from Claude Code hooks.
+The HookServer is an HTTP server running on `localhost:7483` that receives state change notifications from Claude Code, OpenCode, and Codex hooks.
 
 ## Implementation
 
@@ -78,7 +78,7 @@ The `HookEventMapper` (`Models/HookEventMapper.swift`) converts events to action
 nonisolated static func map(event: String, agent: String = "claude-code") -> MappedAction
 ```
 
-Dispatches to agent-specific mapping (`mapClaudeCode` / `mapOpenCode`) based on the `agent` parameter. Claude Code mapping:
+Dispatches to agent-specific mapping (`mapClaudeCode` / `mapOpenCode` / `mapCodex`) based on the `agent` parameter. Claude Code mapping:
 
 ```swift
 case "SessionStart", "Stop":
@@ -113,6 +113,36 @@ case "session.deleted", "server.instance.disposed":
 default:
     return .ignore
 ```
+
+Codex mapping:
+
+```swift
+case "SessionStart", "Stop":
+    return .updateState(.idle)
+case "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostCompact":
+    return .updateState(.working)
+case "PermissionRequest":
+    return .updateState(.permission)
+case "PreCompact":
+    return .updateState(.compacting)
+default:
+    return .ignore
+```
+
+Codex hooks register under `~/.codex/hooks.json` and require `features.hooks = true`
+in `~/.codex/config.toml`. Codex supports eight hook events — `SessionStart`,
+`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `PostCompact`,
+`PermissionRequest`, `Stop` — but no `SessionEnd`; sessions are removed via terminal
+bridge cleanup on window close.
+
+Codex gates user-installed hooks behind a trust review (`/hooks` in its TUI).
+`CodexHooksInstaller` writes `[hooks.state."<hooksJSONPath>:<event>:<groupIndex>:0"]`
+trust entries to `config.toml` directly — a `trusted_hash` (SHA-256 of Codex's
+canonical hook fingerprint) — so the hooks run without manual review. The
+`<groupIndex>` is resolved at install time from `hooks.json` (it is not always
+`0` — a user's preexisting hook for the same event pushes Juggler's group to a
+higher index). See [Codex Hooks](codex-hooks.md) for the full mechanism.
+Requires Codex CLI ≥ v0.114.
 
 ## Backburner Protection
 

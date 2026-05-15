@@ -33,7 +33,11 @@ struct Session: Identifiable, Codable, Equatable {
     var transcriptPath: String?
 
     var agentShortName: String {
-        agent == "opencode" ? "OC" : "CC"
+        switch agent {
+        case "opencode": "OC"
+        case "codex": "CX"
+        default: "CC"
+        }
     }
 
     var displayName: String {

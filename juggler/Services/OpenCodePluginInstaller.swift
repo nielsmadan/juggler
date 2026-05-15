@@ -18,7 +18,7 @@ enum OpenCodePluginInstaller {
     }
 
     static func install() throws {
-        guard let sourceURL = Bundle.main.url(forResource: "juggler-opencode", withExtension: "ts") else {
+        guard let sourceURL = Bundle.main.url(forResource: "juggler-opencode", withExtension: "txt") else {
             throw NSError(domain: "OpenCodePluginInstaller", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "Plugin resource not found in bundle"])
         }

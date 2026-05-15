@@ -237,7 +237,9 @@ struct SessionMonitorView: View {
                 ContentUnavailableView(
                     "No Sessions",
                     systemImage: "terminal",
-                    description: Text("Start or continue a session and it will show up here")
+                    description: Text(
+                        "Start or continue a session and it will show up here.\n\nCodex sessions appear after your first message."
+                    )
                 )
                 .frame(maxHeight: .infinity)
             } else {

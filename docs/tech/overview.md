@@ -1,6 +1,6 @@
 # Technical Overview
 
-Juggler is a SwiftUI menu bar app that tracks Claude Code and OpenCode sessions via HTTP hooks and provides global hotkeys for navigation. It communicates with iTerm2 through a persistent Python daemon and with Kitty via the `kitten @` CLI.
+Juggler is a SwiftUI menu bar app that tracks Claude Code, OpenCode, and Codex (experimental) sessions via HTTP hooks and provides global hotkeys for navigation. It communicates with iTerm2 through a persistent Python daemon and with Kitty via the `kitten @` CLI.
 
 ## System Architecture
 
@@ -29,9 +29,10 @@ Juggler is a SwiftUI menu bar app that tracks Claude Code and OpenCode sessions 
           ↓                             ↓       ↓        ↓
 ┌─────────────────┐           ┌──────────────┐    ┌─────────┐
 │  Claude Code /  │           │ iterm2_      │    │  Kitty  │
-│  OpenCode       │           │ daemon.py    │    │         │
-│  Hooks          │           │ (subprocess) │    └─────────┘
-│  notify.sh      │           └──────────────┘
+│  OpenCode /     │           │ daemon.py    │    │         │
+│  Codex          │           │ (subprocess) │    └─────────┘
+│  Hooks          │           └──────────────┘
+│  notify.sh      │
 └─────────────────┘                  │
                                      ↓
                                 ┌─────────┐
@@ -127,6 +128,7 @@ Juggler works with this by letting the activation complete, then yielding focus 
 - [Hook Server](hook-server.md) - HTTP API for hooks
 - [Claude Code Hooks](hooks.md) - Shell hook integration and payload contract
 - [OpenCode Plugin](opencode-plugin.md) - TypeScript plugin integration
+- [Codex Hooks](codex-hooks.md) - Codex hook integration and trust mechanism
 - [iTerm2 Daemon](iterm2-daemon.md) - Python daemon protocol
 - [Kitty Integration](kitty-integration.md) - Kitten CLI and watcher
 - [Terminal Bridges](terminal-bridges.md) - Bridge protocol and how to add a terminal

@@ -1268,4 +1268,96 @@ struct IntegrationTests {
         #expect(manager.sessions.first { $0.id == "s-oc" }?.state == .working)
         #expect(manager.sessions.first { $0.id == "s-cc" }?.state == .idle)
     }
+
+    // MARK: - Codex Hook Integration
+
+    @Test @MainActor func integration_codex_sessionStart_createsSession() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(
+            server: server,
+            agent: "codex",
+            event: "SessionStart",
+            claudeSessionID: "codex-1",
+            terminalSessionID: "s1",
+            projectPath: "/Users/test/codex-project"
+        )
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].terminalSessionID == "s1")
+        #expect(manager.sessions[0].state == .idle)
+        #expect(manager.sessions[0].agent == "codex")
+        #expect(manager.sessions[0].projectPath == "/Users/test/codex-project")
+    }
+
+    @Test @MainActor func integration_codex_stateTransitions() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(server: server, agent: "codex", event: "SessionStart",
+                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .idle)
+
+        await simulateHook(server: server, agent: "codex", event: "UserPromptSubmit",
+                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .working)
+
+        await simulateHook(server: server, agent: "codex", event: "PermissionRequest",
+                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .permission)
+
+        await simulateHook(server: server, agent: "codex", event: "PreCompact",
+                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .compacting)
+
+        await simulateHook(server: server, agent: "codex", event: "PostCompact",
+                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .working)
+
+        await simulateHook(server: server, agent: "codex", event: "Stop",
+                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .idle)
+
+        // The whole sequence is a single session.
+        #expect(manager.sessions.count == 1)
+    }
+
+    @Test @MainActor func integration_codex_mixedWithClaudeCode_bothTracked() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(
+            server: server,
+            agent: "claude-code",
+            event: "SessionStart",
+            claudeSessionID: "cc-1",
+            terminalSessionID: "s-cc",
+            projectPath: "/claude/project"
+        )
+        await simulateHook(
+            server: server,
+            agent: "codex",
+            event: "SessionStart",
+            claudeSessionID: "codex-1",
+            terminalSessionID: "s-codex",
+            projectPath: "/codex/project"
+        )
+
+        #expect(manager.sessions.count == 2)
+        #expect(manager.sessions.first { $0.id == "s-cc" }?.agent == "claude-code")
+        #expect(manager.sessions.first { $0.id == "s-codex" }?.agent == "codex")
+
+        // They update independently: Codex goes working, Claude stays idle.
+        await simulateHook(
+            server: server,
+            agent: "codex",
+            event: "UserPromptSubmit",
+            claudeSessionID: "codex-1",
+            terminalSessionID: "s-codex",
+            projectPath: "/codex/project"
+        )
+        #expect(manager.sessions.first { $0.id == "s-codex" }?.state == .working)
+        #expect(manager.sessions.first { $0.id == "s-cc" }?.state == .idle)
+    }
 }

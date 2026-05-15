@@ -87,4 +87,65 @@ struct HookEventMapperTests {
         let action = HookEventMapper.map(event: "sessionstart")
         #expect(action == .ignore)
     }
+
+    // MARK: - Codex Mappings
+
+    @Test func codex_sessionStart_mapsToIdle() {
+        let action = HookEventMapper.map(event: "SessionStart", agent: "codex")
+        #expect(action == .updateState(.idle))
+    }
+
+    @Test func codex_stop_mapsToIdle() {
+        let action = HookEventMapper.map(event: "Stop", agent: "codex")
+        #expect(action == .updateState(.idle))
+    }
+
+    @Test func codex_userPromptSubmit_mapsToWorking() {
+        let action = HookEventMapper.map(event: "UserPromptSubmit", agent: "codex")
+        #expect(action == .updateState(.working))
+    }
+
+    @Test func codex_preToolUse_mapsToWorking() {
+        let action = HookEventMapper.map(event: "PreToolUse", agent: "codex")
+        #expect(action == .updateState(.working))
+    }
+
+    @Test func codex_postToolUse_mapsToWorking() {
+        let action = HookEventMapper.map(event: "PostToolUse", agent: "codex")
+        #expect(action == .updateState(.working))
+    }
+
+    @Test func codex_permissionRequest_mapsToPermission() {
+        let action = HookEventMapper.map(event: "PermissionRequest", agent: "codex")
+        #expect(action == .updateState(.permission))
+    }
+
+    // Codex does not emit a session-end event. Pin this so a future SessionEnd handler
+    // isn't added by accident.
+    @Test func codex_sessionEnd_mapsToIgnore() {
+        let action = HookEventMapper.map(event: "SessionEnd", agent: "codex")
+        #expect(action == .ignore)
+    }
+
+    @Test func codex_preCompact_mapsToCompacting() {
+        let action = HookEventMapper.map(event: "PreCompact", agent: "codex")
+        #expect(action == .updateState(.compacting))
+    }
+
+    // PostCompact fires when compaction finishes and the agent resumes its turn.
+    @Test func codex_postCompact_mapsToWorking() {
+        let action = HookEventMapper.map(event: "PostCompact", agent: "codex")
+        #expect(action == .updateState(.working))
+    }
+
+    @Test func codex_unknownEvent_mapsToIgnore() {
+        let action = HookEventMapper.map(event: "SomeFutureEvent", agent: "codex")
+        #expect(action == .ignore)
+    }
+
+    // mapCodex is case-sensitive (exact-string switch). Pin that a lowercase event is ignored.
+    @Test func codex_lowercaseEvent_mapsToIgnore() {
+        let action = HookEventMapper.map(event: "sessionstart", agent: "codex")
+        #expect(action == .ignore)
+    }
 }

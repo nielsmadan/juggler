@@ -1,6 +1,6 @@
 # Cycle Sessions
 
-The core feature of Juggler: cycling through Claude Code sessions using global hotkeys.
+The core feature of Juggler: cycling through agent sessions (Claude Code, OpenCode, Codex) using global hotkeys.
 
 ## Global Shortcuts
 

@@ -33,10 +33,10 @@ curl -X POST "http://localhost:7483/hook" \
 
 ## Architecture
 
-Juggler is a SwiftUI menu bar app (macOS 14+) that tracks Claude Code sessions via hooks and provides global hotkeys to navigate between them.
+Juggler is a SwiftUI menu bar app (macOS 14+) that tracks Claude Code, OpenCode, and Codex sessions via hooks and provides global hotkeys to navigate between them.
 
 **Data flow:**
-1. Claude Code hooks → HTTP POST to `HookServer` (port 7483)
+1. Claude Code / OpenCode / Codex hooks → HTTP POST to `HookServer` (port 7483)
 2. `HookServer` → updates `SessionManager` (in-memory @Observable)
 3. Global hotkeys → `HotkeyManager` → `SessionManager.cycleForward/Backward()`
 4. Activation → `TerminalBridge` (iTerm2Bridge/KittyBridge) → terminal
@@ -57,7 +57,7 @@ Juggler/
 │   └── UpdateManager.swift       # Sparkle auto-updates
 ├── Models/
 │   ├── CyclingEngine.swift       # Session cycling protocol and implementation
-│   ├── HookEventMapper.swift     # Hook event → state mapping (Claude Code + OpenCode)
+│   ├── HookEventMapper.swift     # Hook event → state mapping (Claude Code + OpenCode + Codex)
 │   ├── Shortcut+Persistence.swift # Save/load shortcuts via UserDefaults (extends ShortcutField's Shortcut)
 │   ├── QueueOrderMode.swift      # Fair, Prio, Static, Grouped modes
 │   ├── Session.swift             # Session data model
@@ -86,12 +86,15 @@ Juggler/
 └── Resources/
     ├── iterm2_daemon.py          # Python daemon for iTerm2 API
     ├── juggler_watcher.py        # Kitty event watcher
-    ├── juggler-opencode.ts       # OpenCode plugin
     ├── install_kitty_watcher.sh  # Kitty watcher install script
-    └── hooks/
-        ├── install.sh            # Hook installation script
-        ├── notify.sh             # Hook notification script
-        └── uninstall.sh          # Integration cleanup (single source of truth)
+    ├── hooks/
+    │   ├── install.sh            # Hook installation script
+    │   ├── notify.sh             # Hook notification script
+    │   └── uninstall.sh          # Integration cleanup (single source of truth)
+    ├── codex-hooks/
+    │   └── codex-notify.sh       # Codex hook notification script
+    └── opencode-plugin/
+        └── juggler-opencode.txt  # OpenCode plugin (bundled as .txt; installer writes it to disk as .ts)
 ```
 
 **Session states:** `idle`, `permission`, `working`, `backburner` (excluded from cycle), `compacting`
@@ -104,6 +107,8 @@ Juggler/
 ## Hook Installation
 
 Hooks are installed to `~/.claude/hooks/juggler/`. The `notify.sh` script reads session data from stdin (JSON) and posts to Juggler's HTTP server.
+
+Codex hooks install the bundled `codex-notify.sh` to `~/.codex/hooks/juggler/notify.sh`, register it in `~/.codex/hooks.json`, and trust it via `~/.codex/config.toml`. See [docs/tech/codex-hooks.md](docs/tech/codex-hooks.md).
 
 ## Code Style
 

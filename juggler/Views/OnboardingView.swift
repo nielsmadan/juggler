@@ -7,6 +7,7 @@
 
 import KeyboardShortcuts
 import ServiceManagement
+import Sparkle
 import SwiftUI
 
 struct OnboardingView: View {
@@ -171,6 +172,8 @@ struct ShortcutsStep: View {
 struct FinishStep: View {
     let dismiss: DismissAction
     @Environment(\.openWindow) private var openWindow
+    @State private var enableLaunchAtLogin = false
+    @State private var enableAutoUpdate = true
     @AppStorage(AppStorageKeys.launchAtLogin) private var launchAtLogin = false
     @AppStorage(AppStorageKeys.hasCompletedOnboarding) private var hasCompletedOnboarding = false
 
@@ -190,22 +193,24 @@ struct FinishStep: View {
             .multilineTextAlignment(.center)
             .foregroundStyle(.secondary)
 
-            Toggle("Launch Juggler at Login", isOn: $launchAtLogin)
+            Toggle("Launch Juggler at Login", isOn: $enableLaunchAtLogin)
                 .toggleStyle(.checkbox)
-                .onChange(of: launchAtLogin) { _, newValue in
-                    do {
-                        if newValue {
-                            try SMAppService.mainApp.register()
-                        } else {
-                            try SMAppService.mainApp.unregister()
-                        }
-                    } catch {
-                        logError(.session, "Failed to update launch at login: \(error)")
-                        launchAtLogin = !newValue
-                    }
-                }
+
+            Toggle("Automatically download and install updates", isOn: $enableAutoUpdate)
+                .toggleStyle(.checkbox)
 
             Button("Finish") {
+                if enableLaunchAtLogin {
+                    do {
+                        try SMAppService.mainApp.register()
+                        launchAtLogin = true
+                    } catch {
+                        logError(.session, "Failed to register launch at login: \(error)")
+                    }
+                }
+                let updater = UpdateManager.shared.updater
+                updater.automaticallyChecksForUpdates = true
+                updater.automaticallyDownloadsUpdates = enableAutoUpdate
                 hasCompletedOnboarding = true
                 Task {
                     if UserDefaults.standard.bool(forKey: AppStorageKeys.iterm2Enabled) {

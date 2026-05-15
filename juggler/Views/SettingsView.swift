@@ -226,6 +226,8 @@ struct IntegrationSettingsView: View {
     @State private var isInstallingOpenCodePlugin = false
     @State private var openCodeInstallError: String?
 
+    @State private var codexController = CodexSetupController()
+
     private var hooksPath: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".claude/hooks/juggler/notify.sh").path
@@ -315,6 +317,71 @@ struct IntegrationSettingsView: View {
                     installOpenCodePlugin()
                 }
                 .disabled(isInstallingOpenCodePlugin)
+            }
+
+            Section("Codex") {
+                HStack {
+                    Text("Hook Script")
+                    Spacer()
+                    if codexController.hooksInstalled {
+                        Label("Installed", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Installed", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Button(codexController.hooksInstalled ? "Reinstall Hooks" : "Install Hooks") {
+                    codexController.installHooks()
+                }
+                .disabled(codexController.isInstallingHooks)
+
+                HStack {
+                    Text("Feature Flag")
+                    Spacer()
+                    if codexController.featureFlagEnabled {
+                        Label("Enabled", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Enabled", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Button(codexController.featureFlagEnabled ? "Re-check Flag" : "Enable Feature Flag") {
+                    codexController.enableFlag()
+                }
+                .disabled(codexController.isEnablingFlag)
+
+                HStack {
+                    Text("Enable in Codex")
+                    Spacer()
+                    if codexController.enabledInCodex {
+                        Label("Trusted", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Trusted", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Text(
+                    "Bypasses Codex's own hook review. Alternatively, run /hooks in Codex and trust the Juggler hooks manually."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                if let error = codexController.errorMessage {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+
+                Button(codexController.enabledInCodex ? "Re-apply Trust" : "Enable in Codex") {
+                    codexController.enableInCodex()
+                }
+                .disabled(codexController.isEnablingInCodex)
             }
 
             Section("Kitty") {
@@ -442,6 +509,7 @@ struct IntegrationSettingsView: View {
             checkKittyStatus()
             checkTmuxConfigured()
             checkOpenCodePluginInstalled()
+            codexController.refresh()
         }
     }
 
@@ -888,6 +956,15 @@ struct UpdatesSettingsView: View {
                         set: { updateManager.updater.automaticallyChecksForUpdates = $0 }
                     )
                 )
+
+                Toggle(
+                    "Automatically download and install updates",
+                    isOn: Binding(
+                        get: { updateManager.updater.automaticallyDownloadsUpdates },
+                        set: { updateManager.updater.automaticallyDownloadsUpdates = $0 }
+                    )
+                )
+                .disabled(!updateManager.updater.automaticallyChecksForUpdates)
             }
         }
         .formStyle(.grouped)

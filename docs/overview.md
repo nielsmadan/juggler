@@ -1,10 +1,10 @@
 # Juggler Documentation
 
-macOS menu bar app for navigating multiple Claude Code sessions in iTerm2 and Kitty via global hotkeys.
+macOS menu bar app for navigating multiple Claude Code, OpenCode, and Codex sessions in iTerm2 and Kitty via global hotkeys.
 
 ## What is Juggler?
 
-Juggler solves the "context switching" problem when running multiple Claude Code sessions. Instead of manually hunting through terminal tabs, Juggler tracks all your sessions and lets you cycle through the ones that need attention with a single hotkey.
+Juggler solves the "context switching" problem when running multiple Claude Code, OpenCode, and Codex sessions. Instead of manually hunting through terminal tabs, Juggler tracks all your sessions and lets you cycle through the ones that need attention with a single hotkey.
 
 ## Key Features
 
@@ -16,7 +16,7 @@ Juggler solves the "context switching" problem when running multiple Claude Code
 
 ## How It Works
 
-1. Install hooks into Claude Code (`~/.claude/hooks/`) or plugin for OpenCode
+1. Install hooks for Claude Code (`~/.claude/hooks/`), OpenCode (a plugin), or Codex (`~/.codex/hooks/`)
 2. Hooks notify Juggler when sessions change state
 3. Use global hotkeys to jump between sessions
 4. Juggler activates the correct terminal tab and pane
@@ -38,8 +38,10 @@ Juggler solves the "context switching" problem when running multiple Claude Code
 ### Technical
 
 - [**Tech Overview**](tech/overview.md) - Architecture and components
-  - [Hook Server](tech/hook-server.md) - HTTP API for Claude Code hooks
+  - [Hook Server](tech/hook-server.md) - HTTP API for agent hooks
   - [iTerm2 Daemon](tech/iterm2-daemon.md) - Python daemon protocol
   - [Session Management](tech/session-management.md) - Cycling and state logic
-  - [Claude Code Hooks](tech/hooks.md) - Hook integration and quirks
+  - [Claude Code Hooks](tech/hooks.md) - Claude Code hook integration and quirks
+  - [OpenCode Plugin](tech/opencode-plugin.md) - OpenCode plugin integration
+  - [Codex Hooks](tech/codex-hooks.md) - Codex hook integration and trust mechanism
 

@@ -4,7 +4,7 @@ Juggler integrates with OpenCode via a TypeScript plugin rather than shell hooks
 
 ## Installation
 
-The plugin is installed to `~/.config/opencode/plugins/juggler-opencode.ts`. Source: `Resources/juggler-opencode.ts`.
+The plugin is installed to `~/.config/opencode/plugins/juggler-opencode.ts`. Source: `Resources/opencode-plugin/juggler-opencode.txt` (bundled as `.txt` so Xcode 16's filesystem-synchronized group doesn't treat it as TypeScript source and try to compile it; the installer copies it to disk with the `.ts` extension OpenCode expects).
 
 Juggler's onboarding flow and `IntegrationHubView` install the plugin automatically. OpenCode loads plugins from that directory at startup.
 

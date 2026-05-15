@@ -724,6 +724,26 @@ struct HookServerTests {
         #expect(payload == nil)
     }
 
+    // Pins the payload shape `codex-notify.sh` emits against the server's decoder.
+    @Test func decodeUnifiedPayload_codexPayload_succeeds() async {
+        let server = HookServer(sessionManager: SessionManager())
+        let body = """
+        {"agent":"codex","event":"PreToolUse","hookInput":{"session_id":"thread-1",\
+        "transcript_path":"/tmp/rollout.jsonl","tool_name":"Bash"},\
+        "terminal":{"sessionId":"w0t0p0:abc","cwd":"/test","terminalType":"iterm2"},\
+        "git":{"branch":"main","repo":"juggler"},"tmux":{"pane":"%1"}}
+        """
+        let payload = await server.decodeUnifiedPayload(body)
+        #expect(payload != nil)
+        #expect(payload?.agent == "codex")
+        #expect(payload?.event == "PreToolUse")
+        #expect(payload?.hookInput?.sessionId == "thread-1")
+        #expect(payload?.hookInput?.toolName == "Bash")
+        #expect(payload?.terminal?.terminalType == "iterm2")
+        #expect(payload?.git?.repo == "juggler")
+        #expect(payload?.tmux?.pane == "%1")
+    }
+
     @Test func mapClaudeCode_allEvents() {
         #expect(HookEventMapper.map(event: "SessionStart") == .updateState(.idle))
         #expect(HookEventMapper.map(event: "Stop") == .updateState(.idle))

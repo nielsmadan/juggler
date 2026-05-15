@@ -4,9 +4,9 @@
 
 A native macOS app that tracks your running coding agent sessions and cycles you to the next one that needs attention. No workflow changes. No new terminal. Just less time wasted.
 
-Currently works with iTerm2 / Kitty (tmux optional) and Claude Code / OpenCode. More integrations coming soon.
+Currently works with iTerm2 / Kitty (tmux optional) and Claude Code, OpenCode, and Codex (experimental). More integrations coming soon.
 
-![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![Codex](https://img.shields.io/badge/Codex-experimental-yellow) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen)
 
 <p align="center">
   <img src="site/video.gif" alt="Juggler demo" width="720">
@@ -40,7 +40,7 @@ brew install --cask nielsmadan/juggler/juggler
 
 1. **Download and open** — Launch Juggler from Applications
 2. **Walk through onboarding** — Grant Accessibility permissions, set up terminal integration(s), install hooks
-3. **Open your sessions** — Start Claude Code or OpenCode as you normally would. Juggler detects them automatically
+3. **Open your sessions** — Start Claude Code, OpenCode, or Codex as you normally would. Juggler detects them automatically
 4. **Hit the hotkey** — Press `⇧⌘K` and you're at the next idle session
 
 ## Features
@@ -72,7 +72,7 @@ All shortcuts are customizable in Settings.
 
 **Terminals:** iTerm2, Kitty, tmux (optional multiplexer), Zellij (planned)
 
-**Coding agents:** Claude Code, OpenCode
+**Coding agents:** Claude Code, OpenCode, Codex *(experimental — requires Codex CLI ≥ v0.114)*
 
 **Requires:** macOS 14.0+ (Sonoma)
 
@@ -90,6 +90,7 @@ Juggler's onboarding flow sets up agent integration automatically. You can also 
 
 - **Claude Code** — Shell hooks installed to `~/.claude/hooks/juggler/`. Alternatively, run `/Applications/Juggler.app/Contents/Resources/install.sh`
 - **OpenCode** — TypeScript plugin installed to `~/.config/opencode/plugins/juggler-opencode.ts`. Configure via Settings → Integrations
+- **Codex** *(experimental — requires Codex CLI ≥ v0.114)* — Three setup steps in Settings → Integrations: **Install Hooks** (adds `notify.sh` + `hooks.json` to `~/.codex/hooks/juggler/`), **Enable Feature Flag** (`features.hooks = true` in `~/.codex/config.toml`), and **Enable in Codex** (writes `[hooks.state]` trust entries so Codex runs the hooks — this bypasses Codex's own hook review; alternatively run `/hooks` in Codex and trust them manually)
 
 ## Future
 
@@ -122,7 +123,6 @@ Juggler tracks agent sessions through lifecycle hooks that fire on events like s
 
 **Waiting on hook support:**
 
-- [Codex CLI](https://github.com/openai/codex) — only has `agent-turn-complete` notify, minimal session lifecycle hooks ([discussion](https://github.com/openai/codex/discussions/2150))
 - [Aider](https://github.com/Aider-AI/aider) — no lifecycle hooks
 
 ### Linux & Windows

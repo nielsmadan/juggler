@@ -525,6 +525,19 @@ struct SessionTests {
         #expect(session.agentShortName == "OC")
     }
 
+    @Test func agentShortName_codex() {
+        let session = Session(
+            claudeSessionID: "test",
+            terminalSessionID: "w0t0p0:abc",
+            terminalType: .iterm2,
+            agent: "codex",
+            projectPath: "/test",
+            state: .idle,
+            startedAt: Date()
+        )
+        #expect(session.agentShortName == "CX")
+    }
+
     // MARK: - Session displayName with tmux Tests
 
     @Test func displayName_tmux_prefersTmuxSessionName() {

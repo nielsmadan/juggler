@@ -6,7 +6,7 @@ Juggler uses macOS system notifications to alert users when sessions need attent
 
 ### Session Idle
 
-Triggered when a Claude Code session transitions to idle state (waiting for user input).
+Triggered when a session transitions to idle state (waiting for user input).
 
 - **Title:** "Session Idle"
 - **Body:** Session display name (project folder or custom name)
@@ -14,7 +14,7 @@ Triggered when a Claude Code session transitions to idle state (waiting for user
 
 ### Permission Required
 
-Triggered when a Claude Code session requests user permission to proceed.
+Triggered when a session requests user permission to proceed.
 
 - **Title:** "Permission Required"
 - **Body:** Session display name

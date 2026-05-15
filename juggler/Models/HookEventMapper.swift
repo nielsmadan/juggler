@@ -11,6 +11,8 @@ enum HookEventMapper {
         switch agent {
         case "opencode":
             mapOpenCode(event: event)
+        case "codex":
+            mapCodex(event: event)
         default:
             mapClaudeCode(event: event)
         }
@@ -33,6 +35,22 @@ enum HookEventMapper {
             .updateState(.compacting)
         case "SessionEnd":
             .removeSession
+        default:
+            .ignore
+        }
+    }
+
+    private nonisolated static func mapCodex(event: String) -> MappedAction {
+        switch event {
+        case "SessionStart", "Stop":
+            .updateState(.idle)
+        // PostCompact fires when compaction finishes and the agent resumes its turn.
+        case "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostCompact":
+            .updateState(.working)
+        case "PermissionRequest":
+            .updateState(.permission)
+        case "PreCompact":
+            .updateState(.compacting)
         default:
             .ignore
         }

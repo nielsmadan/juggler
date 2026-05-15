@@ -17,7 +17,7 @@ The Settings window is organized into tabs, each covering a distinct configurati
 
 - **Permission status** — Accessibility, Automation, and Notifications permissions with links to System Settings.
 - **Terminal setup** — Enable/configure iTerm2 and Kitty integrations.
-- **Agent hooks** — Install or verify Claude Code and OpenCode hooks.
+- **Agent hooks** — Install or verify Claude Code, OpenCode, and Codex hooks.
 
 ## Highlighting
 

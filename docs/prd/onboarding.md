@@ -6,7 +6,7 @@ First-launch flow that walks new users through the setup required for Juggler to
 
 1. **Welcome** — Brief intro to what Juggler does.
 2. **Accessibility Permission** — Required for global hotkeys. Links to System Settings.
-3. **Integration Hub** — Terminal setup (iTerm2 and/or Kitty) and agent hook installation (Claude Code, OpenCode).
+3. **Integration Hub** — Terminal setup (iTerm2 and/or Kitty) and agent hook installation (Claude Code, OpenCode, Codex).
 4. **Global Shortcuts** — Recorders for the six global hotkeys (Cycle Forward/Backward, Backburner Current, Reactivate All, Show Monitor, Last Notification). Users can accept defaults or customize.
 5. **Finish** — Option to enable "Launch at login".
 

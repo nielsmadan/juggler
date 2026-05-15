@@ -10,18 +10,21 @@ struct IntegrationHubView: View {
 
     @AppStorage(AppStorageKeys.iterm2Enabled) private var iterm2Enabled = true
     @AppStorage(AppStorageKeys.kittyEnabled) private var kittyEnabled = false
+    @AppStorage(AppStorageKeys.codexEnabled) private var codexEnabled = false
 
     @State private var showingITerm2Setup = false
     @State private var showingKittySetup = false
     @State private var showingTmuxSetup = false
     @State private var showingClaudeCodeSetup = false
     @State private var showingOpenCodeSetup = false
+    @State private var showingCodexSetup = false
 
     @State private var iterm2Configured = false
     @State private var kittyConfigured = false
     @State private var tmuxConfigured = false
     @State private var claudeCodeConfigured = false
     @State private var openCodeConfigured = false
+    @State private var codexConfigured = false
 
     @State private var showingIncompleteAlert = false
 
@@ -30,7 +33,7 @@ struct IntegrationHubView: View {
     }
 
     var hasAnyAgent: Bool {
-        claudeCodeConfigured || openCodeConfigured
+        claudeCodeConfigured || openCodeConfigured || codexConfigured
     }
 
     var body: some View {
@@ -103,6 +106,14 @@ struct IntegrationHubView: View {
                     isConfigured: openCodeConfigured,
                     action: { showingOpenCodeSetup = true }
                 )
+
+                IntegrationCard(
+                    icon: "barcode",
+                    title: "Codex",
+                    description: "Install hooks for session tracking (experimental)",
+                    isConfigured: codexConfigured,
+                    action: { showingCodexSetup = true }
+                )
             }
 
             Button("Continue") {
@@ -142,6 +153,10 @@ struct IntegrationHubView: View {
         .sheet(isPresented: $showingOpenCodeSetup) {
             OpenCodeSetupView(isConfigured: $openCodeConfigured)
                 .frame(width: 540, height: 420)
+        }
+        .sheet(isPresented: $showingCodexSetup) {
+            CodexSetupView(isConfigured: $codexConfigured, isEnabled: $codexEnabled)
+                .frame(width: 540, height: 560)
         }
     }
 }
@@ -587,6 +602,109 @@ struct OpenCodeSetupView: View {
             errorMessage = error.localizedDescription
         }
         isInstalling = false
+    }
+}
+
+// MARK: - Codex Setup
+
+struct CodexSetupView: View {
+    @Binding var isConfigured: Bool
+    @Binding var isEnabled: Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var controller = CodexSetupController()
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Codex Setup")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Text(
+                "Juggler installs hooks for Codex, enables the hooks feature flag, and trusts the hooks so Codex runs them."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+
+            VStack(alignment: .leading, spacing: 16) {
+                SetupStep(
+                    number: 1,
+                    isComplete: controller.hooksInstalled,
+                    title: "Install Hooks",
+                    detail: "Adds notify.sh and hooks.json to ~/.codex/hooks/juggler/"
+                )
+
+                SetupStep(
+                    number: 2,
+                    isComplete: controller.featureFlagEnabled,
+                    title: "Enable Feature Flag",
+                    detail: "Sets features.hooks = true in ~/.codex/config.toml"
+                )
+
+                SetupStep(
+                    number: 3,
+                    isComplete: controller.enabledInCodex,
+                    title: "Enable in Codex",
+                    detail: "Trusts Juggler's hooks so Codex runs them"
+                )
+            }
+            .padding()
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(8)
+
+            Text(
+                "\"Enable in Codex\" bypasses Codex's own hook review. Alternatively, run /hooks in Codex and trust the Juggler hooks manually."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+
+            if let error = controller.errorMessage {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            }
+
+            VStack(spacing: 8) {
+                HStack(spacing: 12) {
+                    Button(controller.hooksInstalled ? "Reinstall Hooks" : "Install Hooks") {
+                        controller.installHooks()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(controller.isInstallingHooks)
+
+                    Button(controller.featureFlagEnabled ? "Re-check Flag" : "Enable Feature Flag") {
+                        controller.enableFlag()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(controller.isEnablingFlag)
+                }
+
+                Button(controller.enabledInCodex ? "Re-apply Trust" : "Enable in Codex") {
+                    controller.enableInCodex()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(controller.isEnablingInCodex)
+            }
+
+            Spacer()
+
+            HStack {
+                Button("Cancel") { dismiss() }
+                Spacer()
+                Button("Done") {
+                    isConfigured = true
+                    isEnabled = true
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!controller.allComplete)
+            }
+        }
+        .padding()
+        .onAppear {
+            controller.refresh()
+        }
     }
 }
 

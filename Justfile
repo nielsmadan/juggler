@@ -89,6 +89,11 @@ reset-data:
     @rm -rf ~/Library/Caches/{{bundle_id}} 2>/dev/null || true
     @echo "Done. Restart the app for changes to take effect."
 
+reset-onboarding:
+    @echo "Resetting Juggler onboarding flag..."
+    @defaults delete {{bundle_id}} hasCompletedOnboarding 2>/dev/null || true
+    @echo "Done. Restart the app to see the onboarding wizard."
+
 reset-permissions:
     @echo "Resetting Juggler permissions..."
     @tccutil reset AppleEvents {{bundle_id}} 2>/dev/null || true

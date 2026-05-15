@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Juggler — Keep Every Claude Code Session in the Air</title>
-<meta name="description" content="A native macOS app to cycle through idle Claude Code and OpenCode sessions with a single global hotkey. Works with iTerm2 and Kitty. Zero workflow changes.">
-<meta property="og:title" content="Juggler — Keep Every Claude Code Session in the Air">
-<meta property="og:description" content="Native macOS app to cycle through idle coding sessions with global hotkeys. iTerm2, Kitty, Claude Code, OpenCode. Never lose track of a session again.">
+<title>Juggler — One hotkey. Cycle through your idle sessions.</title>
+<meta name="description" content="A native macOS app to cycle through idle Claude Code, OpenCode, and Codex sessions with a single global hotkey. Works with iTerm2 and Kitty. Zero workflow changes.">
+<meta property="og:title" content="Juggler — One hotkey. Cycle through your idle sessions.">
+<meta property="og:description" content="Native macOS app to cycle through idle coding sessions with global hotkeys. iTerm2, Kitty, Claude Code, OpenCode, Codex. Never lose track of a session again.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://jugglerapp.com/">
 <meta property="og:site_name" content="Juggler">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Juggler — Keep Every Claude Code Session in the Air">
+<meta name="twitter:title" content="Juggler — One hotkey. Cycle through your idle sessions.">
 <meta name="twitter:description" content="Native macOS app to cycle through idle coding agent sessions with a global hotkey. Never lose track of a session again.">
 <link rel="canonical" href="https://jugglerapp.com/">
 <link rel="icon" type="image/png" sizes="32x32" href="icon.png">
@@ -31,7 +31,7 @@
     "price": "0",
     "priceCurrency": "USD"
   },
-  "description": "A native macOS menu bar app that tracks Claude Code and OpenCode sessions and cycles through them with a global hotkey.",
+  "description": "A native macOS menu bar app that tracks Claude Code, OpenCode, and Codex sessions and cycles through them with a global hotkey.",
   "url": "https://jugglerapp.com/",
   "downloadUrl": "https://github.com/nielsmadan/juggler/releases/latest/download/Juggler.dmg",
   "license": "https://opensource.org/licenses/MIT",
@@ -60,6 +60,7 @@
   --ball-purple: #9068d4;
   --ball-blue: #4bb1df;
   --ball-green: #9ed450;
+  --ball-orange: #e0742e;
 
   /* Primary accent uses the green ball */
   --accent: #9ed450;
@@ -1315,7 +1316,7 @@ footer {
         <div class="step-marker">3</div>
         <div class="step-body">
           <h3>Open your sessions</h3>
-          <p>Start Claude Code or OpenCode sessions as you normally would. Juggler detects them automatically. No registration. No config.</p>
+          <p>Start Claude Code, OpenCode, or Codex sessions as you normally would. Juggler detects them automatically. No registration. No config.</p>
         </div>
       </div>
       <div class="how-step reveal">
@@ -1419,6 +1420,7 @@ footer {
         <h3>Coding agents</h3>
         <div class="compat-item"><span class="compat-dot" style="background:var(--ball-blue)"></span>Claude Code</div>
         <div class="compat-item"><span class="compat-dot" style="background:var(--ball-green)"></span>OpenCode</div>
+        <div class="compat-item"><span class="compat-dot" style="background:var(--ball-orange)"></span>Codex</div>
       </div>
     </div>
     <p style="margin-top: 24px; font-size: 13px; color: var(--text-dim);">Requires macOS 14.0+ (Sonoma).</p>
@@ -1458,7 +1460,7 @@ footer {
         <a href="https://github.com/nielsmadan/juggler/releases/latest/download/Juggler.dmg" class="btn btn-primary">↓ Download for macOS</a>
         <a href="https://github.com/nielsmadan/juggler" class="btn btn-ghost">★ Star on GitHub</a>
       </div>
-      <p class="platform">macOS 14.0+ · iTerm2 / Kitty · Claude Code / OpenCode · MIT License</p>
+      <p class="platform">macOS 14.0+ · iTerm2 / Kitty · Claude Code / OpenCode / Codex · MIT License</p>
     </div>
   </div>
 </section>
