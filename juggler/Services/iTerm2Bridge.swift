@@ -3,13 +3,68 @@
 //  Juggler
 //
 
+import AppKit
 import Foundation
 import SwiftUI
+
+nonisolated enum DaemonState: Equatable {
+    case stopped
+    case starting
+    case waitingForITerm2
+    case ready
+    case failed(reason: String)
+}
+
+@Observable
+@MainActor
+final class ITerm2DaemonStatus {
+    static let shared = ITerm2DaemonStatus()
+
+    var state: DaemonState = .stopped
+
+    /// Last bytes from the daemon's stderr (truncated). Populated when the
+    /// daemon dies or when start() gives up so the user-facing message has
+    /// something concrete to show.
+    var lastStderrTail: String?
+
+    private init() {}
+}
+
+/// Thread-safe bounded ring buffer for capturing daemon stderr. Bytes are
+/// written from a DispatchQueue (off the actor) and read from the actor; the
+/// lock keeps both sides honest. Older bytes are dropped on overflow so the
+/// daemon never blocks on a full pipe.
+final nonisolated class StderrRingBuffer: @unchecked Sendable {
+    private let capacity: Int
+    private var data = Data()
+    private let lock = NSLock()
+
+    init(capacity: Int = 64 * 1024) {
+        self.capacity = capacity
+    }
+
+    func append(_ chunk: Data) {
+        guard !chunk.isEmpty else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        data.append(chunk)
+        if data.count > capacity {
+            data.removeFirst(data.count - capacity)
+        }
+    }
+
+    func snapshot() -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+}
 
 actor ITerm2Bridge: TerminalBridge {
     static let shared = ITerm2Bridge()
 
     private var daemonProcess: Process?
+    private var stderrBuffer: StderrRingBuffer?
     private let socketPath: String = {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = appSupport.appendingPathComponent("Juggler")
@@ -21,12 +76,30 @@ actor ITerm2Bridge: TerminalBridge {
 
     private var eventReadSource: DispatchSourceRead?
     private let eventQueue = DispatchQueue(label: "com.juggler.eventlistener")
+    private let stderrQueue = DispatchQueue(label: "com.juggler.daemon.stderr")
     private var eventLineBuffer = Data()
 
     private var healthCheckTask: Task<Void, Never>?
+    private var startupMonitorTask: Task<Void, Never>?
+
+    /// Notification dedup. `hasNotifiedWaiting` is set the first time the daemon
+    /// transitions to .waitingForITerm2 and never reset for the lifetime of the app
+    /// — a quiet status-bar indicator handles ongoing waits. `hasNotifiedFailed`
+    /// is reset on restart() so a recovered-then-failed-again cycle does notify
+    /// the user that something needs attention.
+    private var hasNotifiedWaiting = false
+    private var hasNotifiedFailed = false
+
+    /// NSWorkspace observers for iTerm2 launch/quit. Held on actor; touched only in
+    /// installLifecycleObservers / removeLifecycleObservers.
+    private var iterm2LaunchObserver: NSObjectProtocol?
+    private var iterm2TerminateObserver: NSObjectProtocol?
 
     private let activateTimeout: TimeInterval = 2.0
     private let highlightTimeout: TimeInterval = 1.0
+    private let initialReadinessWait: TimeInterval = 3.0
+    private let extendedReadinessWait: TimeInterval = 60.0
+    private let iterm2BundleID = "com.googlecode.iterm2"
 
     private init() {}
 
@@ -34,6 +107,8 @@ actor ITerm2Bridge: TerminalBridge {
         guard daemonProcess == nil else { return }
 
         await killOrphanedDaemon()
+        installLifecycleObservers()
+        await setDaemonState(.starting)
 
         await MainActor.run { logInfo(.daemon, "Starting iTerm2 daemon...") }
 
@@ -43,6 +118,7 @@ actor ITerm2Bridge: TerminalBridge {
             cookieAndKey = try await requestCookie()
         } catch {
             await MainActor.run { logError(.daemon, "Failed to get iTerm2 cookie: \(error)") }
+            await setDaemonState(.failed(reason: "Failed to get iTerm2 cookie: \(error)"))
             throw error
         }
         let parts = cookieAndKey.split(separator: " ")
@@ -72,6 +148,7 @@ actor ITerm2Bridge: TerminalBridge {
 
         guard let daemonPath else {
             await MainActor.run { logError(.daemon, "iterm2_daemon.py not found in bundle") }
+            await setDaemonState(.failed(reason: "iterm2_daemon.py not found in bundle"))
             return
         }
 
@@ -84,25 +161,295 @@ actor ITerm2Bridge: TerminalBridge {
         env["ITERM2_KEY"] = key
         process.environment = env
 
-        process.standardOutput = FileHandle.nullDevice
-        // Keep stderr visible for debugging daemon issues
-        process.standardError = FileHandle.standardError
+        // Capture stderr through a Pipe so we can surface the daemon's own diagnostics
+        // (especially the structured JSON line written before exit on failure). The
+        // readabilityHandler must be installed *before* process.run() to avoid the
+        // pipe's kernel buffer (16-64 KB) filling up if the daemon is chatty under
+        // retry=True — a full pipe blocks the daemon's write and silently hangs us.
+        let stderrPipe = Pipe()
+        let buffer = StderrRingBuffer()
+        stderrBuffer = buffer
+        let drainQueue = stderrQueue
+        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            guard !chunk.isEmpty else { return }
+            drainQueue.async { buffer.append(chunk) }
+        }
 
-        try process.run()
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = stderrPipe
+
+        process.terminationHandler = { [weak self] terminated in
+            // Drain any trailing bytes still in the pipe.
+            let trailing = stderrPipe.fileHandleForReading.availableData
+            if !trailing.isEmpty {
+                buffer.append(trailing)
+            }
+            stderrPipe.fileHandleForReading.readabilityHandler = nil
+            let status = terminated.terminationStatus
+            let stderrTail = buffer.snapshot()
+            Task { [weak self] in
+                await self?.handleDaemonExit(status: status, stderrTail: stderrTail)
+            }
+        }
+
+        do {
+            try process.run()
+        } catch {
+            stderrPipe.fileHandleForReading.readabilityHandler = nil
+            stderrBuffer = nil
+            await setDaemonState(.failed(reason: "Failed to launch daemon: \(error)"))
+            throw error
+        }
         daemonProcess = process
         writePIDFile(pid: process.processIdentifier)
 
-        for _ in 0 ..< 50 {
-            if FileManager.default.fileExists(atPath: socketPath) {
-                await MainActor.run { logInfo(.daemon, "Daemon socket ready") }
-                startEventListener()
-                startHealthCheck()
-                return
-            }
-            try await Task.sleep(nanoseconds: 100_000_000)
+        // Initial wait: short, on the actor. Common case (iTerm2 ready) returns here.
+        if try await waitForDaemonReady(deadline: Date().addingTimeInterval(initialReadinessWait)) {
+            await finishStartupReady()
+            return
         }
 
-        await MainActor.run { logWarning(.daemon, "Daemon socket not found after 5 seconds") }
+        // Not ready within the initial window — daemon is likely waiting on iTerm2 (or
+        // failed). Hand off to a background monitor so the bridge actor isn't held for
+        // up to 60s. start() returns now; state observers see waitingForITerm2.
+        await transitionToWaiting()
+        startupMonitorTask?.cancel()
+        startupMonitorTask = Task { [weak self] in
+            await self?.runStartupMonitor()
+        }
+    }
+
+    /// Polls the daemon socket via connect+ping until it responds successfully or
+    /// the deadline passes. Yields with `Task.sleep` so the actor can service other
+    /// work between polls. Returns true on first successful pong.
+    private func waitForDaemonReady(deadline: Date) async throws -> Bool {
+        while Date() < deadline {
+            if Task.isCancelled { return false }
+            if let proc = daemonProcess, !proc.isRunning {
+                // Process exited; readiness is impossible. terminationHandler will
+                // record the failure state.
+                return false
+            }
+            if await daemonPingSucceeds() {
+                return true
+            }
+            try await Task.sleep(nanoseconds: 250_000_000) // 250ms
+        }
+        return false
+    }
+
+    /// Background monitor that takes over after the actor-side initial wait fails.
+    /// Polls every 1s for up to 60s. On success, completes startup. On exhaustion,
+    /// transitions to .failed with the captured stderr tail.
+    private func runStartupMonitor() async {
+        let deadline = Date().addingTimeInterval(extendedReadinessWait - initialReadinessWait)
+        while Date() < deadline {
+            if Task.isCancelled { return }
+            if let proc = daemonProcess, !proc.isRunning {
+                // terminationHandler will surface the failure with stderr.
+                return
+            }
+            if await daemonPingSucceeds() {
+                await finishStartupReady()
+                return
+            }
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1s
+        }
+        if Task.isCancelled { return }
+        let tail = stderrBuffer?.snapshot() ?? ""
+        let reason = tail.isEmpty
+            ? "iTerm2 didn't respond within \(Int(extendedReadinessWait))s"
+            : "iTerm2 didn't respond within \(Int(extendedReadinessWait))s.\n\(tail.suffix(500))"
+        await setDaemonState(.failed(reason: reason))
+        await postFailedNotification(tail: tail)
+    }
+
+    /// Finalize a successful startup: wire event listener and health check, transition state.
+    private func finishStartupReady() async {
+        await MainActor.run { logInfo(.daemon, "Daemon ready") }
+        startEventListener()
+        startHealthCheck()
+        await setDaemonState(.ready)
+    }
+
+    /// Transition to waitingForITerm2 and post one notification per start cycle.
+    private func transitionToWaiting() async {
+        await setDaemonState(.waitingForITerm2)
+        if !hasNotifiedWaiting {
+            hasNotifiedWaiting = true
+            await MainActor.run {
+                NotificationManager.shared.sendSystemNotification(
+                    title: "Waiting for iTerm2",
+                    body: "Juggler is trying to connect. Make sure iTerm2 is running and the Python API is enabled."
+                )
+            }
+        }
+    }
+
+    /// Connect to the daemon socket, send a ping command, and verify we got a
+    /// pong response. Returns true only on a fully successful round-trip; this
+    /// is much stricter than checking that the socket file exists, which gives
+    /// false positives for stale sockets and dead-but-just-started daemons.
+    private nonisolated func daemonPingSucceeds() async -> Bool {
+        guard FileManager.default.fileExists(atPath: socketPath) else { return false }
+
+        let sock = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard sock >= 0 else { return false }
+        defer { close(sock) }
+
+        var timeout = timeval(tv_sec: 1, tv_usec: 0)
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        socketPath.withCString { ptr in
+            withUnsafeMutablePointer(to: &addr.sun_path.0) { dest in
+                _ = strcpy(dest, ptr)
+            }
+        }
+
+        let connectResult = withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                connect(sock, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        guard connectResult == 0 else { return false }
+
+        let request = "{\"command\": \"ping\"}\n"
+        let sent = request.withCString { ptr in
+            send(sock, ptr, strlen(ptr), 0)
+        }
+        guard sent > 0 else { return false }
+
+        var responseData = Data()
+        var buffer = [UInt8](repeating: 0, count: 1024)
+        while true {
+            let n = recv(sock, &buffer, buffer.count, 0)
+            if n <= 0 { break }
+            responseData.append(contentsOf: buffer[0 ..< n])
+            if let last = responseData.last, last == UInt8(ascii: "\n") { break }
+        }
+        guard !responseData.isEmpty,
+              let response = try? JSONDecoder().decode(DaemonResponse.self, from: responseData)
+        else { return false }
+        return response.status == "ok"
+    }
+
+    private func setDaemonState(_ newState: DaemonState) async {
+        await MainActor.run {
+            ITerm2DaemonStatus.shared.state = newState
+        }
+    }
+
+    /// Called from the process's terminationHandler when the daemon exits. Surfaces a
+    /// failure state if the daemon dies before we've reached .ready, and refreshes the
+    /// stderr tail in the observable status either way.
+    private func handleDaemonExit(status: Int32, stderrTail: String) async {
+        await MainActor.run {
+            ITerm2DaemonStatus.shared.lastStderrTail = stderrTail
+        }
+        // Don't react to deaths we caused via stop().
+        guard daemonProcess != nil else { return }
+        await MainActor.run { logWarning(.daemon, "Daemon exited (status \(status)). stderr tail: \(stderrTail)") }
+        let currentState = await MainActor.run { ITerm2DaemonStatus.shared.state }
+        switch currentState {
+        case .ready, .starting, .waitingForITerm2:
+            let reason = stderrTail.isEmpty
+                ? "Daemon exited (status \(status))"
+                : "Daemon exited (status \(status)).\n\(stderrTail.suffix(500))"
+            await setDaemonState(.failed(reason: reason))
+            await postFailedNotification(tail: stderrTail)
+        case .failed, .stopped:
+            break
+        }
+    }
+
+    private func postFailedNotification(tail: String) async {
+        guard !hasNotifiedFailed else { return }
+        hasNotifiedFailed = true
+        await MainActor.run {
+            let body: String
+            if tail.isEmpty {
+                body = "Open iTerm2 and ensure the Python API is enabled (Settings → General → Magic)."
+            } else {
+                let truncated = tail.suffix(300)
+                body = "iTerm2 isn't responding. \(truncated)"
+            }
+            NotificationManager.shared.sendSystemNotification(
+                title: "iTerm2 integration unavailable",
+                body: body
+            )
+        }
+    }
+
+    // MARK: - iTerm2 Lifecycle Observation
+
+    /// Register for NSWorkspace iTerm2 launch/quit notifications. Idempotent.
+    private func installLifecycleObservers() {
+        let center = NSWorkspace.shared.notificationCenter
+        let bundleID = iterm2BundleID
+
+        if iterm2LaunchObserver == nil {
+            iterm2LaunchObserver = center.addObserver(
+                forName: NSWorkspace.didLaunchApplicationNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                      app.bundleIdentifier == bundleID else { return }
+                Task { await self?.handleITerm2Launched() }
+            }
+        }
+
+        if iterm2TerminateObserver == nil {
+            iterm2TerminateObserver = center.addObserver(
+                forName: NSWorkspace.didTerminateApplicationNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                      app.bundleIdentifier == bundleID else { return }
+                Task { await self?.handleITerm2Terminated() }
+            }
+        }
+    }
+
+    private func removeLifecycleObservers() {
+        let center = NSWorkspace.shared.notificationCenter
+        if let observer = iterm2LaunchObserver {
+            center.removeObserver(observer)
+            iterm2LaunchObserver = nil
+        }
+        if let observer = iterm2TerminateObserver {
+            center.removeObserver(observer)
+            iterm2TerminateObserver = nil
+        }
+    }
+
+    private func handleITerm2Launched() async {
+        let currentState = await MainActor.run { ITerm2DaemonStatus.shared.state }
+        switch currentState {
+        case .waitingForITerm2, .failed, .stopped:
+            await MainActor.run { logInfo(.daemon, "iTerm2 launched — restarting daemon") }
+            try? await restart()
+        case .starting, .ready:
+            // Already on it / already up. Nothing to do.
+            break
+        }
+    }
+
+    private func handleITerm2Terminated() async {
+        let currentState = await MainActor.run { ITerm2DaemonStatus.shared.state }
+        if currentState == .ready {
+            await MainActor.run { logInfo(.daemon, "iTerm2 terminated — entering waitingForITerm2") }
+            // We don't tear down the daemon process; the daemon will exit on its own
+            // (its connection to iTerm2 dies inside the iterm2 library) and our
+            // terminationHandler will record the failure. Marking the state here
+            // gives users an immediate signal in the status bar.
+            await setDaemonState(.waitingForITerm2)
+        }
     }
 
     // MARK: - Event Listener (DispatchSource-based, non-blocking)
@@ -277,11 +624,17 @@ actor ITerm2Bridge: TerminalBridge {
         // Clear daemon process first so cancelEventListener doesn't trigger reconnect
         let process = daemonProcess
         daemonProcess = nil
+        startupMonitorTask?.cancel()
+        startupMonitorTask = nil
         healthCheckTask?.cancel()
         healthCheckTask = nil
         eventReadSource?.cancel()
         eventReadSource = nil
         eventLineBuffer.removeAll()
+        // Detach the termination handler before terminating: stop()-induced exits
+        // are expected, not failure events. Without this we'd transition to .failed
+        // every time the user quits Juggler.
+        process?.terminationHandler = nil
         process?.terminate()
         if let process, process.isRunning {
             let deadline = Date().addingTimeInterval(1.0)
@@ -292,8 +645,11 @@ actor ITerm2Bridge: TerminalBridge {
                 process.interrupt()
             }
         }
+        stderrBuffer = nil
         try? FileManager.default.removeItem(atPath: socketPath)
         removePIDFile()
+        removeLifecycleObservers()
+        await setDaemonState(.stopped)
         await MainActor.run { logInfo(.daemon, "Daemon stopped") }
     }
 
@@ -346,8 +702,12 @@ actor ITerm2Bridge: TerminalBridge {
     }
 
     func restart() async throws {
-        await MainActor.run { logWarning(.daemon, "Restarting daemon due to stale connection...") }
+        await MainActor.run { logWarning(.daemon, "Restarting daemon...") }
         await stop()
+        // Allow a future failed → recovered → failed cycle to surface a fresh
+        // notification. The waiting flag stays set: status bar already conveys
+        // "waiting" ambiently and we don't want to nag the user repeatedly.
+        hasNotifiedFailed = false
         try await Task.sleep(nanoseconds: 500_000_000)
         try await start()
     }

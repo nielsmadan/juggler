@@ -446,7 +446,31 @@ class iTerm2Daemon:
         self.socket_path.unlink(missing_ok=True)
 
 
+# Hard ceiling for the initial iTerm2 connection. The iterm2 library with
+# retry=True will spin forever on connection refused / 401, so we need our
+# own timeout. Once the daemon is connected and serving, this alarm is
+# cleared — daemon uptime is unbounded after that.
+CONNECTION_TIMEOUT_SECONDS = 30
+
+
+def _emit_structured_error(phase: str, detail: str) -> None:
+    """Write a single JSON line to stderr that Swift can parse and surface."""
+    print(json.dumps({"phase": phase, "detail": detail}), file=sys.stderr, flush=True)
+
+
+def _connection_timeout_handler(_sig: int, _frame: Any) -> None:
+    _emit_structured_error(
+        "connection_timeout",
+        f"Could not connect to iTerm2 within {CONNECTION_TIMEOUT_SECONDS}s. "
+        "iTerm2 may not be running, the Python API may be disabled, or authorization was denied.",
+    )
+    sys.exit(1)
+
+
 async def main(connection: iterm2.Connection) -> None:
+    # We made it past the websocket handshake; clear the connection watchdog.
+    signal.alarm(0)
+
     if len(sys.argv) < 2:
         print("Usage: iterm2_daemon.py <socket_path>", file=sys.stderr)
         sys.exit(1)
@@ -465,4 +489,12 @@ async def main(connection: iterm2.Connection) -> None:
 
 
 if __name__ == "__main__":
-    iterm2.run_until_complete(main)
+    signal.signal(signal.SIGALRM, _connection_timeout_handler)
+    signal.alarm(CONNECTION_TIMEOUT_SECONDS)
+    try:
+        iterm2.run_until_complete(main, retry=True)
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        _emit_structured_error("fatal", f"{type(exc).__name__}: {exc}")
+        sys.exit(1)

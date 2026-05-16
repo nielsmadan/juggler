@@ -51,6 +51,27 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    /// System-level notification with no associated session. The click handler in
+    /// userNotificationCenter(_:didReceive:withCompletionHandler:) only acts when
+    /// userInfo carries a sessionID, so these banners are inert on click.
+    func sendSystemNotification(title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+
+        if UserDefaults.standard.bool(forKey: AppStorageKeys.playSound) {
+            content.sound = .default
+        }
+
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request)
+    }
+
     // MARK: - UNUserNotificationCenterDelegate
 
     // Notification click activation on macOS

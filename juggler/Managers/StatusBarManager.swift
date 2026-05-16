@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import Observation
 import SwiftUI
 
 @MainActor
@@ -63,6 +64,47 @@ final class StatusBarManager {
         let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
         menu?.addItem(quitItem)
+
+        observeDaemonStatus()
+    }
+
+    /// Reactively reflect ITerm2DaemonStatus in the menu bar button. Re-arms itself
+    /// on every observable change via withObservationTracking.
+    private func observeDaemonStatus() {
+        withObservationTracking {
+            applyDaemonStatus(
+                state: ITerm2DaemonStatus.shared.state,
+                stderrTail: ITerm2DaemonStatus.shared.lastStderrTail
+            )
+        } onChange: { [weak self] in
+            // onChange fires once when any tracked property mutates; hop back to
+            // main and re-establish tracking for the next change.
+            DispatchQueue.main.async { self?.observeDaemonStatus() }
+        }
+    }
+
+    private func applyDaemonStatus(state: DaemonState, stderrTail: String?) {
+        guard let button = statusItem?.button else { return }
+
+        switch state {
+        case .stopped, .ready:
+            button.alphaValue = 1.0
+            button.contentTintColor = nil
+            button.toolTip = nil
+        case .starting:
+            button.alphaValue = 1.0
+            button.contentTintColor = nil
+            button.toolTip = "Connecting to iTerm2…"
+        case .waitingForITerm2:
+            button.alphaValue = 0.5
+            button.contentTintColor = nil
+            button.toolTip = "Waiting for iTerm2 — make sure it's running and the Python API is enabled."
+        case let .failed(reason):
+            button.alphaValue = 1.0
+            button.contentTintColor = .systemRed
+            let tail = (stderrTail?.isEmpty == false) ? "\n\n\(stderrTail!.suffix(400))" : ""
+            button.toolTip = "iTerm2 integration unavailable.\n\(reason)\(tail)"
+        }
     }
 
     @objc private func handleClick() {
