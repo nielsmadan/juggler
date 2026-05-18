@@ -30,6 +30,7 @@ struct Session: Identifiable, Codable, Equatable {
     var gitBranch: String?
     var gitRepoName: String?
     var transcriptPath: String?
+    var remoteHost: String?
 
     var agentShortName: String {
         switch agent {
@@ -82,7 +83,7 @@ struct Session: Identifiable, Codable, Equatable {
         case claudeSessionID, terminalSessionID, tmuxPane, terminalType, agent, projectPath
         case terminalTabName, terminalWindowName, tmuxSessionName, customName, state, startedAt
         case lastBecameIdle, lastBecameWorking, busyTimeToday
-        case paneIndex, paneCount, gitBranch, gitRepoName, transcriptPath
+        case paneIndex, paneCount, gitBranch, gitRepoName, transcriptPath, remoteHost
     }
 
     // Explicit Equatable: excludes computed 'id' and volatile timing fields
@@ -106,7 +107,8 @@ struct Session: Identifiable, Codable, Equatable {
             lhs.paneCount == rhs.paneCount &&
             lhs.gitBranch == rhs.gitBranch &&
             lhs.gitRepoName == rhs.gitRepoName &&
-            lhs.transcriptPath == rhs.transcriptPath
+            lhs.transcriptPath == rhs.transcriptPath &&
+            lhs.remoteHost == rhs.remoteHost
     }
 
     var fullDisplayName: String {

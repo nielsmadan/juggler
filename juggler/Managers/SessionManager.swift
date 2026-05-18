@@ -555,7 +555,8 @@ final class SessionManager {
         tmuxSessionName: String?,
         gitBranch: String?,
         gitRepoName: String?,
-        transcriptPath: String?
+        transcriptPath: String?,
+        remoteHost: String?
     ) {
         if let tmuxSessionName, !tmuxSessionName.isEmpty {
             sessions[index].tmuxSessionName = tmuxSessionName
@@ -568,6 +569,9 @@ final class SessionManager {
         }
         if let transcriptPath, !transcriptPath.isEmpty {
             sessions[index].transcriptPath = transcriptPath
+        }
+        if let remoteHost, !remoteHost.isEmpty {
+            sessions[index].remoteHost = remoteHost
         }
     }
 
@@ -584,7 +588,8 @@ final class SessionManager {
         event: String? = nil,
         gitBranch: String? = nil,
         gitRepoName: String? = nil,
-        transcriptPath: String? = nil
+        transcriptPath: String? = nil,
+        remoteHost: String? = nil
     ) {
         let compositeID: String = if let pane = tmuxPane {
             "\(terminalSessionID):\(pane)"
@@ -603,7 +608,8 @@ final class SessionManager {
                     tmuxSessionName: tmuxSessionName,
                     gitBranch: gitBranch,
                     gitRepoName: gitRepoName,
-                    transcriptPath: transcriptPath
+                    transcriptPath: transcriptPath,
+                    remoteHost: remoteHost
                 )
                 return
             }
@@ -613,7 +619,8 @@ final class SessionManager {
                 tmuxSessionName: tmuxSessionName,
                 gitBranch: gitBranch,
                 gitRepoName: gitRepoName,
-                transcriptPath: transcriptPath
+                transcriptPath: transcriptPath,
+                remoteHost: remoteHost
             )
 
             if oldState != state {
@@ -653,6 +660,7 @@ final class SessionManager {
                 // `lastBecameIdle` via `handleStateTransition`.
                 break
             }
+            session.remoteHost = remoteHost?.isEmpty == true ? nil : remoteHost
             sessions.append(session)
 
             // Re-normalize focusedSessionID now that this session exists — focus events

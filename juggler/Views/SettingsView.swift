@@ -25,6 +25,11 @@ struct SettingsView: View {
                     Label("Integration", systemImage: "puzzlepiece")
                 }
 
+            SSHSettingsView()
+                .tabItem {
+                    Label("SSH", systemImage: "network")
+                }
+
             HighlightingSettingsView()
                 .tabItem {
                     Label("Highlighting", systemImage: "sparkles")
@@ -981,5 +986,255 @@ struct UpdatesSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+    }
+}
+
+// MARK: - SSH Settings
+
+struct SSHSettingsView: View {
+    private static let sshConfigMarker = "# Juggler: reverse-tunnel hook port"
+
+    private let sshConfigSnippet = """
+    \(sshConfigMarker)
+    Host *
+        RemoteForward 7483 localhost:7483
+        ExitOnForwardFailure no
+        SendEnv KITTY_WINDOW_ID ITERM_SESSION_ID
+    """
+
+    @State private var sshConfigInstalled = false
+    @State private var sshConfigError: String?
+
+    private var sshConfigPath: String {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".ssh/config").path
+    }
+
+    // Pinned to a release tag so onboarding new remotes uses a known-good revision
+    // of install-remote.sh + the hook scripts it pulls. Bump on every release.
+    private let installOneLiner =
+        "curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/v1.4.1/scripts/install-remote.sh | bash"
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                header
+
+                limitationsWarning
+
+                sshConfigStep
+
+                stepBlock(
+                    number: 2,
+                    title: "Install the Juggler hook on the remote machine",
+                    description:
+                    "SSH to the remote and run this once per host. It downloads notify.sh + "
+                        + "install.sh into a temp dir, installs them into ~/.claude/hooks/juggler/, "
+                        + "and cleans up. For session close-detection to track the right local tab, "
+                        + "use `kitten ssh` (Kitty) or iTerm2's `it2ssh` instead of bare ssh — they "
+                        + "forward the terminal window ID automatically.",
+                    code: installOneLiner
+                )
+
+                stepBlock(
+                    number: 3,
+                    title: "Verify",
+                    description:
+                    "Open a new SSH session, run `claude`, and it should appear in Juggler's "
+                        + "session list within a second. Remote sessions are tagged with an SSH "
+                        + "badge showing user@host on hover.",
+                    code: nil
+                )
+            }
+            .padding()
+        }
+        .onAppear(perform: checkSSHConfig)
+    }
+
+    private var sshConfigStep: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("1.")
+                    .font(.headline)
+                    .frame(width: 22, alignment: .leading)
+                Text("Add a reverse port forward to your SSH config")
+                    .font(.headline)
+                Spacer()
+                if sshConfigInstalled {
+                    Label("SSH config added", systemImage: "checkmark.circle.fill")
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(.green)
+                        .font(.caption)
+                }
+            }
+
+            Text(
+                "On your Mac, append this to ~/.ssh/config. The tunnel exposes Juggler at "
+                    + "localhost:7483 on every machine you ssh to. ExitOnForwardFailure=no lets "
+                    + "ssh succeed even when an earlier session already holds the port."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            codeBlock(sshConfigSnippet)
+
+            HStack {
+                Button("Add to ~/.ssh/config", action: installSSHConfig)
+                    .disabled(sshConfigInstalled)
+                if let error = sshConfigError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+
+            Text(
+                "`SendEnv` attempts to forward your terminal window ID. It only takes effect "
+                    + "if the remote sshd allows it — on hosts you administer, add "
+                    + "`AcceptEnv KITTY_WINDOW_ID ITERM_SESSION_ID` to /etc/ssh/sshd_config and "
+                    + "reload sshd. Otherwise, use `kitten ssh` or `it2ssh` (step 2) which work "
+                    + "without server-side changes."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 4)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.08))
+        .cornerRadius(8)
+    }
+
+    private func checkSSHConfig() {
+        guard FileManager.default.fileExists(atPath: sshConfigPath),
+              let contents = try? String(contentsOfFile: sshConfigPath, encoding: .utf8)
+        else {
+            sshConfigInstalled = false
+            return
+        }
+        sshConfigInstalled = contents.contains(Self.sshConfigMarker)
+    }
+
+    private func installSSHConfig() {
+        sshConfigError = nil
+        let fm = FileManager.default
+        let sshDir = fm.homeDirectoryForCurrentUser.appendingPathComponent(".ssh")
+
+        do {
+            if !fm.fileExists(atPath: sshDir.path) {
+                try fm.createDirectory(
+                    at: sshDir,
+                    withIntermediateDirectories: true,
+                    attributes: [.posixPermissions: 0o700]
+                )
+            }
+            // OpenSSH refuses to read configs from a directory with looser perms.
+            try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: sshDir.path)
+
+            // Don't use `try?` here: a decode failure would silently treat the file as empty
+            // and the subsequent atomic write would clobber the user's existing config.
+            let existing: String = fm.fileExists(atPath: sshConfigPath)
+                ? try String(contentsOfFile: sshConfigPath, encoding: .utf8)
+                : ""
+
+            if existing.contains(Self.sshConfigMarker) {
+                sshConfigInstalled = true
+                return
+            }
+
+            let separator = existing.isEmpty || existing.hasSuffix("\n") ? "" : "\n"
+            let newContents = existing + separator + "\n" + sshConfigSnippet + "\n"
+            try newContents.write(toFile: sshConfigPath, atomically: true, encoding: .utf8)
+            try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: sshConfigPath)
+            sshConfigInstalled = true
+        } catch {
+            sshConfigError = error.localizedDescription
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Track Claude Code sessions over SSH")
+                .font(.title2)
+                .fontWeight(.bold)
+            Text(
+                "Juggler can monitor Claude Code sessions running on remote Linux/macOS hosts. "
+                    + "The remote sends hook events through a reverse SSH tunnel; activation and "
+                    + "close-detection use the local terminal tab that holds the ssh connection."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var limitationsWarning: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Known limitations")
+                    .font(.headline)
+                Text(
+                    "Tmux pane focusing inside the SSH session only lands on the terminal tab, "
+                        + "not the specific pane. Abrupt SSH disconnects (network drop, sleep) "
+                        + "freeze the session in its last-known state until the tunnel reconnects."
+                )
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.08))
+        .cornerRadius(8)
+    }
+
+    private func stepBlock(number: Int, title: String, description: String, code: String?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(number).")
+                    .font(.headline)
+                    .frame(width: 22, alignment: .leading)
+                Text(title)
+                    .font(.headline)
+            }
+            Text(description)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let code {
+                codeBlock(code)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.08))
+        .cornerRadius(8)
+    }
+
+    private func codeBlock(_ text: String) -> some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            HStack {
+                Text(text)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
+            }
+            .padding(8)
+            .background(Color.black.opacity(0.05))
+            .cornerRadius(4)
+
+            Button("Copy") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            }
+            .controlSize(.small)
+        }
     }
 }

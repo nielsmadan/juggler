@@ -177,6 +177,7 @@ actor HookServer {
         let transcriptPath = payload.hookInput?.transcriptPath
         let tmuxPane = payload.tmux?.pane
         let tmuxSessionName = payload.tmux?.sessionName
+        let remoteHost = payload.remoteHost
 
         let terminalType: TerminalType = if let typeStr = payload.terminal?.terminalType,
                                             let type = TerminalType(rawValue: typeStr) {
@@ -223,7 +224,8 @@ actor HookServer {
                     event: payload.event,
                     gitBranch: gitBranch,
                     gitRepoName: gitRepo,
-                    transcriptPath: transcriptPath
+                    transcriptPath: transcriptPath,
+                    remoteHost: remoteHost
                 )
             }
             await updateTerminalInfo(terminalSessionID: terminalSessionID, terminalType: terminalType)
@@ -411,6 +413,7 @@ struct UnifiedHookPayload: Sendable {
     let terminal: TerminalInfo?
     let git: GitInfo?
     let tmux: TmuxInfo?
+    let remoteHost: String?
 
     struct HookInput: Sendable {
         let sessionId: String?
@@ -452,10 +455,11 @@ extension UnifiedHookPayload: Decodable {
         terminal = try container.decodeIfPresent(TerminalInfo.self, forKey: .terminal)
         git = try container.decodeIfPresent(GitInfo.self, forKey: .git)
         tmux = try container.decodeIfPresent(TmuxInfo.self, forKey: .tmux)
+        remoteHost = try container.decodeIfPresent(String.self, forKey: .remoteHost)
     }
 
     enum CodingKeys: String, CodingKey {
-        case agent, event, hookInput, terminal, git, tmux
+        case agent, event, hookInput, terminal, git, tmux, remoteHost
     }
 }
 

@@ -41,6 +41,18 @@ struct SessionRowView: View {
             Text(sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode))
                 .lineLimit(1)
 
+            if let remoteHost = session.remoteHost {
+                Text("SSH")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Color.secondary.opacity(0.15))
+                    .cornerRadius(3)
+                    .help(remoteHost)
+            }
+
             Spacer()
 
             Text(session.state.displayText)
