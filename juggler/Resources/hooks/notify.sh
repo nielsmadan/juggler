@@ -37,7 +37,10 @@ GIT_REPO=$(basename "$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)" 2>/
 # SSH detection: $SSH_CONNECTION is set by sshd for any interactive ssh session.
 REMOTE_HOST=""
 if [ -n "${SSH_CONNECTION:-}" ]; then
-    REMOTE_HOST="$(whoami 2>/dev/null)@$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo unknown)"
+    REMOTE_USER="${USER:-$(whoami 2>/dev/null)}"
+    REMOTE_HOSTNAME="${HOSTNAME:-$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo unknown)}"
+    # Strip the FQDN suffix from the host only — not the user, which may contain dots.
+    REMOTE_HOST="${REMOTE_USER}@${REMOTE_HOSTNAME%%.*}"
 fi
 
 # Pass all data safely via environment variables (avoids shell injection in heredoc)

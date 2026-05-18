@@ -2,6 +2,8 @@
 // Installed to ~/.config/opencode/plugins/juggler-opencode.ts
 // Posts session events to Juggler's HTTP server for session tracking
 
+import { hostname } from "node:os";
+
 const JUGGLER_PORT = process.env.JUGGLER_PORT || "7483";
 const JUGGLER_URL = `http://localhost:${JUGGLER_PORT}/hook`;
 
@@ -50,6 +52,25 @@ function getTmuxInfo(): Record<string, string> | null {
   return { pane };
 }
 
+// SSH detection: $SSH_CONNECTION is set by sshd for any interactive ssh session.
+function getRemoteHost(): string | null {
+  if (!process.env.SSH_CONNECTION) return null;
+  const user = process.env.USER || process.env.LOGNAME || "";
+  // $HOSTNAME is a bash-ism often not exported to a Node process — fall back
+  // to os.hostname() so SSH OpenCode sessions still get tagged.
+  let host = process.env.HOSTNAME || "";
+  if (!host) {
+    try {
+      host = hostname();
+    } catch {
+      host = "";
+    }
+  }
+  host = host.split(".")[0];
+  if (!user || !host) return null;
+  return `${user}@${host}`;
+}
+
 // Events we care about for session tracking
 const TRACKED_EVENTS = new Set([
   "session.created",
@@ -72,6 +93,7 @@ export const JugglerPlugin = async ({
   const terminal = getTerminalInfo();
   const git = await getGitInfo($);
   const tmux = getTmuxInfo();
+  const remoteHost = getRemoteHost();
 
   // Post session.created on plugin load so Juggler sees the session immediately,
   // even when OpenCode resumes a previous session (which skips session.created)
@@ -94,6 +116,10 @@ export const JugglerPlugin = async ({
 
     if (tmux) {
       payload.tmux = tmux;
+    }
+
+    if (remoteHost) {
+      payload.remoteHost = remoteHost;
     }
 
     try {

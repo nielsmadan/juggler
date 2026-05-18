@@ -923,7 +923,7 @@ kbd {
 .compat-grid {
   margin-top: 48px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 32px;
 }
 
@@ -935,6 +935,9 @@ kbd {
   letter-spacing: 0.06em;
   color: var(--text-dim);
   margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .compat-item {
@@ -959,8 +962,7 @@ kbd {
   flex-shrink: 0;
 }
 
-.compat-item .tag {
-  margin-left: auto;
+.compat-group .tag {
   font-size: 11px;
   font-weight: 600;
   color: var(--text-dim);
@@ -968,9 +970,15 @@ kbd {
   background: var(--bg-raised);
   border: 1px solid var(--border);
   border-radius: 4px;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
-.compat-item .tag.optional {
+.compat-item .tag {
+  margin-left: auto;
+}
+
+.compat-group .tag.optional {
   color: var(--ball-amber);
   border-color: rgba(255, 180, 0, 0.2);
   background: rgba(255, 180, 0, 0.06);
@@ -1414,7 +1422,11 @@ footer {
         <h3>Terminals</h3>
         <div class="compat-item"><span class="compat-dot" style="background:var(--ball-red)"></span>iTerm2</div>
         <div class="compat-item"><span class="compat-dot" style="background:var(--ball-amber)"></span>Kitty</div>
-        <div class="compat-item"><span class="compat-dot" style="background:var(--ball-purple)"></span>tmux <span class="tag optional">optional</span></div>
+      </div>
+      <div class="compat-group reveal">
+        <h3>Tools <span class="tag optional">optional</span></h3>
+        <div class="compat-item"><span class="compat-dot" style="background:var(--ball-purple)"></span>tmux</div>
+        <div class="compat-item"><span class="compat-dot" style="background:var(--ball-blue)"></span>SSH</div>
       </div>
       <div class="compat-group reveal">
         <h3>Coding agents</h3>

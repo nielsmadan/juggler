@@ -92,6 +92,10 @@ Juggler's onboarding flow sets up agent integration automatically. You can also 
 - **OpenCode** — TypeScript plugin installed to `~/.config/opencode/plugins/juggler-opencode.ts`. Configure via Settings → Integrations
 - **Codex** *(experimental — requires Codex CLI ≥ v0.114)* — Three setup steps in Settings → Integrations: **Install Hooks** (adds `notify.sh` + `hooks.json` to `~/.codex/hooks/juggler/`), **Enable Feature Flag** (`features.hooks = true` in `~/.codex/config.toml`), and **Enable in Codex** (writes `[hooks.state]` trust entries so Codex runs the hooks — this bypasses Codex's own hook review; alternatively run `/hooks` in Codex and trust them manually)
 
+### Running over SSH
+
+Juggler can track agent sessions running on remote hosts. Open the **SSH** tab in Settings for a step-by-step setup guide.
+
 ## Future
 
 ### Terminals

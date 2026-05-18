@@ -1000,6 +1000,9 @@ struct SSHSettingsView: View {
         RemoteForward 7483 localhost:7483
         ExitOnForwardFailure no
         SendEnv KITTY_WINDOW_ID ITERM_SESSION_ID
+        ControlMaster auto
+        ControlPath ~/.ssh/control-%r@%h:%p
+        ControlPersist 10m
     """
 
     @State private var sshConfigInstalled = false
@@ -1013,7 +1016,7 @@ struct SSHSettingsView: View {
     // Pinned to a release tag so onboarding new remotes uses a known-good revision
     // of install-remote.sh + the hook scripts it pulls. Bump on every release.
     private let installOneLiner =
-        "curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/v1.4.1/scripts/install-remote.sh | bash"
+        "curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/v1.4.2/scripts/install-remote.sh | bash"
 
     var body: some View {
         ScrollView {
@@ -1026,21 +1029,36 @@ struct SSHSettingsView: View {
 
                 stepBlock(
                     number: 2,
-                    title: "Install the Juggler hook on the remote machine",
+                    title: "Enable terminal identity forwarding",
                     description:
-                    "SSH to the remote and run this once per host. It downloads notify.sh + "
-                        + "install.sh into a temp dir, installs them into ~/.claude/hooks/juggler/, "
-                        + "and cleans up. For session close-detection to track the right local tab, "
-                        + "use `kitten ssh` (Kitty) or iTerm2's `it2ssh` instead of bare ssh — they "
-                        + "forward the terminal window ID automatically.",
-                    code: installOneLiner
+                    "Juggler needs the remote shell to carry its local terminal's window ID, "
+                        + "otherwise clicking or cycling to the session can't focus the right tab.\n\n"
+                        + "Kitty: use `kitten ssh` instead of `ssh` — it forwards the ID "
+                        + "automatically, no remote changes needed.\n\n"
+                        + "iTerm2 or any other terminal: add the line below to the remote's "
+                        + "/etc/ssh/sshd_config (it accumulates with any existing AcceptEnv line — "
+                        + "don't replace it), then reload sshd: `sudo systemctl reload ssh` on "
+                        + "Linux, or `sudo launchctl kickstart -k system/com.openssh.sshd` on a "
+                        + "macOS remote. Open a fresh SSH session afterward — env acceptance is "
+                        + "negotiated at connect time.",
+                    code: "AcceptEnv ITERM_SESSION_ID KITTY_WINDOW_ID KITTY_LISTEN_ON KITTY_PID"
                 )
 
                 stepBlock(
                     number: 3,
+                    title: "Install the Juggler hook on the remote machine",
+                    description:
+                    "SSH to the remote and run this once per host. It detects which agents are "
+                        + "installed (Claude Code, Codex, OpenCode) and installs the matching "
+                        + "hooks, then cleans up after itself.",
+                    code: installOneLiner
+                )
+
+                stepBlock(
+                    number: 4,
                     title: "Verify",
                     description:
-                    "Open a new SSH session, run `claude`, and it should appear in Juggler's "
+                    "Open a new SSH session, run your agent, and it should appear in Juggler's "
                         + "session list within a second. Remote sessions are tagged with an SSH "
                         + "badge showing user@host on hover.",
                     code: nil
@@ -1070,8 +1088,10 @@ struct SSHSettingsView: View {
 
             Text(
                 "On your Mac, append this to ~/.ssh/config. The tunnel exposes Juggler at "
-                    + "localhost:7483 on every machine you ssh to. ExitOnForwardFailure=no lets "
-                    + "ssh succeed even when an earlier session already holds the port."
+                    + "localhost:7483 on every machine you ssh to. ControlMaster makes all "
+                    + "sessions to a host share one connection and one tunnel, so a second "
+                    + "session doesn't fight over the port; ExitOnForwardFailure=no keeps ssh "
+                    + "working even if a forward can't be set up."
             )
             .font(.callout)
             .foregroundStyle(.secondary)
@@ -1090,11 +1110,12 @@ struct SSHSettingsView: View {
             }
 
             Text(
-                "`SendEnv` attempts to forward your terminal window ID. It only takes effect "
-                    + "if the remote sshd allows it — on hosts you administer, add "
-                    + "`AcceptEnv KITTY_WINDOW_ID ITERM_SESSION_ID` to /etc/ssh/sshd_config and "
-                    + "reload sshd. Otherwise, use `kitten ssh` or `it2ssh` (step 2) which work "
-                    + "without server-side changes."
+                "The `SendEnv` line forwards your terminal's window ID toward the remote, but "
+                    + "it only takes effect once the remote accepts it — see step 2. "
+                    + "Without ControlMaster, opening a second session to the same host prints "
+                    + "a harmless \"remote port forwarding failed\" warning — the new session "
+                    + "reuses the first session's tunnel; ControlMaster removes the warning by "
+                    + "sharing one connection outright."
             )
             .font(.caption)
             .foregroundStyle(.secondary)

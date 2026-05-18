@@ -35,6 +35,15 @@ fi
 GIT_BRANCH=$(git -C "$PWD" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 GIT_REPO=$(basename "$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "")
 
+# SSH detection: $SSH_CONNECTION is set by sshd for any interactive ssh session.
+REMOTE_HOST=""
+if [ -n "${SSH_CONNECTION:-}" ]; then
+    REMOTE_USER="${USER:-$(whoami 2>/dev/null)}"
+    REMOTE_HOSTNAME="${HOSTNAME:-$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo unknown)}"
+    # Strip the FQDN suffix from the host only — not the user, which may contain dots.
+    REMOTE_HOST="${REMOTE_USER}@${REMOTE_HOSTNAME%%.*}"
+fi
+
 # Pass all data safely via environment variables (avoids shell injection in heredoc)
 export JUGGLER_HOOK_INPUT="$HOOK_INPUT"
 export JUGGLER_EVENT="$EVENT"
@@ -47,6 +56,7 @@ export JUGGLER_GIT_BRANCH="$GIT_BRANCH"
 export JUGGLER_GIT_REPO="$GIT_REPO"
 export JUGGLER_TMUX_PANE="$TMUX_PANE_ID"
 export JUGGLER_TMUX_SESSION="$TMUX_SESSION_NAME"
+export JUGGLER_REMOTE_HOST="$REMOTE_HOST"
 
 # Build unified payload using Python (quoted heredoc prevents shell expansion)
 # Pipe JSON output directly to curl via stdin
@@ -107,6 +117,10 @@ if tmux_pane:
     if tmux_session:
         tmux_info["sessionName"] = tmux_session
     payload["tmux"] = tmux_info
+
+remote_host = os.environ.get("JUGGLER_REMOTE_HOST", "")
+if remote_host:
+    payload["remoteHost"] = remote_host
 
 print(json.dumps(payload))
 PYTHON

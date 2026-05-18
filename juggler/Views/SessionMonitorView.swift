@@ -358,18 +358,33 @@ struct SessionMonitorView: View {
 
     // MARK: - Row Views
 
+    /// Terminal-type icon, agent initials, and an SSH tag for remote sessions.
+    @ViewBuilder
+    private func agentColumn(_ session: Session) -> some View {
+        VStack(spacing: 2) {
+            Image(systemName: session.terminalType.iconName)
+            Text(session.agentShortName)
+                .font(.system(size: 8, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+            if let remoteHost = session.remoteHost {
+                Text("SSH")
+                    .font(.system(size: 7, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 3)
+                    .padding(.vertical, 1)
+                    .background(Color.secondary.opacity(0.15), in: Capsule())
+                    .help(remoteHost)
+            }
+        }
+        .padding(.top, 2)
+    }
+
     /// Row view for List (static mode)
     @ViewBuilder
     private func listSessionRow(_ session: Session) -> some View {
         let index = flatIndex(for: session)
         HStack(alignment: .top, spacing: 8) {
-            VStack(spacing: 2) {
-                Image(systemName: session.terminalType.iconName)
-                Text(session.agentShortName)
-                    .font(.system(size: 8, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.top, 2)
+            agentColumn(session)
             // List rows have no outer horizontal padding — the List itself manages insets.
             sessionContent(session, rowHorizontalPadding: 0)
         }
@@ -410,13 +425,7 @@ struct SessionMonitorView: View {
         let isDownAnimation = animationController.isDownAnimating(sessionID: session.id)
 
         let row = HStack(alignment: .top, spacing: 8) {
-            VStack(spacing: 2) {
-                Image(systemName: session.terminalType.iconName)
-                Text(session.agentShortName)
-                    .font(.system(size: 8, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.top, 2)
+            agentColumn(session)
             // ScrollView rows apply 16pt horizontal padding (see below).
             sessionContent(session, rowHorizontalPadding: 16)
         }
