@@ -57,7 +57,8 @@ enum StatsChart {
     static let barMinWidth: CGFloat = 56
     static let barMaxWidth: CGFloat = 80
     static let barGap: CGFloat = 6
-    static let barMinHeight: CGFloat = 20
+    /// Tiny floor so a near-zero day still shows a visible foot under its label.
+    static let barMinHeight: CGFloat = 3
     static let height: CGFloat = 104
     /// Brightness factor applied to non-today bars (full-strength * factor).
     /// Lower = more contrast against today's full-strength bar.

@@ -6,6 +6,7 @@ import SwiftUI
 /// rightmost bar and grows live; older days fall off the left edge.
 struct StatsChartView: View {
     @Environment(SessionManager.self) private var sessionManager
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage(AppStorageKeys.statsUseCyclingColors) private var useCyclingColors = true
     @AppStorage(AppStorageKeys.statsBarColorRed) private var barColorRed = 255.0
     @AppStorage(AppStorageKeys.statsBarColorGreen) private var barColorGreen = 165.0
@@ -59,7 +60,6 @@ struct StatsChartView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.top, 32) // leave room for the overlay text
 
             overlayText
         }
@@ -71,29 +71,36 @@ struct StatsChartView: View {
         GeometryReader { geo in
             let fraction = CGFloat(bar.seconds / maxSeconds)
             let barHeight = max(geo.size.height * fraction, StatsChart.barMinHeight)
-            VStack(spacing: 0) {
-                Spacer(minLength: 0)
-                ZStack(alignment: .bottom) {
+            ZStack(alignment: .bottom) {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
                     UnevenRoundedRectangle(
                         topLeadingRadius: 2, bottomLeadingRadius: 0,
                         bottomTrailingRadius: 0, topTrailingRadius: 2
                     )
                     .fill(barColor(for: bar))
-                    Text(SessionStatsCalculator.formatDuration(bar.seconds))
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white)
-                        // Layered shadow: tight halo for contrast against light bars
-                        // (e.g. white text on the cycling-color yellow/green tones),
-                        // plus a softer drop for depth.
-                        .shadow(color: .black.opacity(0.85), radius: 1, x: 0, y: 0)
-                        .shadow(color: .black.opacity(0.55), radius: 2.5, x: 0, y: 1)
-                        .padding(.bottom, 3)
+                    .frame(height: barHeight)
                 }
-                .frame(height: barHeight)
+                // Label sits at the bottom, drawn on top of the bar (and the
+                // background below, for very short bars). Ink + opposite-tone
+                // halo adapt to appearance so it stays legible over both the
+                // window background and any bar color.
+                Text(SessionStatsCalculator.formatDuration(bar.seconds))
+                    .font(.system(size: 10))
+                    .foregroundStyle(labelInk)
+                    .lineLimit(1)
+                    .shadow(color: labelHalo.opacity(0.85), radius: 1, x: 0, y: 0)
+                    .shadow(color: labelHalo.opacity(0.55), radius: 2.5, x: 0, y: 1)
+                    .padding(.bottom, 3)
             }
         }
         .frame(width: barWidth)
     }
+
+    /// Label ink: white in dark mode, black in light mode.
+    private var labelInk: Color { colorScheme == .dark ? .white : .black }
+    /// Opposite-tone halo so the ink reads over any background behind it.
+    private var labelHalo: Color { colorScheme == .dark ? .black : .white }
 
     private var overlayText: some View {
         HStack(alignment: .top) {
@@ -106,6 +113,7 @@ struct StatsChartView: View {
                 .padding(.trailing, 6)
         }
         .foregroundStyle(.white)
+        .shadow(color: .black.opacity(0.7), radius: 2, x: 0, y: 1)
     }
 
     // MARK: - Data
