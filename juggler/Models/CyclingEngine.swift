@@ -55,6 +55,11 @@ struct DefaultCyclingEngine: CyclingEngine {
             fallbackIndex: state.currentIndex
         )
 
+        assert(
+            cyclable.indices.contains(targetIdx),
+            "findTargetIndexForward returned \(targetIdx) for \(cyclable.count) cyclable sessions"
+        )
+
         let target = cyclable[targetIdx]
         let moved = (cyclable.count > 1)
 
@@ -80,6 +85,11 @@ struct DefaultCyclingEngine: CyclingEngine {
             allSessions: sessions,
             focusedSessionID: focusedSessionID,
             fallbackIndex: state.currentIndex
+        )
+
+        assert(
+            cyclable.indices.contains(targetIdx),
+            "findTargetIndexBackward returned \(targetIdx) for \(cyclable.count) cyclable sessions"
         )
 
         let target = cyclable[targetIdx]
