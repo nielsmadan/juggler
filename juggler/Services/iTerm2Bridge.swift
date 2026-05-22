@@ -56,7 +56,7 @@ final nonisolated class StderrRingBuffer: @unchecked Sendable {
     func snapshot() -> String {
         lock.lock()
         defer { lock.unlock() }
-        return String(data: data, encoding: .utf8) ?? ""
+        return String(decoding: data, as: UTF8.self)
     }
 }
 
@@ -126,25 +126,7 @@ actor ITerm2Bridge: TerminalBridge {
         let key = parts.count > 1 ? String(parts[1]) : ""
 
         let daemonPath = Bundle.main.path(forResource: "iterm2_daemon", ofType: "py")
-
-        // iTerm2's bundled Python has the iterm2 module pre-installed
-        let iterm2PythonBase = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/iTerm2/iterm2env/versions")
-
-        var pythonPath: String?
-        if let contents = try? FileManager.default.contentsOfDirectory(atPath: iterm2PythonBase.path) {
-            for version in contents.sorted().reversed() {
-                let candidate = iterm2PythonBase
-                    .appendingPathComponent(version)
-                    .appendingPathComponent("bin/python3")
-                if FileManager.default.fileExists(atPath: candidate.path) {
-                    pythonPath = candidate.path
-                    break
-                }
-            }
-        }
-
-        let python = pythonPath ?? "/usr/bin/python3"
+        let python = resolveDaemonPython()
 
         guard let daemonPath else {
             await MainActor.run { logError(.daemon, "iterm2_daemon.py not found in bundle") }
@@ -218,6 +200,26 @@ actor ITerm2Bridge: TerminalBridge {
         startupMonitorTask = Task { [weak self] in
             await self?.runStartupMonitor()
         }
+    }
+
+    /// Locates the Python interpreter to run the daemon. iTerm2 ships a bundled
+    /// Python with the `iterm2` module pre-installed; prefer the newest such
+    /// version, falling back to the system interpreter.
+    private func resolveDaemonPython() -> String {
+        let iterm2PythonBase = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/iTerm2/iterm2env/versions")
+
+        if let contents = try? FileManager.default.contentsOfDirectory(atPath: iterm2PythonBase.path) {
+            for version in contents.sorted().reversed() {
+                let candidate = iterm2PythonBase
+                    .appendingPathComponent(version)
+                    .appendingPathComponent("bin/python3")
+                if FileManager.default.fileExists(atPath: candidate.path) {
+                    return candidate.path
+                }
+            }
+        }
+        return "/usr/bin/python3"
     }
 
     /// Polls the daemon socket via connect+ping until it responds successfully or

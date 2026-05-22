@@ -178,6 +178,7 @@ actor HookServer {
         let tmuxPane = payload.tmux?.pane
         let tmuxSessionName = payload.tmux?.sessionName
         let remoteHost = payload.remoteHost
+        let compositeID = tmuxPane.map { "\(terminalSessionID):\($0)" } ?? terminalSessionID
 
         let terminalType: TerminalType = if let typeStr = payload.terminal?.terminalType,
                                             let type = TerminalType(rawValue: typeStr) {
@@ -230,28 +231,18 @@ actor HookServer {
             }
             await updateTerminalInfo(terminalSessionID: terminalSessionID, terminalType: terminalType)
 
-            let notifyID: String = if let pane = tmuxPane {
-                "\(terminalSessionID):\(pane)"
-            } else {
-                terminalSessionID
-            }
             switch state {
             case .idle:
-                await sendNotificationIfEnabled(title: "Session Idle", sessionID: notifyID)
+                await sendNotificationIfEnabled(title: "Session Idle", sessionID: compositeID)
             case .permission:
-                await sendNotificationIfEnabled(title: "Permission Required", sessionID: notifyID)
+                await sendNotificationIfEnabled(title: "Permission Required", sessionID: compositeID)
             default:
                 break
             }
 
         case .removeSession:
-            let removeID: String = if let pane = tmuxPane {
-                "\(terminalSessionID):\(pane)"
-            } else {
-                terminalSessionID
-            }
             await MainActor.run {
-                self.sessionManager.removeSession(sessionID: removeID)
+                self.sessionManager.removeSession(sessionID: compositeID)
             }
 
         case .ignore:

@@ -662,24 +662,7 @@ final class SessionManager {
             }
             session.remoteHost = remoteHost?.isEmpty == true ? nil : remoteHost
             sessions.append(session)
-
-            // Re-normalize focusedSessionID now that this session exists — focus events
-            // can arrive before the session is created, leaving a bare UUID stored
-            if let focusedID = focusedSessionID,
-               focusedID != session.terminalSessionID,
-               session.terminalSessionID.hasSuffix(focusedID) {
-                focusedSessionID = session.terminalSessionID
-            }
-
-            if let focusedID = focusedSessionID,
-               session.terminalSessionID == focusedID || session.id == focusedID
-               || session.terminalSessionID.hasSuffix(focusedID) {
-                cyclingState = cyclingEngine.syncStateToFocus(
-                    sessions: sessions,
-                    focusedSessionID: focusedID,
-                    state: cyclingState
-                )
-            }
+            reconcileFocus(forNewSession: session)
 
             // Highlight immediately without waiting for the next app switch
             let frontmostBundle = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -693,6 +676,28 @@ final class SessionManager {
             }
 
             logInfo(.session, "New session added: \(session.displayName)")
+        }
+    }
+
+    /// Reconciles focus state for a session that was just appended. Focus events can
+    /// arrive before the session exists, leaving a bare UUID stored — re-point it at
+    /// the full `terminalSessionID`, then re-sync the cycling cursor to that focus.
+    @MainActor
+    private func reconcileFocus(forNewSession session: Session) {
+        if let focusedID = focusedSessionID,
+           focusedID != session.terminalSessionID,
+           session.terminalSessionID.hasSuffix(focusedID) {
+            focusedSessionID = session.terminalSessionID
+        }
+
+        if let focusedID = focusedSessionID,
+           session.terminalSessionID == focusedID || session.id == focusedID
+           || session.terminalSessionID.hasSuffix(focusedID) {
+            cyclingState = cyclingEngine.syncStateToFocus(
+                sessions: sessions,
+                focusedSessionID: focusedID,
+                state: cyclingState
+            )
         }
     }
 

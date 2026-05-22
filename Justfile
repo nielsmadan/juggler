@@ -72,7 +72,7 @@ clean:
     @echo "Build directory cleaned."
 
 lint *files:
-    @swiftlint {{ if files == "" { "." } else { files } }}
+    @swiftlint --strict {{ if files == "" { "." } else { files } }}
 
 lint-fix *files:
     @swiftlint --fix {{ if files == "" { "." } else { files } }}
