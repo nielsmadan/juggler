@@ -329,7 +329,8 @@ actor KittyBridge: TerminalBridge {
         let errData = await stderrTask.value
 
         guard status == 0 else {
-            let errOutput = String(decoding: errData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            let errOutput = (String(bytes: errData, encoding: .utf8) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             throw TerminalBridgeError.commandFailed(
                 errOutput.isEmpty
                     ? "kitten command failed with status \(status)"
@@ -337,6 +338,6 @@ actor KittyBridge: TerminalBridge {
             )
         }
 
-        return String(decoding: data, as: UTF8.self)
+        return String(bytes: data, encoding: .utf8) ?? ""
     }
 }

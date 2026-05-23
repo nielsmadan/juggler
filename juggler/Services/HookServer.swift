@@ -103,7 +103,7 @@ actor HookServer {
     }
 
     nonisolated func hasCompleteHTTPBody(_ data: Data) -> Bool {
-        let string = String(decoding: data, as: UTF8.self)
+        let string = String(bytes: data, encoding: .utf8) ?? ""
 
         guard let separatorRange = string.range(of: "\r\n\r\n") else {
             return false
@@ -348,7 +348,7 @@ struct HTTPRequest: Sendable {
     let body: String
 
     nonisolated static func parse(_ data: Data) -> HTTPRequest? {
-        let string = String(decoding: data, as: UTF8.self)
+        guard let string = String(bytes: data, encoding: .utf8) else { return nil }
 
         let lines = string.components(separatedBy: "\r\n")
         guard let requestLine = lines.first else { return nil }
