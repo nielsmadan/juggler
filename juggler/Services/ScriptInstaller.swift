@@ -38,7 +38,7 @@ enum ScriptInstaller {
         if exitStatus == 0 {
             return nil
         } else {
-            let output = String(decoding: data, as: UTF8.self)
+            let output = String(bytes: data, encoding: .utf8) ?? ""
             return output.isEmpty ? "Process failed" : output
         }
     }

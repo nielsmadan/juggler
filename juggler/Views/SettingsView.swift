@@ -746,22 +746,23 @@ struct ShortcutsSettingsView: View {
 }
 
 struct SessionListShortcutsSection: View {
-    @State private var moveDown = Shortcut.load(from: AppStorageKeys.localShortcutMoveDown)
-    @State private var moveUp = Shortcut.load(from: AppStorageKeys.localShortcutMoveUp)
-    @State private var backburner = Shortcut.load(from: AppStorageKeys.localShortcutBackburner)
-    @State private var reactivateSelected = Shortcut.load(from: AppStorageKeys.localShortcutReactivateSelected)
-    @State private var reactivateAll = Shortcut.load(from: AppStorageKeys.localShortcutReactivateAll)
-    @State private var rename = Shortcut.load(from: AppStorageKeys.localShortcutRename)
-    @State private var cycleModeForward = Shortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
-    @State private var cycleModeBackward = Shortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
-    @State private var toggleBeacon: Shortcut? = Shortcut.load(from: AppStorageKeys.localShortcutToggleBeacon)
-        ?? Shortcut(keyCode: 11, modifiers: []) // B
-    @State private var toggleAutoNext: Shortcut? = Shortcut
+    @State private var moveDown = DiscreteShortcut.load(from: AppStorageKeys.localShortcutMoveDown)
+    @State private var moveUp = DiscreteShortcut.load(from: AppStorageKeys.localShortcutMoveUp)
+    @State private var backburner = DiscreteShortcut.load(from: AppStorageKeys.localShortcutBackburner)
+    @State private var reactivateSelected = DiscreteShortcut.load(from: AppStorageKeys.localShortcutReactivateSelected)
+    @State private var reactivateAll = DiscreteShortcut.load(from: AppStorageKeys.localShortcutReactivateAll)
+    @State private var rename = DiscreteShortcut.load(from: AppStorageKeys.localShortcutRename)
+    @State private var cycleModeForward = DiscreteShortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
+    @State private var cycleModeBackward = DiscreteShortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
+    @State private var toggleBeacon: DiscreteShortcut? = DiscreteShortcut
+        .load(from: AppStorageKeys.localShortcutToggleBeacon)
+        ?? DiscreteShortcut(keyCode: 11, modifiers: []) // B
+    @State private var toggleAutoNext: DiscreteShortcut? = DiscreteShortcut
         .load(from: AppStorageKeys.localShortcutToggleAutoNext)
-        ?? Shortcut(keyCode: 0, modifiers: []) // A
-    @State private var toggleAutoRestart: Shortcut? = Shortcut
+        ?? DiscreteShortcut(keyCode: 0, modifiers: []) // A
+    @State private var toggleAutoRestart: DiscreteShortcut? = DiscreteShortcut
         .load(from: AppStorageKeys.localShortcutToggleAutoRestart)
-        ?? Shortcut(keyCode: 12, modifiers: []) // Q
+        ?? DiscreteShortcut(keyCode: 12, modifiers: []) // Q
 
     var body: some View {
         Section("Session List Shortcuts") {
@@ -814,7 +815,7 @@ struct SessionListShortcutsSection: View {
 
 struct ShortcutRow: View {
     let label: String
-    @Binding var shortcut: Shortcut?
+    @Binding var shortcut: DiscreteShortcut?
     let storageKey: String
 
     var body: some View {
@@ -828,7 +829,7 @@ struct ShortcutRow: View {
                     if let newValue {
                         newValue.save(to: storageKey)
                     } else {
-                        Shortcut.remove(from: storageKey)
+                        DiscreteShortcut.remove(from: storageKey)
                     }
                     NotificationCenter.default.post(name: .localShortcutsDidChange, object: nil)
                 }

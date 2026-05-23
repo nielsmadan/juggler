@@ -115,6 +115,7 @@ struct SessionMonitorView: View {
 
     var body: some View {
         mainContent
+            .suppressShortcutBeep()
             .focusable()
             .focusEffectDisabled()
             .onKeyPress(.downArrow) {
@@ -141,24 +142,31 @@ struct SessionMonitorView: View {
             .onAppear {
                 controller.syncSelection(sessions: sessionManager.sessions)
                 controller.reloadShortcuts()
-                controller.installTabMonitor(
+                controller.installKeyMonitor(
                     sessionManager: sessionManager,
                     queueOrderMode: $queueOrderMode,
                     extraHandler: { event in
-                        if let shortcut = controller.shortcutToggleAutoNext, shortcut.matches(event) {
-                            autoAdvanceOnBusy.toggle()
-                            return true
+                        var handled = false
+                        for (matcher, action) in [
+                            (controller.matcherToggleAutoNext, { autoAdvanceOnBusy.toggle() }),
+                            (controller.matcherToggleAutoRestart, { autoRestartOnIdle.toggle() })
+                        ] {
+                            switch matcher?.handle(event) ?? .ignored {
+                            case .fired:
+                                action()
+                                handled = true
+                            case let .advanced(consumeEvent):
+                                if consumeEvent { handled = true }
+                            case .ignored, .continuousFired:
+                                break
+                            }
                         }
-                        if let shortcut = controller.shortcutToggleAutoRestart, shortcut.matches(event) {
-                            autoRestartOnIdle.toggle()
-                            return true
-                        }
-                        return false
+                        return handled
                     }
                 )
             }
             .onDisappear {
-                controller.removeTabMonitor()
+                controller.removeKeyMonitor()
             }
             .onChange(of: queueOrderMode) { _, newMode in
                 if let mode = QueueOrderMode(rawValue: newMode) {

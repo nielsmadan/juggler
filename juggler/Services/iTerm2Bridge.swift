@@ -56,7 +56,7 @@ final nonisolated class StderrRingBuffer: @unchecked Sendable {
     func snapshot() -> String {
         lock.lock()
         defer { lock.unlock() }
-        return String(decoding: data, as: UTF8.self)
+        return String(bytes: data, encoding: .utf8) ?? ""
     }
 }
 
@@ -914,7 +914,7 @@ actor ITerm2Bridge: TerminalBridge {
         }
 
         let requestData = try JSONEncoder().encode(request)
-        let requestString = String(decoding: requestData, as: UTF8.self) + "\n"
+        let requestString = (String(bytes: requestData, encoding: .utf8) ?? "") + "\n"
 
         _ = requestString.withCString { ptr in
             send(sock, ptr, strlen(ptr), 0)

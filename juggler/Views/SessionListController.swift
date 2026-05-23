@@ -1,4 +1,3 @@
-import Carbon.HIToolbox
 import ShortcutField
 import SwiftUI
 
@@ -10,40 +9,66 @@ final class SessionListController {
     // Track selection by session ID so reorder doesn't lose it
     private var selectedSessionID: String?
 
-    // NSEvent monitor needed because SwiftUI intercepts Tab before onKeyPress
-    private var tabEventMonitor: Any?
+    // Local NSEvent monitor — feeds every keydown to the matchers. A stateful
+    // ShortcutMatcher must see every event to advance, not just the keys
+    // SwiftUI's focus system forwards to `.onKeyPress`.
+    private var keyEventMonitor: Any?
 
-    private(set) var shortcutMoveDown: Shortcut?
-    private(set) var shortcutMoveUp: Shortcut?
-    private(set) var shortcutBackburner: Shortcut?
-    private(set) var shortcutReactivateSelected: Shortcut?
-    private(set) var shortcutReactivateAll: Shortcut?
-    private(set) var shortcutRename: Shortcut?
-    private(set) var shortcutCycleModeForward: Shortcut?
-    private(set) var shortcutCycleModeBackward: Shortcut?
-    private(set) var shortcutToggleBeacon: Shortcut?
-    private(set) var shortcutToggleAutoNext: Shortcut?
-    private(set) var shortcutToggleAutoRestart: Shortcut?
+    private(set) var shortcutMoveDown: DiscreteShortcut?
+    private(set) var shortcutMoveUp: DiscreteShortcut?
+    private(set) var shortcutBackburner: DiscreteShortcut?
+    private(set) var shortcutReactivateSelected: DiscreteShortcut?
+    private(set) var shortcutReactivateAll: DiscreteShortcut?
+    private(set) var shortcutRename: DiscreteShortcut?
+    private(set) var shortcutCycleModeForward: DiscreteShortcut?
+    private(set) var shortcutCycleModeBackward: DiscreteShortcut?
+    private(set) var shortcutToggleBeacon: DiscreteShortcut?
+    private(set) var shortcutToggleAutoNext: DiscreteShortcut?
+    private(set) var shortcutToggleAutoRestart: DiscreteShortcut?
+
+    // Stateful matchers — required for multi-step sequences (e.g. `A → T`)
+    // because a step-by-step matcher needs to remember progress across events.
+    @ObservationIgnored private(set) var matcherMoveDown: ShortcutMatcher?
+    @ObservationIgnored private(set) var matcherMoveUp: ShortcutMatcher?
+    @ObservationIgnored private(set) var matcherBackburner: ShortcutMatcher?
+    @ObservationIgnored private(set) var matcherReactivateSelected: ShortcutMatcher?
+    @ObservationIgnored private(set) var matcherReactivateAll: ShortcutMatcher?
+    @ObservationIgnored private(set) var matcherRename: ShortcutMatcher?
+    @ObservationIgnored private(set) var matcherCycleModeForward: ShortcutMatcher?
+    @ObservationIgnored private(set) var matcherCycleModeBackward: ShortcutMatcher?
+    @ObservationIgnored private(set) var matcherToggleAutoNext: ShortcutMatcher?
+    @ObservationIgnored private(set) var matcherToggleAutoRestart: ShortcutMatcher?
 
     init() {
         reloadShortcuts()
     }
 
     func reloadShortcuts() {
-        shortcutMoveDown = Shortcut.load(from: AppStorageKeys.localShortcutMoveDown)
-        shortcutMoveUp = Shortcut.load(from: AppStorageKeys.localShortcutMoveUp)
-        shortcutBackburner = Shortcut.load(from: AppStorageKeys.localShortcutBackburner)
-        shortcutReactivateSelected = Shortcut.load(from: AppStorageKeys.localShortcutReactivateSelected)
-        shortcutReactivateAll = Shortcut.load(from: AppStorageKeys.localShortcutReactivateAll)
-        shortcutRename = Shortcut.load(from: AppStorageKeys.localShortcutRename)
-        shortcutCycleModeForward = Shortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
-        shortcutCycleModeBackward = Shortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
-        shortcutToggleBeacon = Shortcut.load(from: AppStorageKeys.localShortcutToggleBeacon)
-            ?? Shortcut(keyCode: 11, modifiers: []) // B
-        shortcutToggleAutoNext = Shortcut.load(from: AppStorageKeys.localShortcutToggleAutoNext)
-            ?? Shortcut(keyCode: 0, modifiers: []) // A
-        shortcutToggleAutoRestart = Shortcut.load(from: AppStorageKeys.localShortcutToggleAutoRestart)
-            ?? Shortcut(keyCode: 12, modifiers: []) // Q
+        shortcutMoveDown = DiscreteShortcut.load(from: AppStorageKeys.localShortcutMoveDown)
+        shortcutMoveUp = DiscreteShortcut.load(from: AppStorageKeys.localShortcutMoveUp)
+        shortcutBackburner = DiscreteShortcut.load(from: AppStorageKeys.localShortcutBackburner)
+        shortcutReactivateSelected = DiscreteShortcut.load(from: AppStorageKeys.localShortcutReactivateSelected)
+        shortcutReactivateAll = DiscreteShortcut.load(from: AppStorageKeys.localShortcutReactivateAll)
+        shortcutRename = DiscreteShortcut.load(from: AppStorageKeys.localShortcutRename)
+        shortcutCycleModeForward = DiscreteShortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
+        shortcutCycleModeBackward = DiscreteShortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
+        shortcutToggleBeacon = DiscreteShortcut.load(from: AppStorageKeys.localShortcutToggleBeacon)
+            ?? DiscreteShortcut(keyCode: 11, modifiers: []) // B
+        shortcutToggleAutoNext = DiscreteShortcut.load(from: AppStorageKeys.localShortcutToggleAutoNext)
+            ?? DiscreteShortcut(keyCode: 0, modifiers: []) // A
+        shortcutToggleAutoRestart = DiscreteShortcut.load(from: AppStorageKeys.localShortcutToggleAutoRestart)
+            ?? DiscreteShortcut(keyCode: 12, modifiers: []) // Q
+
+        matcherMoveDown = shortcutMoveDown.map { ShortcutMatcher(.discrete($0)) }
+        matcherMoveUp = shortcutMoveUp.map { ShortcutMatcher(.discrete($0)) }
+        matcherBackburner = shortcutBackburner.map { ShortcutMatcher(.discrete($0)) }
+        matcherReactivateSelected = shortcutReactivateSelected.map { ShortcutMatcher(.discrete($0)) }
+        matcherReactivateAll = shortcutReactivateAll.map { ShortcutMatcher(.discrete($0)) }
+        matcherRename = shortcutRename.map { ShortcutMatcher(.discrete($0)) }
+        matcherCycleModeForward = shortcutCycleModeForward.map { ShortcutMatcher(.discrete($0)) }
+        matcherCycleModeBackward = shortcutCycleModeBackward.map { ShortcutMatcher(.discrete($0)) }
+        matcherToggleAutoNext = shortcutToggleAutoNext.map { ShortcutMatcher(.discrete($0)) }
+        matcherToggleAutoRestart = shortcutToggleAutoRestart.map { ShortcutMatcher(.discrete($0)) }
     }
 
     // MARK: - Selection
@@ -136,85 +161,94 @@ final class SessionListController {
         return modes[newIdx].rawValue
     }
 
-    // MARK: - Tab Event Monitor
+    // MARK: - Key Event Monitor
 
-    /// Install a local NSEvent monitor for Tab key events (Tab is intercepted by SwiftUI's focus system).
-    /// The `extraHandler` closure lets the calling view handle view-specific shortcuts.
-    func installTabMonitor(
+    /// Install a local NSEvent monitor that feeds every keydown to the configured
+    /// matchers. This is what makes multi-step sequences (e.g. `A → T`) work:
+    /// `ShortcutMatcher` is stateful and needs to see every event to advance,
+    /// not just keys SwiftUI's `.onKeyPress` happens to forward.
+    ///
+    /// The `extraHandler` closure lets the calling view handle view-specific
+    /// shortcuts on the same event stream.
+    func installKeyMonitor(
         sessionManager: SessionManager,
         queueOrderMode: Binding<String>,
         extraHandler: ((NSEvent) -> Bool)? = nil
     ) {
-        removeTabMonitor()
-        tabEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        removeKeyMonitor()
+        keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
-            guard event.keyCode == UInt16(kVK_Tab) else { return event }
-            guard !ShortcutRecorderField.isAnyRecording else { return event }
+            guard !ShortcutRecording.isActive else { return event }
             guard event.window?.isKeyWindow == true else { return event }
-            guard hasShortcutForKeyCode(UInt16(kVK_Tab)) else { return event }
+            // Don't steal keystrokes while a text field is being edited (e.g. the
+            // rename sheet) — the field editor is the window's first responder then.
+            if event.window?.firstResponder is NSText { return event }
             var mode = queueOrderMode.wrappedValue
-            if handleKeyEvent(event, sessionManager: sessionManager, queueOrderMode: &mode) {
-                queueOrderMode.wrappedValue = mode
-                return nil
-            }
+            var handled = handleKeyEvent(event, sessionManager: sessionManager, queueOrderMode: &mode)
+            queueOrderMode.wrappedValue = mode
             if let extraHandler, extraHandler(event) {
-                return nil
+                handled = true
             }
-            return event
+            return handled ? nil : event
         }
     }
 
-    func removeTabMonitor() {
-        if let monitor = tabEventMonitor {
+    func removeKeyMonitor() {
+        if let monitor = keyEventMonitor {
             NSEvent.removeMonitor(monitor)
-            tabEventMonitor = nil
+            keyEventMonitor = nil
         }
     }
 
     // MARK: - Key Handling
 
-    /// Whether any configured shortcut uses the given key code (used to decide if NSEvent monitor should intercept)
-    func hasShortcutForKeyCode(_ keyCode: UInt16) -> Bool {
-        let all: [Shortcut?] = [
-            shortcutMoveDown, shortcutMoveUp, shortcutBackburner,
-            shortcutReactivateSelected, shortcutReactivateAll, shortcutRename,
-            shortcutCycleModeForward, shortcutCycleModeBackward,
-            shortcutToggleAutoNext, shortcutToggleAutoRestart
-        ]
-        return all.contains { $0?.keyCode == keyCode }
-    }
-
-    /// Handle NSEvent for keys intercepted before SwiftUI's focus system (e.g. Tab).
-    /// Returns true if handled.
+    /// Feed a key event to every configured matcher. Returns true if the event
+    /// should be consumed.
+    ///
+    /// Every matcher must see every event so prefix-sharing multi-step sequences
+    /// all advance together. Completed matches are collected and only the first
+    /// fires, so a single keystroke never triggers two list actions.
     func handleKeyEvent(_ event: NSEvent, sessionManager: SessionManager, queueOrderMode: inout String) -> Bool {
-        if let shortcut = shortcutMoveDown, shortcut.matches(event) {
-            moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
-            trackSelectedSession(sessions: sessionManager.sessions)
-            return true
-        } else if let shortcut = shortcutMoveUp, shortcut.matches(event) {
-            moveSelection(by: -1, sessionCount: sessionManager.sessions.count)
-            trackSelectedSession(sessions: sessionManager.sessions)
-            return true
-        } else if let shortcut = shortcutBackburner, shortcut.matches(event) {
-            backburnerSelected(sessionManager: sessionManager)
-            return true
-        } else if let shortcut = shortcutReactivateSelected, shortcut.matches(event) {
-            reactivateSelected(sessionManager: sessionManager)
-            return true
-        } else if let shortcut = shortcutReactivateAll, shortcut.matches(event) {
-            reactivateAll(sessionManager: sessionManager)
-            return true
-        } else if let shortcut = shortcutRename, shortcut.matches(event) {
-            renameSelected(sessions: sessionManager.sessions)
-            return true
-        } else if let shortcut = shortcutCycleModeForward, shortcut.matches(event) {
-            queueOrderMode = cycleMode(forward: true, currentMode: queueOrderMode)
-            return true
-        } else if let shortcut = shortcutCycleModeBackward, shortcut.matches(event) {
-            queueOrderMode = cycleMode(forward: false, currentMode: queueOrderMode)
-            return true
+        // Cycle-mode actions can't capture the `inout` binding, so they write the
+        // result into `newMode`, applied once after dispatch.
+        let currentMode = queueOrderMode
+        var newMode: String?
+
+        let bindings: [(ShortcutMatcher?, () -> Void)] = [
+            (matcherMoveDown, {
+                self.moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
+                self.trackSelectedSession(sessions: sessionManager.sessions)
+            }),
+            (matcherMoveUp, {
+                self.moveSelection(by: -1, sessionCount: sessionManager.sessions.count)
+                self.trackSelectedSession(sessions: sessionManager.sessions)
+            }),
+            (matcherBackburner, { self.backburnerSelected(sessionManager: sessionManager) }),
+            (matcherReactivateSelected, { self.reactivateSelected(sessionManager: sessionManager) }),
+            (matcherReactivateAll, { self.reactivateAll(sessionManager: sessionManager) }),
+            (matcherRename, { self.renameSelected(sessions: sessionManager.sessions) }),
+            (matcherCycleModeForward, { newMode = self.cycleMode(forward: true, currentMode: currentMode) }),
+            (matcherCycleModeBackward, { newMode = self.cycleMode(forward: false, currentMode: currentMode) })
+        ]
+
+        var handled = false
+        var firedAction: (() -> Void)?
+        for (matcher, action) in bindings {
+            switch matcher?.handle(event) ?? .ignored {
+            case .ignored: continue
+            case let .advanced(consumeEvent):
+                if consumeEvent { handled = true }
+            case .fired:
+                handled = true
+                if firedAction == nil { firedAction = action }
+            case .continuousFired:
+                handled = true
+            }
         }
-        return false
+
+        firedAction?()
+        if let newMode { queueOrderMode = newMode }
+        return handled
     }
 
     func handleKeyPress(_ press: KeyPress, sessionManager: SessionManager, queueOrderMode: inout String) -> KeyPress
