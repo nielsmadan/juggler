@@ -923,6 +923,26 @@ struct HookServerTests {
         #expect(manager.sessions[0].gitRepoName == nil)
     }
 
+    // MARK: - WezTermEventPayload Tests
+
+    @Test func wezTermEventPayload_decode_validFocusChanged() throws {
+        let json = """
+        {"event":"focus_changed","pane_id":"42"}
+        """
+        let payload = try JSONDecoder().decode(WezTermEventPayload.self, from: Data(json.utf8))
+        #expect(payload.event == "focus_changed")
+        #expect(payload.paneID == "42")
+    }
+
+    @Test func wezTermEventPayload_decode_missingPaneID_throws() {
+        let json = """
+        {"event":"focus_changed"}
+        """
+        #expect(throws: (any Error).self) {
+            try JSONDecoder().decode(WezTermEventPayload.self, from: Data(json.utf8))
+        }
+    }
+
     @Test @MainActor func processRequest_postHook_incompleteTmuxFields_paneOnly_handledSensibly() async {
         // Only tmux.pane is present (no sessionName). Production accepts partial tmux info:
         // the pane is used to build a composite session ID "s1:%7" and sessionName stays nil.

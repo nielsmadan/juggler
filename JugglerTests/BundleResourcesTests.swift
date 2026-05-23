@@ -19,7 +19,9 @@ struct BundleResourcesTests {
         ("iterm2_daemon", "py"), // iTerm2Bridge
         // Sibling resources copied by the install scripts above:
         ("notify", "sh"), // install.sh copies it to ~/.claude/hooks/juggler/
-        ("juggler_watcher", "py") // install_kitty_watcher.sh copies it to kitty config
+        ("juggler_watcher", "py"), // install_kitty_watcher.sh copies it to kitty config
+        ("install_wezterm_lua", "sh"), // WezTermSetupView / ScriptInstaller.installWezTermLua
+        ("juggler_wezterm", "lua") // install_wezterm_lua.sh copies it to WezTerm config
     ])
     func resourceIsBundled(resource: String, ext: String) {
         let url = Bundle.main.url(forResource: resource, withExtension: ext)

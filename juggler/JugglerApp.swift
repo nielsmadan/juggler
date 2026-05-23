@@ -206,6 +206,7 @@ struct JugglerApp: App {
             // Terminal enablement (iTerm2 on by default for existing users)
             AppStorageKeys.iterm2Enabled: true,
             AppStorageKeys.kittyEnabled: false,
+            AppStorageKeys.weztermEnabled: false,
             // Dock & window behavior
             AppStorageKeys.showInDock: true,
             AppStorageKeys.quitOnMonitorClose: false,
@@ -232,6 +233,7 @@ struct JugglerApp: App {
         Task {
             await TerminalBridgeRegistry.shared.register(ITerm2Bridge.shared, for: .iterm2)
             await TerminalBridgeRegistry.shared.register(KittyBridge.shared, for: .kitty)
+            await TerminalBridgeRegistry.shared.register(WezTermBridge.shared, for: .wezterm)
 
             try? await HookServer.shared.start()
             // Only start bridges if onboarding is complete (avoids early permission prompt)
@@ -241,6 +243,9 @@ struct JugglerApp: App {
                 }
                 if UserDefaults.standard.bool(forKey: AppStorageKeys.kittyEnabled) {
                     try? await TerminalBridgeRegistry.shared.start(.kitty)
+                }
+                if UserDefaults.standard.bool(forKey: AppStorageKeys.weztermEnabled) {
+                    try? await TerminalBridgeRegistry.shared.start(.wezterm)
                 }
             }
         }

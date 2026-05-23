@@ -4,9 +4,9 @@
 
 A native macOS app that tracks your running coding agent sessions and cycles you to the next one that needs attention. No workflow changes. No new terminal. Just less time wasted.
 
-Currently works with iTerm2 / Kitty (tmux optional) and Claude Code, OpenCode, and Codex (experimental). More integrations coming soon.
+Currently works with iTerm2 / Kitty / WezTerm (tmux optional) and Claude Code / OpenCode / Codex. More integrations coming soon.
 
-![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![Codex](https://img.shields.io/badge/Codex-experimental-yellow) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![Codex](https://img.shields.io/badge/Codex-experimental-yellow) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen) ![WezTerm](https://img.shields.io/badge/WezTerm-supported-brightgreen)
 
 <p align="center">
   <img src="site/video.gif" alt="Juggler demo" width="720">

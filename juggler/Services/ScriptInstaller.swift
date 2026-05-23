@@ -50,4 +50,8 @@ enum ScriptInstaller {
     static func installKittyWatcher() async -> String? {
         await runBundledScript(resource: "install_kitty_watcher")
     }
+
+    static func installWezTermLua() async -> String? {
+        await runBundledScript(resource: "install_wezterm_lua")
+    }
 }

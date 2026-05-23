@@ -61,6 +61,18 @@ if [ -f "$OPENCODE_PLUGIN" ]; then
     echo "  Removed OpenCode plugin"
 fi
 
+# Remove WezTerm Lua snippet (does not edit wezterm.lua — user-owned)
+WEZTERM_LUA_XDG="${XDG_CONFIG_HOME:-$HOME/.config}/wezterm/juggler_wezterm.lua"
+WEZTERM_LUA_HOME="$HOME/juggler_wezterm.lua"
+if [ -f "$WEZTERM_LUA_XDG" ]; then
+    rm -f "$WEZTERM_LUA_XDG"
+    echo "  Removed WezTerm Lua snippet at $WEZTERM_LUA_XDG"
+fi
+if [ -f "$WEZTERM_LUA_HOME" ]; then
+    rm -f "$WEZTERM_LUA_HOME"
+    echo "  Removed WezTerm Lua snippet at $WEZTERM_LUA_HOME"
+fi
+
 # Remove Codex hooks
 CODEX_HOOKS_DIR="$HOME/.codex/hooks/juggler"
 CODEX_HOOKS_JSON="$HOME/.codex/hooks.json"

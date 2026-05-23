@@ -60,6 +60,7 @@ enum AppStorageKeys {
     // Terminal enablement
     static let iterm2Enabled = "iterm2Enabled"
     static let kittyEnabled = "kittyEnabled"
+    static let weztermEnabled = "weztermEnabled"
 
     // Agent enablement
     static let codexEnabled = "codexEnabled"

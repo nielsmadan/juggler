@@ -10,10 +10,12 @@ struct IntegrationHubView: View {
 
     @AppStorage(AppStorageKeys.iterm2Enabled) private var iterm2Enabled = true
     @AppStorage(AppStorageKeys.kittyEnabled) private var kittyEnabled = false
+    @AppStorage(AppStorageKeys.weztermEnabled) private var weztermEnabled = false
     @AppStorage(AppStorageKeys.codexEnabled) private var codexEnabled = false
 
     @State private var showingITerm2Setup = false
     @State private var showingKittySetup = false
+    @State private var showingWezTermSetup = false
     @State private var showingTmuxSetup = false
     @State private var showingClaudeCodeSetup = false
     @State private var showingOpenCodeSetup = false
@@ -21,6 +23,7 @@ struct IntegrationHubView: View {
 
     @State private var iterm2Configured = false
     @State private var kittyConfigured = false
+    @State private var weztermConfigured = false
     @State private var tmuxConfigured = false
     @State private var claudeCodeConfigured = false
     @State private var openCodeConfigured = false
@@ -29,7 +32,7 @@ struct IntegrationHubView: View {
     @State private var showingIncompleteAlert = false
 
     var hasAnyTerminal: Bool {
-        iterm2Configured || kittyConfigured
+        iterm2Configured || kittyConfigured || weztermConfigured
     }
 
     var hasAnyAgent: Bool {
@@ -69,6 +72,14 @@ struct IntegrationHubView: View {
                     description: "GPU-accelerated terminal with remote control",
                     isConfigured: kittyConfigured,
                     action: { showingKittySetup = true }
+                )
+
+                IntegrationCard(
+                    icon: "apple.terminal.fill",
+                    title: "WezTerm",
+                    description: "Cross-platform GPU terminal with Lua config",
+                    isConfigured: weztermConfigured,
+                    action: { showingWezTermSetup = true }
                 )
             }
 
@@ -141,6 +152,10 @@ struct IntegrationHubView: View {
         .sheet(isPresented: $showingKittySetup) {
             KittySetupView(isConfigured: $kittyConfigured, isEnabled: $kittyEnabled)
                 .frame(width: 540, height: 540)
+        }
+        .sheet(isPresented: $showingWezTermSetup) {
+            WezTermSetupView(isConfigured: $weztermConfigured, isEnabled: $weztermEnabled)
+                .frame(width: 540, height: 480)
         }
         .sheet(isPresented: $showingTmuxSetup) {
             TmuxSetupView(isConfigured: $tmuxConfigured)

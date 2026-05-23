@@ -249,6 +249,11 @@ struct IntegrationSettingsView: View {
     @State private var kittyWatcherError: String?
     @State private var kittyConfigError: String?
 
+    @State private var weztermLuaInstalled = false
+    @State private var weztermRequireLine = false
+    @State private var isInstallingWezTermLua = false
+    @State private var weztermInstallError: String?
+
     @State private var tmuxConfigured = false
     @State private var isConfiguringTmux = false
     @State private var tmuxConfigError: String?
@@ -496,6 +501,53 @@ struct IntegrationSettingsView: View {
                 }
             }
 
+            Section("WezTerm") {
+                HStack {
+                    Text("Lua Snippet")
+                    Spacer()
+                    if weztermLuaInstalled {
+                        Label("Installed", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Installed", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                HStack {
+                    Text("Config require")
+                    Spacer()
+                    if weztermRequireLine {
+                        Label("Present", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Present", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let error = weztermInstallError {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+
+                Button((weztermLuaInstalled && weztermRequireLine) ? "Reinstall Lua Snippet" : "Install Lua Snippet") {
+                    installWezTermLua()
+                }
+                .disabled(isInstallingWezTermLua)
+
+                Text(
+                    "WezTerm supports tab highlighting only. Pane background colors are not exposed at runtime."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                Text("Restart WezTerm (or trigger a config reload) after install for changes to take effect.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("tmux") {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -538,6 +590,7 @@ struct IntegrationSettingsView: View {
             checkPermissions()
             checkHooksInstalled()
             checkKittyStatus()
+            checkWezTermStatus()
             checkTmuxConfigured()
             checkOpenCodePluginInstalled()
             codexController.refresh()
@@ -638,6 +691,30 @@ struct IntegrationSettingsView: View {
                     checkKittyStatus()
                 }
                 isInstallingKittyWatcher = false
+            }
+        }
+    }
+
+    // MARK: - WezTerm
+
+    private func checkWezTermStatus() {
+        let status = WezTermConfigValidator.status()
+        weztermLuaInstalled = status.luaSnippetInstalled
+        weztermRequireLine = status.requireLinePresent
+    }
+
+    private func installWezTermLua() {
+        isInstallingWezTermLua = true
+        weztermInstallError = nil
+
+        Task {
+            let result = await ScriptInstaller.installWezTermLua()
+            await MainActor.run {
+                if let error = result {
+                    weztermInstallError = error
+                }
+                checkWezTermStatus()
+                isInstallingWezTermLua = false
             }
         }
     }

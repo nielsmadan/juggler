@@ -19,6 +19,9 @@ function getTerminalInfo(): Record<string, string> {
     info.sessionId = env.KITTY_WINDOW_ID;
     if (env.KITTY_LISTEN_ON) info.kittyListenOn = env.KITTY_LISTEN_ON;
     if (env.KITTY_PID) info.kittyPid = env.KITTY_PID;
+  } else if (env.WEZTERM_PANE) {
+    info.terminalType = "wezterm";
+    info.sessionId = env.WEZTERM_PANE;
   } else if (env.ITERM_SESSION_ID) {
     info.terminalType = "iterm2";
     info.sessionId = env.ITERM_SESSION_ID;

@@ -163,6 +163,19 @@ actor HookServer {
             await handleKittyEvent(eventPayload)
             return HTTPResponse(status: 200, body: #"{"status":"ok"}"#)
 
+        case "/wezterm-event":
+            guard let eventPayload = try? JSONDecoder()
+                .decode(WezTermEventPayload.self, from: Data(request.body.utf8))
+            else {
+                await MainActor.run {
+                    logWarning(.daemon, "Invalid JSON in wezterm-event request: \(request.body.prefix(200))")
+                }
+                return HTTPResponse(status: 400, body: #"{"status":"error","message":"Invalid JSON"}"#)
+            }
+
+            await handleWezTermEvent(eventPayload)
+            return HTTPResponse(status: 200, body: #"{"status":"ok"}"#)
+
         default:
             return HTTPResponse(status: 404, body: #"{"status":"error","message":"Not found"}"#)
         }
@@ -200,6 +213,14 @@ actor HookServer {
                     .kitty,
                     "Kitty hook received but no kittyListenOn in payload (sessionID: \(terminalSessionID))"
                 )
+            }
+        }
+
+        if terminalType == .wezterm, !terminalSessionID.isEmpty {
+            try? await TerminalBridgeRegistry.shared.start(.wezterm)
+            await WezTermBridge.shared.registerPane(paneID: terminalSessionID)
+            await MainActor.run {
+                logDebug(.daemon, "Registered WezTerm pane \(terminalSessionID)")
             }
         }
 
@@ -323,6 +344,23 @@ actor HookServer {
         } catch {
             await MainActor.run {
                 logWarning(.hooks, "Failed to get terminal info: \(error)")
+            }
+        }
+    }
+
+    private func handleWezTermEvent(_ payload: WezTermEventPayload) async {
+        await MainActor.run {
+            logDebug(.daemon, "WezTerm event: \(payload.event) pane=\(payload.paneID)")
+        }
+
+        switch payload.event {
+        case "focus_changed":
+            await MainActor.run {
+                self.sessionManager.updateFocusedSession(terminalSessionID: payload.paneID)
+            }
+        default:
+            await MainActor.run {
+                logDebug(.daemon, "Unknown wezterm event: \(payload.event)")
             }
         }
     }
@@ -528,5 +566,25 @@ extension KittyEventPayload: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         event = try container.decode(String.self, forKey: .event)
         windowID = try container.decode(String.self, forKey: .windowID)
+    }
+}
+
+// MARK: - WezTerm Event Payload
+
+struct WezTermEventPayload: Sendable {
+    let event: String
+    let paneID: String
+
+    enum CodingKeys: String, CodingKey {
+        case event
+        case paneID = "pane_id"
+    }
+}
+
+extension WezTermEventPayload: Decodable {
+    nonisolated init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        event = try container.decode(String.self, forKey: .event)
+        paneID = try container.decode(String.self, forKey: .paneID)
     }
 }

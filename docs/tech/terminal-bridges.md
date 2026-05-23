@@ -62,7 +62,7 @@ The registry is an actor singleton. At app launch, bridges are instantiated and 
 | `.iterm2` | `iTerm2Bridge` |
 | `.kitty` | `KittyBridge` |
 | `.ghostty` | None — recognized for detection only |
-| `.wezterm` | None — recognized for detection only |
+| `.wezterm` | `WezTermBridge` |
 
 Each case carries a `bundleIdentifier` and `iconName` for app discovery and UI display.
 

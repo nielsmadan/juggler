@@ -62,7 +62,7 @@ Juggler/
 │   ├── QueueOrderMode.swift      # Fair, Prio, Static, Grouped modes
 │   ├── Session.swift             # Session data model
 │   ├── SessionState.swift        # idle, working, permission, backburner, compacting
-│   ├── TerminalType.swift        # Terminal app abstraction (iTerm2, Kitty, Ghostty, WezTerm — latter two recognized but no bridge yet)
+│   ├── TerminalType.swift        # Terminal app abstraction (iTerm2, Kitty, WezTerm, Ghostty — Ghostty recognized but no bridge yet)
 │   └── ...                       # AppConstants, AppStorageKeys, BeaconPosition/Size/Anchor, ConfigValidator, SessionStatsCalculator, SessionTitleMode
 ├── Services/
 │   ├── HookServer.swift          # HTTP server receiving hooks (/hook, /kitty-event)
