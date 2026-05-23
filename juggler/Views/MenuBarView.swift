@@ -98,6 +98,7 @@ struct MenuBarView: View {
             }
         }
         .frame(width: 280)
+        .suppressShortcutBeep()
         .focusable()
         .focusEffectDisabled()
         .onKeyPress(.downArrow) {
@@ -124,13 +125,13 @@ struct MenuBarView: View {
         .onAppear {
             controller.syncSelection(sessions: sessionManager.sessions)
             controller.reloadShortcuts()
-            controller.installTabMonitor(sessionManager: sessionManager, queueOrderMode: $queueOrderMode)
+            controller.installKeyMonitor(sessionManager: sessionManager, queueOrderMode: $queueOrderMode)
         }
         .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
             controller.reloadShortcuts()
         }
         .onDisappear {
-            controller.removeTabMonitor()
+            controller.removeKeyMonitor()
         }
         .onChange(of: queueOrderMode) { _, newMode in
             if let mode = QueueOrderMode(rawValue: newMode) {

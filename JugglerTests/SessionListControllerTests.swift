@@ -165,19 +165,6 @@ struct SessionListControllerTests {
         #expect(result == "nonexistent")
     }
 
-    // MARK: - hasShortcutForKeyCode Tests
-
-    @Test func hasShortcutForKeyCode_matchingCode_returnsTrue() {
-        let controller = SessionListController()
-        // Default shortcuts include toggleAutoNext with keyCode 0 (A)
-        #expect(controller.hasShortcutForKeyCode(0) == true)
-    }
-
-    @Test func hasShortcutForKeyCode_nonMatchingCode_returnsFalse() {
-        let controller = SessionListController()
-        #expect(controller.hasShortcutForKeyCode(999) == false)
-    }
-
     // MARK: - backburnerSelected Tests
 
     @Test @MainActor func backburnerSelected_validIndex_backburners() {
@@ -282,19 +269,19 @@ struct SessionListControllerTests {
 
         let controller = SessionListController()
 
-        #expect(controller.shortcutToggleBeacon == Shortcut(keyCode: 11, modifiers: []))
-        #expect(controller.shortcutToggleAutoNext == Shortcut(keyCode: 0, modifiers: []))
-        #expect(controller.shortcutToggleAutoRestart == Shortcut(keyCode: 12, modifiers: []))
+        #expect(controller.shortcutToggleBeacon == DiscreteShortcut(keyCode: 11, modifiers: []))
+        #expect(controller.shortcutToggleAutoNext == DiscreteShortcut(keyCode: 0, modifiers: []))
+        #expect(controller.shortcutToggleAutoRestart == DiscreteShortcut(keyCode: 12, modifiers: []))
     }
 
     @Test @MainActor func reloadShortcuts_prefersSavedValues() {
-        let savedMoveDown = Shortcut(keyCode: 15, modifiers: .command)
-        let savedRename = Shortcut(keyCode: 17, modifiers: .shift)
+        let savedMoveDown = DiscreteShortcut(keyCode: 15, modifiers: .command)
+        let savedRename = DiscreteShortcut(keyCode: 17, modifiers: .shift)
         savedMoveDown.save(to: AppStorageKeys.localShortcutMoveDown)
         savedRename.save(to: AppStorageKeys.localShortcutRename)
         defer {
-            Shortcut.remove(from: AppStorageKeys.localShortcutMoveDown)
-            Shortcut.remove(from: AppStorageKeys.localShortcutRename)
+            DiscreteShortcut.remove(from: AppStorageKeys.localShortcutMoveDown)
+            DiscreteShortcut.remove(from: AppStorageKeys.localShortcutRename)
         }
 
         let controller = SessionListController()
@@ -324,9 +311,9 @@ struct SessionListControllerTests {
         let controller = SessionListController()
         let manager = SessionManager()
         manager.testSetSessions([makeSession("s1"), makeSession("s2")])
-        let shortcut = Shortcut(keyCode: 125, modifiers: [])
+        let shortcut = DiscreteShortcut(keyCode: 125, modifiers: [])
         shortcut.save(to: AppStorageKeys.localShortcutMoveDown)
-        defer { Shortcut.remove(from: AppStorageKeys.localShortcutMoveDown) }
+        defer { DiscreteShortcut.remove(from: AppStorageKeys.localShortcutMoveDown) }
         controller.reloadShortcuts()
         var queueMode = QueueOrderMode.fair.rawValue
 
@@ -347,9 +334,9 @@ struct SessionListControllerTests {
     @Test @MainActor func handleKeyEvent_cycleModeForward_updatesQueueMode() {
         let controller = SessionListController()
         let manager = SessionManager()
-        let shortcut = Shortcut(keyCode: 124, modifiers: .command)
+        let shortcut = DiscreteShortcut(keyCode: 124, modifiers: .command)
         shortcut.save(to: AppStorageKeys.localShortcutCycleModeForward)
-        defer { Shortcut.remove(from: AppStorageKeys.localShortcutCycleModeForward) }
+        defer { DiscreteShortcut.remove(from: AppStorageKeys.localShortcutCycleModeForward) }
         controller.reloadShortcuts()
         var queueMode = QueueOrderMode.fair.rawValue
 
@@ -368,9 +355,9 @@ struct SessionListControllerTests {
         let manager = SessionManager()
         manager.testSetSessions([makeSession("s1"), makeSession("s2")])
         controller.moveSelection(by: 1, sessionCount: 2)
-        let shortcut = Shortcut(keyCode: 11, modifiers: .shift)
+        let shortcut = DiscreteShortcut(keyCode: 11, modifiers: .shift)
         shortcut.save(to: AppStorageKeys.localShortcutBackburner)
-        defer { Shortcut.remove(from: AppStorageKeys.localShortcutBackburner) }
+        defer { DiscreteShortcut.remove(from: AppStorageKeys.localShortcutBackburner) }
         controller.reloadShortcuts()
         var queueMode = QueueOrderMode.fair.rawValue
 
@@ -397,6 +384,59 @@ struct SessionListControllerTests {
 
         #expect(handled == false)
         #expect(queueMode == QueueOrderMode.fair.rawValue)
+    }
+
+    @Test @MainActor func handleKeyEvent_multiStepShortcut_firesOnlyOnCompletion() {
+        let controller = SessionListController()
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1"), makeSession("s2")])
+        // Two-step sequence: A (keyCode 0) then T (keyCode 17).
+        let shortcut = DiscreteShortcut(steps: [
+            .init(keyCode: 0, modifiers: []),
+            .init(keyCode: 17, modifiers: [])
+        ])
+        shortcut.save(to: AppStorageKeys.localShortcutMoveDown)
+        defer { DiscreteShortcut.remove(from: AppStorageKeys.localShortcutMoveDown) }
+        controller.reloadShortcuts()
+        var queueMode = QueueOrderMode.fair.rawValue
+
+        // First step advances the sequence but must not fire the action.
+        _ = controller.handleKeyEvent(
+            makeKeyEvent(keyCode: 0), sessionManager: manager, queueOrderMode: &queueMode
+        )
+        #expect(controller.selectedIndex == nil)
+
+        // Second step completes the sequence and fires.
+        let handled = controller.handleKeyEvent(
+            makeKeyEvent(keyCode: 17), sessionManager: manager, queueOrderMode: &queueMode
+        )
+        #expect(handled == true)
+        #expect(controller.selectedIndex == 0)
+    }
+
+    @Test @MainActor func handleKeyEvent_multiStepShortcut_wrongSecondKeyResetsSequence() {
+        let controller = SessionListController()
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1"), makeSession("s2")])
+        let shortcut = DiscreteShortcut(steps: [
+            .init(keyCode: 0, modifiers: []),
+            .init(keyCode: 17, modifiers: [])
+        ])
+        shortcut.save(to: AppStorageKeys.localShortcutMoveDown)
+        defer { DiscreteShortcut.remove(from: AppStorageKeys.localShortcutMoveDown) }
+        controller.reloadShortcuts()
+        var queueMode = QueueOrderMode.fair.rawValue
+
+        // A, then a non-matching key — the sequence resets to step 0.
+        _ = controller.handleKeyEvent(makeKeyEvent(keyCode: 0), sessionManager: manager, queueOrderMode: &queueMode)
+        _ = controller.handleKeyEvent(makeKeyEvent(keyCode: 18), sessionManager: manager, queueOrderMode: &queueMode)
+        // T alone now does nothing — the matcher is back at step 0 expecting A.
+        let handled = controller.handleKeyEvent(
+            makeKeyEvent(keyCode: 17), sessionManager: manager, queueOrderMode: &queueMode
+        )
+
+        #expect(handled == false)
+        #expect(controller.selectedIndex == nil)
     }
 
     // MARK: - activeColorIndex Tests (color now lives on SessionManager)

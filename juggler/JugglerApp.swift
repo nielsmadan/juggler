@@ -311,7 +311,7 @@ private func setupDefaultLocalShortcuts() {
 
     for (key, keyCode, shift) in defaults where UserDefaults.standard.data(forKey: key) == nil {
         let modifiers: NSEvent.ModifierFlags = shift ? .shift : []
-        let shortcut = Shortcut(keyCode: UInt16(keyCode), modifiers: modifiers)
+        let shortcut = DiscreteShortcut(keyCode: UInt16(keyCode), modifiers: modifiers)
         shortcut.save(to: key)
     }
 }
