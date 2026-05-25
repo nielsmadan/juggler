@@ -303,13 +303,21 @@ class iTerm2Daemon:
         tab = session.tab
         window = tab.window if tab else None
 
-        await self.app.async_activate()
+        try:
+            await self.app.async_activate()
 
-        if window:
-            await window.async_activate()
+            if window:
+                await window.async_activate()
 
-        # Activate the session (selects tab and pane)
-        await session.async_activate(select_tab=True, order_window_front=True)
+            await session.async_activate(select_tab=True, order_window_front=True)
+        except Exception as e:
+            # iTerm2's cached app model can return a session object for a UUID
+            # whose tab is already gone; async_activate then rejects it (often
+            # with an empty-string exception). Re-query so the caller sees a
+            # clear "Session not found" and Juggler can auto-remove the stale row.
+            if not self.app.get_session_by_id(uuid):
+                return {"status": "error", "message": "Session not found"}
+            return {"status": "error", "message": f"{type(e).__name__}: {e}"}
 
         return {"status": "ok"}
 
