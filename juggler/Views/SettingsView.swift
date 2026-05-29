@@ -25,11 +25,6 @@ struct SettingsView: View {
                     Label("Integration", systemImage: "puzzlepiece")
                 }
 
-            SSHSettingsView()
-                .tabItem {
-                    Label("SSH", systemImage: "network")
-                }
-
             HighlightingSettingsView()
                 .tabItem {
                     Label("Highlighting", systemImage: "sparkles")
@@ -259,6 +254,8 @@ struct IntegrationSettingsView: View {
 
     @State private var codexController = CodexSetupController()
 
+    @State private var showingSSHSheet = false
+
     private var hooksPath: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".claude/hooks/juggler/notify.sh").path
@@ -277,6 +274,42 @@ struct IntegrationSettingsView: View {
         "set-option -ga update-environment ' ITERM_SESSION_ID KITTY_WINDOW_ID KITTY_LISTEN_ON KITTY_PID'"
 
     var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 4) {
+                permissionsForm
+
+                categoryHeader("Terminals")
+                terminalsForm
+
+                categoryHeader("Agents")
+                agentsForm
+
+                categoryHeader("Tools")
+                toolsForm
+            }
+        }
+        .sheet(isPresented: $showingSSHSheet) {
+            SSHSettingsSheet()
+        }
+        .onAppear {
+            checkPermissions()
+            checkHooksInstalled()
+            checkKittyStatus()
+            checkTmuxConfigured()
+            checkOpenCodePluginInstalled()
+            codexController.refresh()
+        }
+    }
+
+    private func categoryHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.title2)
+            .fontWeight(.bold)
+            .underline()
+            .padding(.horizontal, 112)
+    }
+
+    private var permissionsForm: some View {
         Form {
             Section("Permissions") {
                 PermissionRow(label: "Accessibility", granted: hasAccessibility) {
@@ -284,23 +317,122 @@ struct IntegrationSettingsView: View {
                         URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
                     )
                 }
-                PermissionRow(label: "Automation (iTerm2)", granted: hasAutomation) {
-                    NSWorkspace.shared.open(
-                        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!
-                    )
-                }
                 PermissionRow(label: "Notifications", granted: hasNotifications) {
                     NSWorkspace.shared.open(
                         URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Notifications")!
                     )
                 }
-
                 Button("Refresh") {
                     checkPermissions()
                 }
             }
+        }
+        .formStyle(.grouped)
+        .scrollDisabled(true)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal)
+    }
 
-            Section("Claude Code Hooks") {
+    private var terminalsForm: some View {
+        Form {
+            Section("Kitty") {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Remote Control")
+                        Spacer()
+                        if kittyRemoteControl {
+                            Label("Enabled", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else {
+                            Label("Not Configured", systemImage: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if !kittyRemoteControl {
+                        Text("Adds allow_remote_control socket-only to kitty.conf")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button("Add to kitty.conf") {
+                            configureKittyRemoteControl()
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Listen Socket")
+                        Spacer()
+                        if kittyListenOn {
+                            Label("Configured", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else {
+                            Label("Not Configured", systemImage: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if !kittyListenOn {
+                        Text("Adds listen_on unix:/tmp/kitty-{kitty_pid} to kitty.conf")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button("Add to kitty.conf") {
+                            configureKittyListenOn()
+                        }
+                    }
+                }
+
+                HStack {
+                    Text("Watcher Script")
+                    Spacer()
+                    if kittyWatcherInstalled {
+                        Label("Installed", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Installed", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let error = kittyConfigError {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+
+                if let error = kittyWatcherError {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+
+                Button(kittyWatcherInstalled ? "Reinstall Watcher" : "Install Watcher") {
+                    installKittyWatcher()
+                }
+                .disabled(isInstallingKittyWatcher)
+
+                if !kittyRemoteControl || !kittyListenOn || kittyWatcherInstalled {
+                    Text("Restart Kitty after changes for them to take effect.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("iTerm2") {
+                PermissionRow(label: "Automation Permission", granted: hasAutomation) {
+                    NSWorkspace.shared.open(
+                        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!
+                    )
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .scrollDisabled(true)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal)
+    }
+
+    private var agentsForm: some View {
+        Form {
+            Section("Claude Code") {
                 HStack {
                     Text("Hook Script")
                     Spacer()
@@ -414,88 +546,15 @@ struct IntegrationSettingsView: View {
                 }
                 .disabled(codexController.isEnablingInCodex)
             }
+        }
+        .formStyle(.grouped)
+        .scrollDisabled(true)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal)
+    }
 
-            Section("Kitty") {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Remote Control")
-                        Spacer()
-                        if kittyRemoteControl {
-                            Label("Enabled", systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                        } else {
-                            Label("Not Configured", systemImage: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    if !kittyRemoteControl {
-                        Text("Adds allow_remote_control socket-only to kitty.conf")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Button("Add to kitty.conf") {
-                            configureKittyRemoteControl()
-                        }
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Listen Socket")
-                        Spacer()
-                        if kittyListenOn {
-                            Label("Configured", systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                        } else {
-                            Label("Not Configured", systemImage: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    if !kittyListenOn {
-                        Text("Adds listen_on unix:/tmp/kitty-{kitty_pid} to kitty.conf")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Button("Add to kitty.conf") {
-                            configureKittyListenOn()
-                        }
-                    }
-                }
-
-                HStack {
-                    Text("Watcher Script")
-                    Spacer()
-                    if kittyWatcherInstalled {
-                        Label("Installed", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                    } else {
-                        Label("Not Installed", systemImage: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if let error = kittyConfigError {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                }
-
-                if let error = kittyWatcherError {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                }
-
-                Button(kittyWatcherInstalled ? "Reinstall Watcher" : "Install Watcher") {
-                    installKittyWatcher()
-                }
-                .disabled(isInstallingKittyWatcher)
-
-                if !kittyRemoteControl || !kittyListenOn || kittyWatcherInstalled {
-                    Text("Restart Kitty after changes for them to take effect.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
+    private var toolsForm: some View {
+        Form {
             Section("tmux") {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -531,17 +590,20 @@ struct IntegrationSettingsView: View {
                     }
                 }
             }
+
+            Section("SSH Tracking") {
+                Text("Track Claude Code sessions on remote hosts via reverse port forward.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("Configure SSH") {
+                    showingSSHSheet = true
+                }
+            }
         }
         .formStyle(.grouped)
-        .padding()
-        .onAppear {
-            checkPermissions()
-            checkHooksInstalled()
-            checkKittyStatus()
-            checkTmuxConfigured()
-            checkOpenCodePluginInstalled()
-            codexController.refresh()
-        }
+        .scrollDisabled(true)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal)
     }
 
     // MARK: - Permissions
@@ -991,6 +1053,26 @@ struct UpdatesSettingsView: View {
 }
 
 // MARK: - SSH Settings
+
+private struct SSHSettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button("Done") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+            }
+            .padding()
+
+            SSHSettingsView()
+        }
+        .frame(minWidth: 560, minHeight: 640, idealHeight: 760)
+    }
+}
 
 struct SSHSettingsView: View {
     private static let sshConfigMarker = "# Juggler: reverse-tunnel hook port"
