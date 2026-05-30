@@ -578,7 +578,11 @@ struct SessionMonitorView: View {
         }
         sessionManager.beginActivation(targetSessionID: session.id)
         Task {
-            try? await TerminalActivation.activate(session: session, trigger: .guiSelect)
+            do {
+                try await TerminalActivation.activate(session: session, trigger: .guiSelect)
+            } catch {
+                BeaconManager.shared.show(sessionName: "Activation Failed", force: true)
+            }
             sessionManager.endActivation()
         }
     }

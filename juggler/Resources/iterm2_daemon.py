@@ -25,6 +25,7 @@ class iTerm2Daemon:
         self.connection: iterm2.Connection = connection
         self.app: Optional[iterm2.App] = None
         self.server: Optional[socket.socket] = None
+        self.socket_inode: int = 0
         self.running: bool = True
         # Track active highlight reset tasks to cancel on new highlights
         self.active_tab_reset_tasks: dict[str, asyncio.Task] = {}
@@ -42,6 +43,7 @@ class iTerm2Daemon:
         os.chmod(str(self.socket_path), 0o600)
         self.server.listen(5)
         self.server.setblocking(False)
+        self.socket_inode = os.stat(str(self.socket_path)).st_ino
 
         print(f"Daemon listening on {self.socket_path}", file=sys.stderr)
 
@@ -49,6 +51,7 @@ class iTerm2Daemon:
         asyncio.create_task(self.run_session_monitor())
         asyncio.create_task(self.run_layout_monitor())
         asyncio.create_task(self._monitor_parent())
+        asyncio.create_task(self._monitor_socket_ownership())
 
         loop = asyncio.get_running_loop()
         while self.running:
@@ -78,7 +81,7 @@ class iTerm2Daemon:
             # Add newline for consistent protocol
             await loop.sock_sendall(client, json.dumps(response).encode("utf-8") + b"\n")
         except Exception as e:
-            error_response = {"status": "error", "message": str(e)}
+            error_response = {"status": "error", "message": str(e) or type(e).__name__}
             try:
                 await loop.sock_sendall(client, json.dumps(error_response).encode("utf-8") + b"\n")
             except Exception:
@@ -264,14 +267,19 @@ class iTerm2Daemon:
         if not session:
             return {"status": "error", "message": "Session not found"}
 
-        tab = session.tab
-        window = tab.window if tab else None
+        try:
+            tab = session.tab
+            window = tab.window if tab else None
 
-        tab_name = await tab.async_get_variable("title") if tab else "Unknown"
-        window_name = await self._get_window_name(window) if window else "Unknown"
+            tab_name = await tab.async_get_variable("title") if tab else "Unknown"
+            window_name = await self._get_window_name(window) if window else "Unknown"
 
-        pane_index = tab.sessions.index(session) if tab else 0
-        pane_count = len(tab.sessions) if tab else 1
+            pane_index = tab.sessions.index(session) if tab else 0
+            pane_count = len(tab.sessions) if tab else 1
+        except Exception as e:
+            if not self.app.get_session_by_id(uuid):
+                return {"status": "error", "message": "Session not found"}
+            return {"status": "error", "message": f"{type(e).__name__}: {e}"}
 
         return {
             "status": "ok",
@@ -300,10 +308,10 @@ class iTerm2Daemon:
         if not session:
             return {"status": "error", "message": "Session not found"}
 
-        tab = session.tab
-        window = tab.window if tab else None
-
         try:
+            tab = session.tab
+            window = tab.window if tab else None
+
             await self.app.async_activate()
 
             if window:
@@ -441,17 +449,33 @@ class iTerm2Daemon:
                 self.stop()
                 sys.exit(0)
 
+    async def _monitor_socket_ownership(self) -> None:
+        """Exit if a newer daemon has rebound the socket path (zombie prevention)."""
+        while self.running:
+            await asyncio.sleep(5)
+            try:
+                current_inode = os.stat(str(self.socket_path)).st_ino
+            except OSError:
+                print("Socket path gone, exiting", file=sys.stderr)
+                self.stop(unlink=False)
+                sys.exit(0)
+            if current_inode != self.socket_inode:
+                print("Socket taken over by newer daemon, exiting", file=sys.stderr)
+                self.stop(unlink=False)
+                sys.exit(0)
+
     def _extract_uuid(self, session_id: str) -> str:
         """Extract UUID from 'w0t0p0:UUID' format."""
         if ":" in session_id:
             return session_id.split(":", 1)[1]
         return session_id
 
-    def stop(self) -> None:
+    def stop(self, unlink: bool = True) -> None:
         self.running = False
         if self.server:
             self.server.close()
-        self.socket_path.unlink(missing_ok=True)
+        if unlink:
+            self.socket_path.unlink(missing_ok=True)
 
 
 # Hard ceiling for the initial iTerm2 connection. The iterm2 library with

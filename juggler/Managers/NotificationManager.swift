@@ -102,7 +102,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
                 pendingTerminalBundleID = session.terminalType.bundleIdentifier
 
                 SessionManager.shared.beginActivation(targetSessionID: session.id)
-                try? await TerminalActivation.activate(session: session, trigger: .notification)
+                do {
+                    try await TerminalActivation.activate(session: session, trigger: .notification)
+                } catch {
+                    BeaconManager.shared.show(sessionName: "Activation Failed", force: true)
+                }
                 SessionManager.shared.endActivation()
                 isHandlingNotificationClick = false
                 pendingTerminalBundleID = nil

@@ -48,7 +48,7 @@ enum TerminalActivation {
             try await bridge.activate(sessionID: session.terminalSessionID)
         } catch let error as TerminalBridgeError {
             if case let .commandFailed(message) = error,
-               message.localizedCaseInsensitiveContains("session not found") {
+               await isSessionGone(bridge: bridge, session: session, message: message) {
                 await MainActor.run {
                     logWarning(.session, "Session '\(session.id)' not found in terminal, removing")
                     SessionManager.shared.removeSession(sessionID: session.id)
@@ -66,6 +66,17 @@ enum TerminalActivation {
             tabConfig: tabHighlightConfig(for: session),
             paneConfig: paneHighlightConfig(for: session)
         )
+    }
+
+    private static func isSessionGone(bridge: TerminalBridge, session: Session, message: String) async -> Bool {
+        if message.localizedCaseInsensitiveContains("session not found") {
+            return true
+        }
+        do {
+            return try await bridge.getSessionInfo(sessionID: session.terminalSessionID) == nil
+        } catch {
+            return false
+        }
     }
 
     private static func shouldHighlight(for trigger: ActivationTrigger) -> Bool {

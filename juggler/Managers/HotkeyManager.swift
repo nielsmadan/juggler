@@ -129,6 +129,7 @@ final class HotkeyManager {
             } catch {
                 SessionManager.shared.endActivation()
                 logError(.hotkey, "Cycle \(direction) failed: \(error)")
+                BeaconManager.shared.show(sessionName: "Activation Failed", force: true)
                 return
             }
         }
@@ -177,7 +178,7 @@ final class HotkeyManager {
         } catch {
             SessionManager.shared.endActivation()
             logError(.hotkey, "Go to last notification failed: \(error)")
-            BeaconManager.shared.show(sessionName: "No Notification")
+            BeaconManager.shared.show(sessionName: "Activation Failed", force: true)
         }
     }
 
@@ -207,6 +208,7 @@ final class HotkeyManager {
             } catch {
                 SessionManager.shared.endActivation()
                 logError(.hotkey, "Backburner go-to-next failed: \(error)")
+                BeaconManager.shared.show(sessionName: "Activation Failed", force: true)
                 return
             }
         }

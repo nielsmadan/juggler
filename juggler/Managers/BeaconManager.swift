@@ -39,8 +39,8 @@ final class BeaconManager {
         return BeaconAnchor(rawValue: raw) ?? .default
     }
 
-    func show(sessionName: String) {
-        guard isEnabled else { return }
+    func show(sessionName: String, force: Bool = false) {
+        guard isEnabled || force else { return }
 
         showGeneration += 1
         dismissTask?.cancel()

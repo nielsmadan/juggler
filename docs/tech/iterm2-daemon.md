@@ -126,6 +126,22 @@ The highlight config supports:
 | `color` | [r, g, b] | RGB color (0-255) |
 | `duration` | float | Seconds to show highlight |
 
+## Stale sessions and the empty-string exception
+
+iTerm2's cached app model can return a `Session` object for a UUID whose tab is already gone. Touching it — reading `session.tab`/`tab.window`, or calling `async_activate` — then raises, and the rejection often carries an **empty string** as its message. If that exception escapes `activate_session`, it falls through to the top-level handler in `handle_client`, which serializes `str(e)` → `""`, so the bridge receives `commandFailed("")`. An empty message defeats Juggler's `"session not found"` substring match, so the dead session never gets removed.
+
+Two guards keep this from happening:
+- `activate_session` **and** `get_session_info` wrap **all** session access (including `session.tab`/`tab.window`/`async_get_variable`, not just the `async_activate` calls) in the try block. On any exception they re-query `get_session_by_id`; if the session is now absent they return the clean `"Session not found"`, otherwise a non-empty `TypeName: message`. `get_session_info` matters because the Swift `isSessionGone` fallback routes its confirmation through it — an unguarded raise there would surface as an opaque error rather than a clean absence signal.
+- The `handle_client` fallback uses `str(e) or type(e).__name__`, so even an exception that slips past `activate_session` yields a non-empty, identifiable message instead of `""`.
+
+The Swift side (`TerminalActivation.isSessionGone`) is the belt-and-suspenders layer: it confirms absence via `getSessionInfo` regardless of the message, covering daemons that predate these guards.
+
+## Zombie daemon prevention
+
+The daemon is launched from the app bundle and binds `iterm2_daemon.sock`. On startup it `unlink`s any existing socket and rebinds, so the most recently launched daemon owns the path; older daemons keep running on their now-orphaned socket inode and answer nothing — but during development many such zombies accumulate, and a pre-fix zombie that somehow still holds the path would reintroduce the empty-message bug.
+
+`_monitor_socket_ownership` polls the socket path's inode every 5s against the inode recorded at bind time. If they differ (a newer daemon rebound the path) or the path is gone, the daemon exits via `stop(unlink=False)` — deliberately **not** unlinking, because by default `stop()` would unlink the path, which now belongs to the new owner.
+
 ## Connection Recovery
 
 If the socket connection fails, the bridge:

@@ -823,20 +823,18 @@ actor ITerm2Bridge: TerminalBridge {
             await MainActor.run { logDebug(.daemon, "getSessionInfo: calling sendRequest") }
             response = try await sendRequest(request)
             await MainActor.run { logDebug(.daemon, "getSessionInfo: sendRequest returned, status=\(response.status)") }
-        } catch {
+        } catch let error as TerminalBridgeError {
             if shouldAttemptRecovery(error) {
                 await MainActor
                     .run { logWarning(.daemon, "Stale connection in getSessionInfo, attempting recovery...") }
-                do {
-                    try await restart()
-                    response = try await sendRequest(request)
-                } catch {
-                    await MainActor.run { logWarning(.daemon, "Get session info failed after recovery: \(error)") }
-                    return nil
-                }
+                try await restart()
+                response = try await sendRequest(request)
+            } else if case let .commandFailed(message) = error,
+                      message.localizedCaseInsensitiveContains("session not found") {
+                return nil
             } else {
                 await MainActor.run { logWarning(.daemon, "Get session info failed: \(error)") }
-                return nil
+                throw error
             }
         }
 
@@ -846,7 +844,7 @@ actor ITerm2Bridge: TerminalBridge {
               let paneIndex = response.paneIndex,
               let paneCount = response.paneCount
         else {
-            return nil
+            throw TerminalBridgeError.invalidResponse
         }
 
         return TerminalSessionInfo(

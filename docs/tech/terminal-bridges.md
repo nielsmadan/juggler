@@ -24,7 +24,7 @@ protocol TerminalBridge: Sendable {
 | `stop` | Tear down, release resources |
 | `activate` | Bring the given session to the foreground |
 | `highlight` | Flash tab/pane with an RGB color for N seconds |
-| `getSessionInfo` | Return `TerminalSessionInfo` (tab name, window name, indices) |
+| `getSessionInfo` | Return `TerminalSessionInfo` (present), `nil` (confirmed gone), or throw (couldn't determine) — see [TerminalActivation](#detecting-a-gone-session-from-an-opaque-error) |
 
 ## TerminalActivation
 
@@ -35,6 +35,18 @@ A static orchestrator (`TerminalBridge.swift:39-157`) that drives activation end
 3. If the session is tmux-backed, select the tmux pane.
 4. Trigger `highlight()` based on `ActivationTrigger` (`.hotkey`, `.guiSelect`, `.notification`) and user highlight preferences.
 5. On `.sessionNotFound` from the bridge, remove the stale session from `SessionManager`.
+
+### Detecting a gone session from an opaque error
+
+A terminal whose session has vanished does not always report it cleanly. The iTerm2 daemon, in particular, can surface an empty-string error (`commandFailed("")`) when activating a session whose tab is already gone. Matching on the literal `"session not found"` substring alone therefore misses cases, leaving a dead session stuck in the cycle — every cycle attempt re-targets it, fails, and the generic `catch` in `HotkeyManager.activateWithRetry` just logs and returns without removing it.
+
+`TerminalActivation.isSessionGone` closes this gap: on any `commandFailed`, if the message does not already say "session not found", it calls `bridge.getSessionInfo(sessionID:)` to confirm. This depends on `getSessionInfo` distinguishing **confirmed absence** from **couldn't determine** — otherwise a transient lookup failure would be read as absence and a live session removed. So the method's contract is three-valued:
+
+- returns `TerminalSessionInfo` — the session is present;
+- returns `nil` — the terminal authoritatively reports the session is gone (iTerm2 daemon `"Session not found"`; Kitty window absent from `@ ls`);
+- **throws** — the lookup could not be completed (connection failure, recovery failure, timeout, malformed response).
+
+`isSessionGone` removes the session only on `nil`, and its `catch` returns `false` (keep the session) on a throw. So removal is tied to positively-confirmed absence; transient failures never cause removal. See `iterm2-daemon.md` for the daemon-side handling of the empty-string exception.
 
 ## Registry
 

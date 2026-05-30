@@ -17,6 +17,9 @@ struct TerminalActivationTests {
         var activateCalls: [String] = []
         var highlightCalls: [(String, HighlightConfig?, HighlightConfig?)] = []
         var activateError: Error?
+        var sessionInfoResult: TerminalSessionInfo?
+        var sessionInfoError: Error?
+        var sessionInfoCallCount = 0
 
         func start() async throws {}
         func stop() async {}
@@ -32,10 +35,28 @@ struct TerminalActivationTests {
             highlightCalls.append((sessionID, tabConfig, paneConfig))
         }
 
-        func getSessionInfo(sessionID _: String) async throws -> TerminalSessionInfo? { nil }
+        func getSessionInfo(sessionID _: String) async throws -> TerminalSessionInfo? {
+            sessionInfoCallCount += 1
+            if let sessionInfoError {
+                throw sessionInfoError
+            }
+            return sessionInfoResult
+        }
 
         func setActivateError(_ error: Error?) {
             activateError = error
+        }
+
+        func setSessionInfoResult(_ info: TerminalSessionInfo?) {
+            sessionInfoResult = info
+        }
+
+        func setSessionInfoError(_ error: Error?) {
+            sessionInfoError = error
+        }
+
+        func recordedSessionInfoCallCount() -> Int {
+            sessionInfoCallCount
         }
 
         func recordedActivateCalls() -> [String] {
@@ -234,6 +255,8 @@ struct TerminalActivationTests {
             }
 
             #expect(SessionManager.shared.sessions.isEmpty)
+            let infoCalls = await bridge.recordedSessionInfoCallCount()
+            #expect(infoCalls == 0)
         }
 
         @Test @MainActor func activate_otherErrors_propagateWithoutRemovingSession() async {
@@ -250,6 +273,90 @@ struct TerminalActivationTests {
                 Issue.record("Expected generic error to be thrown")
             } catch let error as MockActivationError {
                 #expect(error == .generic)
+            } catch {
+                Issue.record("Unexpected error: \(error)")
+            }
+
+            #expect(SessionManager.shared.sessions.map(\.id) == ["s1"])
+        }
+
+        @Test @MainActor func activate_opaqueCommandFailed_sessionGone_removesSession() async {
+            await resetSharedState()
+            let bridge = ActivationMockBridge()
+            await bridge.setActivateError(TerminalBridgeError.commandFailed(""))
+            await bridge.setSessionInfoResult(nil)
+            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+
+            let session = makeSession("s1")
+            SessionManager.shared.testSetSessions([session])
+
+            do {
+                try await TerminalActivation.activate(session: session, trigger: .hotkey)
+                Issue.record("Expected sessionNotFound to be thrown")
+            } catch let error as TerminalBridgeError {
+                switch error {
+                case let .sessionNotFound(sessionID):
+                    #expect(sessionID == "s1")
+                default:
+                    Issue.record("Unexpected TerminalBridgeError: \(error)")
+                }
+            } catch {
+                Issue.record("Unexpected error: \(error)")
+            }
+
+            #expect(SessionManager.shared.sessions.isEmpty)
+            let infoCalls = await bridge.recordedSessionInfoCallCount()
+            #expect(infoCalls == 1)
+        }
+
+        @Test @MainActor func activate_opaqueCommandFailed_sessionStillExists_propagatesWithoutRemoving() async {
+            await resetSharedState()
+            let bridge = ActivationMockBridge()
+            await bridge.setActivateError(TerminalBridgeError.commandFailed(""))
+            await bridge.setSessionInfoResult(
+                TerminalSessionInfo(
+                    id: "s1", tabName: "Tab", windowName: "Window",
+                    tabIndex: 0, paneIndex: 0, paneCount: 1, isActive: false
+                )
+            )
+            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+
+            let session = makeSession("s1")
+            SessionManager.shared.testSetSessions([session])
+
+            do {
+                try await TerminalActivation.activate(session: session, trigger: .hotkey)
+                Issue.record("Expected commandFailed to propagate")
+            } catch let error as TerminalBridgeError {
+                if case .commandFailed = error {} else {
+                    Issue.record("Unexpected TerminalBridgeError: \(error)")
+                }
+            } catch {
+                Issue.record("Unexpected error: \(error)")
+            }
+
+            #expect(SessionManager.shared.sessions.map(\.id) == ["s1"])
+            let infoCalls = await bridge.recordedSessionInfoCallCount()
+            #expect(infoCalls == 1)
+        }
+
+        @Test @MainActor func activate_opaqueCommandFailed_sessionInfoThrows_propagatesWithoutRemoving() async {
+            await resetSharedState()
+            let bridge = ActivationMockBridge()
+            await bridge.setActivateError(TerminalBridgeError.commandFailed(""))
+            await bridge.setSessionInfoError(TerminalBridgeError.connectionFailed)
+            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+
+            let session = makeSession("s1")
+            SessionManager.shared.testSetSessions([session])
+
+            do {
+                try await TerminalActivation.activate(session: session, trigger: .hotkey)
+                Issue.record("Expected commandFailed to propagate")
+            } catch let error as TerminalBridgeError {
+                if case .commandFailed = error {} else {
+                    Issue.record("Unexpected TerminalBridgeError: \(error)")
+                }
             } catch {
                 Issue.record("Unexpected error: \(error)")
             }

@@ -11,10 +11,14 @@ The beacon is a brief HUD overlay that shows the current session name whenever t
 
 Cycling while no cyclable session exists shows the fallback label **"All At Work"**.
 
-The beacon does **not** appear for:
+On a *successful* activation the beacon does **not** appear for:
 - Manual session clicks in the popover or main window
 - Backburner / reactivate actions
 - External terminal focus changes
+
+### Activation failure
+
+When the user requests an activation that **fails** for any reason — a missing/unreachable terminal, a dead bridge, a daemon error — the beacon flashes the fallback label **"Activation Failed"** so the failure isn't silent. This is forced: it appears even when the beacon is disabled in Settings, and it covers every user-initiated activation path (hotkey cycle, go-to-notification, backburner advance, manual clicks, and notification clicks). Skipping a stale session mid-cycle is not a failure — the cycle silently advances to the next live session and only the successful landing (or "All At Work") is shown.
 
 ### What it shows
 

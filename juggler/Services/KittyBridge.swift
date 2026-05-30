@@ -211,19 +211,12 @@ actor KittyBridge: TerminalBridge {
     func getSessionInfo(sessionID: String) async throws -> TerminalSessionInfo? {
         guard let socketPath = socketPaths[sessionID] else { return nil }
 
-        do {
-            guard let output = try await runKittenCommand(
-                ["@", "ls"],
-                socketPath: socketPath
-            ) else { return nil }
+        guard let output = try await runKittenCommand(
+            ["@", "ls"],
+            socketPath: socketPath
+        ) else { return nil }
 
-            return parseKittyLsOutput(output, windowID: sessionID)
-        } catch {
-            await MainActor.run {
-                logDebug(.kitty, "getSessionInfo failed for \(sessionID): \(error)")
-            }
-            return nil
-        }
+        return parseKittyLsOutput(output, windowID: sessionID)
     }
 
     func rgbToHex(_ color: [Int]) -> String {
