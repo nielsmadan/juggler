@@ -69,18 +69,18 @@ All methods on `KittyBridge` (an actor):
 | Method | Kitten command | Purpose |
 |--------|----------------|---------|
 | `activate(sessionID:)` | `focus-window --match id:<id>` + AppleScript `activate` | Focus window and app |
-| `highlight(sessionID:tabConfig:paneConfig:)` | `set-tab-color`, `set-colors` | Flash tab/pane for `duration` seconds, then auto-reset |
+| `highlight(sessionID:tabConfig:paneConfig:)` | `set-tab-color`, `get-colors` + `set-colors` | Flash tab/pane for `duration` seconds, then auto-reset (`get-colors` snapshots the original background for restore) |
 | `getSessionInfo(sessionID:)` | `ls` (parses JSON output) | Query window metadata |
 | `testConnection()` | `ls` | Verify Kitty + socket + kitten are reachable |
 
 ## Kitten Binary Resolution
 
-Search order (`KittyBridge.swift:30-53`):
+Search order (`KittyBridge.swift:29-55`):
 
-1. App bundle Resources
-2. `/usr/local/bin` (Intel Homebrew)
-3. `/opt/homebrew` (Apple Silicon Homebrew)
-4. `$PATH`
+1. `/Applications/kitty.app/Contents/MacOS/kitten` (standard app install)
+2. `/usr/local/bin/kitten` (Intel Homebrew)
+3. `/opt/homebrew/bin/kitten` (Apple Silicon Homebrew)
+4. `$PATH` (probed by running `kitten --version` via `/usr/bin/env`)
 
 A warning is logged if not found.
 
@@ -88,9 +88,9 @@ A warning is logged if not found.
 
 - **GUI env inheritance** — `KITTY_LISTEN_ON` is not inherited by GUI-launched apps; rely on the `/tmp` scan instead (`KittyBridge.swift:71-72`).
 - **Kitty restart required** — config edits don't take effect until Kitty is restarted.
-- **Pipe drain on detached tasks** — `runKittenCommand` drains stdout/stderr pipes to prevent buffer-full deadlock (`KittyBridge.swift:301`).
+- **Pipe drain on detached tasks** — `runKittenCommand` drains stdout/stderr pipes to prevent buffer-full deadlock (`KittyBridge.swift:295-296`).
 - **Highlight reset auto-cancels** — scheduling a new highlight on the same session cancels the pending reset task (`KittyBridge.swift:149, 172`).
-- **Missing window maps to `connectionFailed`** — if a window ID is unknown, the bridge returns `connectionFailed` rather than `sessionNotFound` to avoid an infinite cleanup cycle (`KittyBridge.swift:114-115`).
+- **Missing window maps to `connectionFailed`** — if a window ID is unknown, the bridge returns `connectionFailed` rather than `sessionNotFound` to avoid an infinite cleanup cycle (`KittyBridge.swift:113-115`).
 
 ## Concurrency
 

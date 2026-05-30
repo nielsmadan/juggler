@@ -20,7 +20,7 @@ struct Session: Identifiable, Codable, Equatable {
     var tmuxPane: String?            // e.g., "%1", nil if not inside tmux
     var id: String { ... }           // Computed: "\(terminalSessionID):\(tmuxPane)" or terminalSessionID
     let terminalType: TerminalType   // .iterm2, .kitty
-    let agent: String                // "claude-code" or "opencode"
+    let agent: String                // "claude-code", "opencode", or "codex"
     let projectPath: String          // Working directory
     var terminalTabName: String?     // Tab name from terminal
     var terminalWindowName: String?  // Window name
@@ -36,6 +36,7 @@ struct Session: Identifiable, Codable, Equatable {
     var gitBranch: String?           // Current git branch
     var gitRepoName: String?         // Repository name
     var transcriptPath: String?      // Path to transcript JSONL
+    var remoteHost: String?          // SSH host, nil for local sessions
 }
 ```
 
@@ -68,11 +69,11 @@ enum SessionState: String, Codable {
 
 1. Hook event arrives
 2. `HookEventMapper` maps to state
-3. `addOrUpdateSession()` updates session
-4. `handleStateTransition()` triggers:
-   - Reorder animation
-   - Notification (if enabled)
-   - Stats tracking
+3. `addOrUpdateSession()` updates session and, on a state change, calls `applyStateChange()`
+4. `applyStateChange()` orchestrates the transition:
+   - Section transition animation (`SectionAnimationController`)
+   - `handleStateTransition()` — queue reorder (per `QueueOrderMode`) and busy-time stats accrual
+   - Auto-advance / auto-restart triggers (posts `.shouldAutoAdvance` / `.shouldAutoRestart`)
 
 ## Cycling Engine
 
@@ -108,6 +109,22 @@ Sessions are reordered based on mode when state changes:
 | Static | No reordering |
 | Grouped | Static order, grouped by terminal window |
 
+## Hotkeys
+
+`HotkeyManager` (`Managers/HotkeyManager.swift`) registers the global shortcuts and drives activation:
+
+| Shortcut (default) | Action |
+|---|---|
+| `⌘⇧K` / `⌘⇧J` | Cycle forward / backward through cyclable sessions |
+| `⌘⇧L` | Backburner the current session |
+| `⌘⇧H` | Reactivate all backburnered sessions |
+| `⌘⇧;` | Show monitor (popover → main window → dismiss cycle) |
+| `⌘⇧E` | Jump to the session from the most recent delivered notification |
+
+The jump-to-latest shortcut activates `SessionManager.lastNotifiedSessionID` (recorded by `NotificationManager` via `recordLastNotification`), independent of cycle order, and shows "No Notification" in the beacon if there's no recorded session or it's gone.
+
+Cycle and jump activation both go through `beginActivation` / `endActivation` to guard against intermediate focus events, and remove stale sessions on `.sessionNotFound` (see Stale Session Cleanup).
+
 ## Reorder Animations
 
 **File:** `Animation/SectionAnimationController.swift`
@@ -128,23 +145,16 @@ Smooth vertical movement via `matchedGeometryEffect` (0.4s)
 
 Special logic to preserve backburner state:
 
-```swift
-// In addOrUpdateSession()
-if oldState == .backburner && event != "UserPromptSubmit" {
-    // Update metadata but preserve backburner
-    return
-}
-```
+In `addOrUpdateSession()` (`SessionManager.swift:605`), when the existing state is `.backburner` and the event isn't `UserPromptSubmit`, the method calls `mergeSessionMetadata(...)` to refresh tmux/git/transcript fields and returns without changing state — preserving backburner.
 
-Only `UserPromptSubmit` or explicit reactivation exits backburner.
+Only `UserPromptSubmit` or explicit reactivation (via `updateSessionState`, not this method) exits backburner.
 
 ## Stale Session Cleanup
 
 Sessions are removed reactively (no polling timer):
 
-1. iTerm2 daemon pushes `session_terminated` events when tabs close
-2. Activation failure detection removes sessions not found in the terminal
-3. Kitty sessions are cleaned up on activation failure (no persistent daemon connection)
+1. iTerm2 daemon and Kitty watcher push `session_terminated` events when tabs close, routed through `SessionManager.removeSessionsByTerminalID`.
+2. Activation that fails because the session is gone (`TerminalActivation.activate` detecting a missing session) calls `removeSession` and throws `.sessionNotFound`. `HotkeyManager.activateWithRetry` loops on that error, skipping the now-removed stale session and re-cycling until a live session activates or none remain. This backstops Kitty in particular: its watcher delivers `session_terminated` over fire-and-forget HTTP with no retry, so a dropped event would otherwise leak the session until the next activation attempt prunes it.
 
 ---
 

@@ -14,7 +14,7 @@ Starting a new Python process for each command takes ~1000ms. A persistent daemo
 - Runs as subprocess of Juggler.app
 - Communicates via Unix socket
 
-**Bridge:** `Services/iTerm2Bridge.swift`
+**Bridge:** `Services/iTerm2Bridge.swift` (the Swift class is `ITerm2Bridge`, capital I)
 
 - Swift actor for thread-safe daemon communication
 - Handles connection, reconnection, timeouts

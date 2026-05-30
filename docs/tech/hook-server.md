@@ -60,6 +60,7 @@ Or on error:
 |-------|--------------|-------------|
 | `SessionStart` | `idle` | New session started |
 | `Stop` | `idle` | Agent finished, waiting for input |
+| `StopFailure` | `idle` | Turn ended with an API error |
 | `UserPromptSubmit` | `working` | User submitted prompt |
 | `PreToolUse` | `working` | About to use a tool |
 | `PostToolUse` | `working` | Just used a tool |
@@ -72,62 +73,26 @@ Or on error:
 
 ## Event Mapping
 
-The `HookEventMapper` (`Models/HookEventMapper.swift`) converts events to actions:
+`HookEventMapper.map(event:agent:)` (`Models/HookEventMapper.swift`) converts each event to a `MappedAction`, dispatching to per-agent mappers (`mapClaudeCode` / `mapOpenCode` / `mapCodex`) by the `agent` parameter. The Claude Code mapping is the Event Types table above; the other two agents map as follows (canonical source: `HookEventMapper.swift`).
 
-```swift
-nonisolated static func map(event: String, agent: String = "claude-code") -> MappedAction
-```
+OpenCode:
 
-Dispatches to agent-specific mapping (`mapClaudeCode` / `mapOpenCode` / `mapCodex`) based on the `agent` parameter. Claude Code mapping:
+| Event | Mapped State |
+|-------|--------------|
+| `session.created`, `session.status.idle`, `session.idle`, `session.error` | `idle` |
+| `session.status.busy`, `session.status.retry` | `working` |
+| `permission.asked` | `permission` |
+| `session.compacted` | `compacting` |
+| `session.deleted`, `server.instance.disposed` | (removed) |
 
-```swift
-case "SessionStart", "Stop":
-    return .updateState(.idle)
-case "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "SubagentStart":
-    return .updateState(.working)
-case "SubagentStop":
-    return .ignore
-case "PermissionRequest":
-    return .updateState(.permission)
-case "PreCompact":
-    return .updateState(.compacting)
-case "SessionEnd":
-    return .removeSession
-default:
-    return .ignore
-```
+Codex:
 
-OpenCode mapping:
-
-```swift
-case "session.created", "session.status.idle":
-    return .updateState(.idle)
-case "session.status.busy", "session.status.retry":
-    return .updateState(.working)
-case "permission.asked":
-    return .updateState(.permission)
-case "session.compacted":
-    return .updateState(.compacting)
-case "session.deleted", "server.instance.disposed":
-    return .removeSession
-default:
-    return .ignore
-```
-
-Codex mapping:
-
-```swift
-case "SessionStart", "Stop":
-    return .updateState(.idle)
-case "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostCompact":
-    return .updateState(.working)
-case "PermissionRequest":
-    return .updateState(.permission)
-case "PreCompact":
-    return .updateState(.compacting)
-default:
-    return .ignore
-```
+| Event | Mapped State |
+|-------|--------------|
+| `SessionStart`, `Stop` | `idle` |
+| `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostCompact` | `working` |
+| `PermissionRequest` | `permission` |
+| `PreCompact` | `compacting` |
 
 Codex hooks register under `~/.codex/hooks.json` and require `features.hooks = true`
 in `~/.codex/config.toml`. Codex supports eight hook events — `SessionStart`,

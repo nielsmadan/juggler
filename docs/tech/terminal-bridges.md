@@ -28,7 +28,7 @@ protocol TerminalBridge: Sendable {
 
 ## TerminalActivation
 
-A static orchestrator (`TerminalBridge.swift:39-157`) that drives activation end-to-end:
+A static orchestrator (`TerminalBridge.swift:39-168`) that drives activation end-to-end:
 
 1. Look up the bridge for the session's `TerminalType` via `TerminalBridgeRegistry`.
 2. Call `bridge.activate(sessionID:)`.
@@ -71,7 +71,7 @@ The registry is an actor singleton. At app launch, bridges are instantiated and 
 
 | Case | Bridge |
 |------|--------|
-| `.iterm2` | `iTerm2Bridge` |
+| `.iterm2` | `ITerm2Bridge` |
 | `.kitty` | `KittyBridge` |
 | `.ghostty` | None — recognized for detection only |
 | `.wezterm` | None — recognized for detection only |
@@ -81,7 +81,7 @@ Each case carries a `bundleIdentifier` and `iconName` for app discovery and UI d
 ## Adding a New Bridge
 
 1. Create `FooBridge.swift` as `actor FooBridge: TerminalBridge`.
-2. Implement the five protocol methods. Reference `KittyBridge` for CLI-driven terminals or `iTerm2Bridge` for socket-daemon terminals.
+2. Implement the five protocol methods. Reference `KittyBridge` for CLI-driven terminals or `ITerm2Bridge` for socket-daemon terminals.
 3. Add the `TerminalType` case (`.foo`) with `bundleIdentifier` and `iconName`.
 4. Register at app init: `await TerminalBridgeRegistry.shared.register(FooBridge.shared, for: .foo)`.
 5. For inbound events (focus changes, session close), either plug into the existing `/hook` pipeline via a shell script or add a new endpoint in `HookServer`.
@@ -100,7 +100,7 @@ Session restoration happens in `SessionManager`, independent of bridge lifecycle
 
 ## Gotchas
 
-- **Timeouts** — `iTerm2Bridge` sets `activateTimeout = 2.0 s` and `highlightTimeout = 1.0 s`. Bridge methods must respect these.
+- **Timeouts** — `ITerm2Bridge` sets `activateTimeout = 2.0 s` and `highlightTimeout = 1.0 s`. Bridge methods must respect these.
 - **Sendable** — bridges must be `Sendable` so they cross actor boundaries safely.
 - **`sessionNotFound` vs `connectionFailed`** — use `.sessionNotFound` only when the terminal confirms the session is gone, so `TerminalActivation` can clean up state. Transient errors should be `.connectionFailed`.
 - **Highlight reset** — bridges that flash colors must track and cancel the reset task if a new highlight arrives before the first expires. See `KittyBridge`'s `activeTabResetTasks`.

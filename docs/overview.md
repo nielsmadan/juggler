@@ -40,7 +40,12 @@ Juggler solves the "context switching" problem when running multiple Claude Code
 - [**Tech Overview**](tech/overview.md) - Architecture and components
   - [Hook Server](tech/hook-server.md) - HTTP API for agent hooks
   - [iTerm2 Daemon](tech/iterm2-daemon.md) - Python daemon protocol
+  - [iTerm2 Bridge](tech/iterm2-bridge.md) - Daemon supervisor lifecycle and auto-recovery
+  - [Terminal Bridges](tech/terminal-bridges.md) - Bridge protocol abstracting terminal APIs
+  - [Kitty Integration](tech/kitty-integration.md) - Kitty CLI and watcher integration
   - [Session Management](tech/session-management.md) - Cycling and state logic
+  - [Busy-Time Stats](tech/stats.md) - Stats accrual, persistence, and chart/tab layout
+  - [Highlight Color](tech/highlight-color.md) - Active-session highlight color implementation
   - [Claude Code Hooks](tech/hooks.md) - Claude Code hook integration and quirks
   - [OpenCode Plugin](tech/opencode-plugin.md) - OpenCode plugin integration
   - [Codex Hooks](tech/codex-hooks.md) - Codex hook integration and trust mechanism

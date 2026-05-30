@@ -18,11 +18,11 @@ Unlike Claude Code (stateless hook scripts invoked per event), the OpenCode plug
 4. Posts a synthetic `session.created` event immediately.
 5. Subscribes to OpenCode events via the returned `event` handler.
 
-The immediate `session.created` post is deliberate: when OpenCode resumes a previous session, the real `session.created` event is not fired, so without this Juggler would not see resumed sessions. See `juggler-opencode.ts:76-78`.
+The immediate `session.created` post is deliberate: when OpenCode resumes a previous session, the real `session.created` event is not fired, so without this Juggler would not see resumed sessions. See `juggler-opencode.ts:100-102`.
 
 ## Tracked Events
 
-Only these events are forwarded (`juggler-opencode.ts:54-61`):
+Only these events are forwarded (`juggler-opencode.ts:75-84`):
 
 | OpenCode event | Forwarded as |
 |----------------|--------------|
@@ -58,17 +58,18 @@ Each forwarded event posts to `http://localhost:${JUGGLER_PORT:-7483}/hook` with
   },
   "hookInput": { "session_id": "<opencode session id>" },
   "git": { "branch": "main", "repo": "app" },
-  "tmux": { "pane": "%0" }
+  "tmux": { "pane": "%0" },
+  "remoteHost": "user@host"
 }
 ```
 
-`hookInput.session_id` is extracted from whichever of these is present: `event.properties.sessionID`, `event.properties.info.id`, `event.session_id`, `event.sessionID` (`juggler-opencode.ts:119-123`).
+`hookInput.session_id` is extracted from whichever of these is present: `event.properties.sessionID`, `event.properties.info.id`, `event.session_id`, `event.sessionID` (`juggler-opencode.ts:147-151`).
 
-Kitty fields are only included when `KITTY_WINDOW_ID` is set. `git` and `tmux` blocks are only included when available.
+Kitty fields are only included when `KITTY_WINDOW_ID` is set. `git`, `tmux`, and `remoteHost` blocks are only included when available; `remoteHost` (`user@host`) is set only when `$SSH_CONNECTION` indicates an SSH session.
 
 ## Failure Handling
 
-Every post uses `fetch` with an `AbortSignal.timeout(2000)` and a `try/catch` that silently swallows errors (`juggler-opencode.ts:99-108`). If Juggler isn't running, the plugin drops events without disturbing OpenCode.
+Every post uses `fetch` with an `AbortSignal.timeout(2000)` and a `try/catch` that silently swallows errors (`juggler-opencode.ts:127-136`). If Juggler isn't running, the plugin drops events without disturbing OpenCode.
 
 ## Differences from Claude Code Hooks
 

@@ -32,13 +32,13 @@ All mutations go through `SessionManager`. No other type writes to `activeColorI
 
 ## Relevant files
 
-- `juggler/Managers/SessionManager.swift` — color state and mutators (`activeColorIndex`, `activeColor`, `advanceColorIndex`, `setColorIndex`, `clearColorIndex`, `syncColorIndex`).
-- `juggler/Models/CyclingEngine.swift` — cycling algorithm; emits `didMove`.
-- `juggler/Models/AppConstants.swift` — `CyclingColors.palette`, `paletteRGB`, `darkPaletteRGB` (rule 7).
-- `juggler/Views/SessionListController.swift` — arrow / Tab navigation, reorder sync (rule 3), external focus handling.
-- `juggler/Views/SessionMonitorView.swift` — main-window row highlight and click-to-activate.
-- `juggler/Views/SessionRowView.swift` — popover row highlight and click-to-activate.
-- `juggler/Services/TerminalBridge.swift` — builds `HighlightConfig` from `activeColorIndex`.
+- `Juggler/Managers/SessionManager.swift` — color state and mutators (`activeColorIndex`, `activeColor`, `advanceColorIndex`, `setColorIndex`, `clearColorIndex`, `syncColorIndex`).
+- `Juggler/Models/CyclingEngine.swift` — cycling algorithm; emits `didMove`.
+- `Juggler/Models/AppConstants.swift` — `CyclingColors.palette`, `paletteRGB`, `darkPaletteRGB` (rule 7).
+- `Juggler/Views/SessionListController.swift` — arrow / Tab navigation, reorder sync (rule 3), external focus handling.
+- `Juggler/Views/SessionMonitorView.swift` — main-window row highlight and click-to-activate.
+- `Juggler/Views/SessionRowView.swift` — popover row highlight and click-to-activate.
+- `Juggler/Services/TerminalBridge.swift` — builds `HighlightConfig` from `activeColorIndex`.
 
 ---
 

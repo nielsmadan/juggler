@@ -4,11 +4,11 @@ Juggler integrates with Claude Code and OpenCode via hooks, receiving notificati
 
 ## Installation
 
-Hooks are installed to `~/.claude/hooks/` by the installation script:
+The installer copies the notification script to `~/.claude/hooks/juggler/` and registers it in `~/.claude/settings.json`:
 
 **Files:**
-- `~/.claude/hooks/juggler/notify.sh` - Main notification script
-- `~/.claude/hooks/juggler/install.sh` - Installation script (bundled in app)
+- `~/.claude/hooks/juggler/notify.sh` - Main notification script (the only file written to this path)
+- `install.sh` - Installation script, run from the app bundle; never copied into `~/.claude/hooks/juggler/`
 
 ## Hook Script
 
@@ -21,7 +21,8 @@ The script:
 3. Detects terminal type (`$ITERM_SESSION_ID` for iTerm2, `$KITTY_WINDOW_ID` for Kitty)
 4. Detects tmux pane/session if running inside tmux
 5. Enriches with git info (branch, repo name)
-6. Builds unified payload via Python (avoids shell injection) and posts to Juggler
+6. Detects an SSH session (`$SSH_CONNECTION`) and tags the payload with `remoteHost` (`user@host`)
+7. Builds unified payload via Python (avoids shell injection) and posts to Juggler
 
 The script uses `python3` with a quoted heredoc to build JSON safely from environment variables, piping directly into `curl --connect-timeout 1`. This avoids shell interpolation of user-controlled fields.
 
@@ -38,7 +39,7 @@ Claude Code invokes the hook with the event name as `$1` and a JSON blob on stdi
 | `tool_name` | yes |
 | everything else | dropped |
 
-Source: `Resources/hooks/notify.sh:64-72`.
+Source: `Resources/hooks/notify.sh:73-82`.
 
 ### Environment variables consumed
 
@@ -50,6 +51,7 @@ Source: `Resources/hooks/notify.sh:64-72`.
 | `KITTY_PID` | Kitty | Kitty process ID |
 | `TMUX_PANE` | tmux | Current pane ID (e.g., `%0`) |
 | `PWD` | shell | Working directory; also used for git detection |
+| `SSH_CONNECTION` | sshd | Presence flags an SSH session; payload gets `remoteHost` (`$USER@$HOSTNAME`, host FQDN stripped) |
 | `JUGGLER_PORT` | optional | Override port (default `7483`) |
 
 Terminal type is detected by presence: `KITTY_WINDOW_ID` wins over `ITERM_SESSION_ID`. Tmux session name is queried via `tmux display-message -p -t "$TMUX_PANE" '#{session_name}'`.
@@ -73,13 +75,15 @@ Terminal type is detected by presence: `KITTY_WINDOW_ID` wins over `ITERM_SESSIO
     "tool_name": "Bash"
   },
   "git": { "branch": "main", "repo": "app" },
-  "tmux": { "pane": "%0", "sessionName": "work" }
+  "tmux": { "pane": "%0", "sessionName": "work" },
+  "remoteHost": "user@host"
 }
 ```
 
 Optional blocks are omitted when empty:
 - `terminal.terminalType` / `kittyListenOn` / `kittyPid` — only present if the corresponding env var is set.
 - `tmux` — only present if `$TMUX_PANE` is set; `sessionName` only if `tmux display-message` succeeded.
+- `remoteHost` — only present if `$SSH_CONNECTION` is set.
 - `hookInput` — always present; may be empty `{}` if stdin is empty or unparseable.
 
 ### Delivery
@@ -177,6 +181,16 @@ echo '{"session_id":"test"}' | ~/.claude/hooks/juggler/notify.sh SessionStart
 # Check if server is running
 curl http://localhost:7483/hook -X POST -d '{"agent":"test","event":"ping"}'
 ```
+
+## Uninstall / Reset
+
+`Resources/hooks/uninstall.sh` is the single source of truth for removing **all** Juggler integrations, not just Claude Code hooks. It is run by `just reset-integration` (and `just reset-all`). In one pass it:
+
+- Removes `~/.claude/hooks/juggler/` and surgically strips Juggler's hook entries from `~/.claude/settings.json` (parser-based, leaving other hooks intact).
+- Removes the Kitty watcher (`~/.config/kitty/juggler_watcher.py`).
+- Removes the OpenCode plugin (`~/.config/opencode/plugins/juggler-opencode.ts`).
+- Removes Codex hooks (`~/.codex/hooks/juggler/`), strips Juggler entries from `~/.codex/hooks.json`, and restores `~/.codex/config.toml` from `<path>.juggler-backup` (removing the `[features] hooks` flag and `[hooks.state]` trust blocks). See [Codex Hooks](codex-hooks.md) for the install side this reverses.
+- Resets the Automation (Apple Events) permission via `tccutil`.
 
 ---
 

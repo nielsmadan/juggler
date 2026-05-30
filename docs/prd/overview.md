@@ -23,13 +23,13 @@ Juggler monitors Claude Code, OpenCode, and Codex sessions running in iTerm2 or 
 
 ## Session States
 
-| State | Icon | In Cycle | Description |
-|-------|------|----------|-------------|
-| `idle` | `●` | Yes | Waiting for user input |
-| `permission` | `●` | Yes | Waiting for user permission |
-| `working` | `○` | No | Claude is actively working |
-| `compacting` | `◎` | No | Context compaction in progress |
-| `backburner` | `◐` | No | Manually deprioritized by user |
+| State | SF Symbol | In Cycle | Description |
+|-------|-----------|----------|-------------|
+| `idle` | `figure.wave` | Yes | Waiting for user input |
+| `permission` | `figure.wave` | Yes | Waiting for user permission |
+| `working` | `figure.run` | No | The agent is actively working |
+| `compacting` | `arrow.3.trianglepath` | No | Context compaction in progress |
+| `backburner` | `moon.zzz` | No | Manually deprioritized by user |
 
 Sessions in `idle` and `permission` states are included in the cycling queue. Working and backburnered sessions are excluded.
 

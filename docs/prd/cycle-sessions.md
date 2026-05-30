@@ -32,6 +32,10 @@ Sessions in these states are **excluded** from cycling:
 
 The order of sessions depends on the **Queue Mode** setting.
 
+### Stale Sessions
+
+If activation lands on a session whose terminal tab/pane no longer exists, Juggler removes that session and silently advances to the next live one. Only the successful landing (or "All At Work" when none remain) is surfaced.
+
 ## Queue Modes
 
 Juggler offers four queue ordering modes, selectable via the segmented control in the popover or main window:
@@ -66,17 +70,19 @@ Sessions are grouped into sections based on state:
 
 ```
 ┌─────────────────────────────┐
-│ Idle (2)                    │  ← Cyclable sessions
+│ Idle                        │  ← Cyclable sessions
 │   ● my-feature              │
 │   ● api-server              │
 ├─────────────────────────────┤
-│ Busy (1)                    │  ← Working sessions
+│ Working                     │  ← Working / compacting sessions
 │   ○ data-pipeline           │
 ├─────────────────────────────┤
-│ Backburner (1)              │  ← Deprioritized
+│ Backburner                  │  ← Deprioritized
 │   ◐ old-project             │
 └─────────────────────────────┘
 ```
+
+Sectioned display applies in Fair and Prio modes; Static mode is a flat list and Grouped mode groups by terminal window.
 
 ## Backburner
 
@@ -112,22 +118,29 @@ When cycling to a session, Juggler can highlight the terminal tab/pane (iTerm2 a
 ### Tab Bar Highlighting
 
 - Flash the tab with a color
-- Configurable duration (1-5 seconds)
+- Configurable duration (1, 2, 3, or 5 seconds)
 - Optional: Use cycling colors — see [Highlight Color](highlight-color.md) for the full rule set.
 
 ### Pane Background Highlighting
 
 - Flash the pane background with a color
 - Useful for split pane layouts
-- Same duration and color options as tab highlighting
+- Independent enable and duration; shares the single "Use cycling colors" toggle with tab highlighting
 
-Settings in **Settings > Highlighting**.
+A single "Use cycling colors" toggle governs both tab and pane; highlighting can also be enabled/disabled per trigger (hotkey cycling, session select, notification click). Settings in **Settings > Highlighting**.
 
 ## Go to Next on Backburner
 
 When enabled (default), backburnering automatically cycles to the next idle session. This allows rapid triage: backburner current, immediately see next.
 
-Setting in **Settings > General**.
+Setting in **Settings > General > Backburner**.
+
+## Auto-Advance and Auto-Restart
+
+Two control-bar toggles (also bindable as Session List shortcuts) change cycling behavior automatically:
+
+- **Auto-advance** — when the current session goes busy, cycle to the next idle session.
+- **Auto-restart** — when all sessions are busy and one becomes idle, jump to it.
 
 ---
 

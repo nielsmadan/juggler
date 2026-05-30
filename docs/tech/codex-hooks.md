@@ -12,7 +12,9 @@ Codex setup is **three separate steps** (three buttons in onboarding's Integrati
 2. **Enable Feature Flag** — sets `[features] hooks = true` in `~/.codex/config.toml`. Codex ignores `hooks.json` entirely unless this flag is on.
 3. **Enable in Codex** — writes `[hooks.state]` trust records to `config.toml` so the hooks run without the manual `/hooks` review. This bypasses Codex's own trust-enabling flow; the alternative is to skip this step and run `/hooks` inside Codex to approve Juggler's hooks manually.
 
-`CodexHooksInstaller` (`Services/CodexHooksInstaller.swift`) implements all three. Each step that modifies an existing file backs it up once to `<path>.juggler-backup` before the first write.
+`CodexHooksInstaller` (`Services/CodexHooksInstaller.swift`) implements all three; this is the path the app uses (wired via `CodexSetupController`). Each step that modifies an existing file backs it up once to `<path>.juggler-backup` before the first write.
+
+`Resources/codex-hooks/codex-install.sh` is a standalone shell mirror of the same logic for non-app/manual installs — it is not invoked by the app.
 
 **Files involved:**
 - `~/.codex/hooks/juggler/notify.sh` — the hook script (bundled in the app as `Resources/codex-hooks/codex-notify.sh`).

@@ -123,6 +123,14 @@ macOS always brings the posting app to the foreground when a notification banner
 
 Juggler works with this by letting the activation complete, then yielding focus to the terminal via `yieldActivation` + `NSRunningApplication.activate()` after a short settling delay. This causes a brief flash of Juggler before the terminal takes focus. Custom `UNNotificationAction` buttons without `.foreground` can run in the background, but the default banner click cannot be intercepted.
 
+### Beacon Active-Window Positioning
+
+The `.activeWindow` beacon anchor converts the frontmost window's CoreGraphics (top-left origin) frame to AppKit (bottom-left origin) coordinates. The flip must use the **primary** screen height — `NSScreen.screens.first` (`screens[0]`), not `NSScreen.main` (which is the screen holding keyboard focus). Using `NSScreen.main` mispositions the beacon on multi-monitor setups. See `BeaconManager.frontmostWindowFrame()`.
+
+## Logging
+
+`LogManager` (`Managers/LogManager.swift`) is an in-app ring buffer (last 500 entries) surfaced in Settings > Logs. Warnings and errors are always captured; `debug`/`info` entries are recorded only when the Verbose Logging setting is on. Per-category compile-time flags also gate `print` output to Xcode. `exportAll()` backs the copy/export control.
+
 ## Topic Documentation
 
 - [Hook Server](hook-server.md) - HTTP API for hooks
@@ -130,9 +138,11 @@ Juggler works with this by letting the activation complete, then yielding focus 
 - [OpenCode Plugin](opencode-plugin.md) - TypeScript plugin integration
 - [Codex Hooks](codex-hooks.md) - Codex hook integration and trust mechanism
 - [iTerm2 Daemon](iterm2-daemon.md) - Python daemon protocol
+- [iTerm2 Bridge](iterm2-bridge.md) - Daemon supervisor lifecycle, auto-recovery, and self-healing monitors
 - [Kitty Integration](kitty-integration.md) - Kitten CLI and watcher
 - [Terminal Bridges](terminal-bridges.md) - Bridge protocol and how to add a terminal
 - [Session Management](session-management.md) - Cycling and state logic
+- [Busy-Time Stats](stats.md) - Per-session accrual, DailyStatsStore persistence, chart + corner-tab layout
 - [Session Highlight Color](highlight-color.md) - Where the highlight-color rules are implemented
 
 ---

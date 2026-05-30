@@ -10,12 +10,12 @@ The menu bar popover is Juggler's primary interface, accessible by clicking the 
 ├──────────────────────────────────────┤
 │  [ Fair ][ Prio ][ Static ][ Grouped ]│  ← Queue mode picker
 ├──────────────────────────────────────┤
-│  ● my-feature              idle  ◀── │  ← Current session indicator
-│  ● api-server (1/2)        idle      │  ← Split pane indicator
-│  ○ api-server [2/2]      working     │
-│  ◐ juggler            backburner     │
+│  ◉ my-feature                   idle │  ← Highlighted (currently active) row
+│  ◉ api-server                   idle │
+│  ◉ data-pipeline             working │
+│  ◉ juggler                backburner │
 ├──────────────────────────────────────┤
-│  ⇧⌘J/K cycle  ⇧⌘L backburner        │  ← Shortcut hints
+│  ↑/↓ navigate  L backburner  …       │  ← Shortcut hints
 └──────────────────────────────────────┘
 ```
 
@@ -38,15 +38,27 @@ See [Cycle Sessions](cycle-sessions.md#queue-modes) for details.
 ## Session List
 
 Each row shows:
-- **State icon**: `●` idle, `○` working, `◐` backburner, `◎` compacting
+- **State icon**: an SF Symbol per state (idle/permission, working, backburner, compacting)
 - **Display name**: Project folder name or custom name
-- **Pane indicator**: `(1/2)` for split panes
+- **SSH badge**: an "SSH" tag for remote sessions (hover shows user@host)
 - **State label**: "idle", "working", "backburner", etc.
-- **Current marker**: `◀──` indicates current cycling position
+
+The currently active / keyboard-selected row is shown with a highlight background rather than a separate marker.
 
 ### Row Coloring
 
 When enabled (Settings > Highlighting > Session List), the currently highlighted row is drawn in a color from a 5-color palette. Only one row is highlighted at a time, and the same color is applied to the terminal tab/pane. See [Highlight Color](highlight-color.md) for the rules that govern when the color changes.
+
+## Menu Bar Icon
+
+Left-clicking the icon opens the popover; right-clicking opens a menu with **Open Juggler**, **Settings…**, **Check for Updates…**, and **Quit**.
+
+The icon also reflects iTerm2 daemon health:
+
+- **Normal** — full opacity, no tooltip.
+- **Connecting** — tooltip "Connecting to iTerm2…".
+- **Waiting for iTerm2** — dimmed to 50% opacity, tooltip "Waiting for iTerm2 — make sure it's running and the Python API is enabled."
+- **Failed** — tinted red, tooltip "iTerm2 integration unavailable." plus the failure reason.
 
 ## Interactions
 

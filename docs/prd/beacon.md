@@ -32,19 +32,20 @@ Configurable: 0.5, 1.0, 1.5 (default), 2.0, or 3.0 seconds. The beacon fades out
 
 Each new `show()` cancels the pending dismiss task, swaps the content to the new name, and restarts the timer. The user sees a continuous beacon whose text updates in place — no stacking, no flicker.
 
+## Enabling / disabling
+
+The beacon is enabled or disabled from the Session Monitor control bar (the `light.panel` toggle) and the "Toggle Beacon" Session List shortcut (default `B`), not from the Settings window. The `Settings → Beacon` tab only exposes appearance options; those controls grey out while the beacon is off.
+
 ## Settings
 
 `Settings → Beacon`:
 
 | Control | Options |
 |---------|---------|
-| Enable | On / Off |
 | Position | Center, Top Left, Top Right, Bottom Left, Bottom Right |
 | Relative to | Screen (default), Active Window |
 | Size | XS, S, M (default), L, XL |
 | Duration | 0.5 / 1.0 / 1.5 / 2.0 / 3.0 seconds |
-
-All controls disable when the beacon is off.
 
 ### Size
 
@@ -75,7 +76,7 @@ Window: a single reused `NSPanel` (borderless, transparent, non-activating, floa
 
 Animation: 0.2 s fade-in, 0.3 s fade-out via `alphaValue`.
 
-Triggers: `HotkeyManager.handleCycleForward()` (`HotkeyManager.swift:123`) and `handleCycleBackward()` (`HotkeyManager.swift:135`).
+Triggers: cycling goes through `HotkeyManager.activateWithRetry()` (`HotkeyManager.swift:105`), which calls `BeaconManager.show(...)` on a successful landing, on "All At Work" when nothing is cyclable, or with `force: true` for "Activation Failed".
 
 ## Edge Cases
 

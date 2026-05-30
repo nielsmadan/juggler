@@ -63,13 +63,14 @@ Juggler/
 │   ├── Session.swift             # Session data model
 │   ├── SessionState.swift        # idle, working, permission, backburner, compacting
 │   ├── TerminalType.swift        # Terminal app abstraction (iTerm2, Kitty, Ghostty, WezTerm — latter two recognized but no bridge yet)
-│   └── ...                       # AppConstants, AppStorageKeys, BeaconPosition/Size/Anchor, ConfigValidator, SessionStatsCalculator, SessionTitleMode
+│   └── ...                       # AppConstants, AppStorageKeys, BeaconPosition/PositionCalculator/Size/Anchor, ConfigValidator, DailyStatsStore, SessionStatsCalculator, SessionTitleMode, StatsBarLayout
 ├── Services/
 │   ├── HookServer.swift          # HTTP server receiving hooks (/hook, /kitty-event)
 │   ├── iTerm2Bridge.swift        # Unix socket communication with Python daemon
 │   ├── KittyBridge.swift         # Kitty terminal integration via kitten CLI
 │   ├── TerminalBridge.swift      # Terminal abstraction protocol + TerminalActivation
-│   └── TerminalBridgeRegistry.swift  # Bridge registration and lifecycle
+│   ├── TerminalBridgeRegistry.swift  # Bridge registration and lifecycle
+│   └── ...                       # CodexHooksInstaller, OpenCodePluginInstaller, ScriptInstaller, ConfigFileWriter (agent integration installers)
 ├── Views/
 │   ├── AboutView.swift           # About window
 │   ├── BeaconContentView.swift   # Beacon overlay content
@@ -82,7 +83,7 @@ Juggler/
 │   ├── SessionMonitorView.swift  # Main window session list
 │   ├── SessionRowView.swift      # Individual session row
 │   ├── SettingsView.swift        # Preferences window
-│   └── ...                       # BeaconSettingsView, SessionListController, SettingWithDescription
+│   └── ...                       # BeaconSettingsView, SessionListController, SettingWithDescription, CodexSetupController, BusyStatsCorner, StatsChartView
 └── Resources/
     ├── iterm2_daemon.py          # Python daemon for iTerm2 API
     ├── juggler_watcher.py        # Kitty event watcher
@@ -92,6 +93,7 @@ Juggler/
     │   ├── notify.sh             # Hook notification script
     │   └── uninstall.sh          # Integration cleanup (single source of truth)
     ├── codex-hooks/
+    │   ├── codex-install.sh      # Codex hook install script
     │   └── codex-notify.sh       # Codex hook notification script
     └── opencode-plugin/
         └── juggler-opencode.txt  # OpenCode plugin (bundled as .txt; installer writes it to disk as .ts)
@@ -116,6 +118,10 @@ Codex hooks install the bundled `codex-notify.sh` to `~/.codex/hooks/juggler/not
 - 4-space indentation, 120 char max width
 - Use @Observable (not ObservableObject) for state
 - Use @AppStorage for UserDefaults persistence
+
+## Documentation
+
+Project docs live in `docs/` (start at `docs/overview.md`). After completing a feature, run `doc --update` to keep them current.
 
 ## Related Documentation
 

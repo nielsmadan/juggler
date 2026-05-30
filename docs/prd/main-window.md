@@ -6,108 +6,101 @@ The Session Monitor is a standalone window providing an expanded view of all ses
 
 - **Global shortcut:** `⇧⌘;` (customizable)
 - **From popover:** Click the window button (📋) in header
-- **From menu bar:** Right-click menu bar icon > "Open Monitor"
+- **From menu bar:** Right-click menu bar icon > "Open Juggler"
 
 ## Layout
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Session Monitor                                    ⚙️      │
+│  [ Fair ][ Prio ][ Static ][ Grouped ] │ ⏩  ⟳  💡           │  ← Control bar
 ├─────────────────────────────────────────────────────────────┤
-│  [ Fair ][ Prio ][ Static ][ Grouped ]                       │
-├─────────────────────────────────────────────────────────────┤
-│  Idle (2)                                                   │
+│  Idle                                                        │
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │ ● my-feature                              2m idle       ││
-│  │   ~/Projects/my-feature                                 ││
-│  │   Last: "Can you add tests for the login component?"    ││
+│  │ [icon] my-feature  [✎]                          idle    ││
+│  │ [CC ]  📁 ~/Projects/my-feature                          ││
+│  │        ⎇ feature/login                                   ││
 │  └─────────────────────────────────────────────────────────┘│
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │ ● api-server (1/2)                        5m idle       ││
-│  │   ~/Projects/api-server                                 ││
-│  │   Last: "Fix the authentication middleware"             ││
+│  │ [icon] api-server  [✎]                          idle    ││
+│  │ [CC ]  📁 ~/Projects/api-server                          ││
 │  └─────────────────────────────────────────────────────────┘│
 ├─────────────────────────────────────────────────────────────┤
-│  Busy (1)                                                   │
+│  Working                                                     │
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │ ○ data-pipeline                           working       ││
-│  │   ~/Projects/data-pipeline                              ││
+│  │ [icon] data-pipeline  [✎]                     working   ││
+│  │ [CC ]  📁 ~/Projects/data-pipeline                       ││
 │  └─────────────────────────────────────────────────────────┘│
 ├─────────────────────────────────────────────────────────────┤
-│  ▶ Idle: 7m  Airtime: 23m           42% idle    ⏹️  ⏸️     │
+│  ▁▂▅▇ ▃  2/4 busy                          busy time by day  │  ← Stats chart
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## Empty State
+
+With no tracked sessions, the window shows a "No Sessions" placeholder: *"Start or continue a session and it will show up here. Codex sessions appear after your first message."*
+
+## Control Bar
+
+A single bar at the top combines the queue mode picker with three toggle buttons:
+
+- **Queue mode picker** — Fair / Prio / Static / Grouped.
+- **Auto-advance** (`forward.fill`) — Go to the next session when the current one goes busy.
+- **Auto-restart** (`autostartstop`) — When all sessions are busy and one becomes idle, jump to it.
+- **Beacon** (`light.panel`) — Show the session-name beacon when cycling.
+
+A dismissible hint ("Hover over buttons to show help.") appears below the bar until dismissed.
+
 ## Sections
 
-Sessions are grouped into collapsible sections:
+In Fair and Prio modes, sessions are grouped into three labelled sections — **Idle**, **Working**, and **Backburner** — each with an empty-state placeholder when it has no sessions. Static mode shows a flat list; Grouped mode groups sessions by terminal window.
 
 ### Idle Section
 
 - Sessions in `idle` or `permission` state
-- Shows count in header
 - Highlighted when cycling
 
-### Busy Section
+### Working Section
 
 - Sessions in `working` or `compacting` state
-- Shows count in header
 
 ### Backburner Section
 
 - Sessions in `backburner` state
-- Shows count in header
-- Collapsed by default
 
 ## Session Cards
 
-Each session shows expanded information:
+Each session row shows:
 
 | Field | Description |
 |-------|-------------|
-| **State icon** | Visual state indicator |
-| **Display name** | Project folder or custom name |
-| **Pane info** | `(1/2)` for split panes |
-| **Time info** | Duration in current state |
+| **Agent column** | Terminal-type icon, agent initials, and an "SSH" badge for remote sessions (hover shows user@host) |
+| **State icon + label** | Visual state indicator and its text label |
+| **Display name** | Project folder or custom name, with an inline rename (pencil) button |
 | **Project path** | Full path to project directory |
-| **Last message** | Most recent user prompt (truncated) |
-| **Git info** | Branch name and repo (if available) |
+| **Git branch** | Branch name (if available) |
 
-## Stats Footer
+When stats are enabled, each card shows up to two trapezoid tabs in its corner: a **"Turn"** tab with the live duration of the current working turn (only while the session is working or compacting), and an always-present **"Today"** tab with that session's total busy time for the day.
 
-When enabled (Settings > General > Enable Stats), shows session statistics:
+## Stats Chart
 
-### Metrics
-
-- **Idle time**: Total time sessions have spent waiting
-- **Airtime**: Total time sessions have spent working
-- **Idle %**: Percentage of sessions currently idle
-
-### Controls
-
-- **Stop button** (⏹️): Reset stats to zero
-- **Play/Pause button** (⏸️): Pause/resume stats tracking
-
-### Idle Status Coloring
-
-When enabled, the footer background color indicates idle percentage:
-- **Green**: Low idle % (sessions are working)
-- **Red**: High idle % (many sessions waiting)
+When enabled (Settings > General > Stats), the footer shows a bar chart of **busy time per day** (busy time summed across all sessions). Today is the rightmost bar and grows live; older days fall off the left edge. An overlay shows the live "N/M busy" count and a "busy time by day" caption. Bars use per-day palette colors when "Use cycling colors" is on, otherwise the custom bar color; the chart has no stop/pause controls.
 
 ## Keyboard Shortcuts
 
-When window is focused:
+When window is focused (defaults shown; all configurable in Settings > Shortcuts):
 
 | Shortcut | Action |
 |----------|--------|
 | `↑`/`↓` or `J`/`K` | Navigate sessions |
+| `Tab`/`Shift+Tab` | Cycle queue mode forward/backward |
 | `Return` | Activate selected session |
 | `L` | Backburner selected |
 | `R` | Rename selected |
 | `Shift+L` | Reactivate selected |
 | `H` | Reactivate all |
-| `S` | Toggle stats pause |
-| `Shift+R` | Reset stats |
+| `B` | Toggle beacon |
+| `A` | Toggle auto-advance |
+| `Q` | Toggle auto-restart |
 
 ## Interactions
 
@@ -117,26 +110,19 @@ When window is focused:
 - Focuses corresponding tab/pane
 - Optionally highlights tab/pane
 
-### Double-Click Session
+### Rename
 
-- Same as click, plus closes window
-
-### Drag and Drop
-
-- Reorder sessions manually (in Static mode)
+- Click the inline pencil button on a row, or use the Rename shortcut.
 
 ### Context Menu
 
-Right-click on session:
-- Rename
-- Backburner / Reactivate
-- Remove
+Row context menus live in the popover (right-click a session row); the monitor window uses the inline pencil button and keyboard shortcuts for rename / backburner / reactivate. Removing a session is available from the popover row context menu (Remove).
 
 ## Window Behavior
 
-- Remembers position and size
-- Can be kept on top (Window menu > Keep on Top)
-- Standard macOS window controls (minimize, zoom, close)
+- Remembers position and size across launches.
+- Hidden title bar; content-sized window with standard close/minimize controls.
+- Optionally quits the app when closed (Settings > General > "Quit when Session Monitor is closed").
 
 ---
 
