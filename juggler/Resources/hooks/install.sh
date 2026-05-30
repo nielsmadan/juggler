@@ -86,6 +86,9 @@ hook_configs = {
     "Stop": [{
         "hooks": [{"type": "command", "command": f"{notify_cmd} Stop", "timeout": 5}]
     }],
+    "StopFailure": [{
+        "hooks": [{"type": "command", "command": f"{notify_cmd} StopFailure", "timeout": 5}]
+    }],
 
     # Context compaction
     "PreCompact": [{
@@ -124,11 +127,11 @@ PYTHON
 echo "Juggler hooks installed successfully!"
 echo "Hooks directory: $JUGGLER_HOOKS_DIR"
 echo ""
-echo "Installed hooks for 10 Claude Code events:"
+echo "Installed hooks for 11 Claude Code events:"
 echo "  - SessionStart, SessionEnd"
 echo "  - UserPromptSubmit"
 echo "  - PreToolUse, PostToolUse, PostToolUseFailure"
 echo "  - PermissionRequest"
 echo "  - SubagentStart"
-echo "  - Stop"
+echo "  - Stop, StopFailure"
 echo "  - PreCompact"

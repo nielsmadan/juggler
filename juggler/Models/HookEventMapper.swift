@@ -20,7 +20,7 @@ enum HookEventMapper {
 
     private nonisolated static func mapClaudeCode(event: String) -> MappedAction {
         switch event {
-        case "SessionStart", "Stop":
+        case "SessionStart", "Stop", "StopFailure":
             .updateState(.idle)
         case "UserPromptSubmit", "PreToolUse", "PostToolUse",
              "PostToolUseFailure", "SubagentStart":
@@ -58,7 +58,7 @@ enum HookEventMapper {
 
     private nonisolated static func mapOpenCode(event: String) -> MappedAction {
         switch event {
-        case "session.created", "session.status.idle":
+        case "session.created", "session.status.idle", "session.idle", "session.error":
             .updateState(.idle)
         case "session.status.busy", "session.status.retry":
             .updateState(.working)

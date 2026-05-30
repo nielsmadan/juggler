@@ -77,6 +77,8 @@ const TRACKED_EVENTS = new Set([
   "session.status",
   "session.deleted",
   "session.compacted",
+  "session.error",
+  "session.idle",
   "permission.asked",
   "server.instance.disposed",
 ]);

@@ -102,6 +102,10 @@ trusted_hash = "sha256:<hex>"
 
 Codex does not fire `SessionStart` when the TUI opens — only when the user submits their first prompt. A freshly opened Codex window therefore does not appear in Juggler until the first message. The Session Monitor's empty-state text notes this. There is no `SessionEnd` either, so a stopped Codex session lingers until its terminal window closes (terminal-bridge cleanup removes it then).
 
+### No Separate Failure Event
+
+Unlike Claude Code (which fires `StopFailure` on API errors instead of `Stop`) and OpenCode (which has a distinct `session.error` bus event), Codex collapses success and error turn endings into the same `Stop` event. The error context lives in the hook payload, not the event name. This means no extra hook is needed to recover from API failures — the existing `Stop` → `idle` mapping covers both paths. User interrupts and CLI crashes still fire no hook on Codex either.
+
 ### config.toml is hand-edited, not TOML-parsed
 
 `CodexHooksInstaller` does targeted string edits on `config.toml` rather than round-tripping it through a TOML library (Swift has no bundled TOML parser). The helpers (`parseBoolAssignment`, `parseStringAssignment`, `editedTOML`) handle Juggler's known-shape values and tolerate trailing `# comment`s, but are not a general TOML parser. This is why reset prefers restore-from-backup over surgical removal for `config.toml`.

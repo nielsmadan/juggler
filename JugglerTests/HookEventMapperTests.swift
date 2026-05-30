@@ -15,6 +15,11 @@ struct HookEventMapperTests {
         #expect(action == .updateState(.idle))
     }
 
+    @Test func stopFailure_mapsToIdle() {
+        let action = HookEventMapper.map(event: "StopFailure")
+        #expect(action == .updateState(.idle))
+    }
+
     // MARK: - Working State Mappings
 
     @Test func userPromptSubmit_mapsToWorking() {
@@ -146,6 +151,68 @@ struct HookEventMapperTests {
     // mapCodex is case-sensitive (exact-string switch). Pin that a lowercase event is ignored.
     @Test func codex_lowercaseEvent_mapsToIgnore() {
         let action = HookEventMapper.map(event: "sessionstart", agent: "codex")
+        #expect(action == .ignore)
+    }
+
+    // MARK: - OpenCode Mappings
+
+    @Test func opencode_sessionCreated_mapsToIdle() {
+        let action = HookEventMapper.map(event: "session.created", agent: "opencode")
+        #expect(action == .updateState(.idle))
+    }
+
+    @Test func opencode_sessionStatusIdle_mapsToIdle() {
+        let action = HookEventMapper.map(event: "session.status.idle", agent: "opencode")
+        #expect(action == .updateState(.idle))
+    }
+
+    @Test func opencode_sessionIdle_mapsToIdle() {
+        let action = HookEventMapper.map(event: "session.idle", agent: "opencode")
+        #expect(action == .updateState(.idle))
+    }
+
+    @Test func opencode_sessionError_mapsToIdle() {
+        let action = HookEventMapper.map(event: "session.error", agent: "opencode")
+        #expect(action == .updateState(.idle))
+    }
+
+    @Test func opencode_sessionStatusBusy_mapsToWorking() {
+        let action = HookEventMapper.map(event: "session.status.busy", agent: "opencode")
+        #expect(action == .updateState(.working))
+    }
+
+    @Test func opencode_sessionStatusRetry_mapsToWorking() {
+        let action = HookEventMapper.map(event: "session.status.retry", agent: "opencode")
+        #expect(action == .updateState(.working))
+    }
+
+    @Test func opencode_permissionAsked_mapsToPermission() {
+        let action = HookEventMapper.map(event: "permission.asked", agent: "opencode")
+        #expect(action == .updateState(.permission))
+    }
+
+    @Test func opencode_sessionCompacted_mapsToCompacting() {
+        let action = HookEventMapper.map(event: "session.compacted", agent: "opencode")
+        #expect(action == .updateState(.compacting))
+    }
+
+    @Test func opencode_sessionDeleted_mapsToRemoveSession() {
+        let action = HookEventMapper.map(event: "session.deleted", agent: "opencode")
+        #expect(action == .removeSession)
+    }
+
+    @Test func opencode_serverInstanceDisposed_mapsToRemoveSession() {
+        let action = HookEventMapper.map(event: "server.instance.disposed", agent: "opencode")
+        #expect(action == .removeSession)
+    }
+
+    @Test func opencode_unknownEvent_mapsToIgnore() {
+        let action = HookEventMapper.map(event: "session.future", agent: "opencode")
+        #expect(action == .ignore)
+    }
+
+    @Test func opencode_uppercaseEvent_mapsToIgnore() {
+        let action = HookEventMapper.map(event: "Session.Created", agent: "opencode")
         #expect(action == .ignore)
     }
 }

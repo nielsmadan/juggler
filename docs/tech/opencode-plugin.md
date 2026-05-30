@@ -28,6 +28,8 @@ Only these events are forwarded (`juggler-opencode.ts:54-61`):
 |----------------|--------------|
 | `session.created` | `session.created` |
 | `session.status` (with `properties.status.type`) | `session.status.<type>` — e.g., `session.status.idle`, `session.status.busy`, `session.status.retry` |
+| `session.idle` | `session.idle` |
+| `session.error` | `session.error` |
 | `session.compacted` | `session.compacted` |
 | `session.deleted` | `session.deleted` |
 | `permission.asked` | `permission.asked` |
@@ -36,6 +38,8 @@ Only these events are forwarded (`juggler-opencode.ts:54-61`):
 All other event types are ignored.
 
 `session.status` is a parent event. The plugin reads `event.properties.status.type` and forwards a synthetic `session.status.<type>` event. If `status.type` is missing, the event is dropped. This is the mapping `HookEventMapper.mapOpenCode` expects.
+
+`session.idle` and `session.error` are distinct upstream events. The mapper treats both as transitions to idle so a session does not stay stuck in working after an API/model error.
 
 ## Payload
 

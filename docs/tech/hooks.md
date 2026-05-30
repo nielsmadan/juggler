@@ -106,7 +106,8 @@ Claude Code fires these events:
 | `SubagentStop` | Task agent finished | (ignored) |
 | `PermissionRequest` | Needs permission | Set permission |
 | `PreCompact` | Context compaction | Set compacting |
-| `Stop` | Agent finished | Set idle |
+| `Stop` | Agent finished normally | Set idle |
+| `StopFailure` | Turn ended with an API error (overload, rate limit, server error, etc.) | Set idle |
 | `SessionEnd` | Session terminated | Remove session |
 
 ## Known Quirks
@@ -130,6 +131,14 @@ The `SubagentStop` event fires **asynchronously after** the main `Stop` event. T
 **Impact:** If `SubagentStop` mapped to working state, it would overwrite the idle state from `Stop`, making sessions appear stuck.
 
 **Solution:** We ignore `SubagentStop` entirely. The `Stop` event correctly indicates when the session becomes idle.
+
+### Stop Does Not Fire on API Errors
+
+Claude Code fires `Stop` only on normal turn completion. On API errors (overloaded, rate limit, authentication, billing, server, invalid request) it fires a separate `StopFailure` event instead. User interrupts (ESC) and CLI crashes fire neither.
+
+**Impact:** Without hooking `StopFailure`, sessions hit by API errors would stay stuck in `working` forever.
+
+**Solution:** Both `Stop` and `StopFailure` are hooked and mapped to `idle`. ESC interrupts and crashes are still unrecoverable from the hook layer.
 
 ### Backburner State Persistence
 
