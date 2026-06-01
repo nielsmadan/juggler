@@ -26,8 +26,9 @@ final class StatusBarManager {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         if let button = statusItem?.button {
-            button.image = NSImage(named: "juggling")
-            button.image?.isTemplate = true
+            let icon = NSImage(named: "juggling")
+            icon?.isTemplate = true
+            button.image = icon
             button.action = #selector(handleClick)
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
