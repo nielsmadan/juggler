@@ -816,9 +816,10 @@ struct HookServerTests {
 
     // MARK: - processRequest error & missing-field branches
 
-    @Test @MainActor func processRequest_postHook_missingTerminalSessionID_handlesGracefully() async {
-        // Pins current behavior: missing terminal.sessionId defaults to "" and a session IS still created
-        // (with empty terminalSessionID). No crash, 200 returned.
+    @Test @MainActor func processRequest_postHook_missingTerminalSessionID_isDropped() async {
+        // A missing terminal.sessionId has no activation address, so the event is dropped
+        // and no session is created. (Creating one minted a phantom row that could never
+        // be activated or removed — the iTerm2 daemon asserts on an empty id.) Still 200.
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)
         let body = """
@@ -829,9 +830,7 @@ struct HookServerTests {
         let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
 
         #expect(response.status == 200)
-        #expect(manager.sessions.count == 1)
-        #expect(manager.sessions[0].terminalSessionID == "")
-        #expect(manager.sessions[0].claudeSessionID == "claude-1")
+        #expect(manager.sessions.isEmpty)
     }
 
     @Test @MainActor func processRequest_postHook_missingAgent_returns400() async {

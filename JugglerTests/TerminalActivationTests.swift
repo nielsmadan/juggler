@@ -280,6 +280,39 @@ struct TerminalActivationTests {
             #expect(SessionManager.shared.sessions.map(\.id) == ["s1"])
         }
 
+        @Test @MainActor func activate_emptyTerminalSessionID_removesSessionWithoutCallingBridge() async {
+            await resetSharedState()
+            let bridge = ActivationMockBridge()
+            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+
+            // A phantom session with no terminal session ID — historically minted
+            // when a hook arrived without ITERM_SESSION_ID/KITTY_WINDOW_ID. It must
+            // be removed before reaching the bridge (an empty id makes the iTerm2
+            // daemon assert and leaves the row stuck).
+            let session = makeSession("")
+            SessionManager.shared.testSetSessions([session])
+
+            do {
+                try await TerminalActivation.activate(session: session, trigger: .hotkey)
+                Issue.record("Expected sessionNotFound to be thrown")
+            } catch let error as TerminalBridgeError {
+                switch error {
+                case let .sessionNotFound(sessionID):
+                    #expect(sessionID == "")
+                default:
+                    Issue.record("Unexpected TerminalBridgeError: \(error)")
+                }
+            } catch {
+                Issue.record("Unexpected error: \(error)")
+            }
+
+            #expect(SessionManager.shared.sessions.isEmpty)
+            let activateCalls = await bridge.recordedActivateCalls()
+            #expect(activateCalls.isEmpty)
+            let infoCalls = await bridge.recordedSessionInfoCallCount()
+            #expect(infoCalls == 0)
+        }
+
         @Test @MainActor func activate_opaqueCommandFailed_sessionGone_removesSession() async {
             await resetSharedState()
             let bridge = ActivationMockBridge()

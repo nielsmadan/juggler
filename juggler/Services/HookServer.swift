@@ -180,6 +180,22 @@ actor HookServer {
         let remoteHost = payload.remoteHost
         let compositeID = tmuxPane.map { "\(terminalSessionID):\($0)" } ?? terminalSessionID
 
+        // A session with no terminal session ID has no activation address — neither
+        // bridge (iTerm2 needs ITERM_SESSION_ID, Kitty needs KITTY_WINDOW_ID) can
+        // reach it. Creating one anyway mints a phantom row that can never be
+        // activated and never auto-removed (the iTerm2 daemon's get_session_by_id
+        // asserts on an empty id). Drop it at the door.
+        guard !terminalSessionID.isEmpty else {
+            await MainActor.run {
+                logWarning(
+                    .hooks,
+                    "Dropping hook event with empty terminal session ID "
+                        + "(agent=\(payload.agent), event=\(payload.event), cwd=\(cwd))"
+                )
+            }
+            return
+        }
+
         let terminalType: TerminalType = if let typeStr = payload.terminal?.terminalType,
                                             let type = TerminalType(rawValue: typeStr) {
             type

@@ -262,6 +262,8 @@ class iTerm2Daemon:
     async def get_session_info(self, session_id: str) -> dict[str, Any]:
         """Get info for ONE session - direct API call."""
         uuid = self._extract_uuid(session_id)
+        if not uuid:
+            return {"status": "error", "message": "Session not found"}
         session = self.app.get_session_by_id(uuid)
 
         if not session:
@@ -303,6 +305,8 @@ class iTerm2Daemon:
 
     async def activate_session(self, session_id: str) -> dict[str, Any]:
         uuid = self._extract_uuid(session_id)
+        if not uuid:
+            return {"status": "error", "message": "Session not found"}
         session = self.app.get_session_by_id(uuid)
 
         if not session:
@@ -333,6 +337,8 @@ class iTerm2Daemon:
         self, session_id: str, tab_config: Optional[dict[str, Any]], pane_config: Optional[dict[str, Any]]
     ) -> dict[str, Any]:
         uuid = self._extract_uuid(session_id)
+        if not uuid:
+            return {"status": "error", "message": "Session not found"}
         session = self.app.get_session_by_id(uuid)
 
         if not session:
@@ -430,6 +436,8 @@ class iTerm2Daemon:
 
     async def reset_highlight(self, session_id: str) -> dict[str, Any]:
         uuid = self._extract_uuid(session_id)
+        if not uuid:
+            return {"status": "error", "message": "Session not found"}
         session = self.app.get_session_by_id(uuid)
 
         if not session:
@@ -464,10 +472,19 @@ class iTerm2Daemon:
                 self.stop(unlink=False)
                 sys.exit(0)
 
-    def _extract_uuid(self, session_id: str) -> str:
-        """Extract UUID from 'w0t0p0:UUID' format."""
+    def _extract_uuid(self, session_id: Optional[str]) -> str:
+        """Extract UUID from 'w0t0p0:UUID' format.
+
+        Returns "" for missing, non-string, or blank input. Callers guard on the
+        empty result and reply "Session not found", so a malformed request (e.g.
+        no session_id, making `":" in None` raise) becomes a clean, removable
+        error instead of an opaque daemon exception that leaves a row stuck.
+        """
+        if not isinstance(session_id, str):
+            return ""
+        session_id = session_id.strip()
         if ":" in session_id:
-            return session_id.split(":", 1)[1]
+            return session_id.split(":", 1)[1].strip()
         return session_id
 
     def stop(self, unlink: bool = True) -> None:
