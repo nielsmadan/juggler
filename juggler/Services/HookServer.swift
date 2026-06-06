@@ -168,6 +168,26 @@ actor HookServer {
         }
     }
 
+    private func registerKittySocketIfNeeded(payload: UnifiedHookPayload, terminalSessionID: String) async {
+        guard let socketPath = payload.terminal?.kittyListenOn, !socketPath.isEmpty,
+              socketPath.hasPrefix("unix:"), socketPath.contains("kitty") else {
+            await MainActor.run {
+                logWarning(
+                    .kitty,
+                    "Kitty hook received but no kittyListenOn in payload (sessionID: \(terminalSessionID))"
+                )
+            }
+            return
+        }
+
+        // Ensure the bridge is started (finds kitten binary, etc.)
+        try? await TerminalBridgeRegistry.shared.start(.kitty)
+        await KittyBridge.shared.registerSocket(windowID: terminalSessionID, socketPath: socketPath)
+        await MainActor.run {
+            logDebug(.kitty, "Registered socket for window \(terminalSessionID): \(socketPath)")
+        }
+    }
+
     private func handleUnifiedHookEvent(_ payload: UnifiedHookPayload) async {
         let terminalSessionID = payload.terminal?.sessionId ?? ""
         let claudeSessionID = payload.hookInput?.sessionId ?? ""
@@ -203,21 +223,8 @@ actor HookServer {
             .iterm2
         }
 
-        if terminalType == .kitty, let socketPath = payload.terminal?.kittyListenOn, !socketPath.isEmpty,
-           socketPath.hasPrefix("unix:"), socketPath.contains("kitty") {
-            // Ensure the bridge is started (finds kitten binary, etc.)
-            try? await TerminalBridgeRegistry.shared.start(.kitty)
-            await KittyBridge.shared.registerSocket(windowID: terminalSessionID, socketPath: socketPath)
-            await MainActor.run {
-                logDebug(.kitty, "Registered socket for window \(terminalSessionID): \(socketPath)")
-            }
-        } else if terminalType == .kitty {
-            await MainActor.run {
-                logWarning(
-                    .kitty,
-                    "Kitty hook received but no kittyListenOn in payload (sessionID: \(terminalSessionID))"
-                )
-            }
+        if terminalType == .kitty {
+            await registerKittySocketIfNeeded(payload: payload, terminalSessionID: terminalSessionID)
         }
 
         await MainActor.run {
