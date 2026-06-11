@@ -35,26 +35,27 @@ struct SessionMonitorView: View {
 
     @State private var controller = SessionListController()
     @State private var isMonitorWindowKey = false
+    /// Pending scroll-into-view work. Cancelled and replaced on each request so
+    /// rapid navigation collapses to a single `scrollTo` instead of piling up.
+    @State private var scrollTask: Task<Void, Never>?
     /// Per-session Today-tab rendered width, captured via PreferenceKey so the
     /// state badge can align its horizontal center with the tab's diagonal apex.
     @State private var todayTabWidths: [String: CGFloat] = [:]
 
     @Namespace private var sessionAnimation
 
-    private var groupedSessions: [(key: String, value: [Session])] {
-        let grouped = Dictionary(grouping: sessionManager.sessions) { session in
-            session.terminalWindowName ?? "Unknown"
-        }
-        return grouped.map { (key: $0.key, value: $0.value.sorted { $0.startedAt < $1.startedAt }) }
-            .sorted { $0.key < $1.key }
-    }
-
-    private func flatIndex(for session: Session) -> Int? {
-        sessionManager.sessions.firstIndex(where: { $0.id == session.id })
-    }
-
     private var animationController: SectionAnimationController {
         sessionManager.animationController
+    }
+
+    /// Visual title for a section header. Section *order* and membership come from
+    /// `SessionManager.sessionsBySection()`; only the labels live in the view.
+    private func sectionTitle(_ section: SectionType) -> String {
+        switch section {
+        case .idle: "Idle"
+        case .working: "Working"
+        case .backburner: "Backburner"
+        }
     }
 
     private enum SectionRow: Identifiable {
@@ -68,32 +69,26 @@ struct SessionMonitorView: View {
             case let .header(section, _):
                 "header-\(section.rawValue)"
             case let .session(session):
-                "session-\(session.id)"
+                Self.sessionRowID(session.id)
             case let .placeholder(section):
                 "empty-\(section.rawValue)"
             case let .divider(section, sessionID):
                 "divider-\(section.rawValue)-\(sessionID)"
             }
         }
-    }
 
-    private func sessionsForSection(_ section: SectionType) -> [Session] {
-        sessionManager.sessions.filter { session in
-            animationController.effectiveSection(for: session) == section
+        /// Single source for a session row's scroll/identity key. `scrollToSelected`
+        /// must use this so the scroll target stays in lockstep with the row's id.
+        static func sessionRowID(_ sessionID: String) -> String {
+            "session-\(sessionID)"
         }
     }
 
     private var sectionedRows: [SectionRow] {
         var rows: [SectionRow] = []
-        let sections: [(SectionType, String)] = [
-            (.idle, "Idle"),
-            (.working, "Working"),
-            (.backburner, "Backburner")
-        ]
 
-        for (section, title) in sections {
-            rows.append(.header(section, title))
-            let sessions = sessionsForSection(section)
+        for (section, sessions) in sessionManager.sessionsBySection() {
+            rows.append(.header(section, sectionTitle(section)))
             if sessions.isEmpty {
                 rows.append(.placeholder(section))
             } else {
@@ -115,17 +110,18 @@ struct SessionMonitorView: View {
 
     var body: some View {
         mainContent
+            .background(WindowAccessor { controller.ownWindow = $0 })
             .suppressShortcutBeep()
             .focusable()
             .focusEffectDisabled()
             .onKeyPress(.downArrow) {
-                controller.moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
-                controller.trackSelectedSession(sessions: sessionManager.sessions)
+                logDebug(.navigation, "onKeyPress downArrow → moveSelection (SwiftUI focus path)")
+                controller.moveSelection(by: 1, in: sessionManager.orderedVisibleSessions())
                 return .handled
             }
             .onKeyPress(.upArrow) {
-                controller.moveSelection(by: -1, sessionCount: sessionManager.sessions.count)
-                controller.trackSelectedSession(sessions: sessionManager.sessions)
+                logDebug(.navigation, "onKeyPress upArrow → moveSelection (SwiftUI focus path)")
+                controller.moveSelection(by: -1, in: sessionManager.orderedVisibleSessions())
                 return .handled
             }
             .onKeyPress(.return) { activateSelected(); return .handled }
@@ -135,6 +131,7 @@ struct SessionMonitorView: View {
                     .environment(sessionManager)
             }
             .onChange(of: sessionManager.sessions) { _, newSessions in
+                logDebug(.navigation, "sessions changed (count=\(newSessions.count)) → syncSelection")
                 controller.syncSelection(sessions: newSessions)
                 let alive = Set(newSessions.map(\.id))
                 todayTabWidths = todayTabWidths.filter { alive.contains($0.key) }
@@ -143,8 +140,10 @@ struct SessionMonitorView: View {
                 controller.syncSelection(sessions: sessionManager.sessions)
                 controller.reloadShortcuts()
                 controller.installKeyMonitor(
+                    owner: "Monitor",
                     sessionManager: sessionManager,
                     queueOrderMode: $queueOrderMode,
+                    visibleSessions: { sessionManager.orderedVisibleSessions() },
                     extraHandler: { event in
                         var handled = false
                         for (matcher, action) in [
@@ -167,37 +166,40 @@ struct SessionMonitorView: View {
             }
             .onDisappear {
                 controller.removeKeyMonitor()
+                scrollTask?.cancel()
             }
             .onChange(of: queueOrderMode) { _, newMode in
                 if let mode = QueueOrderMode(rawValue: newMode) {
                     sessionManager.reorderForMode(mode)
                 }
             }
-            .onChange(of: sessionManager.currentSession?.id) { _, _ in
-                if let current = sessionManager.currentSession,
-                   let index = sessionManager.sessions.firstIndex(where: { $0.id == current.id }) {
-                    controller.setSelection(to: index, sessions: sessionManager.sessions)
+            .onChange(of: sessionManager.currentSession?.id) { _, newID in
+                if let current = sessionManager.currentSession {
+                    logDebug(.navigation, "currentSession changed → \(newID ?? "nil") → setSelection(\(current.id))")
+                    controller.setSelection(toSessionID: current.id)
                 }
             }
             .onChange(of: sessionManager.focusedSessionID) { _, newFocusedID in
                 guard let focusedID = newFocusedID else { return }
-                if let index = sessionManager.sessions.firstIndex(where: {
+                if let session = sessionManager.sessions.first(where: {
                     $0.terminalSessionID == focusedID || $0.id == focusedID
                 }) {
-                    controller.setSelection(to: index, sessions: sessionManager.sessions)
+                    logDebug(.navigation, "focusedSessionID changed → \(focusedID) → setSelection(\(session.id))")
+                    controller.setSelection(toSessionID: session.id)
                 }
             }
             .onChange(of: sessionManager.isSessionFocused) { _, isFocused in
-                // Resync selectedIndex when a terminal becomes active, so arrow-key
+                // Resync selection when a terminal becomes active, so arrow-key
                 // drift in the monitor doesn't persist when returning to the terminal.
                 // Skip if an activation is in flight — the focus event for the target
                 // session hasn't arrived yet, so resyncing would flash the old session.
                 if isFocused, sessionManager.activationTarget == nil,
                    let focusedID = sessionManager.focusedSessionID,
-                   let index = sessionManager.sessions.firstIndex(where: {
+                   let session = sessionManager.sessions.first(where: {
                        $0.terminalSessionID == focusedID || $0.id == focusedID
                    }) {
-                    controller.setSelection(to: index, sessions: sessionManager.sessions)
+                    logDebug(.navigation, "isSessionFocused → true → setSelection(\(session.id))")
+                    controller.setSelection(toSessionID: session.id)
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
@@ -260,11 +262,25 @@ struct SessionMonitorView: View {
 
     @ViewBuilder
     private var sessionList: some View {
+        ScrollViewReader { proxy in
+            sessionListContent
+                .onChange(of: controller.selectedSessionID) { _, _ in scrollToSelected(proxy) }
+                .onChange(of: isMonitorWindowKey) { _, isKey in
+                    if isKey { scrollToSelected(proxy) }
+                }
+                // Switching modes swaps the container (List ↔ LazyVStack) and its
+                // row-id scheme, so re-reveal the selection in the new layout.
+                .onChange(of: queueOrderMode) { _, _ in scrollToSelected(proxy) }
+        }
+    }
+
+    @ViewBuilder
+    private var sessionListContent: some View {
         if queueOrderMode == QueueOrderMode.grouped.rawValue {
             List {
-                ForEach(groupedSessions, id: \.key) { windowName, sessions in
-                    Section(header: Text(windowName)) {
-                        ForEach(sessions) { session in
+                ForEach(sessionManager.sessionsByWindowGroup(), id: \.key) { group in
+                    Section(header: Text(group.key)) {
+                        ForEach(group.sessions) { session in
                             listSessionRow(session)
                         }
                     }
@@ -300,6 +316,46 @@ struct SessionMonitorView: View {
                     value: sessionManager.sessions.map(\.id)
                 )
             }
+        }
+    }
+
+    /// True for the Fair/Prio modes, which render a `LazyVStack` keyed by
+    /// `SectionRow.id`; false for Static/Grouped, whose `List` rows are keyed by
+    /// the bare `session.id`. Determines which scroll-target key to use.
+    private var usesSectionRowIDs: Bool {
+        queueOrderMode != QueueOrderMode.grouped.rawValue
+            && queueOrderMode != QueueOrderMode.static.rawValue
+    }
+
+    private func scrollToSelected(_ proxy: ScrollViewProxy) {
+        guard let id = controller.selectedSessionID,
+              let session = sessionManager.sessions.first(where: { $0.id == id }) else {
+            logDebug(.navigation, "scrollToSelected skipped — no valid selection")
+            return
+        }
+
+        // In the sectioned (Fair/Prio) layout a row only exists while it's
+        // rendered — a session mid-DOWN-animation has no effective section and
+        // isn't in `sectionedRows`, so scrolling to it would target a missing id
+        // (and fire scrolls at a row set that's still moving).
+        if usesSectionRowIDs, animationController.effectiveSection(for: session) == nil {
+            logDebug(.navigation, "scrollToSelected skipped — selected row not rendered (mid-animation): \(id)")
+            return
+        }
+
+        let target: String = usesSectionRowIDs ? SectionRow.sessionRowID(id) : id
+        logDebug(.navigation, "scrollToSelected scheduling scrollTo(\(target))")
+
+        // Coalesce: cancel any pending scroll and schedule one a frame out. Rapid
+        // navigation collapses to a single scrollTo on the latest selection rather
+        // than enqueuing many async calls that fight each other and thrash the
+        // animating LazyVStack into a layout hang. The short delay also lets a
+        // freshly-shown window complete a layout pass before we scroll.
+        scrollTask?.cancel()
+        scrollTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(16))
+            guard !Task.isCancelled else { return }
+            proxy.scrollTo(target)
         }
     }
 
@@ -390,7 +446,6 @@ struct SessionMonitorView: View {
     /// Row view for List (static mode)
     @ViewBuilder
     private func listSessionRow(_ session: Session) -> some View {
-        let index = flatIndex(for: session)
         HStack(alignment: .top, spacing: 8) {
             agentColumn(session)
             // List rows have no outer horizontal padding — the List itself manages insets.
@@ -403,16 +458,18 @@ struct SessionMonitorView: View {
                 BusyStatsCorner(
                     session: session,
                     highlightColor: highlightColor,
-                    isActive: isActiveRow(index: index)
+                    isActive: isActiveRow(session)
                 )
             }
         }
         .onPreferenceChange(TodayTabWidthKey.self) { width in
-            if width > 0 { todayTabWidths[session.id] = width }
+            // Only write on an actual change — the dictionary feeds `stateBadgeOffset`,
+            // so an unconditional assignment re-invalidates layout every pass.
+            if width > 0, todayTabWidths[session.id] != width { todayTabWidths[session.id] = width }
         }
         .contentShape(Rectangle())
         .listRowBackground(
-            isActiveRow(index: index)
+            isActiveRow(session)
                 ? highlightColor.opacity(0.15)
                 : Color.clear
         )
@@ -422,14 +479,13 @@ struct SessionMonitorView: View {
         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
     }
 
-    private func isActiveRow(index: Int?) -> Bool {
-        (sessionManager.isSessionFocused || isMonitorWindowKey) && controller.selectedIndex == index
+    private func isActiveRow(_ session: Session) -> Bool {
+        (sessionManager.isSessionFocused || isMonitorWindowKey) && controller.selectedSessionID == session.id
     }
 
     /// Row view for ScrollView (Fair/Prio mode with animations)
     @ViewBuilder
     private func scrollViewSessionRow(_ session: Session) -> some View {
-        let index = flatIndex(for: session)
         let isDownAnimation = animationController.isDownAnimating(sessionID: session.id)
 
         let row = HStack(alignment: .top, spacing: 8) {
@@ -441,7 +497,7 @@ struct SessionMonitorView: View {
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            isActiveRow(index: index)
+            isActiveRow(session)
                 ? highlightColor.opacity(0.15)
                 : Color.clear
         )
@@ -450,12 +506,14 @@ struct SessionMonitorView: View {
                 BusyStatsCorner(
                     session: session,
                     highlightColor: highlightColor,
-                    isActive: isActiveRow(index: index)
+                    isActive: isActiveRow(session)
                 )
             }
         }
         .onPreferenceChange(TodayTabWidthKey.self) { width in
-            if width > 0 { todayTabWidths[session.id] = width }
+            // Only write on an actual change — the dictionary feeds `stateBadgeOffset`,
+            // so an unconditional assignment re-invalidates layout every pass.
+            if width > 0, todayTabWidths[session.id] != width { todayTabWidths[session.id] = width }
         }
         .contentShape(Rectangle())
         .onTapGesture {
@@ -565,16 +623,15 @@ struct SessionMonitorView: View {
     }
 
     private func activateSelected() {
-        guard let index = controller.selectedIndex,
-              index < sessionManager.sessions.count else { return }
-        activateSession(sessionManager.sessions[index])
+        guard let id = controller.selectedSessionID,
+              let session = sessionManager.sessions.first(where: { $0.id == id }) else { return }
+        activateSession(session)
     }
 
     private func activateSession(_ session: Session) {
         // Only update color when clicking a different session (not Enter on already-selected)
-        if let index = sessionManager.sessions.firstIndex(where: { $0.id == session.id }),
-           controller.selectedIndex != index {
-            sessionManager.setColorIndex(to: index)
+        if controller.selectedSessionID != session.id {
+            sessionManager.syncColorIndex(toSessionID: session.id)
         }
         sessionManager.beginActivation(targetSessionID: session.id)
         Task {
@@ -585,10 +642,6 @@ struct SessionMonitorView: View {
             }
             sessionManager.endActivation()
         }
-    }
-
-    private func formatDuration(_ seconds: TimeInterval) -> String {
-        SessionStatsCalculator.formatDuration(seconds)
     }
 
     // MARK: - Shortcuts Reference

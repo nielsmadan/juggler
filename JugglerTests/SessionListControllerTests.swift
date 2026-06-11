@@ -12,115 +12,162 @@ struct SessionListControllerTests {
         return NSEvent(cgEvent: event)!
     }
 
+    /// Snapshot the given `UserDefaults.standard` keys and return a restore closure
+    /// to call in `defer`. Shortcut persistence shares `.standard` with the running
+    /// app, so a test that `save`s/`remove`s a binding would otherwise wipe the
+    /// developer's real app config — restore the original value, don't just delete.
+    private func preserveDefaults(_ keys: String...) -> () -> Void {
+        let snapshot = keys.map { ($0, UserDefaults.standard.object(forKey: $0)) }
+        return {
+            for (key, value) in snapshot {
+                if let value { UserDefaults.standard.set(value, forKey: key) }
+                else { UserDefaults.standard.removeObject(forKey: key) }
+            }
+        }
+    }
+
     // MARK: - moveSelection Tests
+
+    //
+    // Selection is id-based and moves within the *visible* (rendered) order passed
+    // in — not the raw `sessions` array index — so navigation follows what's on
+    // screen even when the backing array drifts out of section order.
 
     @Test func moveSelection_fromNil_downGoesToFirst() {
         let controller = SessionListController()
-        #expect(controller.selectedIndex == nil)
+        let visible = [makeSession("A"), makeSession("B"), makeSession("C")]
+        #expect(controller.selectedSessionID == nil)
 
-        controller.moveSelection(by: 1, sessionCount: 3)
+        controller.moveSelection(by: 1, in: visible)
 
-        #expect(controller.selectedIndex == 0)
+        #expect(controller.selectedSessionID == "A")
     }
 
     @Test func moveSelection_fromNil_upGoesToLast() {
         let controller = SessionListController()
+        let visible = [makeSession("A"), makeSession("B"), makeSession("C")]
 
-        controller.moveSelection(by: -1, sessionCount: 3)
+        controller.moveSelection(by: -1, in: visible)
 
-        #expect(controller.selectedIndex == 2)
+        #expect(controller.selectedSessionID == "C")
     }
 
     @Test func moveSelection_wrapsForward() {
         let controller = SessionListController()
-        controller.moveSelection(by: 1, sessionCount: 3)
-        controller.moveSelection(by: 1, sessionCount: 3)
-        controller.moveSelection(by: 1, sessionCount: 3)
-        controller.moveSelection(by: 1, sessionCount: 3)
+        let visible = [makeSession("A"), makeSession("B"), makeSession("C")]
+        controller.moveSelection(by: 1, in: visible)
+        controller.moveSelection(by: 1, in: visible)
+        controller.moveSelection(by: 1, in: visible)
+        controller.moveSelection(by: 1, in: visible)
 
-        #expect(controller.selectedIndex == 0)
+        #expect(controller.selectedSessionID == "A")
     }
 
     @Test func moveSelection_wrapsBackward() {
         let controller = SessionListController()
-        controller.moveSelection(by: 1, sessionCount: 3)
-        controller.moveSelection(by: -1, sessionCount: 3)
+        let visible = [makeSession("A"), makeSession("B"), makeSession("C")]
+        controller.moveSelection(by: 1, in: visible)
+        controller.moveSelection(by: -1, in: visible)
 
-        #expect(controller.selectedIndex == 2)
+        #expect(controller.selectedSessionID == "C")
     }
 
-    @Test func moveSelection_emptyCount_noOp() {
+    @Test func moveSelection_emptyVisible_noOp() {
         let controller = SessionListController()
 
-        controller.moveSelection(by: 1, sessionCount: 0)
+        controller.moveSelection(by: 1, in: [])
 
-        #expect(controller.selectedIndex == nil)
+        #expect(controller.selectedSessionID == nil)
+    }
+
+    /// The core regression, end-to-end: the raw `sessions` array is deliberately
+    /// NOT section-grouped (idle, working, idle), but driving `moveSelection` with
+    /// `orderedVisibleSessions()` walks the *rendered* (grouped) order — so it never
+    /// skips the trailing idle row the way raw-index navigation did.
+    @Test @MainActor func moveSelection_followsVisibleOrder_notRawArrayOrder() {
+        let key = "queueOrderMode"
+        let previous = UserDefaults.standard.string(forKey: key)
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: key)
+        defer {
+            if let previous { UserDefaults.standard.set(previous, forKey: key) }
+            else { UserDefaults.standard.removeObject(forKey: key) }
+        }
+
+        let controller = SessionListController()
+        let manager = SessionManager()
+        // Ungrouped raw order: idle, working, idle. Raw-index nav would visit
+        // idleA → work1 → idleB (skipping idleB visually); visible order is
+        // idleA → idleB → work1.
+        manager.testSetSessions([
+            makeSession("idleA", state: .idle),
+            makeSession("work1", state: .working),
+            makeSession("idleB", state: .idle)
+        ])
+
+        var seen: [String] = []
+        for _ in 0 ..< 3 {
+            controller.moveSelection(by: 1, in: manager.orderedVisibleSessions())
+            seen.append(controller.selectedSessionID ?? "nil")
+        }
+
+        #expect(seen == ["idleA", "idleB", "work1"])
+        #expect(seen != manager.sessions.map(\.terminalSessionID)) // not raw order
+    }
+
+    /// When the selected session is temporarily absent from the visible list (e.g.
+    /// mid section-animation), moving holds the selection instead of jumping to
+    /// first/last.
+    @Test func moveSelection_holdsWhenSelectionNotInVisible() {
+        let controller = SessionListController()
+        controller.moveSelection(by: 1, in: [makeSession("A"), makeSession("B")]) // A
+        #expect(controller.selectedSessionID == "A")
+
+        // "A" no longer in the visible list — selection must not jump.
+        controller.moveSelection(by: 1, in: [makeSession("B"), makeSession("C")])
+        #expect(controller.selectedSessionID == "A")
     }
 
     // MARK: - syncSelection Tests
 
-    @Test func syncSelection_preservesSelectionByID_acrossReorder() {
+    @Test func syncSelection_keepsSelection_acrossReorder() {
         let controller = SessionListController()
         let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
 
-        // Select "B" (index 1)
-        controller.moveSelection(by: 1, sessionCount: 3)
-        controller.moveSelection(by: 1, sessionCount: 3)
-        controller.trackSelectedSession(sessions: sessions)
+        controller.moveSelection(by: 1, in: sessions) // A
+        controller.moveSelection(by: 1, in: sessions) // B
+        #expect(controller.selectedSessionID == "B")
 
-        #expect(controller.selectedIndex == 1)
-
-        // Reorder: B moves to index 0
+        // Reorder — id-based selection is inherently stable.
         let reordered = [sessions[1], sessions[0], sessions[2]] // B, A, C
-
         controller.syncSelection(sessions: reordered)
 
-        #expect(controller.selectedIndex == 0) // "B" is now at 0
+        #expect(controller.selectedSessionID == "B")
     }
 
-    @Test func syncSelection_fallsBackToZero_whenIDLost() {
+    @Test func syncSelection_fallsBackToFirst_whenSelectionLost() {
         let controller = SessionListController()
         let sessions = [makeSession("A"), makeSession("B")]
 
-        // Select "B" (index 1)
-        controller.moveSelection(by: 1, sessionCount: 2)
-        controller.moveSelection(by: 1, sessionCount: 2)
-        controller.trackSelectedSession(sessions: sessions)
+        controller.moveSelection(by: 1, in: sessions) // A
+        controller.moveSelection(by: 1, in: sessions) // B
 
-        // Session B removed
+        // Session B removed.
         let reduced = [makeSession("A")]
         controller.syncSelection(sessions: reduced)
 
-        #expect(controller.selectedIndex == 0)
+        #expect(controller.selectedSessionID == "A")
     }
 
     @Test func syncSelection_emptySessions_clearsSelection() {
         let controller = SessionListController()
         let sessions = [makeSession("A")]
 
-        controller.moveSelection(by: 1, sessionCount: 1)
-        controller.trackSelectedSession(sessions: sessions)
-        #expect(controller.selectedIndex == 0)
+        controller.moveSelection(by: 1, in: sessions)
+        #expect(controller.selectedSessionID == "A")
 
         controller.syncSelection(sessions: [])
 
-        #expect(controller.selectedIndex == nil)
-    }
-
-    @Test func syncSelection_indexOutOfBounds_resetsToZero() {
-        let controller = SessionListController()
-
-        // Simulate stale index by selecting far then shrinking
-        let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
-        controller.moveSelection(by: 1, sessionCount: 3)
-        controller.moveSelection(by: 1, sessionCount: 3)
-        controller.moveSelection(by: 1, sessionCount: 3)
-        // Don't track by ID — simulate stale index
-
-        let smaller = [makeSession("X")]
-        controller.syncSelection(sessions: smaller)
-
-        #expect(controller.selectedIndex == 0)
+        #expect(controller.selectedSessionID == nil)
     }
 
     // MARK: - cycleMode Tests
@@ -167,20 +214,19 @@ struct SessionListControllerTests {
 
     // MARK: - backburnerSelected Tests
 
-    @Test @MainActor func backburnerSelected_validIndex_backburners() {
+    @Test @MainActor func backburnerSelected_validSelection_backburners() {
         let controller = SessionListController()
         let manager = SessionManager()
         manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
 
-        controller.moveSelection(by: 1, sessionCount: 2) // selectedIndex = 0 → s1
-        let selectedSession = manager.sessions[controller.selectedIndex!]
-        #expect(selectedSession.id == "s1")
-        manager.testApplyStateChange(sessionID: selectedSession.id, from: .idle, to: .backburner)
+        controller.moveSelection(by: 1, in: manager.sessions) // s1
+        #expect(controller.selectedSessionID == "s1")
+        controller.backburnerSelected(sessionManager: manager)
 
         #expect(manager.sessions.first { $0.id == "s1" }?.state == .backburner)
     }
 
-    @Test func backburnerSelected_nilIndex_noOp() {
+    @Test func backburnerSelected_noSelection_noOp() {
         let controller = SessionListController()
         let manager = SessionManager()
         manager.testSetSessions([makeSession("s1")])
@@ -192,19 +238,18 @@ struct SessionListControllerTests {
 
     // MARK: - reactivateSelected Tests
 
-    @Test @MainActor func reactivateSelected_validIndex_reactivates() {
+    @Test @MainActor func reactivateSelected_validSelection_reactivates() {
         let controller = SessionListController()
         let manager = SessionManager()
         manager.testSetSessions([makeSession("s1", state: .backburner)])
 
-        controller.moveSelection(by: 1, sessionCount: 1)
-        let selectedSession = manager.sessions[controller.selectedIndex!]
-        manager.testApplyStateChange(sessionID: selectedSession.id, from: .backburner, to: .idle)
+        controller.moveSelection(by: 1, in: manager.sessions) // s1
+        controller.reactivateSelected(sessionManager: manager)
 
         #expect(manager.sessions.first { $0.id == "s1" }?.state == .idle)
     }
 
-    @Test func reactivateSelected_nilIndex_noOp() {
+    @Test func reactivateSelected_noSelection_noOp() {
         let controller = SessionListController()
         let manager = SessionManager()
         manager.testSetSessions([makeSession("s1", state: .backburner)])
@@ -216,38 +261,23 @@ struct SessionListControllerTests {
 
     // MARK: - renameSelected Tests
 
-    @Test func renameSelected_validIndex_setsSessionToRename() {
+    @Test func renameSelected_validSelection_setsSessionToRename() {
         let controller = SessionListController()
         let sessions = [makeSession("s1"), makeSession("s2")]
 
-        controller.moveSelection(by: 1, sessionCount: 2)
+        controller.moveSelection(by: 1, in: sessions) // s1
         controller.renameSelected(sessions: sessions)
 
         #expect(controller.sessionToRename?.terminalSessionID == "s1")
     }
 
-    @Test func renameSelected_nilIndex_noOp() {
+    @Test func renameSelected_noSelection_noOp() {
         let controller = SessionListController()
         let sessions = [makeSession("s1")]
 
         controller.renameSelected(sessions: sessions)
 
         #expect(controller.sessionToRename == nil)
-    }
-
-    // MARK: - trackSelectedSession Tests
-
-    @Test func trackSelectedSession_updatesInternalID() {
-        let controller = SessionListController()
-        let sessions = [makeSession("A"), makeSession("B")]
-
-        controller.moveSelection(by: 1, sessionCount: 2) // → 0
-        controller.trackSelectedSession(sessions: sessions)
-
-        let reordered = [sessions[1], sessions[0]] // B, A
-        controller.syncSelection(sessions: reordered)
-
-        #expect(controller.selectedIndex == 1) // "A" moved to index 1
     }
 
     // MARK: - reloadShortcuts Tests
@@ -258,13 +288,14 @@ struct SessionListControllerTests {
             AppStorageKeys.localShortcutToggleAutoNext,
             AppStorageKeys.localShortcutToggleAutoRestart
         ]
+        let restore = preserveDefaults(
+            AppStorageKeys.localShortcutToggleBeacon,
+            AppStorageKeys.localShortcutToggleAutoNext,
+            AppStorageKeys.localShortcutToggleAutoRestart
+        )
+        defer { restore() }
         for key in keys {
             UserDefaults.standard.removeObject(forKey: key)
-        }
-        defer {
-            for key in keys {
-                UserDefaults.standard.removeObject(forKey: key)
-            }
         }
 
         let controller = SessionListController()
@@ -275,14 +306,15 @@ struct SessionListControllerTests {
     }
 
     @Test @MainActor func reloadShortcuts_prefersSavedValues() {
+        let restore = preserveDefaults(
+            AppStorageKeys.localShortcutMoveDown,
+            AppStorageKeys.localShortcutRename
+        )
+        defer { restore() }
         let savedMoveDown = DiscreteShortcut(keyCode: 15, modifiers: .command)
         let savedRename = DiscreteShortcut(keyCode: 17, modifiers: .shift)
         savedMoveDown.save(to: AppStorageKeys.localShortcutMoveDown)
         savedRename.save(to: AppStorageKeys.localShortcutRename)
-        defer {
-            DiscreteShortcut.remove(from: AppStorageKeys.localShortcutMoveDown)
-            DiscreteShortcut.remove(from: AppStorageKeys.localShortcutRename)
-        }
 
         let controller = SessionListController()
 
@@ -307,13 +339,15 @@ struct SessionListControllerTests {
 
     // MARK: - handleKeyEvent Tests
 
-    @Test @MainActor func handleKeyEvent_moveDown_updatesSelectionAndTracksSession() {
+    @Test @MainActor func handleKeyEvent_moveDown_updatesSelection() {
         let controller = SessionListController()
         let manager = SessionManager()
         manager.testSetSessions([makeSession("s1"), makeSession("s2")])
+        controller.visibleSessionsProvider = { manager.sessions }
+        let restore = preserveDefaults(AppStorageKeys.localShortcutMoveDown)
+        defer { restore() }
         let shortcut = DiscreteShortcut(keyCode: 125, modifiers: [])
         shortcut.save(to: AppStorageKeys.localShortcutMoveDown)
-        defer { DiscreteShortcut.remove(from: AppStorageKeys.localShortcutMoveDown) }
         controller.reloadShortcuts()
         var queueMode = QueueOrderMode.fair.rawValue
 
@@ -324,19 +358,21 @@ struct SessionListControllerTests {
         )
 
         #expect(handled == true)
-        #expect(controller.selectedIndex == 0)
+        #expect(controller.selectedSessionID == "s1")
 
+        // Selection survives a reorder — it's tracked by id.
         manager.testSetSessions([manager.sessions[1], manager.sessions[0]])
         controller.syncSelection(sessions: manager.sessions)
-        #expect(controller.selectedIndex == 1)
+        #expect(controller.selectedSessionID == "s1")
     }
 
     @Test @MainActor func handleKeyEvent_cycleModeForward_updatesQueueMode() {
         let controller = SessionListController()
         let manager = SessionManager()
+        let restore = preserveDefaults(AppStorageKeys.localShortcutCycleModeForward)
+        defer { restore() }
         let shortcut = DiscreteShortcut(keyCode: 124, modifiers: .command)
         shortcut.save(to: AppStorageKeys.localShortcutCycleModeForward)
-        defer { DiscreteShortcut.remove(from: AppStorageKeys.localShortcutCycleModeForward) }
         controller.reloadShortcuts()
         var queueMode = QueueOrderMode.fair.rawValue
 
@@ -354,10 +390,12 @@ struct SessionListControllerTests {
         let controller = SessionListController()
         let manager = SessionManager()
         manager.testSetSessions([makeSession("s1"), makeSession("s2")])
-        controller.moveSelection(by: 1, sessionCount: 2)
+        controller.visibleSessionsProvider = { manager.sessions }
+        controller.moveSelection(by: 1, in: manager.sessions) // s1
+        let restore = preserveDefaults(AppStorageKeys.localShortcutBackburner)
+        defer { restore() }
         let shortcut = DiscreteShortcut(keyCode: 11, modifiers: .shift)
         shortcut.save(to: AppStorageKeys.localShortcutBackburner)
-        defer { DiscreteShortcut.remove(from: AppStorageKeys.localShortcutBackburner) }
         controller.reloadShortcuts()
         var queueMode = QueueOrderMode.fair.rawValue
 
@@ -390,13 +428,15 @@ struct SessionListControllerTests {
         let controller = SessionListController()
         let manager = SessionManager()
         manager.testSetSessions([makeSession("s1"), makeSession("s2")])
+        controller.visibleSessionsProvider = { manager.sessions }
+        let restore = preserveDefaults(AppStorageKeys.localShortcutMoveDown)
+        defer { restore() }
         // Two-step sequence: A (keyCode 0) then T (keyCode 17).
         let shortcut = DiscreteShortcut(steps: [
             .init(keyCode: 0, modifiers: []),
             .init(keyCode: 17, modifiers: [])
         ])
         shortcut.save(to: AppStorageKeys.localShortcutMoveDown)
-        defer { DiscreteShortcut.remove(from: AppStorageKeys.localShortcutMoveDown) }
         controller.reloadShortcuts()
         var queueMode = QueueOrderMode.fair.rawValue
 
@@ -404,26 +444,28 @@ struct SessionListControllerTests {
         _ = controller.handleKeyEvent(
             makeKeyEvent(keyCode: 0), sessionManager: manager, queueOrderMode: &queueMode
         )
-        #expect(controller.selectedIndex == nil)
+        #expect(controller.selectedSessionID == nil)
 
         // Second step completes the sequence and fires.
         let handled = controller.handleKeyEvent(
             makeKeyEvent(keyCode: 17), sessionManager: manager, queueOrderMode: &queueMode
         )
         #expect(handled == true)
-        #expect(controller.selectedIndex == 0)
+        #expect(controller.selectedSessionID == "s1")
     }
 
     @Test @MainActor func handleKeyEvent_multiStepShortcut_wrongSecondKeyResetsSequence() {
         let controller = SessionListController()
         let manager = SessionManager()
         manager.testSetSessions([makeSession("s1"), makeSession("s2")])
+        controller.visibleSessionsProvider = { manager.sessions }
+        let restore = preserveDefaults(AppStorageKeys.localShortcutMoveDown)
+        defer { restore() }
         let shortcut = DiscreteShortcut(steps: [
             .init(keyCode: 0, modifiers: []),
             .init(keyCode: 17, modifiers: [])
         ])
         shortcut.save(to: AppStorageKeys.localShortcutMoveDown)
-        defer { DiscreteShortcut.remove(from: AppStorageKeys.localShortcutMoveDown) }
         controller.reloadShortcuts()
         var queueMode = QueueOrderMode.fair.rawValue
 
@@ -436,23 +478,24 @@ struct SessionListControllerTests {
         )
 
         #expect(handled == false)
-        #expect(controller.selectedIndex == nil)
+        #expect(controller.selectedSessionID == nil)
     }
 
-    // MARK: - activeColorIndex Tests (color now lives on SessionManager)
+    // MARK: - activeColorIndex Tests (color is an independent cycling counter)
 
     @Test @MainActor func moveSelection_advancesActiveColorIndex() {
         let manager = SessionManager.shared
         manager.clearColorIndex()
         let controller = SessionListController()
+        let visible = (1 ... 5).map { makeSession("s\($0)") }
 
-        controller.moveSelection(by: 1, sessionCount: 5)
+        controller.moveSelection(by: 1, in: visible)
         #expect(manager.activeColorIndex == 1)
 
-        controller.moveSelection(by: 1, sessionCount: 5)
+        controller.moveSelection(by: 1, in: visible)
         #expect(manager.activeColorIndex == 2)
 
-        controller.moveSelection(by: -1, sessionCount: 5)
+        controller.moveSelection(by: -1, in: visible)
         #expect(manager.activeColorIndex == 1)
     }
 
@@ -493,32 +536,28 @@ struct SessionListControllerTests {
         let controller = SessionListController()
         let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
 
-        controller.moveSelection(by: 1, sessionCount: 3)
-        controller.trackSelectedSession(sessions: sessions)
+        controller.moveSelection(by: 1, in: sessions) // A, color → 1
         #expect(manager.activeColorIndex == 1)
 
-        // Reorder: A moves to index 2
+        // Reorder: A moves to the end. Selection stays "A" (by id); color preserved.
         let reordered = [sessions[1], sessions[2], sessions[0]]
         controller.syncSelection(sessions: reordered)
 
-        // Color preserved across reorder
-        #expect(controller.selectedIndex == 2)
+        #expect(controller.selectedSessionID == "A")
         #expect(manager.activeColorIndex == 1)
     }
 
-    @Test @MainActor func syncSelection_sessionRemoved_resetsActiveColor() {
+    @Test @MainActor func syncSelection_sessionRemoved_fallsBackToFirst() {
         let manager = SessionManager.shared
         manager.clearColorIndex()
         let controller = SessionListController()
         let sessions = [makeSession("A"), makeSession("B")]
 
-        controller.moveSelection(by: 1, sessionCount: 2)
-        controller.moveSelection(by: 1, sessionCount: 2)
-        controller.trackSelectedSession(sessions: sessions)
+        controller.moveSelection(by: 1, in: sessions) // A
+        controller.moveSelection(by: 1, in: sessions) // B
 
-        controller.syncSelection(sessions: [sessions[0]])
-        #expect(controller.selectedIndex == 0)
-        #expect(manager.activeColorIndex == 0)
+        controller.syncSelection(sessions: [sessions[0]]) // B removed
+        #expect(controller.selectedSessionID == "A")
     }
 
     @Test @MainActor func syncSelection_empty_resetsActiveColor() {
@@ -527,38 +566,55 @@ struct SessionListControllerTests {
         let controller = SessionListController()
         let sessions = [makeSession("A")]
 
-        controller.moveSelection(by: 1, sessionCount: 1)
-        controller.trackSelectedSession(sessions: sessions)
+        controller.moveSelection(by: 1, in: sessions)
 
         controller.syncSelection(sessions: [])
-        #expect(controller.selectedIndex == nil)
+        #expect(controller.selectedSessionID == nil)
         #expect(manager.activeColorIndex == 0)
     }
 
-    @Test @MainActor func setSelection_resetsActiveColorToIndex() {
+    @Test @MainActor func setSelection_setsColorToSessionRowIndex() {
         let manager = SessionManager.shared
         manager.clearColorIndex()
-        let controller = SessionListController()
         let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
+        manager.testSetSessions(sessions)
+        let controller = SessionListController()
 
-        controller.setSelection(to: 2, sessions: sessions)
+        controller.setSelection(toSessionID: sessions[2].id)
 
-        #expect(controller.selectedIndex == 2)
+        #expect(controller.selectedSessionID == sessions[2].id)
         #expect(manager.activeColorIndex == 2)
     }
 
-    @Test @MainActor func setSelection_sameIndex_preservesActiveColor() {
+    @Test @MainActor func setSelection_unknownSession_setsIDAndLeavesColorUnchanged() {
         let manager = SessionManager.shared
         manager.clearColorIndex()
+        manager.testSetSessions([makeSession("A")])
+        manager.setColorIndex(to: 3)
         let controller = SessionListController()
-        let sessions = [makeSession("A"), makeSession("B")]
 
-        // Navigate to index 0 via arrow key (color advances to 1)
-        controller.moveSelection(by: 1, sessionCount: 2)
+        // An id not present in any session still becomes the selection; the color
+        // sync is a no-op for an unknown id (so the counter is left untouched).
+        controller.setSelection(toSessionID: "does-not-exist")
+
+        #expect(controller.selectedSessionID == "does-not-exist")
+        #expect(manager.activeColorIndex == 3)
+    }
+
+    @Test @MainActor func setSelection_sameSession_preservesActiveColor() {
+        let manager = SessionManager.shared
+        manager.clearColorIndex()
+        let sessions = [makeSession("A"), makeSession("B")]
+        manager.testSetSessions(sessions)
+        let controller = SessionListController()
+
+        // Navigate to "A" via arrow key (color advances to 1).
+        controller.moveSelection(by: 1, in: sessions)
+        #expect(controller.selectedSessionID == "A")
         #expect(manager.activeColorIndex == 1)
 
-        // External focus to same index — color should NOT reset
-        controller.setSelection(to: 0, sessions: sessions)
+        // External focus to the same session — color should NOT change.
+        controller.setSelection(toSessionID: "A")
         #expect(manager.activeColorIndex == 1)
     }
 
@@ -585,18 +641,5 @@ struct SessionListControllerTests {
         manager.syncColorIndex(toSessionID: "does-not-exist")
 
         #expect(manager.activeColorIndex == 3)
-    }
-
-    @Test @MainActor func setSelection_outOfBounds_noOp() {
-        let manager = SessionManager.shared
-        manager.clearColorIndex()
-        let controller = SessionListController()
-        let sessions = [makeSession("A")]
-
-        controller.setSelection(to: 0, sessions: sessions)
-        controller.setSelection(to: 5, sessions: sessions)
-
-        #expect(controller.selectedIndex == 0)
-        #expect(manager.activeColorIndex == 0)
     }
 }

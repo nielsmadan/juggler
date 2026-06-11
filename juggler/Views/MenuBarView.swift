@@ -53,10 +53,10 @@ struct MenuBarView: View {
                     .frame(maxWidth: .infinity)
                     .padding()
             } else {
-                ForEach(Array(sessionManager.sessions.enumerated()), id: \.element.id) { index, session in
+                ForEach(sessionManager.sessions) { session in
                     SessionRowView(
                         session: session,
-                        isKeyboardSelected: controller.selectedIndex == index,
+                        isKeyboardSelected: controller.selectedSessionID == session.id,
                         onActivate: { dismiss() }
                     )
                     .id(session.id)
@@ -98,17 +98,16 @@ struct MenuBarView: View {
             }
         }
         .frame(width: 280)
+        .background(WindowAccessor { controller.ownWindow = $0 })
         .suppressShortcutBeep()
         .focusable()
         .focusEffectDisabled()
         .onKeyPress(.downArrow) {
-            controller.moveSelection(by: 1, sessionCount: sessionManager.sessions.count)
-            controller.trackSelectedSession(sessions: sessionManager.sessions)
+            controller.moveSelection(by: 1, in: sessionManager.sessions)
             return .handled
         }
         .onKeyPress(.upArrow) {
-            controller.moveSelection(by: -1, sessionCount: sessionManager.sessions.count)
-            controller.trackSelectedSession(sessions: sessionManager.sessions)
+            controller.moveSelection(by: -1, in: sessionManager.sessions)
             return .handled
         }
         .onKeyPress(.return) { activateSelected(); return .handled }
@@ -125,7 +124,12 @@ struct MenuBarView: View {
         .onAppear {
             controller.syncSelection(sessions: sessionManager.sessions)
             controller.reloadShortcuts()
-            controller.installKeyMonitor(sessionManager: sessionManager, queueOrderMode: $queueOrderMode)
+            controller.installKeyMonitor(
+                owner: "MenuBar",
+                sessionManager: sessionManager,
+                queueOrderMode: $queueOrderMode,
+                visibleSessions: { sessionManager.sessions }
+            )
         }
         .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
             controller.reloadShortcuts()
@@ -141,9 +145,8 @@ struct MenuBarView: View {
     }
 
     private func activateSelected() {
-        guard let index = controller.selectedIndex,
-              index < sessionManager.sessions.count else { return }
-        let session = sessionManager.sessions[index]
+        guard let id = controller.selectedSessionID,
+              let session = sessionManager.sessions.first(where: { $0.id == id }) else { return }
         Task {
             do {
                 try await TerminalActivation.activate(session: session, trigger: .guiSelect)

@@ -127,6 +127,45 @@ final class SessionManager {
         return QueueOrderMode(rawValue: rawValue) ?? .fair
     }
 
+    /// Fallback group label for sessions with no `terminalWindowName` (Grouped mode).
+    static let unknownWindowGroup = "Unknown"
+
+    /// Visual sections (idle → working → backburner) with the sessions currently
+    /// shown in each, by `effectiveSection`. The single source for the Fair/Prio
+    /// section order — consumed by both the monitor's section rows and navigation.
+    func sessionsBySection() -> [(section: SectionType, sessions: [Session])] {
+        let sections: [SectionType] = [.idle, .working, .backburner]
+        return sections.map { section in
+            (section, sessions.filter { animationController.effectiveSection(for: $0) == section })
+        }
+    }
+
+    /// Sessions grouped by terminal window, in Grouped-mode render order (keys
+    /// sorted, each group by `startedAt`). The single source for that ordering.
+    func sessionsByWindowGroup() -> [(key: String, sessions: [Session])] {
+        Dictionary(grouping: sessions) { $0.terminalWindowName ?? Self.unknownWindowGroup }
+            .map { (key: $0.key, sessions: $0.value.sorted { $0.startedAt < $1.startedAt }) }
+            .sorted { $0.key < $1.key }
+    }
+
+    /// The sessions in the exact top-to-bottom order the monitor renders them for
+    /// the current queue mode. This is the single source of truth for keyboard
+    /// navigation, so selection/highlight/scroll follow what's on screen rather
+    /// than the raw `sessions` array order (which drifts out of section order and
+    /// disagrees with the render during section animations). Derived from the same
+    /// `sessionsBySection`/`sessionsByWindowGroup` the view renders, so the two
+    /// can't diverge.
+    func orderedVisibleSessions() -> [Session] {
+        switch queueOrderMode {
+        case .fair, .prio:
+            sessionsBySection().flatMap(\.sessions)
+        case .static:
+            sessions
+        case .grouped:
+            sessionsByWindowGroup().flatMap(\.sessions)
+        }
+    }
+
     init(dailyStats: DailyStatsStore = DailyStatsStore()) {
         cyclingEngine = DefaultCyclingEngine()
         self.dailyStats = dailyStats

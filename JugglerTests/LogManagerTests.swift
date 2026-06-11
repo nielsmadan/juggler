@@ -30,7 +30,8 @@ struct LogManagerTests {
         #expect(cases.contains(.session))
         #expect(cases.contains(.hotkey))
         #expect(cases.contains(.kitty))
-        #expect(cases.count == 5)
+        #expect(cases.contains(.navigation))
+        #expect(cases.count == 6)
     }
 
     // MARK: - LogManager Tests

@@ -37,6 +37,7 @@ enum LogCategory: String, CaseIterable {
     case session
     case hotkey
     case kitty
+    case navigation
 }
 
 struct LogEntry: Identifiable {
@@ -55,6 +56,7 @@ private let debugHooks = false
 private let debugSession = false
 private let debugHotkey = false
 private let debugKitty = false
+private let debugNavigation = false
 
 @Observable
 @MainActor
@@ -79,6 +81,7 @@ final class LogManager {
             case .session: debugSession
             case .hotkey: debugHotkey
             case .kitty: debugKitty
+            case .navigation: debugNavigation
             }
         }
 

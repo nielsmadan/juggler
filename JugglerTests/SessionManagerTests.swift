@@ -128,6 +128,82 @@ struct SessionManagerTests {
         #expect(manager.sessions[0].state == .idle)
     }
 
+    /// The skip-bug fix: navigation uses `orderedVisibleSessions()` (the rendered
+    /// order), so even when the raw `sessions` array is NOT section-grouped, the
+    /// visible order groups idle → working → backburner — matching what the
+    /// Fair/Prio monitor renders. No raw-index/visible-order divergence.
+    @Test func orderedVisibleSessions_fairMode_groupsBySectionFromUngroupedArray() {
+        let key = "queueOrderMode"
+        let previous = UserDefaults.standard.string(forKey: key)
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: key)
+        defer {
+            if let previous { UserDefaults.standard.set(previous, forKey: key) }
+            else { UserDefaults.standard.removeObject(forKey: key) }
+        }
+
+        let manager = SessionManager()
+        // Deliberately ungrouped: idle, working, idle, backburner.
+        manager.testSetSessions([
+            makeSession("idleA", state: .idle),
+            makeSession("work1", state: .working),
+            makeSession("idleB", state: .idle),
+            makeSession("back1", state: .backburner)
+        ])
+
+        let order = manager.orderedVisibleSessions().map(\.terminalSessionID)
+
+        #expect(order == ["idleA", "idleB", "work1", "back1"])
+    }
+
+    @Test func orderedVisibleSessions_staticMode_isRawOrder() {
+        let key = "queueOrderMode"
+        let previous = UserDefaults.standard.string(forKey: key)
+        UserDefaults.standard.set(QueueOrderMode.static.rawValue, forKey: key)
+        defer {
+            if let previous { UserDefaults.standard.set(previous, forKey: key) }
+            else { UserDefaults.standard.removeObject(forKey: key) }
+        }
+
+        let manager = SessionManager()
+        let raw = [
+            makeSession("idleA", state: .idle),
+            makeSession("work1", state: .working),
+            makeSession("idleB", state: .idle)
+        ]
+        manager.testSetSessions(raw)
+
+        #expect(manager.orderedVisibleSessions().map(\.terminalSessionID) == ["idleA", "work1", "idleB"])
+    }
+
+    @Test @MainActor func orderedVisibleSessions_groupedMode_groupsByWindowThenStartedAt() {
+        let key = "queueOrderMode"
+        let previous = UserDefaults.standard.string(forKey: key)
+        UserDefaults.standard.set(QueueOrderMode.grouped.rawValue, forKey: key)
+        defer {
+            if let previous { UserDefaults.standard.set(previous, forKey: key) }
+            else { UserDefaults.standard.removeObject(forKey: key) }
+        }
+
+        func windowed(_ id: String, window: String?, startedAt: TimeInterval) -> Session {
+            var session = makeSession(id)
+            session.terminalWindowName = window
+            session.startedAt = Date(timeIntervalSince1970: startedAt)
+            return session
+        }
+
+        let manager = SessionManager()
+        manager.testSetSessions([
+            windowed("beta1", window: "Beta", startedAt: 200),
+            windowed("alpha2", window: "Alpha", startedAt: 300),
+            windowed("alpha1", window: "Alpha", startedAt: 100),
+            windowed("orphan", window: nil, startedAt: 50) // nil → "Unknown" bucket
+        ])
+
+        // Groups sorted by key (Alpha, Beta, Unknown); within a group by startedAt.
+        #expect(manager.orderedVisibleSessions().map(\.terminalSessionID)
+            == ["alpha1", "alpha2", "beta1", "orphan"])
+    }
+
     @Test @MainActor func addOrUpdateSession_existingSession_updatesMetadata() {
         let manager = SessionManager()
 
