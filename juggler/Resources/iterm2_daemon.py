@@ -173,11 +173,10 @@ class iTerm2Daemon:
                             })
             except Exception as e:
                 consecutive_failures += 1
-                if consecutive_failures >= 3:
-                    print(f"Focus monitor failed {consecutive_failures} times, exiting for restart", file=sys.stderr)
-                    self.stop()
-                    sys.exit(1)
-                print(f"Focus monitor error: {e}, restarting in 5s...", file=sys.stderr)
+                # Retry instead of killing the daemon: a transient FocusMonitor
+                # failure recurs after a restart and just loops (cf. run_layout_monitor).
+                print(f"Focus monitor error (attempt {consecutive_failures}): {e}, retrying in 5s...",
+                      file=sys.stderr, flush=True)
                 if self.running:
                     await asyncio.sleep(5)
 
@@ -453,9 +452,13 @@ class iTerm2Daemon:
         while self.running:
             await asyncio.sleep(5)
             if os.getppid() != parent_pid:
-                print("Parent process gone, exiting", file=sys.stderr)
+                print("Parent process gone, exiting", file=sys.stderr, flush=True)
                 self.stop()
-                sys.exit(0)
+                # os._exit, not sys.exit: SystemExit raised from inside an asyncio
+                # task is swallowed by `iterm2.run_until_complete(retry=True)`, which
+                # reconnects instead of dying — orphaning the daemon. _exit is
+                # immediate and bypasses the retry wrapper.
+                os._exit(0)
 
     async def _monitor_socket_ownership(self) -> None:
         """Exit if a newer daemon has rebound the socket path (zombie prevention)."""
@@ -464,13 +467,13 @@ class iTerm2Daemon:
             try:
                 current_inode = os.stat(str(self.socket_path)).st_ino
             except OSError:
-                print("Socket path gone, exiting", file=sys.stderr)
+                print("Socket path gone, exiting", file=sys.stderr, flush=True)
                 self.stop(unlink=False)
-                sys.exit(0)
+                os._exit(0)  # see _monitor_parent: sys.exit is swallowed by the retry wrapper
             if current_inode != self.socket_inode:
-                print("Socket taken over by newer daemon, exiting", file=sys.stderr)
+                print("Socket taken over by newer daemon, exiting", file=sys.stderr, flush=True)
                 self.stop(unlink=False)
-                sys.exit(0)
+                os._exit(0)  # see _monitor_parent
 
     def _extract_uuid(self, session_id: Optional[str]) -> str:
         """Extract UUID from 'w0t0p0:UUID' format.

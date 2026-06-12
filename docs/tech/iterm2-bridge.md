@@ -93,7 +93,7 @@ Two one-shot flags (`iTerm2Bridge.swift:90-91`) prevent notification spam:
 - **Command timeouts** — `withTimeout` (`iTerm2Bridge.swift:861`) races the operation against a sleep that throws `commandTimeout`. `activate` uses `activateTimeout = 2.0` s; `highlight` uses `highlightTimeout = 1.0` s (`iTerm2Bridge.swift:98-99`).
 - **Socket-level timeouts** — `sendRequest` (`iTerm2Bridge.swift:881`) sets `SO_RCVTIMEO`/`SO_SNDTIMEO` to 1s; the subscribe ack read has a 3s `SO_RCVTIMEO` (`iTerm2Bridge.swift:530`).
 - **Stale-connection recovery** — `shouldAttemptRecovery` (`iTerm2Bridge.swift:689`) classifies errors. `activate` and `getSessionInfo` catch recoverable errors, call `restart()`, and retry once. `highlight` fails silently (cosmetic only). `getSessionInfo` additionally maps a `"session not found"` `commandFailed` to `nil` so `TerminalActivation.isSessionGone` can clean up — see [terminal-bridges.md](terminal-bridges.md#detecting-a-gone-session-from-an-opaque-error).
-- **Orphan cleanup** — `start()` first calls `killOrphanedDaemon` (`iTerm2Bridge.swift:658`), which SIGTERMs (then SIGKILLs) any PID recorded in the `.pid` sidecar file from a previous run. `restart()` is `stop()` + 500ms + `start()`.
+- **Orphan cleanup** — `start()` first calls `killOrphanedDaemon` (`iTerm2Bridge.swift:658`), which SIGTERMs (then SIGKILLs) the PID recorded in the `.pid` sidecar file from a previous run — but only if `isOrphanedDaemon` confirms it's actually an orphan of ours (parent is launchd **and** its args reference our daemon script + this socket path). The socket/PID files are shared across dev builds, so this guards against killing another build's *live* daemon or a reused PID. `restart()` is `stop()` + 500ms + `start()`.
 
 ## Daemon side (`iterm2_daemon.py`)
 
@@ -101,7 +101,7 @@ Two one-shot flags (`iTerm2Bridge.swift:90-91`) prevent notification spam:
 
 `start()` (`iterm2_daemon.py:36`) spawns three event monitors as concurrent tasks, plus the parent/socket watchers documented in [iterm2-daemon.md](iterm2-daemon.md):
 
-- **`run_focus_monitor`** (`iterm2_daemon.py:159`) — wraps `iterm2.FocusMonitor`; pushes `focus_changed` events. Tolerates transient errors with a 5s restart loop, but after **3 consecutive failures** it `stop()`s and `sys.exit(1)` so the Swift supervisor restarts the whole daemon (focus tracking is load-bearing, not optional).
+- **`run_focus_monitor`** (`iterm2_daemon.py:159`) — wraps `iterm2.FocusMonitor`; pushes `focus_changed` events. Tolerates transient errors by retrying on the existing connection with a 5s backoff (like `run_layout_monitor`). It does **not** kill the daemon: a transient `FocusMonitor` failure recurs after a restart, so the old "exit after 3 failures" produced a restart loop. Genuine connection-level breakage is recovered by the request path's `restart()` instead.
 - **`run_session_monitor`** (`iterm2_daemon.py:184`) — wraps `iterm2.SessionTerminationMonitor`; pushes `session_terminated`. Same 5s retry, but on 3 failures it merely `break`s (gives up) without killing the daemon, because the layout monitor below provides a faster, overlapping signal.
 - **`run_layout_monitor`** (`iterm2_daemon.py:206`) — wraps `iterm2.LayoutChangeMonitor`. It snapshots all session IDs (`_get_all_session_ids`, `iterm2_daemon.py:232`), and on each layout change diffs the previous set against the current, emitting `session_terminated` for every ID that disappeared.
 
@@ -150,7 +150,7 @@ So a healthy daemon is invisible, a waiting daemon dims the icon, and a failed d
 - **`hasNotifiedWaiting` never resets; `hasNotifiedFailed` resets only in `restart()`.** Changing this changes user-facing notification frequency.
 - **stderr handler must be installed before `process.run()`.** A full pipe blocks the daemon's write and hangs the supervisor.
 - **Duplicate `session_terminated` is expected.** The session and layout monitors both emit it; downstream removal is idempotent.
-- **`run_focus_monitor` failure kills the daemon (exit 1); `run_session_monitor` failure does not.** This asymmetry is intentional — focus is essential, session-termination has the faster layout-monitor backup.
+- **No monitor kills the daemon on failure.** Focus and layout monitors retry forever (focus is essential and has no backup); the session monitor gives up after 3 (its layout-monitor backup covers it). An earlier "focus monitor exits after 3 failures to force a restart" was removed — it just looped on transient `FocusMonitor` errors.
 
 ---
 

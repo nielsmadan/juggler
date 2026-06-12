@@ -661,19 +661,54 @@ actor ITerm2Bridge: TerminalBridge {
             let pid = Int32(pidString), pid > 0
         else { return }
 
+        // Already gone — just clear the stale PID file.
+        guard kill(pid, 0) == 0 else {
+            try? FileManager.default.removeItem(atPath: pidFilePath)
+            return
+        }
+
+        // The PID is alive — only reap it if it's actually an ORPHANED iterm2_daemon
+        // (its parent is launchd). The socket/PID file are shared across dev builds,
+        // so a recorded PID can belong to another build's *live* daemon (parent still
+        // alive) or, after PID reuse, to an unrelated process — neither of which we
+        // may kill. If it's not ours, leave it and its files alone; our new daemon
+        // rebinds the socket and the peer's socket-ownership monitor retires cleanly.
+        guard isOrphanedDaemon(pid: pid) else { return }
+
+        kill(pid, SIGTERM)
+        for _ in 0 ..< 10 {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            if kill(pid, 0) != 0 { break }
+        }
         if kill(pid, 0) == 0 {
-            kill(pid, SIGTERM)
-            for _ in 0 ..< 10 {
-                try? await Task.sleep(nanoseconds: 100_000_000)
-                if kill(pid, 0) != 0 { break }
-            }
-            if kill(pid, 0) == 0 {
-                kill(pid, SIGKILL)
-            }
+            kill(pid, SIGKILL)
         }
 
         try? FileManager.default.removeItem(atPath: pidFilePath)
         try? FileManager.default.removeItem(atPath: socketPath)
+    }
+
+    /// True only if `pid` is an orphaned daemon of *ours*: its parent is launchd
+    /// (pid 1, so the app that spawned it died) AND its arguments reference both our
+    /// daemon script and this exact socket path. The two-part match guards against
+    /// PID reuse — the socket path is unique enough that an unrelated process is
+    /// extremely unlikely to carry it (the `KERN_PROCARGS2` blob includes the
+    /// environment too, so a single needle would be looser than intended).
+    private nonisolated func isOrphanedDaemon(pid: Int32) -> Bool {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size > 0 else { return false }
+        guard info.kp_eproc.e_ppid == 1 else { return false }
+
+        var argsMib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var argsSize = 0
+        guard sysctl(&argsMib, 3, nil, &argsSize, nil, 0) == 0, argsSize > 0 else { return false }
+        var argsBuf = [UInt8](repeating: 0, count: argsSize)
+        guard sysctl(&argsMib, 3, &argsBuf, &argsSize, nil, 0) == 0 else { return false }
+        let args = Data(argsBuf)
+        return args.range(of: Data("iterm2_daemon.py".utf8)) != nil
+            && args.range(of: Data(socketPath.utf8)) != nil
     }
 
     private nonisolated func writePIDFile(pid: Int32) {
