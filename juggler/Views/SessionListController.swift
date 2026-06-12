@@ -156,11 +156,15 @@ final class SessionListController {
     /// Set selection explicitly to a session (e.g., from external focus changes).
     /// Skips the color reset when an activation is in flight (hotkey or click
     /// already set the color) or when the selection didn't actually change.
-    func setSelection(toSessionID id: String) {
+    ///
+    /// `syncColor: false` sets selection without touching the global cycling
+    /// `activeColorIndex` — used on popover open so a passive open doesn't retint
+    /// the main monitor / beacon / terminal-tab highlight.
+    func setSelection(toSessionID id: String, syncColor: Bool = true) {
         let previousID = selectedSessionID
         let activationInFlight = SessionManager.shared.activationTarget != nil
         var resetColor = false
-        if selectedSessionID != id, !activationInFlight {
+        if syncColor, selectedSessionID != id, !activationInFlight {
             SessionManager.shared.syncColorIndex(toSessionID: id)
             resetColor = true
         }

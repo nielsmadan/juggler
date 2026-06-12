@@ -122,7 +122,15 @@ struct MenuBarView: View {
             controller.syncSelection(sessions: newSessions)
         }
         .onAppear {
-            controller.syncSelection(sessions: sessionManager.sessions)
+            // Always open on the focused/current session (or the top row), so the
+            // popover never shows a stale selection left over from a prior open.
+            // `syncColor: false` — opening the popover must not retint the global
+            // cycling color (shared with the main monitor / beacon / terminal tabs).
+            if let initial = sessionManager.currentReferenceSessionID ?? sessionManager.sessions.first?.id {
+                controller.setSelection(toSessionID: initial, syncColor: false)
+            } else {
+                controller.syncSelection(sessions: sessionManager.sessions)
+            }
             controller.reloadShortcuts()
             controller.installKeyMonitor(
                 owner: "MenuBar",

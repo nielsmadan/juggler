@@ -880,6 +880,71 @@ struct SessionManagerTests {
         #expect(manager.lastActiveSessionID == nil)
     }
 
+    // MARK: - currentReferenceSessionID Tests
+
+    @Test @MainActor func currentReferenceSessionID_focusedSession_returnsFocused() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1"), makeSession("s2")])
+        manager.isTerminalAppActive = true
+        manager.testSetFocusedSessionID("s1")
+
+        #expect(manager.currentReferenceSessionID == "s1")
+    }
+
+    @Test @MainActor func currentReferenceSessionID_anchorPresent_returnsAnchor() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1", state: .working), makeSession("s2", state: .idle)])
+        manager.testSetLastActiveSessionID("s1")
+
+        #expect(manager.currentReferenceSessionID == "s1")
+    }
+
+    @Test @MainActor func currentReferenceSessionID_anchorTakesPriorityOverFocus() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1", state: .working), makeSession("s2")])
+        manager.isTerminalAppActive = true
+        manager.testSetFocusedSessionID("s2")
+        manager.testSetLastActiveSessionID("s1")
+
+        #expect(manager.currentReferenceSessionID == "s1")
+    }
+
+    @Test @MainActor func currentReferenceSessionID_anchorRemoved_returnsNil() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s2")])
+        manager.testSetLastActiveSessionID("s1") // not in sessions
+
+        #expect(manager.currentReferenceSessionID == nil)
+    }
+
+    @Test @MainActor func currentReferenceSessionID_noFocusNoAnchor_returnsNil() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1")])
+
+        #expect(manager.currentReferenceSessionID == nil)
+    }
+
+    @Test @MainActor func currentReferenceSessionID_anchorRemovedButFocused_fallsBackToFocus() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1")])
+        manager.testSetLastActiveSessionID("gone") // not in sessions
+        manager.isTerminalAppActive = true
+        manager.testSetFocusedSessionID("s1")
+
+        #expect(manager.currentReferenceSessionID == "s1")
+    }
+
+    @Test @MainActor func currentReferenceSessionID_focusedButNotCyclable_returnsNil() {
+        let manager = SessionManager()
+        // Only a backburner session, focused: isSessionFocused is true but
+        // currentSession is nil (nothing cyclable), so there's no reference.
+        manager.testSetSessions([makeSession("s1", state: .backburner)])
+        manager.isTerminalAppActive = true
+        manager.testSetFocusedSessionID("s1")
+
+        #expect(manager.currentReferenceSessionID == nil)
+    }
+
     // MARK: - Auto-advance, Auto-restart & Anchor Tests (serialized — shared UserDefaults/NotificationCenter)
 
     @Suite(.serialized)

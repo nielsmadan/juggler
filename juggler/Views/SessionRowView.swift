@@ -22,15 +22,23 @@ struct SessionRowView: View {
     }
 
     private var isCurrent: Bool {
-        // When auto-advance is OFF and lastActiveSessionID is set, the busy session stays highlighted
-        if sessionManager.lastActiveSessionID == session.id {
-            return true
-        }
-        return sessionManager.isSessionFocused && sessionManager.currentSession?.id == session.id
+        sessionManager.currentReferenceSessionID == session.id
     }
 
     private var highlightColor: Color {
         useCyclingColors ? sessionManager.activeColor : Color.accentColor
+    }
+
+    /// Color for the "where you came from" residual highlight: the session's palette
+    /// color by its list index — the app's usual per-position color scheme (same basis
+    /// as `syncColorIndex`). Unlike the keyboard-selected `highlightColor` (the cycling
+    /// `activeColor`), it does NOT change tint as the user navigates the popover. It can
+    /// still change if the list reorders, like every other session color in the app.
+    private var referenceColor: Color {
+        guard useCyclingColors,
+              let index = sessionManager.sessions.firstIndex(where: { $0.id == session.id })
+        else { return Color.accentColor }
+        return CyclingColors.color(at: index)
     }
 
     var body: some View {
@@ -64,7 +72,7 @@ struct SessionRowView: View {
         .background(
             isKeyboardSelected
                 ? highlightColor.opacity(0.2)
-                : (isCurrent ? highlightColor.opacity(0.1) : Color.clear)
+                : (isCurrent ? referenceColor.opacity(0.1) : Color.clear)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 4)

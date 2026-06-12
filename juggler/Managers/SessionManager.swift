@@ -91,6 +91,21 @@ final class SessionManager {
         return matchesTrackedSession(focusedID)
     }
 
+    /// The session shown as the "current"/reference highlight: the `lastActiveSessionID`
+    /// anchor if it's still present (that field is only ever set when auto-advance is
+    /// off — see `applyStateChange` — so no flag check is needed here), otherwise
+    /// `currentSession` while a terminal is focused (which may resolve via the cycling
+    /// cursor, not strictly `focusedSessionID`). `nil` if neither. Single source of
+    /// truth for the popover's reference highlight and its initial selection on open;
+    /// preserves the old per-row `SessionRowView.isCurrent` logic.
+    var currentReferenceSessionID: String? {
+        if let lastActive = lastActiveSessionID, sessions.contains(where: { $0.id == lastActive }) {
+            return lastActive
+        }
+        if isSessionFocused { return currentSession?.id }
+        return nil
+    }
+
     /// Set during hotkey-driven activation to suppress intermediate focus events from terminals.
     /// When non-nil, `updateFocusedSession` ignores focus events that don't match this target.
     private(set) var activationTarget: String?
