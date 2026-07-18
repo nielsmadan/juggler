@@ -42,46 +42,26 @@ Juggler is a SwiftUI menu bar app that tracks Claude Code, OpenCode, and Codex (
 
 ## Components
 
-### Models
+Source is under `juggler/`, grouped by role. `ls` a folder for the full list; the
+authoritative annotated map is the tree in [AGENTS.md](../../AGENTS.md). This section is
+orientation and entry points, not a per-file inventory (that would drift):
 
-| Model | File | Purpose |
-|-------|------|---------|
-| `Session` | `Models/Session.swift` | Session data (ID, state, path, timestamps) |
-| `SessionState` | `Models/SessionState.swift` | State enum (working, idle, permission, backburner, compacting) |
-| `CyclingEngine` | `Models/CyclingEngine.swift` | Session cycling logic |
-| `HookEventMapper` | `Models/HookEventMapper.swift` | Hook event → state mapping |
+- **`Models/`**: data and pure logic. Entry points: `Session` + `SessionState` (state enum:
+  working / idle / permission / backburner / compacting), `CyclingEngine` (cycle order),
+  `HookEventMapper` (hook event to state). Also holds the beacon-geometry, stats, and
+  config-validation value types.
+- **`Managers/`**: `@Observable` app-state controllers, one concern each. `SessionManager`
+  is the hub (session list, cycling, actions); the rest own hotkeys, the status-bar popover,
+  notifications, the beacon, logging, and Sparkle updates.
+- **`Services/`**: I/O. `HookServer` (HTTP :7483, the ingress for every agent hook) plus the
+  terminal layer: `TerminalBridge` / `TerminalBridgeRegistry` with `iTerm2Bridge` (Unix
+  socket to the Python daemon) and `KittyBridge` (`kitten @` CLI). Agent-integration
+  installers also live here.
+- **`Views/`**: SwiftUI: menu-bar popover, session-monitor window, settings, onboarding, and
+  the stats/beacon UI.
 
-### Managers
-
-| Manager | File | Purpose |
-|---------|------|---------|
-| `SessionManager` | `Managers/SessionManager.swift` | @Observable session list, cycling, actions |
-| `HotkeyManager` | `Managers/HotkeyManager.swift` | Global hotkeys via KeyboardShortcuts |
-| `StatusBarManager` | `Managers/StatusBarManager.swift` | NSStatusItem + NSPopover management |
-| `NotificationManager` | `Managers/NotificationManager.swift` | macOS notifications |
-| `BeaconManager` | `Managers/BeaconManager.swift` | Beacon overlay for session cycling |
-| `LogManager` | `Managers/LogManager.swift` | In-app logging system |
-| `UpdateManager` | `Managers/UpdateManager.swift` | Sparkle auto-updates |
-
-### Services
-
-| Service | File | Purpose |
-|---------|------|---------|
-| `HookServer` | `Services/HookServer.swift` | HTTP server on :7483 (`/hook`, `/kitty-event`) |
-| `iTerm2Bridge` | `Services/iTerm2Bridge.swift` | Daemon communication (Unix socket) |
-| `KittyBridge` | `Services/KittyBridge.swift` | Kitty integration via `kitten @` CLI |
-| `TerminalBridge` | `Services/TerminalBridge.swift` | Terminal abstraction protocol |
-| `TerminalBridgeRegistry` | `Services/TerminalBridgeRegistry.swift` | Bridge registration and lifecycle |
-
-### Views
-
-| View | Purpose |
-|------|---------|
-| `MenuBarView` | Menu bar popover |
-| `SessionMonitorView` | Main window |
-| `SessionRowView` | Session row component |
-| `SettingsView` | Preferences window |
-| `OnboardingView` | First-launch wizard |
+See Topic Documentation below for per-subsystem deep dives, and the code for the exhaustive
+file list.
 
 ## Dependencies
 
@@ -125,7 +105,25 @@ Juggler works with this by letting the activation complete, then yielding focus 
 
 ### Beacon Active-Window Positioning
 
-The `.activeWindow` beacon anchor converts the frontmost window's CoreGraphics (top-left origin) frame to AppKit (bottom-left origin) coordinates. The flip must use the **primary** screen height — `NSScreen.screens.first` (`screens[0]`), not `NSScreen.main` (which is the screen holding keyboard focus). Using `NSScreen.main` mispositions the beacon on multi-monitor setups. See `BeaconManager.frontmostWindowFrame()`.
+The `.activeWindow` beacon anchor converts the frontmost window's CoreGraphics (top-left origin) frame to AppKit (bottom-left origin) coordinates. The flip must use the **primary** screen height - `NSScreen.screens.first` (`screens[0]`), not `NSScreen.main` (which is the screen holding keyboard focus). Using `NSScreen.main` mispositions the beacon on multi-monitor setups. See `BeaconManager.frontmostWindowFrame()`.
+
+## Recurring gotchas
+
+Distilled from `docs/log/` post-mortems. The full write-ups stay there as the archive; these
+are the reusable lessons for anyone working in the affected area.
+
+- **The iTerm2 daemon must run on Python 3.7+.** `iTerm2Bridge` picks iTerm2's bundled Python
+  by *lexicographic* sort, which selects `3.8.x` over `3.10`/`3.14`. Keep
+  `from __future__ import annotations` at the top of `Resources/iterm2_daemon.py` so modern
+  type-hint syntax (`dict[str, Any]`) isn't evaluated at import and crash on 3.8. Don't apply
+  system-Python linting/modernization to that file. (`log/2026-02-07-daemon-crash-python-type-hints.md`)
+- **Daemon socket reads must be newline-framed.** TCP is a stream, so one `recv()` is not a
+  complete message. `iTerm2Bridge.sendRequest()` loops until a trailing `\n`; a `dataCorrupted`
+  / "Unexpected end of file" decode error means a truncated read. (`log/2026-01-26-terminal-info-not-updating.md`)
+- **No `withThrowingTaskGroup` inside an actor-isolated method when the child closure captures
+  `self`**: it deadlocks (parent holds the actor, child needs it, call hangs silently). Use a
+  socket-level timeout or cancellable `Task.sleep` instead, and log at method entry before any
+  `await` to catch silent hangs. (`log/2026-01-27-actor-deadlock-withTimeout.md`)
 
 ## Logging
 

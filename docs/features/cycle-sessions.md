@@ -119,7 +119,7 @@ When cycling to a session, Juggler can highlight the terminal tab/pane (iTerm2 a
 
 - Flash the tab with a color
 - Configurable duration (1, 2, 3, or 5 seconds)
-- Optional: Use cycling colors — see [Highlight Color](highlight-color.md) for the full rule set.
+- Optional: Use cycling colors - see [Highlight Color](highlight-color.md) for the full rule set.
 
 ### Pane Background Highlighting
 
@@ -139,8 +139,8 @@ Setting in **Settings > General > Backburner**.
 
 Two control-bar toggles (also bindable as Session List shortcuts) change cycling behavior automatically:
 
-- **Auto-advance** — when the current session goes busy, cycle to the next idle session.
-- **Auto-restart** — when all sessions are busy and one becomes idle, jump to it.
+- **Auto-advance**: when the current session goes busy, cycle to the next idle session.
+- **Auto-restart**: when all sessions are busy and one becomes idle, jump to it.
 
 ---
 

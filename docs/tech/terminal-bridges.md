@@ -24,7 +24,7 @@ protocol TerminalBridge: Sendable {
 | `stop` | Tear down, release resources |
 | `activate` | Bring the given session to the foreground |
 | `highlight` | Flash tab/pane with an RGB color for N seconds |
-| `getSessionInfo` | Return `TerminalSessionInfo` (present), `nil` (confirmed gone), or throw (couldn't determine) — see [TerminalActivation](#detecting-a-gone-session-from-an-opaque-error) |
+| `getSessionInfo` | Return `TerminalSessionInfo` (present), `nil` (confirmed gone), or throw (couldn't determine) - see [TerminalActivation](#detecting-a-gone-session-from-an-opaque-error) |
 
 ## TerminalActivation
 
@@ -38,13 +38,13 @@ A static orchestrator (`TerminalBridge.swift:39-168`) that drives activation end
 
 ### Detecting a gone session from an opaque error
 
-A terminal whose session has vanished does not always report it cleanly. The iTerm2 daemon, in particular, can surface an empty-string error (`commandFailed("")`) when activating a session whose tab is already gone. Matching on the literal `"session not found"` substring alone therefore misses cases, leaving a dead session stuck in the cycle — every cycle attempt re-targets it, fails, and the generic `catch` in `HotkeyManager.activateWithRetry` just logs and returns without removing it.
+A terminal whose session has vanished does not always report it cleanly. The iTerm2 daemon, in particular, can surface an empty-string error (`commandFailed("")`) when activating a session whose tab is already gone. Matching on the literal `"session not found"` substring alone therefore misses cases, leaving a dead session stuck in the cycle - every cycle attempt re-targets it, fails, and the generic `catch` in `HotkeyManager.activateWithRetry` just logs and returns without removing it.
 
-`TerminalActivation.isSessionGone` closes this gap: on any `commandFailed`, if the message does not already say "session not found", it calls `bridge.getSessionInfo(sessionID:)` to confirm. This depends on `getSessionInfo` distinguishing **confirmed absence** from **couldn't determine** — otherwise a transient lookup failure would be read as absence and a live session removed. So the method's contract is three-valued:
+`TerminalActivation.isSessionGone` closes this gap: on any `commandFailed`, if the message does not already say "session not found", it calls `bridge.getSessionInfo(sessionID:)` to confirm. This depends on `getSessionInfo` distinguishing **confirmed absence** from **couldn't determine**: otherwise a transient lookup failure would be read as absence and a live session removed. So the method's contract is three-valued:
 
-- returns `TerminalSessionInfo` — the session is present;
-- returns `nil` — the terminal authoritatively reports the session is gone (iTerm2 daemon `"Session not found"`; Kitty window absent from `@ ls`);
-- **throws** — the lookup could not be completed (connection failure, recovery failure, timeout, malformed response).
+- returns `TerminalSessionInfo` - the session is present;
+- returns `nil` - the terminal authoritatively reports the session is gone (iTerm2 daemon `"Session not found"`; Kitty window absent from `@ ls`);
+- **throws**: the lookup could not be completed (connection failure, recovery failure, timeout, malformed response).
 
 `isSessionGone` removes the session only on `nil`, and its `catch` returns `false` (keep the session) on a throw. So removal is tied to positively-confirmed absence; transient failures never cause removal. See `iterm2-daemon.md` for the daemon-side handling of the empty-string exception.
 
@@ -73,8 +73,8 @@ The registry is an actor singleton. At app launch, bridges are instantiated and 
 |------|--------|
 | `.iterm2` | `ITerm2Bridge` |
 | `.kitty` | `KittyBridge` |
-| `.ghostty` | None — recognized for detection only |
-| `.wezterm` | None — recognized for detection only |
+| `.ghostty` | None - recognized for detection only |
+| `.wezterm` | None - recognized for detection only |
 
 Each case carries a `bundleIdentifier` and `iconName` for app discovery and UI display.
 
@@ -88,22 +88,22 @@ Each case carries a `bundleIdentifier` and `iconName` for app discovery and UI d
 
 ## Concurrency
 
-All bridges are actors. Callers `await` every method. Internal state — daemon processes, socket paths, active reset tasks — is actor-isolated. External daemon callbacks must dispatch back into the actor context.
+All bridges are actors. Callers `await` every method. Internal state - daemon processes, socket paths, active reset tasks - is actor-isolated. External daemon callbacks must dispatch back into the actor context.
 
 ## Lifecycle
 
-- **Launch** — the app instantiates both bridges, registers them, and calls `start()` on the active one.
-- **Preference change** — `stopAll()` then `start()` for the new type.
-- **Exit** — `stopAll()`.
+- **Launch**: the app instantiates both bridges, registers them, and calls `start()` on the active one.
+- **Preference change**: `stopAll()` then `start()` for the new type.
+- **Exit**: `stopAll()`.
 
 Session restoration happens in `SessionManager`, independent of bridge lifecycle.
 
 ## Gotchas
 
-- **Timeouts** — `ITerm2Bridge` sets `activateTimeout = 2.0 s` and `highlightTimeout = 1.0 s`. Bridge methods must respect these.
-- **Sendable** — bridges must be `Sendable` so they cross actor boundaries safely.
-- **`sessionNotFound` vs `connectionFailed`** — use `.sessionNotFound` only when the terminal confirms the session is gone, so `TerminalActivation` can clean up state. Transient errors should be `.connectionFailed`.
-- **Highlight reset** — bridges that flash colors must track and cancel the reset task if a new highlight arrives before the first expires. See `KittyBridge`'s `activeTabResetTasks`.
+- **Timeouts**: `ITerm2Bridge` sets `activateTimeout = 2.0 s` and `highlightTimeout = 1.0 s`. Bridge methods must respect these.
+- **Sendable**: bridges must be `Sendable` so they cross actor boundaries safely.
+- **`sessionNotFound` vs `connectionFailed`**: use `.sessionNotFound` only when the terminal confirms the session is gone, so `TerminalActivation` can clean up state. Transient errors should be `.connectionFailed`.
+- **Highlight reset**: bridges that flash colors must track and cancel the reset task if a new highlight arrives before the first expires. See `KittyBridge`'s `activeTabResetTasks`.
 
 ---
 

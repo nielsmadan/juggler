@@ -1,6 +1,6 @@
-# Session Highlight Color — Implementation
+# Session Highlight Color - Implementation
 
-Behavioral rules for the active-session highlight color live in the PRD: [Session Highlight Color](../prd/highlight-color.md). This document covers where the rules are implemented.
+Behavioral rules for the active-session highlight color live in the feature docs: [Session Highlight Color](../features/highlight-color.md). This document covers where the rules are implemented.
 
 ## Source of truth
 
@@ -15,10 +15,10 @@ Readers:
 
 All mutations go through `SessionManager`. No other type writes to `activeColorIndex` directly.
 
-| Method | When it fires | PRD rule |
+| Method | When it fires | Feature-doc rule |
 |---|---|---|
 | `advanceColorIndex(by:)` | Cycling (hotkey, arrow keys, Tab). Wraps modulo palette size. | 1, 4 |
-| `setColorIndex(to:)` | Explicit position — click on a row, external focus change syncing to that row. | 2 |
+| `setColorIndex(to:)` | Explicit position - click on a row, external focus change syncing to that row. | 2 |
 | `syncColorIndex(toSessionID:)` | Click-path helper: looks up the session's row and calls `setColorIndex`. No-op if unknown or already matching. | 2 |
 | `clearColorIndex()` | Session list empty, or selection cannot be recovered. | 11 |
 
@@ -32,13 +32,13 @@ All mutations go through `SessionManager`. No other type writes to `activeColorI
 
 ## Relevant files
 
-- `Juggler/Managers/SessionManager.swift` — color state and mutators (`activeColorIndex`, `activeColor`, `advanceColorIndex`, `setColorIndex`, `clearColorIndex`, `syncColorIndex`).
-- `Juggler/Models/CyclingEngine.swift` — cycling algorithm; emits `didMove`.
-- `Juggler/Models/AppConstants.swift` — `CyclingColors.palette`, `paletteRGB`, `darkPaletteRGB` (rule 7).
-- `Juggler/Views/SessionListController.swift` — arrow / Tab navigation, reorder sync (rule 3), external focus handling.
-- `Juggler/Views/SessionMonitorView.swift` — main-window row highlight and click-to-activate.
-- `Juggler/Views/SessionRowView.swift` — popover row highlight and click-to-activate.
-- `Juggler/Services/TerminalBridge.swift` — builds `HighlightConfig` from `activeColorIndex`.
+- `Juggler/Managers/SessionManager.swift` - color state and mutators (`activeColorIndex`, `activeColor`, `advanceColorIndex`, `setColorIndex`, `clearColorIndex`, `syncColorIndex`).
+- `Juggler/Models/CyclingEngine.swift` - cycling algorithm; emits `didMove`.
+- `Juggler/Models/AppConstants.swift` - `CyclingColors.palette`, `paletteRGB`, `darkPaletteRGB` (rule 7).
+- `Juggler/Views/SessionListController.swift` - arrow / Tab navigation, reorder sync (rule 3), external focus handling.
+- `Juggler/Views/SessionMonitorView.swift` - main-window row highlight and click-to-activate.
+- `Juggler/Views/SessionRowView.swift` - popover row highlight and click-to-activate.
+- `Juggler/Services/TerminalBridge.swift` - builds `HighlightConfig` from `activeColorIndex`.
 
 ---
 

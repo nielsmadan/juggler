@@ -6,8 +6,8 @@ The beacon is a brief HUD overlay that shows the current session name whenever t
 
 ### When it appears
 
-- `⇧⌘K` — cycle forward → beacon shows next session name
-- `⇧⌘J` — cycle backward → beacon shows previous session name
+- `⇧⌘K` - cycle forward → beacon shows next session name
+- `⇧⌘J` - cycle backward → beacon shows previous session name
 
 Cycling while no cyclable session exists shows the fallback label **"All At Work"**.
 
@@ -18,7 +18,7 @@ On a *successful* activation the beacon does **not** appear for:
 
 ### Activation failure
 
-When the user requests an activation that **fails** for any reason — a missing/unreachable terminal, a dead bridge, a daemon error — the beacon flashes the fallback label **"Activation Failed"** so the failure isn't silent. This is forced: it appears even when the beacon is disabled in Settings, and it covers every user-initiated activation path (hotkey cycle, go-to-notification, backburner advance, manual clicks, and notification clicks). Skipping a stale session mid-cycle is not a failure — the cycle silently advances to the next live session and only the successful landing (or "All At Work") is shown.
+When the user requests an activation that **fails** for any reason - a missing/unreachable terminal, a dead bridge, a daemon error - the beacon flashes the fallback label **"Activation Failed"** so the failure isn't silent. This is forced: it appears even when the beacon is disabled in Settings, and it covers every user-initiated activation path (hotkey cycle, go-to-notification, backburner advance, manual clicks, and notification clicks). Skipping a stale session mid-cycle is not a failure - the cycle silently advances to the next live session and only the successful landing (or "All At Work") is shown.
 
 ### What it shows
 
@@ -30,7 +30,7 @@ Configurable: 0.5, 1.0, 1.5 (default), 2.0, or 3.0 seconds. The beacon fades out
 
 ### Rapid cycling
 
-Each new `show()` cancels the pending dismiss task, swaps the content to the new name, and restarts the timer. The user sees a continuous beacon whose text updates in place — no stacking, no flicker.
+Each new `show()` cancels the pending dismiss task, swaps the content to the new name, and restarts the timer. The user sees a continuous beacon whose text updates in place - no stacking, no flicker.
 
 ## Enabling / disabling
 
@@ -56,21 +56,21 @@ Size scales font, padding, and minimum width. XS uses 16 px text and a 100 px mi
 `Center` positions at center. Corner options offset 40 px from the edges.
 
 `Relative to`:
-- **Screen** — anchored to `NSScreen.main`.
-- **Active Window** — anchored to the frontmost app's window bounds. Useful in multi-monitor setups where the beacon should follow the current workspace.
+- **Screen**: anchored to `NSScreen.main`.
+- **Active Window**: anchored to the frontmost app's window bounds. Useful in multi-monitor setups where the beacon should follow the current workspace.
 
 ## Technical Notes
 
 Implementation:
-- `Managers/BeaconManager.swift` — show/dismiss coordination, panel lifecycle
-- `Views/BeaconContentView.swift` — SwiftUI content
-- `Views/BeaconSettingsView.swift` — settings UI
+- `Managers/BeaconManager.swift` - show/dismiss coordination, panel lifecycle
+- `Views/BeaconContentView.swift` - SwiftUI content
+- `Views/BeaconSettingsView.swift` - settings UI
 
 Models:
-- `BeaconPosition` — 5 cases (center + 4 corners)
-- `BeaconAnchor` — `screen` or `activeWindow`
-- `BeaconSize` — xs / s / m / l / xl
-- `BeaconPositionCalculator.calculateOrigin()` — translates position + anchor + size into an `NSPoint` (40 px edge margin)
+- `BeaconPosition` - 5 cases (center + 4 corners)
+- `BeaconAnchor` - `screen` or `activeWindow`
+- `BeaconSize` - xs / s / m / l / xl
+- `BeaconPositionCalculator.calculateOrigin()` - translates position + anchor + size into an `NSPoint` (40 px edge margin)
 
 Window: a single reused `NSPanel` (borderless, transparent, non-activating, floating). `canJoinAllSpaces` and `fullScreenAuxiliary` ensure it appears on every Space and over fullscreen apps.
 
@@ -80,12 +80,12 @@ Triggers: cycling goes through `HotkeyManager.activateWithRetry()` (`HotkeyManag
 
 ## Edge Cases
 
-- **Beacon disabled** — `show()` returns early; the panel is never created.
-- **No cyclable session** — fallback label "All At Work" is shown.
-- **Rapid hotkey presses** — `showGeneration` counter (`BeaconManager.swift:11`) invalidates stale dismiss tasks so only the latest timer runs.
-- **Multi-monitor** — `Screen` anchor uses `NSScreen.main`; `Active Window` follows the frontmost app. No mirroring across displays.
-- **Manual dismissal** — not supported; the beacon always auto-dismisses.
+- **Beacon disabled**: `show()` returns early; the panel is never created.
+- **No cyclable session**: fallback label "All At Work" is shown.
+- **Rapid hotkey presses**: `showGeneration` counter (`BeaconManager.swift:11`) invalidates stale dismiss tasks so only the latest timer runs.
+- **Multi-monitor**: `Screen` anchor uses `NSScreen.main`; `Active Window` follows the frontmost app. No mirroring across displays.
+- **Manual dismissal**: not supported; the beacon always auto-dismisses.
 
 ---
 
-[← Back to PRD Overview](overview.md)
+[← Back to Overview](overview.md)

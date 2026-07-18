@@ -81,10 +81,10 @@ Terminal type is detected by presence: `KITTY_WINDOW_ID` wins over `ITERM_SESSIO
 ```
 
 Optional blocks are omitted when empty:
-- `terminal.terminalType` / `kittyListenOn` / `kittyPid` — only present if the corresponding env var is set.
-- `tmux` — only present if `$TMUX_PANE` is set; `sessionName` only if `tmux display-message` succeeded.
-- `remoteHost` — only present if `$SSH_CONNECTION` is set.
-- `hookInput` — always present; may be empty `{}` if stdin is empty or unparseable.
+- `terminal.terminalType` / `kittyListenOn` / `kittyPid` - only present if the corresponding env var is set.
+- `tmux` - only present if `$TMUX_PANE` is set; `sessionName` only if `tmux display-message` succeeded.
+- `remoteHost` - only present if `$SSH_CONNECTION` is set.
+- `hookInput` - always present; may be empty `{}` if stdin is empty or unparseable.
 
 ### Delivery
 
@@ -165,7 +165,7 @@ Hooks are configured in Claude Code's settings at `~/.claude/settings.json`. The
 }
 ```
 
-**Note:** `SubagentStop` is intentionally **not** hooked — it fires asynchronously after `Stop` and would overwrite the idle state. The install script removes any existing `SubagentStop` hooks.
+**Note:** `SubagentStop` is intentionally **not** hooked - it fires asynchronously after `Stop` and would overwrite the idle state. The install script removes any existing `SubagentStop` hooks.
 
 ## Debugging
 

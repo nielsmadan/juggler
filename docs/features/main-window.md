@@ -43,16 +43,16 @@ With no tracked sessions, the window shows a "No Sessions" placeholder: *"Start 
 
 A single bar at the top combines the queue mode picker with three toggle buttons:
 
-- **Queue mode picker** — Fair / Prio / Static / Grouped.
-- **Auto-advance** (`forward.fill`) — Go to the next session when the current one goes busy.
-- **Auto-restart** (`autostartstop`) — When all sessions are busy and one becomes idle, jump to it.
-- **Beacon** (`light.panel`) — Show the session-name beacon when cycling.
+- **Queue mode picker**: Fair / Prio / Static / Grouped.
+- **Auto-advance** (`forward.fill`) - Go to the next session when the current one goes busy.
+- **Auto-restart** (`autostartstop`) - When all sessions are busy and one becomes idle, jump to it.
+- **Beacon** (`light.panel`) - Show the session-name beacon when cycling.
 
 A dismissible hint ("Hover over buttons to show help.") appears below the bar until dismissed.
 
 ## Sections
 
-In Fair and Prio modes, sessions are grouped into three labelled sections — **Idle**, **Working**, and **Backburner** — each with an empty-state placeholder when it has no sessions. Static mode shows a flat list; Grouped mode groups sessions by terminal window.
+In Fair and Prio modes, sessions are grouped into three labelled sections - **Idle**, **Working**, and **Backburner**: each with an empty-state placeholder when it has no sessions. Static mode shows a flat list; Grouped mode groups sessions by terminal window.
 
 ### Idle Section
 

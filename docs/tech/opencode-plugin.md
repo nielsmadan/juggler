@@ -27,7 +27,7 @@ Only these events are forwarded (`juggler-opencode.ts:75-84`):
 | OpenCode event | Forwarded as |
 |----------------|--------------|
 | `session.created` | `session.created` |
-| `session.status` (with `properties.status.type`) | `session.status.<type>` — e.g., `session.status.idle`, `session.status.busy`, `session.status.retry` |
+| `session.status` (with `properties.status.type`) | `session.status.<type>` - e.g., `session.status.idle`, `session.status.busy`, `session.status.retry` |
 | `session.idle` | `session.idle` |
 | `session.error` | `session.error` |
 | `session.compacted` | `session.compacted` |
@@ -85,10 +85,10 @@ See `docs/tech/hook-server.md` for the event-to-state mapping both agents share.
 
 ## Gotchas
 
-- **Resumed sessions need the synthetic `session.created`** — removing the immediate post on plugin load silently breaks session tracking for any resumed OpenCode session.
-- **Terminal info is captured once** — if OpenCode is somehow re-parented to a different terminal at runtime, the plugin's cached `terminal` block goes stale. Restart OpenCode to refresh.
-- **`session.status` without a `type`** is dropped — if OpenCode changes its event shape, the plugin silently stops posting status updates. Log the payload before dropping if debugging.
-- **`JUGGLER_PORT` override** — the plugin respects `$JUGGLER_PORT`. Keep this in sync with `HookServer` if the port is ever customised.
+- **Resumed sessions need the synthetic `session.created`**: removing the immediate post on plugin load silently breaks session tracking for any resumed OpenCode session.
+- **Terminal info is captured once**: if OpenCode is somehow re-parented to a different terminal at runtime, the plugin's cached `terminal` block goes stale. Restart OpenCode to refresh.
+- **`session.status` without a `type`** is dropped - if OpenCode changes its event shape, the plugin silently stops posting status updates. Log the payload before dropping if debugging.
+- **`JUGGLER_PORT` override**: the plugin respects `$JUGGLER_PORT`. Keep this in sync with `HookServer` if the port is ever customised.
 
 ---
 

@@ -10,8 +10,8 @@ Kitty   ──(juggler_watcher.py)──────HTTP POST──→ http://lo
 ```
 
 Two channels:
-- **Outbound commands** — `KittyBridge` invokes `kitten @` to activate windows, set colors, query state.
-- **Inbound events** — `juggler_watcher.py` (a Kitty watcher script) posts focus and close events to Juggler's HTTP server.
+- **Outbound commands**: `KittyBridge` invokes `kitten @` to activate windows, set colors, query state.
+- **Inbound events**: `juggler_watcher.py` (a Kitty watcher script) posts focus and close events to Juggler's HTTP server.
 
 ## Required Kitty Config
 
@@ -55,10 +55,10 @@ Posts to `http://localhost:7483/kitty-event` with a 1 s curl timeout. Fire-and-f
 
 `Views/KittySetupView.swift` walks the user through a four-step wizard:
 
-1. **Remote Control** — appends `allow_remote_control socket-only` if missing.
-2. **Listen Socket** — appends `listen_on unix:/tmp/kitty-{kitty_pid}` if missing.
-3. **Watcher Install** — calls `ScriptInstaller.installKittyWatcher()`.
-4. **Test Connection** — runs `KittyBridge.testConnection()`; on success, "Done" enables.
+1. **Remote Control**: appends `allow_remote_control socket-only` if missing.
+2. **Listen Socket**: appends `listen_on unix:/tmp/kitty-{kitty_pid}` if missing.
+3. **Watcher Install**: calls `ScriptInstaller.installKittyWatcher()`.
+4. **Test Connection**: runs `KittyBridge.testConnection()`; on success, "Done" enables.
 
 An orange warning reminds the user to restart Kitty after each config change.
 
@@ -86,11 +86,11 @@ A warning is logged if not found.
 
 ## Gotchas
 
-- **GUI env inheritance** — `KITTY_LISTEN_ON` is not inherited by GUI-launched apps; rely on the `/tmp` scan instead (`KittyBridge.swift:71-72`).
-- **Kitty restart required** — config edits don't take effect until Kitty is restarted.
-- **Pipe drain on detached tasks** — `runKittenCommand` drains stdout/stderr pipes to prevent buffer-full deadlock (`KittyBridge.swift:295-296`).
-- **Highlight reset auto-cancels** — scheduling a new highlight on the same session cancels the pending reset task (`KittyBridge.swift:149, 172`).
-- **Missing window maps to `connectionFailed`** — if a window ID is unknown, the bridge returns `connectionFailed` rather than `sessionNotFound` to avoid an infinite cleanup cycle (`KittyBridge.swift:113-115`).
+- **GUI env inheritance**: `KITTY_LISTEN_ON` is not inherited by GUI-launched apps; rely on the `/tmp` scan instead (`KittyBridge.swift:71-72`).
+- **Kitty restart required**: config edits don't take effect until Kitty is restarted.
+- **Pipe drain on detached tasks**: `runKittenCommand` drains stdout/stderr pipes to prevent buffer-full deadlock (`KittyBridge.swift:295-296`).
+- **Highlight reset auto-cancels**: scheduling a new highlight on the same session cancels the pending reset task (`KittyBridge.swift:149, 172`).
+- **Missing window maps to `connectionFailed`**: if a window ID is unknown, the bridge returns `connectionFailed` rather than `sessionNotFound` to avoid an infinite cleanup cycle (`KittyBridge.swift:113-115`).
 
 ## Concurrency
 

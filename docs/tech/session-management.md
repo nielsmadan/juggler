@@ -72,7 +72,7 @@ enum SessionState: String, Codable {
 3. `addOrUpdateSession()` updates session and, on a state change, calls `applyStateChange()`
 4. `applyStateChange()` orchestrates the transition:
    - Section transition animation (`SectionAnimationController`)
-   - `handleStateTransition()` — queue reorder (per `QueueOrderMode`) and busy-time stats accrual
+   - `handleStateTransition()` - queue reorder (per `QueueOrderMode`) and busy-time stats accrual
    - Auto-advance / auto-restart triggers (posts `.shouldAutoAdvance` / `.shouldAutoRestart`)
 
 ## Cycling Engine
@@ -145,7 +145,7 @@ Smooth vertical movement via `matchedGeometryEffect` (0.4s)
 
 Special logic to preserve backburner state:
 
-In `addOrUpdateSession()` (`SessionManager.swift:605`), when the existing state is `.backburner` and the event isn't `UserPromptSubmit`, the method calls `mergeSessionMetadata(...)` to refresh tmux/git/transcript fields and returns without changing state — preserving backburner.
+In `addOrUpdateSession()` (`SessionManager.swift:605`), when the existing state is `.backburner` and the event isn't `UserPromptSubmit`, the method calls `mergeSessionMetadata(...)` to refresh tmux/git/transcript fields and returns without changing state - preserving backburner.
 
 Only `UserPromptSubmit` or explicit reactivation (via `updateSessionState`, not this method) exits backburner.
 

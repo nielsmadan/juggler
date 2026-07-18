@@ -20,9 +20,9 @@ I usually have 3-6 terminals open, each of which will have 2-6 tabs focused on v
 
 ### What sets it apart:
 
-- **Instant switching** — Press one global hotkey from anywhere and Juggler takes you straight to the next session waiting for input
-- **Never lose a window** — Color-coded tab and pane highlighting lets you spot the active session immediately, even across monitors
-- **Zero workflow changes** — No new terminal to learn and set up, no forced worktrees, no single-repo limit. Your existing setup stays exactly as it was
+- **Instant switching** - Press one global hotkey from anywhere and Juggler takes you straight to the next session waiting for input
+- **Never lose a window** - Color-coded tab and pane highlighting lets you spot the active session immediately, even across monitors
+- **Zero workflow changes** - No new terminal to learn and set up, no forced worktrees, no single-repo limit. Your existing setup stays exactly as it was
 
 ## Installation
 
@@ -38,22 +38,22 @@ brew install --cask nielsmadan/juggler/juggler
 
 ## Getting Started
 
-1. **Download and open** — Launch Juggler from Applications
-2. **Walk through onboarding** — Grant Accessibility permissions, set up terminal integration(s), install hooks
-3. **Open your sessions** — Start Claude Code, OpenCode, or Codex as you normally would. Juggler detects them automatically
-4. **Hit the hotkey** — Press `⇧⌘K` and you're at the next idle session
+1. **Download and open** - Launch Juggler from Applications
+2. **Walk through onboarding** - Grant Accessibility permissions, set up terminal integration(s), install hooks
+3. **Open your sessions** - Start Claude Code, OpenCode, or Codex as you normally would. Juggler detects them automatically
+4. **Hit the hotkey** - Press `⇧⌘K` and you're at the next idle session
 
 ## Features
 
-- **Global hotkeys** — Cycle forward, backward, backburner, reactivate, toggle UI — all from any app, all customizable
-- **Tab & pane highlighting** — One highlight color is active at a time; it advances each cycle and always matches between the monitor and the terminal tab/pane
-- **Quick orientation** — Briefly flash the name of the session in the middle of the screen, immediately see where you are.
-- **Notifications** — Native macOS alerts when a session goes idle or needs permission. Click to jump there
-- **Menu bar & monitor** — Popover for a quick glance. Full session monitor window with jugglery animations and stats
-- **Queue modes** — Fair (round-robin), Priority (most recent first), Static (creation order), or Grouped (by window)
-- **Backburner** — Park sessions you don't need right now. They stay tracked but won't appear in your cycle
-- **Idle time stats** — Per-session and global idle vs. working time
-- **Guided setup** — Onboarding walks you through permissions, terminal integration, and hook installation
+- **Global hotkeys** - Cycle forward, backward, backburner, reactivate, toggle UI - all from any app, all customizable
+- **Tab & pane highlighting** - One highlight color is active at a time; it advances each cycle and always matches between the monitor and the terminal tab/pane
+- **Quick orientation** - Briefly flash the name of the session in the middle of the screen, immediately see where you are.
+- **Notifications** - Native macOS alerts when a session goes idle or needs permission. Click to jump there
+- **Menu bar & monitor** - Popover for a quick glance. Full session monitor window with jugglery animations and stats
+- **Queue modes** - Fair (round-robin), Priority (most recent first), Static (creation order), or Grouped (by window)
+- **Backburner** - Park sessions you don't need right now. They stay tracked but won't appear in your cycle
+- **Idle time stats** - Per-session and global idle vs. working time
+- **Guided setup** - Onboarding walks you through permissions, terminal integration, and hook installation
 
 ## Keyboard Shortcuts
 
@@ -72,7 +72,7 @@ All shortcuts are customizable in Settings.
 
 **Terminals:** iTerm2, Kitty, tmux (optional multiplexer), Zellij (planned)
 
-**Coding agents:** Claude Code, OpenCode, Codex *(experimental — requires Codex CLI ≥ v0.114)*
+**Coding agents:** Claude Code, OpenCode, Codex *(experimental - requires Codex CLI ≥ v0.114)*
 
 **Requires:** macOS 14.0+ (Sonoma)
 
@@ -88,9 +88,9 @@ Juggler runs a lightweight HTTP server on port 7483 that receives state-change e
 
 Juggler's onboarding flow sets up agent integration automatically. You can also configure it manually:
 
-- **Claude Code** — Shell hooks installed to `~/.claude/hooks/juggler/`. Alternatively, run `/Applications/Juggler.app/Contents/Resources/install.sh`
-- **OpenCode** — TypeScript plugin installed to `~/.config/opencode/plugins/juggler-opencode.ts`. Configure via Settings → Integrations
-- **Codex** *(experimental — requires Codex CLI ≥ v0.114)* — Three setup steps in Settings → Integrations: **Install Hooks** (adds `notify.sh` + `hooks.json` to `~/.codex/hooks/juggler/`), **Enable Feature Flag** (`features.hooks = true` in `~/.codex/config.toml`), and **Enable in Codex** (writes `[hooks.state]` trust entries so Codex runs the hooks — this bypasses Codex's own hook review; alternatively run `/hooks` in Codex and trust them manually)
+- **Claude Code** - Shell hooks installed to `~/.claude/hooks/juggler/`. Alternatively, run `/Applications/Juggler.app/Contents/Resources/install.sh`
+- **OpenCode** - TypeScript plugin installed to `~/.config/opencode/plugins/juggler-opencode.ts`. Configure via Settings → Integrations
+- **Codex** *(experimental - requires Codex CLI ≥ v0.114)* - Three setup steps in Settings → Integrations: **Install Hooks** (adds `notify.sh` + `hooks.json` to `~/.codex/hooks/juggler/`), **Enable Feature Flag** (`features.hooks = true` in `~/.codex/config.toml`), and **Enable in Codex** (writes `[hooks.state]` trust entries so Codex runs the hooks - this bypasses Codex's own hook review; alternatively run `/hooks` in Codex and trust them manually)
 
 ### Running over SSH
 
@@ -104,17 +104,17 @@ Juggler requires terminals with a scriptable API to switch sessions and highligh
 
 **Planned:**
 
-- [WezTerm](https://wezfurlong.org/wezterm/) — cross-platform CLI API for session and tab control (macOS, Linux, Windows)
-- [Wave](https://github.com/wavetermdev/waveterm) — `wsh` CLI for workspace control (macOS, Linux, Windows)
-- [Tabby](https://github.com/Eugeny/tabby) — TypeScript plugin system for tab control (macOS, Linux, Windows)
-- [Zellij](https://github.com/zellij-org/zellij) — multiplexer with CLI session/tab control, as an alternative to tmux
+- [WezTerm](https://wezfurlong.org/wezterm/) - cross-platform CLI API for session and tab control (macOS, Linux, Windows)
+- [Wave](https://github.com/wavetermdev/waveterm) - `wsh` CLI for workspace control (macOS, Linux, Windows)
+- [Tabby](https://github.com/Eugeny/tabby) - TypeScript plugin system for tab control (macOS, Linux, Windows)
+- [Zellij](https://github.com/zellij-org/zellij) - multiplexer with CLI session/tab control, as an alternative to tmux
 
 **Waiting on API support:**
 
-- [Ghostty](https://github.com/ghostty-org/ghostty) — no scripting API yet ([discussion](https://github.com/ghostty-org/ghostty/discussions/2353))
-- [Warp](https://www.warp.dev/) — no plugin system yet ([discussion](https://github.com/warpdotdev/Warp/discussions/435))
-- [Alacritty](https://alacritty.org/) — minimal by design, no session control API
-- Terminal.app — AppleScript support too limited for tab/pane management
+- [Ghostty](https://github.com/ghostty-org/ghostty) - no scripting API yet ([discussion](https://github.com/ghostty-org/ghostty/discussions/2353))
+- [Warp](https://www.warp.dev/) - no plugin system yet ([discussion](https://github.com/warpdotdev/Warp/discussions/435))
+- [Alacritty](https://alacritty.org/) - minimal by design, no session control API
+- Terminal.app - AppleScript support too limited for tab/pane management
 
 ### Coding Agents
 
@@ -122,12 +122,12 @@ Juggler tracks agent sessions through lifecycle hooks that fire on events like s
 
 **Planned:**
 
-- [Gemini CLI](https://github.com/google-gemini/gemini-cli) — has comprehensive hooks (SessionStart/End, BeforeTool/AfterTool)
-- [GitHub Copilot CLI](https://github.com/github/copilot-cli) — has hooks (sessionStart/End, preToolUse)
+- [Gemini CLI](https://github.com/google-gemini/gemini-cli) - has comprehensive hooks (SessionStart/End, BeforeTool/AfterTool)
+- [GitHub Copilot CLI](https://github.com/github/copilot-cli) - has hooks (sessionStart/End, preToolUse)
 
 **Waiting on hook support:**
 
-- [Aider](https://github.com/Aider-AI/aider) — no lifecycle hooks
+- [Aider](https://github.com/Aider-AI/aider) - no lifecycle hooks
 
 ### Linux & Windows
 
@@ -135,4 +135,4 @@ Juggler is currently macOS-only. [WezTerm](https://wezfurlong.org/wezterm/), [Wa
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT License - see [LICENSE](LICENSE) for details.

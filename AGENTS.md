@@ -29,7 +29,7 @@ just setup        # Install the repo's lefthook Git hooks
 
 Or use Xcode: `⌘B` to build, `⌘R` to run.
 
-**Testing workflow:** Don't run `just run` — the user runs and tests the app themselves. Just run `just build` and tell the user when it's ready for testing.
+**Testing workflow:** Don't run `just run` - the user runs and tests the app themselves. Just run `just build` and tell the user when it's ready for testing.
 
 ## Architecture
 
@@ -60,7 +60,7 @@ Juggler/
 │   ├── QueueOrderMode.swift      # Fair, Prio, Static, Grouped modes
 │   ├── Session.swift             # Session data model
 │   ├── SessionState.swift        # idle, working, permission, backburner, compacting
-│   ├── TerminalType.swift        # Terminal app abstraction (iTerm2, Kitty, Ghostty, WezTerm — latter two recognized but no bridge yet)
+│   ├── TerminalType.swift        # Terminal app abstraction (iTerm2, Kitty, Ghostty, WezTerm - latter two recognized but no bridge yet)
 │   └── ...                       # AppConstants, AppStorageKeys, BeaconPosition/PositionCalculator/Size/Anchor, ConfigValidator, DailyStatsStore, SessionStatsCalculator, SessionTitleMode, StatsBarLayout
 ├── Services/
 │   ├── HookServer.swift          # HTTP server receiving hooks (/hook, /kitty-event)
@@ -104,6 +104,10 @@ Juggler/
 - `OnboardingView` window triggers first-run setup
 - `NSApp.setActivationPolicy(.regular)` shows dock icon; `.accessory` hides it
 
+**Recurring trap (full post-mortems in `docs/log/`):** iTerm2 session IDs are prefixed
+`w1t0p0:UUID`, but iTerm2's FocusMonitor sends the bare `UUID`. Match with `hasSuffix`, never
+`==` - exact matching has broken focus-sync and terminal-info more than once.
+
 ## Hook Installation
 
 Hooks are installed to `~/.claude/hooks/juggler/`. The `notify.sh` script reads session data from stdin (JSON) and posts to Juggler's HTTP server.
@@ -132,9 +136,9 @@ Add unit tests in `JugglerTests/` for business logic and service behavior; reser
 Project docs live in `docs/` (start at [docs/overview.md](docs/overview.md)). After completing a feature, run `doc --update` to keep them current.
 
 Related documentation:
-- [README.md](README.md) — User-facing documentation
-- [docs/tech/overview.md](docs/tech/overview.md) — Technical architecture
-- [docs/prd/overview.md](docs/prd/overview.md) — Product requirements document
+- [README.md](README.md): User-facing documentation
+- [docs/tech/overview.md](docs/tech/overview.md): Technical architecture
+- [docs/features/overview.md](docs/features/overview.md): What each feature does
 
 ## Commit & Pull Request Guidelines
 

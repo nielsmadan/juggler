@@ -10,9 +10,9 @@ Juggler monitors Claude Code, OpenCode, and Codex sessions running in iTerm2 or 
 
 ## Unique Selling Points
 
-- Use your full-featured, existing terminal — keep your existing workflow.
+- Use your full-featured, existing terminal - keep your existing workflow.
 - Full flexibility: any repo arrangement, any number of worktrees, any split-pane layout.
-- Full keyboard controls for every UI element — never take your hands off the keyboard.
+- Full keyboard controls for every UI element - never take your hands off the keyboard.
 
 ## Core Workflow
 

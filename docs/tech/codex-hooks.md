@@ -6,20 +6,20 @@ Requires Codex CLI ≥ v0.114.
 
 ## Installation
 
-Codex setup is **three separate steps** (three buttons in onboarding's Integration Hub and in Settings → Integration). They are independent and idempotent — run them in order:
+Codex setup is **three separate steps** (three buttons in onboarding's Integration Hub and in Settings → Integration). They are independent and idempotent - run them in order:
 
-1. **Install Hooks** — copies the bundled script to `~/.codex/hooks/juggler/notify.sh` (`chmod 755`) and registers all eight events in `~/.codex/hooks.json`.
-2. **Enable Feature Flag** — sets `[features] hooks = true` in `~/.codex/config.toml`. Codex ignores `hooks.json` entirely unless this flag is on.
-3. **Enable in Codex** — writes `[hooks.state]` trust records to `config.toml` so the hooks run without the manual `/hooks` review. This bypasses Codex's own trust-enabling flow; the alternative is to skip this step and run `/hooks` inside Codex to approve Juggler's hooks manually.
+1. **Install Hooks**: copies the bundled script to `~/.codex/hooks/juggler/notify.sh` (`chmod 755`) and registers all eight events in `~/.codex/hooks.json`.
+2. **Enable Feature Flag**: sets `[features] hooks = true` in `~/.codex/config.toml`. Codex ignores `hooks.json` entirely unless this flag is on.
+3. **Enable in Codex**: writes `[hooks.state]` trust records to `config.toml` so the hooks run without the manual `/hooks` review. This bypasses Codex's own trust-enabling flow; the alternative is to skip this step and run `/hooks` inside Codex to approve Juggler's hooks manually.
 
 `CodexHooksInstaller` (`Services/CodexHooksInstaller.swift`) implements all three; this is the path the app uses (wired via `CodexSetupController`). Each step that modifies an existing file backs it up once to `<path>.juggler-backup` before the first write.
 
-`Resources/codex-hooks/codex-install.sh` is a standalone shell mirror of the same logic for non-app/manual installs — it is not invoked by the app.
+`Resources/codex-hooks/codex-install.sh` is a standalone shell mirror of the same logic for non-app/manual installs - it is not invoked by the app.
 
 **Files involved:**
-- `~/.codex/hooks/juggler/notify.sh` — the hook script (bundled in the app as `Resources/codex-hooks/codex-notify.sh`).
-- `~/.codex/hooks.json` — event → hook registration.
-- `~/.codex/config.toml` — feature flag (`[features] hooks`) and trust records (`[hooks.state]`).
+- `~/.codex/hooks/juggler/notify.sh` - the hook script (bundled in the app as `Resources/codex-hooks/codex-notify.sh`).
+- `~/.codex/hooks.json` - event → hook registration.
+- `~/.codex/config.toml` - feature flag (`[features] hooks`) and trust records (`[hooks.state]`).
 
 ## Hook Script
 
@@ -40,11 +40,11 @@ The only meaningful difference: the payload's `agent` field is `"codex"`.
 }
 ```
 
-See [Claude Code Hooks](hooks.md) for the full payload contract — it is shared.
+See [Claude Code Hooks](hooks.md) for the full payload contract - it is shared.
 
 ## Hook Events
 
-Codex fires eight events. There is **no `SessionEnd`** — sessions are removed via terminal-bridge cleanup when the window closes, not by a hook.
+Codex fires eight events. There is **no `SessionEnd`**: sessions are removed via terminal-bridge cleanup when the window closes, not by a hook.
 
 | Event | Mapped State |
 |-------|--------------|
@@ -73,7 +73,7 @@ Mapping lives in `HookEventMapper.mapCodex`. Event names are matched case-sensit
 }
 ```
 
-It removes any pre-existing Juggler group (matched by a loose substring match on the command) before re-adding, so reinstalls don't duplicate. A user's own hooks for the same event are left untouched — Juggler's group is simply appended after them.
+It removes any pre-existing Juggler group (matched by a loose substring match on the command) before re-adding, so reinstalls don't duplicate. A user's own hooks for the same event are left untouched - Juggler's group is simply appended after them.
 
 ## Trust Mechanism
 
@@ -84,10 +84,10 @@ Codex stores hook trust in `~/.codex/config.toml`:
 trusted_hash = "sha256:<hex>"
 ```
 
-- **Key** — `<hooksJSONPath>` is the absolute path to `hooks.json`; `<snake_event>` is the event in snake_case (`session_start`, `user_prompt_submit`, …); `<handlerIndex>` is always `0` (Juggler registers a single-handler group per event); `<groupIndex>` is **resolved at install time** from `hooks.json` — it is *not* always `0`. If the user already has their own hook for an event, theirs sits at group 0 and Juggler's lands at group 1.
-- **`trusted_hash`** — SHA-256 over Codex's canonical hook fingerprint: sorted-key, compact JSON with slashes unescaped, of `{"event_name":"<snake>","hooks":[{"async":false,"command":"<cmd>","timeout":5,"type":"command"}]}`. `computeTrustedHash` mirrors this exactly. The `timeout` (5s) is part of the hashed identity, so `hookTimeoutSeconds` must stay in sync between the value written to `hooks.json` and the value folded into the hash.
+- **Key**: `<hooksJSONPath>` is the absolute path to `hooks.json`; `<snake_event>` is the event in snake_case (`session_start`, `user_prompt_submit`, …); `<handlerIndex>` is always `0` (Juggler registers a single-handler group per event); `<groupIndex>` is **resolved at install time** from `hooks.json` - it is *not* always `0`. If the user already has their own hook for an event, theirs sits at group 0 and Juggler's lands at group 1.
+- **`trusted_hash`**: SHA-256 over Codex's canonical hook fingerprint: sorted-key, compact JSON with slashes unescaped, of `{"event_name":"<snake>","hooks":[{"async":false,"command":"<cmd>","timeout":5,"type":"command"}]}`. `computeTrustedHash` mirrors this exactly. The `timeout` (5s) is part of the hashed identity, so `hookTimeoutSeconds` must stay in sync between the value written to `hooks.json` and the value folded into the hash.
 
-`enableInCodex` rewrites **only** the exact `[hooks.state]` keys it is about to produce — it never prefix-matches. Prefix-matching would delete a user's own trust block: once Juggler moves to group index 1, a `<path>:<event>:0:0` block belongs to the *user*, not to a stale Juggler entry. The one genuine orphan case — Juggler moving from index 1 back to 0, leaving a dead `:1:0` block — is harmless (Codex never computes a key for a group index absent from `hooks.json`), and `uninstall.sh` garbage-collects it on reset.
+`enableInCodex` rewrites **only** the exact `[hooks.state]` keys it is about to produce - it never prefix-matches. Prefix-matching would delete a user's own trust block: once Juggler moves to group index 1, a `<path>:<event>:0:0` block belongs to the *user*, not to a stale Juggler entry. The one genuine orphan case - Juggler moving from index 1 back to 0, leaving a dead `:1:0` block - is harmless (Codex never computes a key for a group index absent from `hooks.json`), and `uninstall.sh` garbage-collects it on reset.
 
 `isEnabledInCodex` returns true only when config.toml has a matching `trusted_hash` for *every* registered Juggler hook. Any missing/unparseable `hooks.json`, unresolved event, or hash mismatch → false, which is what drives the "Enable in Codex" button's status indicator.
 
@@ -95,18 +95,18 @@ trusted_hash = "sha256:<hex>"
 
 `uninstall.sh` (run by `just reset-integration`) fully reverts Codex:
 - `rm -rf ~/.codex/hooks/juggler/`.
-- If `~/.codex/config.toml.juggler-backup` exists → `mv` it back over `config.toml`. This restores the exact pre-Juggler state (no `[features] hooks`, no `[hooks.state]` blocks) without parsing TOML. If Juggler created `config.toml` from scratch (no backup), it is left alone — the leftover flag/blocks are harmless.
+- If `~/.codex/config.toml.juggler-backup` exists → `mv` it back over `config.toml`. This restores the exact pre-Juggler state (no `[features] hooks`, no `[hooks.state]` blocks) without parsing TOML. If Juggler created `config.toml` from scratch (no backup), it is left alone - the leftover flag/blocks are harmless.
 - `~/.codex/hooks.json` is surgically stripped of Juggler's groups (or removed if it becomes empty); the stale `hooks.json.juggler-backup` is deleted.
 
 ## Known Quirks
 
 ### SessionStart fires at first message, not at launch
 
-Codex does not fire `SessionStart` when the TUI opens — only when the user submits their first prompt. A freshly opened Codex window therefore does not appear in Juggler until the first message. The Session Monitor's empty-state text notes this. There is no `SessionEnd` either, so a stopped Codex session lingers until its terminal window closes (terminal-bridge cleanup removes it then).
+Codex does not fire `SessionStart` when the TUI opens - only when the user submits their first prompt. A freshly opened Codex window therefore does not appear in Juggler until the first message. The Session Monitor's empty-state text notes this. There is no `SessionEnd` either, so a stopped Codex session lingers until its terminal window closes (terminal-bridge cleanup removes it then).
 
 ### No Separate Failure Event
 
-Unlike Claude Code (which fires `StopFailure` on API errors instead of `Stop`) and OpenCode (which has a distinct `session.error` bus event), Codex collapses success and error turn endings into the same `Stop` event. The error context lives in the hook payload, not the event name. This means no extra hook is needed to recover from API failures — the existing `Stop` → `idle` mapping covers both paths. User interrupts and CLI crashes still fire no hook on Codex either.
+Unlike Claude Code (which fires `StopFailure` on API errors instead of `Stop`) and OpenCode (which has a distinct `session.error` bus event), Codex collapses success and error turn endings into the same `Stop` event. The error context lives in the hook payload, not the event name. This means no extra hook is needed to recover from API failures - the existing `Stop` → `idle` mapping covers both paths. User interrupts and CLI crashes still fire no hook on Codex either.
 
 ### config.toml is hand-edited, not TOML-parsed
 

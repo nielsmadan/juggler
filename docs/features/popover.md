@@ -55,10 +55,10 @@ Left-clicking the icon opens the popover; right-clicking opens a menu with **Ope
 
 The icon also reflects iTerm2 daemon health:
 
-- **Normal** — full opacity, no tooltip.
-- **Connecting** — tooltip "Connecting to iTerm2…".
-- **Waiting for iTerm2** — dimmed to 50% opacity, tooltip "Waiting for iTerm2 — make sure it's running and the Python API is enabled."
-- **Failed** — tinted red, tooltip "iTerm2 integration unavailable." plus the failure reason.
+- **Normal**: full opacity, no tooltip.
+- **Connecting**: tooltip "Connecting to iTerm2…".
+- **Waiting for iTerm2**: dimmed to 50% opacity, tooltip "Waiting for iTerm2 - make sure it's running and the Python API is enabled."
+- **Failed**: tinted red, tooltip "iTerm2 integration unavailable." plus the failure reason.
 
 ## Interactions
 
