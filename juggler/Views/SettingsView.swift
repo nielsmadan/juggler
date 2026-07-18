@@ -787,6 +787,7 @@ struct ShortcutsSettingsView: View {
                 KeyboardShortcuts.Recorder("Cycle Forward:", name: .cycleForward)
                 KeyboardShortcuts.Recorder("Cycle Backward:", name: .cycleBackward)
                 KeyboardShortcuts.Recorder("Backburner Current:", name: .backburner)
+                KeyboardShortcuts.Recorder("Send to Back:", name: .sendToBack)
                 KeyboardShortcuts.Recorder("Reactivate All:", name: .reactivateAll)
                 SettingWithDescription(
                     description: "Activates the session from the most recent notification."
@@ -811,6 +812,9 @@ struct SessionListShortcutsSection: View {
     @State private var moveDown = DiscreteShortcut.load(from: AppStorageKeys.localShortcutMoveDown)
     @State private var moveUp = DiscreteShortcut.load(from: AppStorageKeys.localShortcutMoveUp)
     @State private var backburner = DiscreteShortcut.load(from: AppStorageKeys.localShortcutBackburner)
+    @State private var sendToBack: DiscreteShortcut? = DiscreteShortcut
+        .load(from: AppStorageKeys.localShortcutSendToBack)
+        ?? DiscreteShortcut(keyCode: 31, modifiers: []) // O
     @State private var reactivateSelected = DiscreteShortcut.load(from: AppStorageKeys.localShortcutReactivateSelected)
     @State private var reactivateAll = DiscreteShortcut.load(from: AppStorageKeys.localShortcutReactivateAll)
     @State private var rename = DiscreteShortcut.load(from: AppStorageKeys.localShortcutRename)
@@ -834,6 +838,11 @@ struct SessionListShortcutsSection: View {
                 label: "Backburner",
                 shortcut: $backburner,
                 storageKey: AppStorageKeys.localShortcutBackburner
+            )
+            ShortcutRow(
+                label: "Send to Back",
+                shortcut: $sendToBack,
+                storageKey: AppStorageKeys.localShortcutSendToBack
             )
             ShortcutRow(
                 label: "Reactivate Selected",

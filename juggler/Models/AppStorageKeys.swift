@@ -81,6 +81,7 @@ enum AppStorageKeys {
     static let localShortcutMoveDown = "localShortcutMoveDown"
     static let localShortcutMoveUp = "localShortcutMoveUp"
     static let localShortcutBackburner = "localShortcutBackburner"
+    static let localShortcutSendToBack = "localShortcutSendToBack"
     static let localShortcutReactivateSelected = "localShortcutReactivateSelected"
     static let localShortcutReactivateAll = "localShortcutReactivateAll"
     static let localShortcutRename = "localShortcutRename"

@@ -13,6 +13,7 @@ extension KeyboardShortcuts.Name {
     static let cycleForward = Self("cycleForward", default: .init(.k, modifiers: [.command, .shift]))
     static let cycleBackward = Self("cycleBackward", default: .init(.j, modifiers: [.command, .shift]))
     static let backburner = Self("backburner", default: .init(.l, modifiers: [.command, .shift]))
+    static let sendToBack = Self("sendToBack", default: .init(.o, modifiers: [.command, .shift]))
     static let reactivateAll = Self("reactivateAll", default: .init(.h, modifiers: [.command, .shift]))
     static let showMonitor = Self("showMonitor", default: .init(.semicolon, modifiers: [.command, .shift]))
     static let goToLastNotification = Self("goToLastNotification", default: .init(.e, modifiers: [.command, .shift]))
@@ -73,6 +74,10 @@ final class HotkeyManager {
 
         KeyboardShortcuts.onKeyDown(for: .backburner) {
             Task { await self.handleBackburner() }
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .sendToBack) {
+            Task { await self.handleSendToBack() }
         }
 
         KeyboardShortcuts.onKeyDown(for: .reactivateAll) {
@@ -212,6 +217,24 @@ final class HotkeyManager {
                 return
             }
         }
+    }
+
+    private func handleSendToBack() async {
+        logDebug(.hotkey, "Send to back triggered")
+        guard let current = SessionManager.shared.currentSession,
+              current.state.isIncludedInCycle else {
+            logDebug(.hotkey, "No cyclable current session to send to back")
+            return
+        }
+        guard let next = SessionManager.shared.sendToBackOfQueue(sessionID: current.id) else {
+            logDebug(.hotkey, "Send to back not applicable in current queue mode")
+            return
+        }
+        SessionManager.shared.updateFocusedSession(terminalSessionID: next.id)
+        await activateWithRetry(
+            direction: "send-to-back",
+            cycle: { SessionManager.shared.currentSession }
+        )
     }
 
     private func handleReactivateAll() {

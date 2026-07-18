@@ -135,10 +135,7 @@ struct TerminalActivationTests {
 
     @Suite(.serialized)
     struct TerminalActivationBehaviorTests {
-        @MainActor
-        private func resetSharedState() async {
-            SessionManager.shared.testSetSessions([])
-            await TerminalBridgeRegistry.shared.register(ActivationMockBridge(), for: .iterm2)
+        private func resetHighlightDefaults() {
             UserDefaults.standard.removeObject(forKey: AppStorageKeys.highlightOnHotkey)
             UserDefaults.standard.removeObject(forKey: AppStorageKeys.highlightOnGuiSelect)
             UserDefaults.standard.removeObject(forKey: AppStorageKeys.highlightOnNotification)
@@ -156,7 +153,8 @@ struct TerminalActivationTests {
         }
 
         @Test @MainActor func activate_missingBridge_throwsBridgeNotAvailable() async {
-            await resetSharedState()
+            resetHighlightDefaults()
+            let registry = TerminalBridgeRegistry()
             let session = Session(
                 claudeSessionID: "c1",
                 terminalSessionID: "ghost-session",
@@ -168,7 +166,7 @@ struct TerminalActivationTests {
             )
 
             do {
-                try await TerminalActivation.activate(session: session, trigger: .hotkey)
+                try await TerminalActivation.activate(session: session, trigger: .hotkey, registry: registry)
                 Issue.record("Expected bridgeNotAvailable to be thrown")
             } catch let error as TerminalBridgeError {
                 switch error {
@@ -183,15 +181,14 @@ struct TerminalActivationTests {
         }
 
         @Test @MainActor func activate_highlightDisabled_onlyActivatesBridge() async throws {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
             UserDefaults.standard.set(false, forKey: AppStorageKeys.highlightOnHotkey)
 
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
-
-            try await TerminalActivation.activate(session: session, trigger: .hotkey)
+            try await TerminalActivation.activate(session: session, trigger: .hotkey, registry: registry)
 
             let activateCalls = await bridge.recordedActivateCalls()
             let highlightCalls = await bridge.recordedHighlightCalls()
@@ -200,9 +197,10 @@ struct TerminalActivationTests {
         }
 
         @Test @MainActor func activate_highlightEnabled_passesBuiltConfigsToBridge() async throws {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
             UserDefaults.standard.set(true, forKey: AppStorageKeys.highlightOnHotkey)
             UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
@@ -218,9 +216,7 @@ struct TerminalActivationTests {
             UserDefaults.standard.set(1.5, forKey: AppStorageKeys.paneHighlightDuration)
 
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
-
-            try await TerminalActivation.activate(session: session, trigger: .hotkey)
+            try await TerminalActivation.activate(session: session, trigger: .hotkey, registry: registry)
 
             let highlightCalls = await bridge.recordedHighlightCalls()
             #expect(highlightCalls.count == 1)
@@ -232,16 +228,23 @@ struct TerminalActivationTests {
         }
 
         @Test @MainActor func activate_sessionNotFound_removesSessionAndRemapsError() async {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
             await bridge.setActivateError(TerminalBridgeError.commandFailed("Session not found in terminal"))
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
+            let manager = SessionManager()
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
+            manager.testSetSessions([session])
 
             do {
-                try await TerminalActivation.activate(session: session, trigger: .hotkey)
+                try await TerminalActivation.activate(
+                    session: session,
+                    trigger: .hotkey,
+                    sessionManager: manager,
+                    registry: registry
+                )
                 Issue.record("Expected sessionNotFound to be thrown")
             } catch let error as TerminalBridgeError {
                 switch error {
@@ -254,22 +257,29 @@ struct TerminalActivationTests {
                 Issue.record("Unexpected error: \(error)")
             }
 
-            #expect(SessionManager.shared.sessions.isEmpty)
+            #expect(manager.sessions.isEmpty)
             let infoCalls = await bridge.recordedSessionInfoCallCount()
             #expect(infoCalls == 0)
         }
 
         @Test @MainActor func activate_otherErrors_propagateWithoutRemovingSession() async {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
             await bridge.setActivateError(MockActivationError.generic)
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
+            let manager = SessionManager()
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
+            manager.testSetSessions([session])
 
             do {
-                try await TerminalActivation.activate(session: session, trigger: .hotkey)
+                try await TerminalActivation.activate(
+                    session: session,
+                    trigger: .hotkey,
+                    sessionManager: manager,
+                    registry: registry
+                )
                 Issue.record("Expected generic error to be thrown")
             } catch let error as MockActivationError {
                 #expect(error == .generic)
@@ -277,23 +287,30 @@ struct TerminalActivationTests {
                 Issue.record("Unexpected error: \(error)")
             }
 
-            #expect(SessionManager.shared.sessions.map(\.id) == ["s1"])
+            #expect(manager.sessions.map(\.id) == ["s1"])
         }
 
         @Test @MainActor func activate_emptyTerminalSessionID_removesSessionWithoutCallingBridge() async {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
             // A phantom session with no terminal session ID — historically minted
             // when a hook arrived without ITERM_SESSION_ID/KITTY_WINDOW_ID. It must
             // be removed before reaching the bridge (an empty id makes the iTerm2
             // daemon assert and leaves the row stuck).
+            let manager = SessionManager()
             let session = makeSession("")
-            SessionManager.shared.testSetSessions([session])
+            manager.testSetSessions([session])
 
             do {
-                try await TerminalActivation.activate(session: session, trigger: .hotkey)
+                try await TerminalActivation.activate(
+                    session: session,
+                    trigger: .hotkey,
+                    sessionManager: manager,
+                    registry: registry
+                )
                 Issue.record("Expected sessionNotFound to be thrown")
             } catch let error as TerminalBridgeError {
                 switch error {
@@ -306,7 +323,7 @@ struct TerminalActivationTests {
                 Issue.record("Unexpected error: \(error)")
             }
 
-            #expect(SessionManager.shared.sessions.isEmpty)
+            #expect(manager.sessions.isEmpty)
             let activateCalls = await bridge.recordedActivateCalls()
             #expect(activateCalls.isEmpty)
             let infoCalls = await bridge.recordedSessionInfoCallCount()
@@ -314,17 +331,24 @@ struct TerminalActivationTests {
         }
 
         @Test @MainActor func activate_opaqueCommandFailed_sessionGone_removesSession() async {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
             await bridge.setActivateError(TerminalBridgeError.commandFailed(""))
             await bridge.setSessionInfoResult(nil)
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
+            let manager = SessionManager()
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
+            manager.testSetSessions([session])
 
             do {
-                try await TerminalActivation.activate(session: session, trigger: .hotkey)
+                try await TerminalActivation.activate(
+                    session: session,
+                    trigger: .hotkey,
+                    sessionManager: manager,
+                    registry: registry
+                )
                 Issue.record("Expected sessionNotFound to be thrown")
             } catch let error as TerminalBridgeError {
                 switch error {
@@ -337,13 +361,13 @@ struct TerminalActivationTests {
                 Issue.record("Unexpected error: \(error)")
             }
 
-            #expect(SessionManager.shared.sessions.isEmpty)
+            #expect(manager.sessions.isEmpty)
             let infoCalls = await bridge.recordedSessionInfoCallCount()
             #expect(infoCalls == 1)
         }
 
         @Test @MainActor func activate_opaqueCommandFailed_sessionStillExists_propagatesWithoutRemoving() async {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
             await bridge.setActivateError(TerminalBridgeError.commandFailed(""))
             await bridge.setSessionInfoResult(
@@ -352,13 +376,20 @@ struct TerminalActivationTests {
                     tabIndex: 0, paneIndex: 0, paneCount: 1, isActive: false
                 )
             )
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
+            let manager = SessionManager()
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
+            manager.testSetSessions([session])
 
             do {
-                try await TerminalActivation.activate(session: session, trigger: .hotkey)
+                try await TerminalActivation.activate(
+                    session: session,
+                    trigger: .hotkey,
+                    sessionManager: manager,
+                    registry: registry
+                )
                 Issue.record("Expected commandFailed to propagate")
             } catch let error as TerminalBridgeError {
                 if case .commandFailed = error {} else {
@@ -368,23 +399,30 @@ struct TerminalActivationTests {
                 Issue.record("Unexpected error: \(error)")
             }
 
-            #expect(SessionManager.shared.sessions.map(\.id) == ["s1"])
+            #expect(manager.sessions.map(\.id) == ["s1"])
             let infoCalls = await bridge.recordedSessionInfoCallCount()
             #expect(infoCalls == 1)
         }
 
         @Test @MainActor func activate_opaqueCommandFailed_sessionInfoThrows_propagatesWithoutRemoving() async {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
             await bridge.setActivateError(TerminalBridgeError.commandFailed(""))
             await bridge.setSessionInfoError(TerminalBridgeError.connectionFailed)
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
+            let manager = SessionManager()
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
+            manager.testSetSessions([session])
 
             do {
-                try await TerminalActivation.activate(session: session, trigger: .hotkey)
+                try await TerminalActivation.activate(
+                    session: session,
+                    trigger: .hotkey,
+                    sessionManager: manager,
+                    registry: registry
+                )
                 Issue.record("Expected commandFailed to propagate")
             } catch let error as TerminalBridgeError {
                 if case .commandFailed = error {} else {
@@ -394,15 +432,16 @@ struct TerminalActivationTests {
                 Issue.record("Unexpected error: \(error)")
             }
 
-            #expect(SessionManager.shared.sessions.map(\.id) == ["s1"])
+            #expect(manager.sessions.map(\.id) == ["s1"])
         }
 
         // MARK: - Highlight Trigger Matrix
 
         @Test @MainActor func activate_hotkey_tabEnabled_paneDisabled_sendsTabConfigOnly() async throws {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
             UserDefaults.standard.set(true, forKey: AppStorageKeys.highlightOnHotkey)
             UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
@@ -414,9 +453,7 @@ struct TerminalActivationTests {
             }
 
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
-
-            try await TerminalActivation.activate(session: session, trigger: .hotkey)
+            try await TerminalActivation.activate(session: session, trigger: .hotkey, registry: registry)
 
             let highlightCalls = await bridge.recordedHighlightCalls()
             #expect(highlightCalls.count == 1)
@@ -426,9 +463,10 @@ struct TerminalActivationTests {
         }
 
         @Test @MainActor func activate_hotkey_paneEnabled_tabDisabled_sendsPaneConfigOnly() async throws {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
             UserDefaults.standard.set(true, forKey: AppStorageKeys.highlightOnHotkey)
             UserDefaults.standard.set(false, forKey: AppStorageKeys.tabHighlightEnabled)
@@ -440,9 +478,7 @@ struct TerminalActivationTests {
             }
 
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
-
-            try await TerminalActivation.activate(session: session, trigger: .hotkey)
+            try await TerminalActivation.activate(session: session, trigger: .hotkey, registry: registry)
 
             let highlightCalls = await bridge.recordedHighlightCalls()
             #expect(highlightCalls.count == 1)
@@ -452,9 +488,10 @@ struct TerminalActivationTests {
         }
 
         @Test @MainActor func activate_hotkey_triggerDisabled_skipsHighlight() async throws {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
             UserDefaults.standard.set(false, forKey: AppStorageKeys.highlightOnHotkey)
             UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
@@ -466,18 +503,17 @@ struct TerminalActivationTests {
             }
 
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
-
-            try await TerminalActivation.activate(session: session, trigger: .hotkey)
+            try await TerminalActivation.activate(session: session, trigger: .hotkey, registry: registry)
 
             let highlightCalls = await bridge.recordedHighlightCalls()
             #expect(highlightCalls.isEmpty)
         }
 
         @Test @MainActor func activate_guiSelect_bothEnabled_sendsBothConfigs() async throws {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
             UserDefaults.standard.set(true, forKey: AppStorageKeys.highlightOnGuiSelect)
             UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
@@ -489,9 +525,7 @@ struct TerminalActivationTests {
             }
 
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
-
-            try await TerminalActivation.activate(session: session, trigger: .guiSelect)
+            try await TerminalActivation.activate(session: session, trigger: .guiSelect, registry: registry)
 
             let highlightCalls = await bridge.recordedHighlightCalls()
             #expect(highlightCalls.count == 1)
@@ -501,9 +535,10 @@ struct TerminalActivationTests {
         }
 
         @Test @MainActor func activate_guiSelect_triggerDisabled_skipsHighlight() async throws {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
             UserDefaults.standard.set(false, forKey: AppStorageKeys.highlightOnGuiSelect)
             UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
@@ -515,18 +550,17 @@ struct TerminalActivationTests {
             }
 
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
-
-            try await TerminalActivation.activate(session: session, trigger: .guiSelect)
+            try await TerminalActivation.activate(session: session, trigger: .guiSelect, registry: registry)
 
             let highlightCalls = await bridge.recordedHighlightCalls()
             #expect(highlightCalls.isEmpty)
         }
 
         @Test @MainActor func activate_notification_tabOnly_sendsTabConfigOnly() async throws {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
             UserDefaults.standard.set(true, forKey: AppStorageKeys.highlightOnNotification)
             UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
@@ -538,9 +572,7 @@ struct TerminalActivationTests {
             }
 
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
-
-            try await TerminalActivation.activate(session: session, trigger: .notification)
+            try await TerminalActivation.activate(session: session, trigger: .notification, registry: registry)
 
             let highlightCalls = await bridge.recordedHighlightCalls()
             #expect(highlightCalls.count == 1)
@@ -550,9 +582,10 @@ struct TerminalActivationTests {
         }
 
         @Test @MainActor func activate_notification_triggerDisabled_skipsHighlight() async throws {
-            await resetSharedState()
+            resetHighlightDefaults()
             let bridge = ActivationMockBridge()
-            await TerminalBridgeRegistry.shared.register(bridge, for: .iterm2)
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
 
             UserDefaults.standard.set(false, forKey: AppStorageKeys.highlightOnNotification)
             UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
@@ -564,9 +597,7 @@ struct TerminalActivationTests {
             }
 
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
-
-            try await TerminalActivation.activate(session: session, trigger: .notification)
+            try await TerminalActivation.activate(session: session, trigger: .notification, registry: registry)
 
             let highlightCalls = await bridge.recordedHighlightCalls()
             #expect(highlightCalls.isEmpty)
@@ -588,8 +619,9 @@ struct TerminalActivationTests {
                 func getSessionInfo(sessionID _: String) async throws -> TerminalSessionInfo? { nil }
             }
 
-            await resetSharedState()
-            await TerminalBridgeRegistry.shared.register(ThrowingHighlightBridge(), for: .iterm2)
+            resetHighlightDefaults()
+            let registry = TerminalBridgeRegistry()
+            await registry.register(ThrowingHighlightBridge(), for: .iterm2)
 
             UserDefaults.standard.set(true, forKey: AppStorageKeys.highlightOnHotkey)
             UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
@@ -599,10 +631,8 @@ struct TerminalActivationTests {
             }
 
             let session = makeSession("s1")
-            SessionManager.shared.testSetSessions([session])
-
             do {
-                try await TerminalActivation.activate(session: session, trigger: .hotkey)
+                try await TerminalActivation.activate(session: session, trigger: .hotkey, registry: registry)
                 Issue.record("Expected highlight error to propagate")
             } catch let error as MockActivationError {
                 #expect(error == .generic)

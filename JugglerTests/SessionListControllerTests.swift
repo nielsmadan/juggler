@@ -236,6 +236,54 @@ struct SessionListControllerTests {
         #expect(manager.sessions[0].state == .idle)
     }
 
+    // MARK: - sendToBackSelected Tests
+
+    @Test @MainActor func sendToBackSelected_middleSelection_movesAndSelectsNext() {
+        let controller = SessionListController()
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        controller.setSelection(toSessionID: "s2")
+        controller.sendToBackSelected(sessionManager: manager)
+
+        #expect(manager.sessions.map(\.id) == ["s1", "s3", "s2"])
+        #expect(controller.selectedSessionID == "s3")
+    }
+
+    @Test @MainActor func sendToBackSelected_lastSelection_wrapsSelectionToTop() {
+        let controller = SessionListController()
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        controller.setSelection(toSessionID: "s3")
+        controller.sendToBackSelected(sessionManager: manager)
+
+        #expect(manager.sessions.map(\.id) == ["s1", "s2", "s3"])
+        #expect(controller.selectedSessionID == "s1")
+    }
+
+    @Test @MainActor func sendToBackSelected_noSelection_noOp() {
+        let controller = SessionListController()
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
+
+        controller.sendToBackSelected(sessionManager: manager)
+
+        #expect(manager.sessions.map(\.id) == ["s1", "s2"])
+    }
+
     // MARK: - reactivateSelected Tests
 
     @Test @MainActor func reactivateSelected_validSelection_reactivates() {

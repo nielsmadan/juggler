@@ -659,6 +659,7 @@ struct SessionMonitorView: View {
                 shortcutRow(controller.shortcutMoveUp?.displayString ?? "–", "Move Up")
                 shortcutRow(controller.shortcutMoveDown?.displayString ?? "–", "Move Down")
                 shortcutRow(controller.shortcutBackburner?.displayString ?? "–", "Backburner")
+                shortcutRow(controller.shortcutSendToBack?.displayString ?? "–", "Send to Back")
                 shortcutRow(controller.shortcutReactivateSelected?.displayString ?? "–", "Reactivate")
                 shortcutRow(controller.shortcutReactivateAll?.displayString ?? "–", "Reactivate All")
                 shortcutRow(controller.shortcutRename?.displayString ?? "–", "Rename")

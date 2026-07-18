@@ -62,6 +62,7 @@ brew install --cask nielsmadan/juggler/juggler
 | `⇧⌘K` | Cycle to next idle session |
 | `⇧⌘J` | Cycle backward |
 | `⇧⌘L` | Backburner current session |
+| `⇧⌘O` | Send current session to back of queue |
 | `⇧⌘H` | Reactivate all backburnered sessions |
 | `⇧⌘E` | Activate session from last notification |
 | `⇧⌘;` | Toggle popover / open monitor |

@@ -154,6 +154,7 @@ struct ShortcutsStep: View {
                     KeyboardShortcuts.Recorder("Cycle Forward:", name: .cycleForward)
                     KeyboardShortcuts.Recorder("Cycle Backward:", name: .cycleBackward)
                     KeyboardShortcuts.Recorder("Backburner Current:", name: .backburner)
+                    KeyboardShortcuts.Recorder("Send to Back:", name: .sendToBack)
                     KeyboardShortcuts.Recorder("Reactivate All:", name: .reactivateAll)
                     KeyboardShortcuts.Recorder("Show Monitor:", name: .showMonitor)
                     KeyboardShortcuts.Recorder("Last Notification:", name: .goToLastNotification)

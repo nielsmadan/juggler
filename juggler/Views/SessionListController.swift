@@ -31,6 +31,7 @@ final class SessionListController {
     private(set) var shortcutMoveDown: DiscreteShortcut?
     private(set) var shortcutMoveUp: DiscreteShortcut?
     private(set) var shortcutBackburner: DiscreteShortcut?
+    private(set) var shortcutSendToBack: DiscreteShortcut?
     private(set) var shortcutReactivateSelected: DiscreteShortcut?
     private(set) var shortcutReactivateAll: DiscreteShortcut?
     private(set) var shortcutRename: DiscreteShortcut?
@@ -45,6 +46,7 @@ final class SessionListController {
     @ObservationIgnored private(set) var matcherMoveDown: ShortcutMatcher?
     @ObservationIgnored private(set) var matcherMoveUp: ShortcutMatcher?
     @ObservationIgnored private(set) var matcherBackburner: ShortcutMatcher?
+    @ObservationIgnored private(set) var matcherSendToBack: ShortcutMatcher?
     @ObservationIgnored private(set) var matcherReactivateSelected: ShortcutMatcher?
     @ObservationIgnored private(set) var matcherReactivateAll: ShortcutMatcher?
     @ObservationIgnored private(set) var matcherRename: ShortcutMatcher?
@@ -61,6 +63,8 @@ final class SessionListController {
         shortcutMoveDown = DiscreteShortcut.load(from: AppStorageKeys.localShortcutMoveDown)
         shortcutMoveUp = DiscreteShortcut.load(from: AppStorageKeys.localShortcutMoveUp)
         shortcutBackburner = DiscreteShortcut.load(from: AppStorageKeys.localShortcutBackburner)
+        shortcutSendToBack = DiscreteShortcut.load(from: AppStorageKeys.localShortcutSendToBack)
+            ?? DiscreteShortcut(keyCode: 31, modifiers: []) // O
         shortcutReactivateSelected = DiscreteShortcut.load(from: AppStorageKeys.localShortcutReactivateSelected)
         shortcutReactivateAll = DiscreteShortcut.load(from: AppStorageKeys.localShortcutReactivateAll)
         shortcutRename = DiscreteShortcut.load(from: AppStorageKeys.localShortcutRename)
@@ -88,6 +92,7 @@ final class SessionListController {
         matcherMoveDown = shortcutMoveDown.map { ShortcutMatcher(.discrete($0)) }
         matcherMoveUp = shortcutMoveUp.map { ShortcutMatcher(.discrete($0)) }
         matcherBackburner = shortcutBackburner.map { ShortcutMatcher(.discrete($0)) }
+        matcherSendToBack = shortcutSendToBack.map { ShortcutMatcher(.discrete($0)) }
         matcherReactivateSelected = shortcutReactivateSelected.map { ShortcutMatcher(.discrete($0)) }
         matcherReactivateAll = shortcutReactivateAll.map { ShortcutMatcher(.discrete($0)) }
         matcherRename = shortcutRename.map { ShortcutMatcher(.discrete($0)) }
@@ -182,6 +187,12 @@ final class SessionListController {
     func backburnerSelected(sessionManager: SessionManager) {
         guard let id = selectedSessionID else { return }
         sessionManager.backburnerSession(terminalSessionID: id)
+    }
+
+    func sendToBackSelected(sessionManager: SessionManager) {
+        guard let id = selectedSessionID,
+              let next = sessionManager.sendToBackOfQueue(sessionID: id) else { return }
+        selectedSessionID = next.id
     }
 
     func reactivateSelected(sessionManager: SessionManager) {
@@ -303,6 +314,7 @@ final class SessionListController {
                 self.moveSelection(by: -1, in: self.visibleSessionsProvider())
             }),
             ("backburner", matcherBackburner, { self.backburnerSelected(sessionManager: sessionManager) }),
+            ("sendToBack", matcherSendToBack, { self.sendToBackSelected(sessionManager: sessionManager) }),
             (
                 "reactivateSelected",
                 matcherReactivateSelected,
@@ -358,6 +370,9 @@ final class SessionListController {
             return .handled
         } else if let shortcut = shortcutBackburner, shortcut.matches(press) {
             backburnerSelected(sessionManager: sessionManager)
+            return .handled
+        } else if let shortcut = shortcutSendToBack, shortcut.matches(press) {
+            sendToBackSelected(sessionManager: sessionManager)
             return .handled
         } else if let shortcut = shortcutReactivateSelected, shortcut.matches(press) {
             reactivateSelected(sessionManager: sessionManager)

@@ -927,6 +927,39 @@ final class SessionManager {
         updateSessionState(terminalSessionID: terminalSessionID, state: .backburner)
     }
 
+    @discardableResult
+    @MainActor
+    func moveSessionToBackOfQueue(sessionID: String) -> Bool {
+        guard queueOrderMode == .fair || queueOrderMode == .prio else { return false }
+        guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return false }
+        guard sessions[index].state.isIncludedInCycle else { return false }
+
+        let targetIdx = targetIndex(for: .bottomOfIdle, in: sessions)
+        let insertIdx = index < targetIdx ? targetIdx - 1 : targetIdx
+        guard index != insertIdx else { return true }
+
+        withAnimation(.easeInOut(duration: SectionAnimationTiming.upMoveDuration)) {
+            let session = sessions.remove(at: index)
+            sessions.insert(session, at: insertIdx)
+        }
+        return true
+    }
+
+    /// Sends `sessionID` to the back of the idle queue and returns the session that
+    /// followed it in cycle order — the one to jump to next — wrapping to the top of
+    /// the queue when it was already last. Returns nil when the move doesn't apply
+    /// (static/grouped mode, or the session isn't cyclable).
+    @discardableResult
+    @MainActor
+    func sendToBackOfQueue(sessionID: String) -> Session? {
+        let cyclable = sessions.filter(\.state.isIncludedInCycle)
+        guard let currentIdx = cyclable.firstIndex(where: { $0.id == sessionID }) else { return nil }
+        let next = cyclable[(currentIdx + 1) % cyclable.count]
+        guard moveSessionToBackOfQueue(sessionID: sessionID) else { return nil }
+        if next.id != sessionID { advanceColorIndex(by: 1) }
+        return next
+    }
+
     func reactivateSession(terminalSessionID: String) {
         updateSessionState(terminalSessionID: terminalSessionID, state: .idle)
     }

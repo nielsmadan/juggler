@@ -37,7 +37,12 @@ enum ActivationTrigger {
 }
 
 enum TerminalActivation {
-    static func activate(session: Session, trigger: ActivationTrigger) async throws {
+    static func activate(
+        session: Session,
+        trigger: ActivationTrigger,
+        sessionManager: SessionManager = .shared,
+        registry: TerminalBridgeRegistry = .shared
+    ) async throws {
         // No terminal session ID means there is no activation address — the
         // session can never be reached by any bridge. Remove it rather than
         // letting it route an empty id into the iTerm2 daemon (which asserts).
@@ -45,11 +50,11 @@ enum TerminalActivation {
         guard !session.terminalSessionID.isEmpty else {
             await MainActor.run {
                 logWarning(.session, "Session '\(session.id)' has no terminal session ID, removing")
-                SessionManager.shared.removeSession(sessionID: session.id)
+                sessionManager.removeSession(sessionID: session.id)
             }
             throw TerminalBridgeError.sessionNotFound(session.id)
         }
-        guard let bridge = await TerminalBridgeRegistry.shared.bridge(for: session.terminalType) else {
+        guard let bridge = await registry.bridge(for: session.terminalType) else {
             await MainActor.run {
                 logError(.session, "No bridge available for \(session.terminalType.displayName)")
             }
@@ -62,7 +67,7 @@ enum TerminalActivation {
                await isSessionGone(bridge: bridge, session: session, message: message) {
                 await MainActor.run {
                     logWarning(.session, "Session '\(session.id)' not found in terminal, removing")
-                    SessionManager.shared.removeSession(sessionID: session.id)
+                    sessionManager.removeSession(sessionID: session.id)
                 }
                 throw TerminalBridgeError.sessionNotFound(session.id)
             }

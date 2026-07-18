@@ -1848,6 +1848,356 @@ struct SessionManagerTests {
         #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
     }
 
+    // MARK: - moveSessionToBackOfQueue Tests
+
+    @Test @MainActor func moveToBack_fairMode_allIdle_movesToEnd() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        manager.moveSessionToBackOfQueue(sessionID: "s1")
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s3", "s1"])
+    }
+
+    @Test @MainActor func moveToBack_landsBeforeBusyAndBackburner() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .working),
+            makeSession("s4", state: .backburner)
+        ])
+
+        manager.moveSessionToBackOfQueue(sessionID: "s1")
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s1", "s3", "s4"])
+    }
+
+    @Test @MainActor func moveToBack_singleIdleSession_unchanged() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([makeSession("s1", state: .idle)])
+
+        manager.moveSessionToBackOfQueue(sessionID: "s1")
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1"])
+    }
+
+    @Test @MainActor func moveToBack_nonCyclableSession_isNoOp() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .working),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        manager.moveSessionToBackOfQueue(sessionID: "s1")
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
+    }
+
+    @Test @MainActor func moveToBack_doesNotChangeLastBecameIdle() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        var s1 = makeSession("s1", state: .idle)
+        s1.lastBecameIdle = Date(timeIntervalSince1970: 0)
+        manager.testSetSessions([s1, makeSession("s2", state: .idle), makeSession("s3", state: .idle)])
+
+        manager.moveSessionToBackOfQueue(sessionID: "s1")
+
+        let movedIdle = manager.sessions.first(where: { $0.terminalSessionID == "s1" })?.lastBecameIdle
+        #expect(movedIdle == Date(timeIntervalSince1970: 0))
+    }
+
+    @Test @MainActor func moveToBack_prioMode_movesToEnd() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.prio.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        #expect(manager.moveSessionToBackOfQueue(sessionID: "s1"))
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s3", "s1"])
+    }
+
+    @Test @MainActor func moveToBack_staticMode_isNoOp() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.static.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        #expect(manager.moveSessionToBackOfQueue(sessionID: "s1") == false)
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
+    }
+
+    @Test @MainActor func moveToBack_groupedMode_isNoOp() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.grouped.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        #expect(manager.moveSessionToBackOfQueue(sessionID: "s1") == false)
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
+    }
+
+    @Test @MainActor func moveToBack_alreadyAtBottomOfIdle_isNoOpButApplicable() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .working)
+        ])
+
+        #expect(manager.moveSessionToBackOfQueue(sessionID: "s2"))
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
+    }
+
+    @Test @MainActor func moveToBack_withNilFocus_anchorsAndAdvancesToNext() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        manager.moveSessionToBackOfQueue(sessionID: "s1")
+        manager.updateFocusedSession(terminalSessionID: "s1")
+        let next = manager.cycleForward()
+
+        #expect(next?.terminalSessionID == "s2")
+    }
+
+    @Test @MainActor func moveToBack_thenCycleForward_advancesToNext() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+        manager.testSetFocusedSessionID("s1")
+
+        manager.moveSessionToBackOfQueue(sessionID: "s1")
+        let next = manager.cycleForward()
+
+        #expect(next?.terminalSessionID == "s2")
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s3", "s1"])
+    }
+
+    // MARK: - sendToBackOfQueue Tests
+
+    @Test @MainActor func sendToBack_middleSession_returnsNextAndMoves() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        let next = manager.sendToBackOfQueue(sessionID: "s2")
+
+        #expect(next?.terminalSessionID == "s3")
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s3", "s2"])
+    }
+
+    @Test @MainActor func sendToBack_lastSession_wrapsToTop() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        let next = manager.sendToBackOfQueue(sessionID: "s3")
+
+        #expect(next?.terminalSessionID == "s1")
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
+    }
+
+    @Test @MainActor func sendToBack_topSession_returnsNext() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        let next = manager.sendToBackOfQueue(sessionID: "s1")
+
+        #expect(next?.terminalSessionID == "s2")
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s3", "s1"])
+    }
+
+    @Test @MainActor func sendToBack_wrapSkipsBusyAndBackburner() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .working),
+            makeSession("s4", state: .backburner)
+        ])
+
+        // s2 is the last idle → wraps to the top idle (s1), not the busy/backburner rows.
+        let next = manager.sendToBackOfQueue(sessionID: "s2")
+
+        #expect(next?.terminalSessionID == "s1")
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3", "s4"])
+    }
+
+    @Test @MainActor func sendToBack_singleSession_returnsItself() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([makeSession("s1", state: .idle)])
+
+        let next = manager.sendToBackOfQueue(sessionID: "s1")
+
+        #expect(next?.terminalSessionID == "s1")
+    }
+
+    @Test @MainActor func sendToBack_nonCyclableSession_returnsNil() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .working),
+            makeSession("s2", state: .idle)
+        ])
+
+        #expect(manager.sendToBackOfQueue(sessionID: "s1") == nil)
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2"])
+    }
+
+    @Test @MainActor func sendToBack_staticMode_returnsNil() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.static.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        #expect(manager.sendToBackOfQueue(sessionID: "s1") == nil)
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
+    }
+
+    @Test @MainActor func sendToBack_prioMode_returnsNextAndMoves() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.prio.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        let next = manager.sendToBackOfQueue(sessionID: "s2")
+
+        #expect(next?.terminalSessionID == "s3")
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s3", "s2"])
+    }
+
+    @Test @MainActor func sendToBack_groupedMode_returnsNil() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.grouped.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        #expect(manager.sendToBackOfQueue(sessionID: "s1") == nil)
+        #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
+    }
+
+    @Test @MainActor func sendToBack_multipleSessions_advancesColorIndex() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+        let before = manager.activeColorIndex
+
+        manager.sendToBackOfQueue(sessionID: "s2")
+
+        #expect(manager.activeColorIndex != before)
+    }
+
+    @Test @MainActor func sendToBack_singleSession_doesNotAdvanceColorIndex() {
+        let manager = SessionManager()
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+
+        manager.testSetSessions([makeSession("s1", state: .idle)])
+        let before = manager.activeColorIndex
+
+        manager.sendToBackOfQueue(sessionID: "s1")
+
+        #expect(manager.activeColorIndex == before)
+    }
+
     // MARK: - Daily stats: rollover & terminate-commit
 
     private func freshStatsManager() -> (SessionManager, DailyStatsStore) {

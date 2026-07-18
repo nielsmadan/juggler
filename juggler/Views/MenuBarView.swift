@@ -74,6 +74,9 @@ struct MenuBarView: View {
                         if let backburner = controller.shortcutBackburner {
                             Text("\(backburner.displayString) backburner")
                         }
+                        if let sendToBack = controller.shortcutSendToBack {
+                            Text("\(sendToBack.displayString) send to back")
+                        }
                         if let reactivate = controller.shortcutReactivateSelected {
                             Text("\(reactivate.displayString) reactivate")
                         }

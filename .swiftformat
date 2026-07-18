@@ -7,3 +7,4 @@
 --maxwidth 120
 --commas inline
 --disable wrapMultilineStatementBraces
+--exclude build,.build
