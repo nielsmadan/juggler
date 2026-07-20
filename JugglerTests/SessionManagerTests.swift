@@ -1419,6 +1419,251 @@ struct SessionManagerTests {
         #expect(manager.focusedSessionID == "s1")
     }
 
+    // MARK: - Live host-pane binding (remote tmux)
+
+    @Test func resolveLiveHostPaneBinding_notNeeded_returnsCurrent() {
+        let result = SessionManager.resolveLiveHostPaneBinding(
+            current: "existing", lastFocusedPaneUUID: "pane",
+            isHostTerminalFrontmost: true, event: "UserPromptSubmit", needsBinding: false
+        )
+        #expect(result == "existing")
+    }
+
+    @Test func resolveLiveHostPaneBinding_notFrontmost_returnsCurrent() {
+        let result = SessionManager.resolveLiveHostPaneBinding(
+            current: nil, lastFocusedPaneUUID: "pane",
+            isHostTerminalFrontmost: false, event: "UserPromptSubmit", needsBinding: true
+        )
+        #expect(result == nil)
+    }
+
+    @Test func resolveLiveHostPaneBinding_noFocusedPane_returnsCurrent() {
+        let result = SessionManager.resolveLiveHostPaneBinding(
+            current: "existing", lastFocusedPaneUUID: nil,
+            isHostTerminalFrontmost: true, event: "UserPromptSubmit", needsBinding: true
+        )
+        #expect(result == "existing")
+    }
+
+    @Test func resolveLiveHostPaneBinding_promptSubmit_rebindsToFocusedPane() {
+        let result = SessionManager.resolveLiveHostPaneBinding(
+            current: "stale-pane", lastFocusedPaneUUID: "live-pane",
+            isHostTerminalFrontmost: true, event: "UserPromptSubmit", needsBinding: true
+        )
+        #expect(result == "live-pane")
+    }
+
+    @Test func resolveLiveHostPaneBinding_otherEvent_bootstrapsWhenUnbound() {
+        let result = SessionManager.resolveLiveHostPaneBinding(
+            current: nil, lastFocusedPaneUUID: "live-pane",
+            isHostTerminalFrontmost: true, event: "Stop", needsBinding: true
+        )
+        #expect(result == "live-pane")
+    }
+
+    @Test func resolveLiveHostPaneBinding_otherEvent_doesNotClobberExisting() {
+        let result = SessionManager.resolveLiveHostPaneBinding(
+            current: "good-pane", lastFocusedPaneUUID: "other-pane",
+            isHostTerminalFrontmost: true, event: "Stop", needsBinding: true
+        )
+        #expect(result == "good-pane")
+    }
+
+    @MainActor
+    @Test func updateFocusedSession_iTerm2Focus_tracksLivePaneForITerm2() {
+        let manager = SessionManager()
+        manager.updateFocusedSession(terminalSessionID: "pane-uuid", focusTerminalType: .iterm2)
+        #expect(manager.lastFocusedLocalPaneByTerminal[.iterm2] == "pane-uuid")
+    }
+
+    @MainActor
+    @Test func updateFocusedSession_kittyFocus_tracksLiveWindowForKitty() {
+        let manager = SessionManager()
+        manager.updateFocusedSession(terminalSessionID: "kitty-window-3", focusTerminalType: .kitty)
+        #expect(manager.lastFocusedLocalPaneByTerminal[.kitty] == "kitty-window-3")
+        // Kept separate from iTerm2 so the two can never cross-poison.
+        #expect(manager.lastFocusedLocalPaneByTerminal[.iterm2] == nil)
+    }
+
+    @MainActor
+    @Test func updateFocusedSession_untypedFocus_doesNotTrackPane() {
+        let manager = SessionManager()
+        // Internal focus-reconciliation calls carry no source terminal and must not feed
+        // the binding (their ids may be stale).
+        manager.updateFocusedSession(terminalSessionID: "some-id")
+        #expect(manager.lastFocusedLocalPaneByTerminal.isEmpty)
+    }
+
+    @MainActor
+    @Test func updateFocusedSession_emptyFocus_doesNotTrackPane() {
+        let manager = SessionManager()
+        manager.updateFocusedSession(terminalSessionID: "", focusTerminalType: .iterm2)
+        #expect(manager.lastFocusedLocalPaneByTerminal.isEmpty)
+    }
+
+    @MainActor
+    @Test func updateFocusedSession_nil_keepsLivePane() {
+        let manager = SessionManager()
+        manager.updateFocusedSession(terminalSessionID: "pane-uuid", focusTerminalType: .iterm2)
+        manager.updateFocusedSession(terminalSessionID: nil)
+        #expect(manager.lastFocusedLocalPaneByTerminal[.iterm2] == "pane-uuid")
+    }
+
+    @MainActor
+    @Test func updateFocusedSession_matchesRemoteTmuxViaLiveHostPane() {
+        let manager = SessionManager()
+        var session = Session(
+            claudeSessionID: "c1", terminalSessionID: "w4t1p0:STALE-UUID",
+            tmuxPane: "%11", terminalType: .iterm2, agent: "claude-code",
+            projectPath: "/test", state: .idle, startedAt: Date()
+        )
+        session.remoteHost = "user@host"
+        session.liveHostPaneID = "LIVE-UUID"
+        manager.testSetSessions([session])
+
+        // The focus event carries the live local pane UUID, which is neither the stale
+        // terminalSessionID nor a suffix of it — it is matched via liveHostPaneID and
+        // resolved to the session's composite id so downstream highlighting works.
+        manager.updateFocusedSession(terminalSessionID: "LIVE-UUID", focusTerminalType: .iterm2)
+
+        #expect(manager.focusedSessionID == "w4t1p0:STALE-UUID:%11")
+    }
+
+    @MainActor
+    @Test func addOrUpdateSession_remoteTmux_bindsLiveHostPaneOnPromptSubmit() {
+        let manager = SessionManager()
+        manager.frontmostTerminalTypeProvider = { .iterm2 }
+        manager.updateFocusedSession(terminalSessionID: "LIVE-UUID", focusTerminalType: .iterm2)
+
+        manager.addOrUpdateSession(
+            claudeSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
+            tmuxPane: "%11", projectPath: "/test", state: .idle,
+            event: "UserPromptSubmit", remoteHost: "user@host"
+        )
+
+        #expect(manager.sessions.first?.liveHostPaneID == "LIVE-UUID")
+    }
+
+    @MainActor
+    @Test func addOrUpdateSession_remoteKittyTmux_bindsLiveWindowFromKittyFocus() {
+        let manager = SessionManager()
+        manager.frontmostTerminalTypeProvider = { .kitty }
+        manager.updateFocusedSession(terminalSessionID: "kitty-win-9", focusTerminalType: .kitty)
+
+        manager.addOrUpdateSession(
+            claudeSessionID: "c1", terminalSessionID: "stale-kitty-id",
+            tmuxPane: "%3", terminalType: .kitty, projectPath: "/test", state: .idle,
+            event: "UserPromptSubmit", remoteHost: "user@host"
+        )
+
+        #expect(manager.sessions.first?.liveHostPaneID == "kitty-win-9")
+    }
+
+    @MainActor
+    @Test func addOrUpdateSession_remoteTmux_wrongTerminalFrontmost_doesNotBind() {
+        let manager = SessionManager()
+        // A kitty focus and kitty frontmost must not bind an iTerm2 remote session.
+        manager.frontmostTerminalTypeProvider = { .kitty }
+        manager.updateFocusedSession(terminalSessionID: "kitty-win-9", focusTerminalType: .kitty)
+
+        manager.addOrUpdateSession(
+            claudeSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
+            tmuxPane: "%11", terminalType: .iterm2, projectPath: "/test", state: .idle,
+            event: "UserPromptSubmit", remoteHost: "user@host"
+        )
+
+        #expect(manager.sessions.first?.liveHostPaneID == nil)
+    }
+
+    @MainActor
+    @Test func addOrUpdateSession_plainSSH_doesNotBind() {
+        let manager = SessionManager()
+        manager.frontmostTerminalTypeProvider = { .iterm2 }
+        manager.updateFocusedSession(terminalSessionID: "LIVE-UUID", focusTerminalType: .iterm2)
+
+        // Remote but no tmux → plain ssh, whose terminalSessionID already tracks the pane.
+        manager.addOrUpdateSession(
+            claudeSessionID: "c1", terminalSessionID: "w4t1p0:REAL",
+            projectPath: "/test", state: .idle,
+            event: "UserPromptSubmit", remoteHost: "user@host"
+        )
+
+        #expect(manager.sessions.first?.liveHostPaneID == nil)
+    }
+
+    @MainActor
+    @Test func addOrUpdateSession_localTmux_doesNotBind() {
+        let manager = SessionManager()
+        manager.frontmostTerminalTypeProvider = { .iterm2 }
+        manager.updateFocusedSession(terminalSessionID: "LIVE-UUID", focusTerminalType: .iterm2)
+
+        // Local tmux (no remoteHost) keeps its existing composite-id / select-pane path.
+        manager.addOrUpdateSession(
+            claudeSessionID: "c1", terminalSessionID: "w4t1p0:LOCAL",
+            tmuxPane: "%2", projectPath: "/test", state: .idle,
+            event: "UserPromptSubmit"
+        )
+
+        #expect(manager.sessions.first?.liveHostPaneID == nil)
+    }
+
+    @MainActor
+    @Test func addOrUpdateSession_remoteTmux_notFrontmost_doesNotBind() {
+        let manager = SessionManager()
+        manager.frontmostTerminalTypeProvider = { nil }
+        manager.updateFocusedSession(terminalSessionID: "LIVE-UUID", focusTerminalType: .iterm2)
+
+        manager.addOrUpdateSession(
+            claudeSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
+            tmuxPane: "%11", projectPath: "/test", state: .idle,
+            event: "UserPromptSubmit", remoteHost: "user@host"
+        )
+
+        #expect(manager.sessions.first?.liveHostPaneID == nil)
+    }
+
+    @MainActor
+    @Test func updateFocusedSession_remoteTmux_clearsActivationGuardViaLiveHostPane() {
+        let manager = SessionManager()
+        var session = Session(
+            claudeSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
+            tmuxPane: "%11", terminalType: .iterm2, agent: "claude-code",
+            projectPath: "/test", state: .idle, startedAt: Date()
+        )
+        session.remoteHost = "user@host"
+        session.liveHostPaneID = "LIVE-UUID"
+        manager.testSetSessions([session])
+
+        // Activation targets the composite id; iTerm2 then reports the bare live pane
+        // UUID, which must resolve through liveHostPaneID and clear the guard.
+        manager.beginActivation(targetSessionID: "w4t1p0:STALE:%11")
+        manager.updateFocusedSession(terminalSessionID: "LIVE-UUID", focusTerminalType: .iterm2)
+
+        #expect(manager.focusedSessionID == "w4t1p0:STALE:%11")
+    }
+
+    @MainActor
+    @Test func updateFocusedSession_multipleSessionsShareLiveHostPane_firstWins() {
+        let manager = SessionManager()
+        func remoteTmux(_ pane: String) -> Session {
+            var session = Session(
+                claudeSessionID: "c-\(pane)", terminalSessionID: "w4t1p0:STALE",
+                tmuxPane: pane, terminalType: .iterm2, agent: "claude-code",
+                projectPath: "/test", state: .idle, startedAt: Date()
+            )
+            session.remoteHost = "user@host"
+            session.liveHostPaneID = "LIVE-UUID"
+            return session
+        }
+        manager.testSetSessions([remoteTmux("%11"), remoteTmux("%12")])
+
+        // Documented limitation: several tmux panes in one iTerm2 pane can't be told
+        // apart from iTerm2's side, so focus resolves to the first array match.
+        manager.updateFocusedSession(terminalSessionID: "LIVE-UUID", focusTerminalType: .iterm2)
+
+        #expect(manager.focusedSessionID == "w4t1p0:STALE:%11")
+    }
+
     // MARK: - isSessionFocused with isTerminalAppActive Tests
 
     @MainActor

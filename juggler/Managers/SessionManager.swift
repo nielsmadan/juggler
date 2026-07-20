@@ -61,6 +61,21 @@ final class SessionManager {
     private(set) var focusedSessionID: String? // terminalSessionID of actually focused session in iTerm2
     internal(set) var isTerminalAppActive = false
 
+    /// Live local handle (iTerm2 pane UUID / kitty window id) of the most recently
+    /// focused pane per terminal, captured from that terminal's own focus events. Used
+    /// to bind remote tmux sessions — whose remote-captured `terminalSessionID` is stale
+    /// — to the live local pane/window hosting their tmux client. Keyed by terminal so a
+    /// kitty focus can never be mistaken for an iTerm2 one (and vice versa).
+    private(set) var lastFocusedLocalPaneByTerminal: [TerminalType: String] = [:]
+
+    /// The frontmost app's terminal type, or nil if the frontmost app isn't a terminal.
+    /// Injectable so the binding logic is testable without a live `NSWorkspace`.
+    @ObservationIgnored
+    var frontmostTerminalTypeProvider: () -> TerminalType? = {
+        guard let bundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else { return nil }
+        return TerminalType.allCases.first { $0.bundleIdentifier == bundleID }
+    }
+
     /// Tracks the session the user was last focused on, even after it goes busy.
     /// Used when auto-advance is OFF to keep the busy session highlighted as "current".
     private(set) var lastActiveSessionID: String?
@@ -557,12 +572,26 @@ final class SessionManager {
     }
 
     @MainActor
-    func updateFocusedSession(terminalSessionID: String?) {
+    func updateFocusedSession(terminalSessionID: String?, focusTerminalType: TerminalType? = nil) {
+        // Remember the live local handle so remote tmux sessions can be bound to the pane
+        // hosting them later (see resolveLiveHostPaneBinding). Capture only genuine live
+        // focus events tagged with their source terminal (iTerm2 daemon / kitty watcher);
+        // internal focus-reconciliation calls pass a nil type and must not feed the
+        // binding, since they carry stored — possibly stale — ids. Empty ids are ignored,
+        // and a nil event (focus cleared) leaves the last known handle in place.
+        if let type = focusTerminalType, let newID = terminalSessionID, !newID.isEmpty {
+            lastFocusedLocalPaneByTerminal[type] = newID
+        }
+
         // Normalize: resolve bare UUIDs to the full terminalSessionID so all
-        // downstream matching can use exact equality instead of hasSuffix.
+        // downstream matching can use exact equality instead of hasSuffix. A remote
+        // tmux session whose stored terminalSessionID is stale is matched through its
+        // learned liveHostPaneID and resolved to the session's composite id.
         let resolved: String? = if let newID = terminalSessionID {
             if sessions.contains(where: { $0.id == newID || $0.terminalSessionID == newID }) {
                 newID
+            } else if let session = sessions.first(where: { $0.liveHostPaneID == newID }) {
+                session.id
             } else if let session = sessions.first(where: { $0.terminalSessionID.hasSuffix(newID) }) {
                 session.terminalSessionID
             } else {
@@ -629,6 +658,50 @@ final class SessionManager {
         }
     }
 
+    /// Decides the live host-pane binding for a remote tmux session. Pure so it can be
+    /// unit-tested without a live iTerm2 / NSWorkspace.
+    ///
+    /// - A `UserPromptSubmit` fires in the pane the user is actively typing in, so it is
+    ///   the authoritative signal and always (re)binds.
+    /// - Any other event binds only to bootstrap an as-yet-unbound session, so a
+    ///   background event that fires while the user is looking at a different pane can't
+    ///   clobber a good binding.
+    static func resolveLiveHostPaneBinding(
+        current: String?,
+        lastFocusedPaneUUID: String?,
+        isHostTerminalFrontmost: Bool,
+        event: String?,
+        needsBinding: Bool
+    ) -> String? {
+        guard needsBinding, isHostTerminalFrontmost, let uuid = lastFocusedPaneUUID else {
+            return current
+        }
+        if event == "UserPromptSubmit" {
+            return uuid
+        }
+        return current ?? uuid
+    }
+
+    /// Re-evaluates and applies the live host-pane binding for the session at `index`.
+    /// Binds against the last focused handle from the session's own terminal, and only
+    /// while that terminal is frontmost — so a remote tmux session is pinned to the pane
+    /// the user is actually looking at.
+    @MainActor
+    private func applyLiveHostPaneBinding(at index: Int, event: String?) {
+        let session = sessions[index]
+        let needsBinding = (session.remoteHost?.isEmpty == false) && (session.tmuxPane != nil)
+        let newBinding = Self.resolveLiveHostPaneBinding(
+            current: session.liveHostPaneID,
+            lastFocusedPaneUUID: lastFocusedLocalPaneByTerminal[session.terminalType],
+            isHostTerminalFrontmost: frontmostTerminalTypeProvider() == session.terminalType,
+            event: event,
+            needsBinding: needsBinding
+        )
+        if newBinding != session.liveHostPaneID {
+            sessions[index].liveHostPaneID = newBinding
+        }
+    }
+
     @MainActor
     func addOrUpdateSession(
         claudeSessionID: String,
@@ -653,6 +726,10 @@ final class SessionManager {
 
         if let index = sessions.firstIndex(where: { $0.id == compositeID }) {
             let oldState = sessions[index].state
+
+            // Keep the live host-pane binding fresh on every hook (before the backburner
+            // early-return, so backburnered remote sessions stay reachable too).
+            applyLiveHostPaneBinding(at: index, event: event)
 
             // Preserve backburner state - only UserPromptSubmit should exit backburner
             // (explicit reactivation via UI uses updateSessionState, not this method)
@@ -716,7 +793,10 @@ final class SessionManager {
             }
             session.remoteHost = remoteHost?.isEmpty == true ? nil : remoteHost
             sessions.append(session)
-            reconcileFocus(forNewSession: session)
+            applyLiveHostPaneBinding(at: sessions.count - 1, event: event)
+            // Reconcile against the stored (now-bound) element, not the local copy, so a
+            // focus event that arrived before this remote session existed can resolve.
+            reconcileFocus(forNewSession: sessions[sessions.count - 1])
 
             // Highlight immediately without waiting for the next app switch
             let frontmostBundle = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -735,12 +815,16 @@ final class SessionManager {
 
     /// Reconciles focus state for a session that was just appended. Focus events can
     /// arrive before the session exists, leaving a bare UUID stored — re-point it at
-    /// the full `terminalSessionID`, then re-sync the cycling cursor to that focus.
+    /// the session's id, then re-sync the cycling cursor to that focus.
     @MainActor
     private func reconcileFocus(forNewSession session: Session) {
-        if let focusedID = focusedSessionID,
-           focusedID != session.terminalSessionID,
-           session.terminalSessionID.hasSuffix(focusedID) {
+        // A remote tmux session's live pane UUID matches neither terminalSessionID nor a
+        // suffix of it, so resolve it through the learned liveHostPaneID first.
+        if let focusedID = focusedSessionID, focusedID == session.liveHostPaneID {
+            focusedSessionID = session.id
+        } else if let focusedID = focusedSessionID,
+                  focusedID != session.terminalSessionID,
+                  session.terminalSessionID.hasSuffix(focusedID) {
             focusedSessionID = session.terminalSessionID
         }
 

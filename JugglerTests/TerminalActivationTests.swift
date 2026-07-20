@@ -131,6 +131,26 @@ struct TerminalActivationTests {
         #expect(config?.duration == 1.0)
     }
 
+    // MARK: - shouldRunLocalTmuxSelect Tests
+
+    @Test func shouldRunLocalTmuxSelect_localTmux_true() {
+        var session = makeSession("s1")
+        session.tmuxPane = "%1"
+        #expect(TerminalActivation.shouldRunLocalTmuxSelect(for: session))
+    }
+
+    @Test func shouldRunLocalTmuxSelect_remoteTmux_false() {
+        var session = makeSession("s1")
+        session.tmuxPane = "%1"
+        session.remoteHost = "user@host"
+        #expect(!TerminalActivation.shouldRunLocalTmuxSelect(for: session))
+    }
+
+    @Test func shouldRunLocalTmuxSelect_noTmux_false() {
+        let session = makeSession("s1")
+        #expect(!TerminalActivation.shouldRunLocalTmuxSelect(for: session))
+    }
+
     // MARK: - activate(session:trigger:) Tests
 
     @Suite(.serialized)
@@ -194,6 +214,53 @@ struct TerminalActivationTests {
             let highlightCalls = await bridge.recordedHighlightCalls()
             #expect(activateCalls == ["s1"])
             #expect(highlightCalls.isEmpty)
+        }
+
+        @Test @MainActor func activate_remoteTmux_addressesLiveHostPane() async throws {
+            resetHighlightDefaults()
+            let bridge = ActivationMockBridge()
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.highlightOnHotkey)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.paneHighlightEnabled)
+
+            var session = Session(
+                claudeSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
+                tmuxPane: "%11", terminalType: .iterm2, agent: "claude-code",
+                projectPath: "/test", state: .idle, startedAt: Date()
+            )
+            session.remoteHost = "user@host"
+            session.liveHostPaneID = "LIVE-UUID"
+
+            try await TerminalActivation.activate(session: session, trigger: .hotkey, registry: registry)
+
+            // Both activate and highlight target the learned live pane, not the stale
+            // remote-captured terminalSessionID.
+            let activateCalls = await bridge.recordedActivateCalls()
+            let highlightCalls = await bridge.recordedHighlightCalls()
+            #expect(activateCalls == ["LIVE-UUID"])
+            #expect(highlightCalls.map(\.0) == ["LIVE-UUID"])
+        }
+
+        @Test @MainActor func activate_emptyLiveHostPaneID_fallsBackToTerminalSessionID() async throws {
+            resetHighlightDefaults()
+            let bridge = ActivationMockBridge()
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.highlightOnHotkey)
+
+            var session = Session(
+                claudeSessionID: "c1", terminalSessionID: "w1t0p0:REAL",
+                terminalType: .iterm2, agent: "claude-code",
+                projectPath: "/test", state: .idle, startedAt: Date()
+            )
+            // An empty binding must not mask the real id or trip the empty-id removal guard.
+            session.liveHostPaneID = ""
+
+            try await TerminalActivation.activate(session: session, trigger: .hotkey, registry: registry)
+
+            let activateCalls = await bridge.recordedActivateCalls()
+            #expect(activateCalls == ["w1t0p0:REAL"])
         }
 
         @Test @MainActor func activate_highlightEnabled_passesBuiltConfigsToBridge() async throws {

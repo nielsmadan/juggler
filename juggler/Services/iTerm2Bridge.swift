@@ -754,7 +754,7 @@ actor ITerm2Bridge: TerminalBridge {
         switch event.event {
         case "focus_changed":
             logDebug(.daemon, "Focus changed to: \(event.sessionID ?? "nil")")
-            SessionManager.shared.updateFocusedSession(terminalSessionID: event.sessionID)
+            SessionManager.shared.updateFocusedSession(terminalSessionID: event.sessionID, focusTerminalType: .iterm2)
         case "session_terminated":
             guard let sessionID = event.sessionID else { return }
             logInfo(.daemon, "Session terminated in iTerm2: \(sessionID)")

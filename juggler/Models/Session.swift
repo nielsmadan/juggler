@@ -32,6 +32,15 @@ struct Session: Identifiable, Codable, Equatable {
     var transcriptPath: String?
     var remoteHost: String?
 
+    /// Bare UUID of the local iTerm2 pane currently hosting this session, learned from
+    /// live focus events. Set only for remote tmux sessions, whose remote-captured
+    /// `terminalSessionID` is a stale value that no longer maps to a live local pane
+    /// (tmux caches `ITERM_SESSION_ID` in its environment). When set, activation and
+    /// focus-matching address this pane instead of `terminalSessionID`. Ephemeral —
+    /// pane UUIDs don't survive an iTerm2 restart — so it is neither coded nor part of
+    /// Equatable.
+    var liveHostPaneID: String?
+
     var agentShortName: String {
         switch agent {
         case "opencode": "OC"
@@ -86,9 +95,10 @@ struct Session: Identifiable, Codable, Equatable {
         case paneIndex, paneCount, gitBranch, gitRepoName, transcriptPath, remoteHost
     }
 
-    // Explicit Equatable: excludes computed 'id' and volatile timing fields
-    // (lastBecameIdle, lastBecameWorking, busyTimeToday)
-    // to prevent .onChange(of: sessions) from firing on every hook event heartbeat.
+    // Explicit Equatable: excludes computed 'id', volatile timing fields
+    // (lastBecameIdle, lastBecameWorking, busyTimeToday), and the ephemeral
+    // 'liveHostPaneID' binding — to prevent .onChange(of: sessions) from firing on
+    // every hook event heartbeat.
     // Timing fields are display-only and refreshed by TimelineView on a 5-second cadence.
     static func == (lhs: Session, rhs: Session) -> Bool {
         lhs.claudeSessionID == rhs.claudeSessionID &&

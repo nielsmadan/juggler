@@ -23,6 +23,75 @@ actor KittyBridge: TerminalBridge {
         socketPaths[windowID] = socketPath
     }
 
+    /// Lists candidate kitty control sockets on disk (`unix:/tmp/kitty-*`). Injectable so
+    /// socket selection is testable without a live /tmp scan.
+    private var socketCandidatesProvider: @Sendable () -> [String] = KittyBridge.defaultSocketCandidates
+
+    /// Test-only: override the socket-candidate discovery.
+    func setSocketCandidatesProvider(_ provider: @escaping @Sendable () -> [String]) {
+        socketCandidatesProvider = provider
+    }
+
+    nonisolated static func defaultSocketCandidates() -> [String] {
+        let contents = (try? FileManager.default.contentsOfDirectory(
+            at: URL(fileURLWithPath: "/tmp"),
+            includingPropertiesForKeys: nil
+        )) ?? []
+        return contents
+            .filter { $0.lastPathComponent.hasPrefix("kitty-") }
+            .map { "unix:\($0.path)" }
+    }
+
+    /// Test-only: read the socket mapped to a window id.
+    func socketPath(forWindowID windowID: String) -> String? {
+        socketPaths[windowID]
+    }
+
+    /// Sets up local addressing for a kitty session from a hook event. Remote sessions'
+    /// `KITTY_LISTEN_ON` is a remote path — unusable locally and it would clobber the
+    /// socket the watcher discovers — so they resolve a local socket instead.
+    func prepareAddressing(sessionID: String, context: HookAddressingContext) async {
+        try? await start() // ensure kitten is located for later activation / probing
+        if context.isRemote {
+            await registerLocalSocket(forWindowID: sessionID)
+        } else if let socket = context.listenSocket, socket.hasPrefix("unix:"), socket.contains("kitty") {
+            registerSocket(windowID: sessionID, socketPath: socket)
+        } else {
+            await MainActor.run {
+                logWarning(.kitty, "Kitty hook without usable kittyListenOn (window \(sessionID))")
+            }
+        }
+    }
+
+    /// Maps a locally-discovered kitty control socket to `windowID`. Used for live window
+    /// ids reported by the local watcher and for remote sessions, whose hook-supplied
+    /// `KITTY_LISTEN_ON` is a remote, unusable path. With multiple kitty instances, picks
+    /// the instance that actually owns the window so activation can't hit the wrong one.
+    func registerLocalSocket(forWindowID windowID: String) async {
+        let candidates = socketCandidatesProvider()
+        guard !candidates.isEmpty else {
+            await MainActor.run { logWarning(.kitty, "No local kitty socket found for window \(windowID)") }
+            return
+        }
+        if candidates.count == 1 {
+            socketPaths[windowID] = candidates[0]
+            return
+        }
+        for candidate in candidates where await socketOwnsWindow(candidate, windowID: windowID) {
+            socketPaths[windowID] = candidate
+            return
+        }
+        await MainActor.run {
+            logWarning(.kitty, "No kitty instance owns window \(windowID) among \(candidates.count) sockets")
+        }
+    }
+
+    /// Whether the kitty instance behind `socketPath` currently has a window with `windowID`.
+    private func socketOwnsWindow(_ socketPath: String, windowID: String) async -> Bool {
+        guard let json = try? await runKittenCommand(["@", "ls"], socketPath: socketPath) else { return false }
+        return parseKittyLsOutput(json, windowID: windowID) != nil
+    }
+
     func start() async throws {
         if kittenPath != nil { return }
 
@@ -75,19 +144,12 @@ actor KittyBridge: TerminalBridge {
     }
 
     private func discoverKittySocket() throws -> String {
-        let tmpURL = URL(fileURLWithPath: "/tmp")
-        let contents = (try? FileManager.default.contentsOfDirectory(
-            at: tmpURL,
-            includingPropertiesForKeys: nil
-        )) ?? []
-
-        if let socket = contents.first(where: { $0.lastPathComponent.hasPrefix("kitty-") }) {
-            return "unix:\(socket.path)"
+        guard let socket = socketCandidatesProvider().first else {
+            throw TerminalBridgeError.commandFailed(
+                "No Kitty socket found. Ensure listen_on is configured in kitty.conf and restart Kitty."
+            )
         }
-
-        throw TerminalBridgeError.commandFailed(
-            "No Kitty socket found. Ensure listen_on is configured in kitty.conf and restart Kitty."
-        )
+        return socket
     }
 
     func stop() async {

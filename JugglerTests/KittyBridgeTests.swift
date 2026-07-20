@@ -353,3 +353,63 @@ struct KittyBridgeTests {
         await bridge.stop()
     }
 }
+
+/// Serialized: these mutate the shared KittyBridge's socket state and candidate provider.
+@Suite("KittyBridge socket addressing", .serialized)
+struct KittyBridgeSocketTests {
+    private func resetBridge() async {
+        let bridge = KittyBridge.shared
+        await bridge.setSocketCandidatesProvider { KittyBridge.defaultSocketCandidates() }
+        await bridge.stop()
+    }
+
+    @Test func registerLocalSocket_singleCandidate_mapsIt() async {
+        let bridge = KittyBridge.shared
+        await bridge.stop()
+        await bridge.setSocketCandidatesProvider { ["unix:/tmp/kitty-STUB"] }
+
+        await bridge.registerLocalSocket(forWindowID: "w-1")
+
+        #expect(await bridge.socketPath(forWindowID: "w-1") == "unix:/tmp/kitty-STUB")
+        await resetBridge()
+    }
+
+    @Test func registerLocalSocket_noCandidate_isNoOp() async {
+        let bridge = KittyBridge.shared
+        await bridge.stop()
+        await bridge.setSocketCandidatesProvider { [] }
+
+        await bridge.registerLocalSocket(forWindowID: "w-2")
+
+        #expect(await bridge.socketPath(forWindowID: "w-2") == nil)
+        await resetBridge()
+    }
+
+    @Test func prepareAddressing_remote_mapsLocalSocket_notRemoteListenSocket() async {
+        let bridge = KittyBridge.shared
+        await bridge.stop()
+        await bridge.setSocketCandidatesProvider { ["unix:/tmp/kitty-LOCAL"] }
+
+        // Remote KITTY_LISTEN_ON is a remote path; it must NOT win — the local socket must.
+        await bridge.prepareAddressing(
+            sessionID: "win-remote",
+            context: HookAddressingContext(isRemote: true, listenSocket: "unix:/tmp/kitty-REMOTE")
+        )
+
+        #expect(await bridge.socketPath(forWindowID: "win-remote") == "unix:/tmp/kitty-LOCAL")
+        await resetBridge()
+    }
+
+    @Test func prepareAddressing_local_mapsHookListenSocket() async {
+        let bridge = KittyBridge.shared
+        await bridge.stop()
+
+        await bridge.prepareAddressing(
+            sessionID: "win-local",
+            context: HookAddressingContext(isRemote: false, listenSocket: "unix:/tmp/kitty-HOOK")
+        )
+
+        #expect(await bridge.socketPath(forWindowID: "win-local") == "unix:/tmp/kitty-HOOK")
+        await resetBridge()
+    }
+}

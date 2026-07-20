@@ -168,26 +168,6 @@ actor HookServer {
         }
     }
 
-    private func registerKittySocketIfNeeded(payload: UnifiedHookPayload, terminalSessionID: String) async {
-        guard let socketPath = payload.terminal?.kittyListenOn, !socketPath.isEmpty,
-              socketPath.hasPrefix("unix:"), socketPath.contains("kitty") else {
-            await MainActor.run {
-                logWarning(
-                    .kitty,
-                    "Kitty hook received but no kittyListenOn in payload (sessionID: \(terminalSessionID))"
-                )
-            }
-            return
-        }
-
-        // Ensure the bridge is started (finds kitten binary, etc.)
-        try? await TerminalBridgeRegistry.shared.start(.kitty)
-        await KittyBridge.shared.registerSocket(windowID: terminalSessionID, socketPath: socketPath)
-        await MainActor.run {
-            logDebug(.kitty, "Registered socket for window \(terminalSessionID): \(socketPath)")
-        }
-    }
-
     private func handleUnifiedHookEvent(_ payload: UnifiedHookPayload) async {
         let terminalSessionID = payload.terminal?.sessionId ?? ""
         let claudeSessionID = payload.hookInput?.sessionId ?? ""
@@ -223,8 +203,16 @@ actor HookServer {
             .iterm2
         }
 
-        if terminalType == .kitty {
-            await registerKittySocketIfNeeded(payload: payload, terminalSessionID: terminalSessionID)
+        // Let the terminal's own bridge register any local addressing this hook implies
+        // (kitty maps a control socket; iTerm2 addresses panes directly and no-ops).
+        if let bridge = await TerminalBridgeRegistry.shared.bridge(for: terminalType) {
+            await bridge.prepareAddressing(
+                sessionID: terminalSessionID,
+                context: HookAddressingContext(
+                    isRemote: !(remoteHost?.isEmpty ?? true),
+                    listenSocket: payload.terminal?.kittyListenOn
+                )
+            )
         }
 
         await MainActor.run {
@@ -348,8 +336,16 @@ actor HookServer {
 
         switch payload.event {
         case "focus_changed":
+            // The watcher runs inside the local kitty, so windowID is a live local window
+            // id. Map a locally-discovered control socket to it so a remote tmux session
+            // bound to this window can be activated (its hook-supplied socket is a remote,
+            // unusable path).
+            await KittyBridge.shared.registerLocalSocket(forWindowID: payload.windowID)
             await MainActor.run {
-                self.sessionManager.updateFocusedSession(terminalSessionID: payload.windowID)
+                self.sessionManager.updateFocusedSession(
+                    terminalSessionID: payload.windowID,
+                    focusTerminalType: .kitty
+                )
             }
         case "session_terminated":
             await MainActor.run {
