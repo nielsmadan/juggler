@@ -244,7 +244,7 @@ tag-release bump="":
         fi
     fi
     echo "Tagging v$VERSION..."
-    git tag "v$VERSION" && git push origin main "v$VERSION" && \
+    git tag -m "Release v$VERSION" "v$VERSION" && git push origin main "v$VERSION" && \
     echo "Tagged and pushed v$VERSION — release workflow triggered."
 
 release-clean:

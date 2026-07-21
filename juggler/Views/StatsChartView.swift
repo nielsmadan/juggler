@@ -6,7 +6,6 @@ import SwiftUI
 /// rightmost bar and grows live; older days fall off the left edge.
 struct StatsChartView: View {
     @Environment(SessionManager.self) private var sessionManager
-    @Environment(\.colorScheme) private var colorScheme
     @AppStorage(AppStorageKeys.statsUseCyclingColors) private var useCyclingColors = true
     @AppStorage(AppStorageKeys.statsBarColorRed) private var barColorRed = 255.0
     @AppStorage(AppStorageKeys.statsBarColorGreen) private var barColorGreen = 165.0
@@ -83,24 +82,30 @@ struct StatsChartView: View {
                 }
                 // Label sits at the bottom, drawn on top of the bar (and the
                 // background below, for very short bars). Ink + opposite-tone
-                // halo adapt to appearance so it stays legible over both the
-                // window background and any bar color.
+                // halo are chosen from the bar's own luminance so the text stays
+                // legible over bright bars (green, yellow) as well as dark ones.
+                let ink = labelInk(for: bar)
                 Text(SessionStatsCalculator.formatDuration(bar.seconds))
-                    .font(.system(size: 10))
-                    .foregroundStyle(labelInk)
+                    .font(.system(size: 11))
+                    .foregroundStyle(ink.ink)
                     .lineLimit(1)
-                    .shadow(color: labelHalo.opacity(0.85), radius: 1, x: 0, y: 0)
-                    .shadow(color: labelHalo.opacity(0.55), radius: 2.5, x: 0, y: 1)
+                    .shadow(color: ink.halo.opacity(0.85), radius: 1, x: 0, y: 0)
+                    .shadow(color: ink.halo.opacity(0.55), radius: 2.5, x: 0, y: 1)
                     .padding(.bottom, 3)
             }
         }
         .frame(width: barWidth)
     }
 
-    /// Label ink: white in dark mode, black in light mode.
-    private var labelInk: Color { colorScheme == .dark ? .white : .black }
-    /// Opposite-tone halo so the ink reads over any background behind it.
-    private var labelHalo: Color { colorScheme == .dark ? .black : .white }
+    /// Label ink + halo chosen from the bar's luminance: black ink over bright
+    /// bars (green, yellow), white over dark ones, with an opposite-tone halo so
+    /// the text also reads where it spills onto the window background.
+    private func labelInk(for bar: DisplayBar) -> (ink: Color, halo: Color) {
+        let rgb = barRGB(for: bar)
+        // Relative luminance (Rec. 709 weights).
+        let luminance = 0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b
+        return luminance > 0.6 ? (.black, .white) : (.white, .black)
+    }
 
     private var overlayText: some View {
         HStack(alignment: .top) {
@@ -158,22 +163,24 @@ struct StatsChartView: View {
     // MARK: - Color
 
     private func barColor(for bar: DisplayBar) -> Color {
-        let factor = StatsChart.barDimFactor
+        let rgb = barRGB(for: bar)
+        return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+    }
+
+    /// Normalized (0...1) RGB of a bar's fill — the single source of truth for
+    /// both the fill color and the luminance-based label ink.
+    private func barRGB(for bar: DisplayBar) -> (r: Double, g: Double, b: Double) {
+        let factor = bar.isToday ? 1.0 : StatsChart.barDimFactor
         if useCyclingColors {
-            let index = colorIndex(for: bar.date)
-            return bar.isToday
-                ? CyclingColors.color(at: index)
-                : CyclingColors.dimColor(at: index, factor: factor)
+            let count = CyclingColors.paletteRGB.count
+            let rgb = CyclingColors.paletteRGB[colorIndex(for: bar.date) % count]
+            return (Double(rgb[0]) * factor / 255,
+                    Double(rgb[1]) * factor / 255,
+                    Double(rgb[2]) * factor / 255)
         } else {
-            let full = Color(
-                red: barColorRed / 255, green: barColorGreen / 255, blue: barColorBlue / 255
-            )
-            let dim = Color(
-                red: barColorRed * factor / 255,
-                green: barColorGreen * factor / 255,
-                blue: barColorBlue * factor / 255
-            )
-            return bar.isToday ? full : dim
+            return (barColorRed * factor / 255,
+                    barColorGreen * factor / 255,
+                    barColorBlue * factor / 255)
         }
     }
 
