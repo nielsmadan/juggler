@@ -152,7 +152,7 @@ struct GeneralSettingsView: View {
 
             Section("Uninstall") {
                 Text(
-                    "Removes all integrations (Claude Code hooks, Kitty watcher, OpenCode plugin), resets Automation permission, clears settings, and quits the app. Accessibility permission must be removed manually in System Settings."
+                    "Removes all integrations (Claude Code hooks, Kitty watcher, OpenCode plugin, Pi extension), resets Automation permission, clears settings, and quits the app. Accessibility permission must be removed manually in System Settings."
                 )
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -201,7 +201,7 @@ struct GeneralSettingsView: View {
             if let error = await ScriptInstaller.runBundledScript(resource: "uninstall") {
                 actions.append("Integration cleanup failed: \(error)")
             } else {
-                actions.append("Removed integrations (Claude hooks, Kitty watcher, OpenCode plugin)")
+                actions.append("Removed integrations (Claude hooks, Kitty watcher, OpenCode plugin, Pi extension)")
                 actions.append("Reset Automation permission")
             }
         }
@@ -254,6 +254,10 @@ struct IntegrationSettingsView: View {
 
     @State private var codexController = CodexSetupController()
 
+    @State private var piExtensionInstalled = false
+    @State private var isInstallingPiExtension = false
+    @State private var piInstallError: String?
+
     @State private var showingSSHSheet = false
 
     private var hooksPath: String {
@@ -268,6 +272,10 @@ struct IntegrationSettingsView: View {
 
     private var openCodePluginPath: String {
         OpenCodePluginInstaller.pluginFilePath
+    }
+
+    private var piExtensionPath: String {
+        PiExtensionInstaller.extensionFilePath
     }
 
     private let tmuxUpdateEnvironmentLine =
@@ -298,6 +306,7 @@ struct IntegrationSettingsView: View {
             checkTmuxConfigured()
             checkOpenCodePluginInstalled()
             codexController.refresh()
+            checkPiExtensionInstalled()
         }
     }
 
@@ -546,6 +555,37 @@ struct IntegrationSettingsView: View {
                 }
                 .disabled(codexController.isEnablingInCodex)
             }
+
+            Section("Pi") {
+                HStack {
+                    Text("Extension")
+                    Spacer()
+                    if piExtensionInstalled {
+                        Label("Installed", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Installed", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let error = piInstallError {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+
+                Button(piExtensionInstalled ? "Reinstall Extension" : "Install Extension") {
+                    installPiExtension()
+                }
+                .disabled(isInstallingPiExtension)
+
+                if piExtensionInstalled {
+                    Text("Restart Pi or run /reload for it to take effect.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
         .scrollDisabled(true)
@@ -748,6 +788,23 @@ struct IntegrationSettingsView: View {
             openCodeInstallError = error.localizedDescription
         }
         isInstallingOpenCodePlugin = false
+    }
+
+    private func checkPiExtensionInstalled() {
+        piExtensionInstalled = FileManager.default.fileExists(atPath: piExtensionPath)
+    }
+
+    private func installPiExtension() {
+        isInstallingPiExtension = true
+        piInstallError = nil
+
+        do {
+            try PiExtensionInstaller.install()
+            checkPiExtensionInstalled()
+        } catch {
+            piInstallError = error.localizedDescription
+        }
+        isInstallingPiExtension = false
     }
 }
 

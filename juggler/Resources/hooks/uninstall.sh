@@ -5,6 +5,11 @@ JUGGLER_HOOKS_DIR="$HOME/.claude/hooks/juggler"
 SETTINGS_FILE="$HOME/.claude/settings.json"
 KITTY_WATCHER="$HOME/.config/kitty/juggler_watcher.py"
 OPENCODE_PLUGIN="$HOME/.config/opencode/plugins/juggler-opencode.ts"
+# Expand a leading literal ~ in PI_CODING_AGENT_DIR so this matches the Swift
+# installer, which expands it via expandingTildeInPath.
+PI_AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+PI_AGENT_DIR="${PI_AGENT_DIR/#\~/$HOME}"
+PI_EXTENSION="$PI_AGENT_DIR/extensions/juggler-pi.ts"
 
 echo "Removing Juggler integrations..."
 
@@ -59,6 +64,12 @@ fi
 if [ -f "$OPENCODE_PLUGIN" ]; then
     rm -f "$OPENCODE_PLUGIN"
     echo "  Removed OpenCode plugin"
+fi
+
+# Remove Pi extension
+if [ -f "$PI_EXTENSION" ]; then
+    rm -f "$PI_EXTENSION"
+    echo "  Removed Pi extension"
 fi
 
 # Remove Codex hooks

@@ -215,4 +215,63 @@ struct HookEventMapperTests {
         let action = HookEventMapper.map(event: "Session.Created", agent: "opencode")
         #expect(action == .ignore)
     }
+
+    // MARK: - Pi Mappings
+
+    // session_start fires at launch and on new/resume/reload/fork — always idle.
+    @Test func pi_sessionStart_mapsToIdle() {
+        let action = HookEventMapper.map(event: "session_start", agent: "pi")
+        #expect(action == .updateState(.idle))
+    }
+
+    // agent_settled is Pi's recommended "done" signal (no retry/compaction/follow-up left).
+    @Test func pi_agentSettled_mapsToIdle() {
+        let action = HookEventMapper.map(event: "agent_settled", agent: "pi")
+        #expect(action == .updateState(.idle))
+    }
+
+    @Test func pi_agentStart_mapsToWorking() {
+        let action = HookEventMapper.map(event: "agent_start", agent: "pi")
+        #expect(action == .updateState(.working))
+    }
+
+    @Test func pi_sessionBeforeCompact_mapsToCompacting() {
+        let action = HookEventMapper.map(event: "session_before_compact", agent: "pi")
+        #expect(action == .updateState(.compacting))
+    }
+
+    // A manual /compact leaves the session idle once compaction finishes.
+    @Test func pi_sessionCompactIdle_mapsToIdle() {
+        let action = HookEventMapper.map(event: "session_compact_idle", agent: "pi")
+        #expect(action == .updateState(.idle))
+    }
+
+    // A threshold/overflow compaction is mid-turn and resumes work.
+    @Test func pi_sessionCompactWorking_mapsToWorking() {
+        let action = HookEventMapper.map(event: "session_compact_working", agent: "pi")
+        #expect(action == .updateState(.working))
+    }
+
+    @Test func pi_sessionShutdown_mapsToRemoveSession() {
+        let action = HookEventMapper.map(event: "session_shutdown", agent: "pi")
+        #expect(action == .removeSession)
+    }
+
+    // Pi has no native permission event — the extension never posts one, and the
+    // agent-level Codex/Claude permission strings must not leak into the Pi mapping.
+    @Test func pi_permissionRequest_mapsToIgnore() {
+        let action = HookEventMapper.map(event: "PermissionRequest", agent: "pi")
+        #expect(action == .ignore)
+    }
+
+    @Test func pi_unknownEvent_mapsToIgnore() {
+        let action = HookEventMapper.map(event: "some_future_event", agent: "pi")
+        #expect(action == .ignore)
+    }
+
+    // mapPi is case-sensitive (exact-string switch). Pin that an uppercase event is ignored.
+    @Test func pi_uppercaseEvent_mapsToIgnore() {
+        let action = HookEventMapper.map(event: "Session_Start", agent: "pi")
+        #expect(action == .ignore)
+    }
 }

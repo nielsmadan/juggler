@@ -16,6 +16,7 @@ struct BundleResourcesTests {
         ("uninstall", "sh"), // SettingsView reset / ScriptInstaller
         ("codex-notify", "sh"), // CodexHooksInstaller.installHooks
         ("juggler-opencode", "txt"), // OpenCodePluginInstaller.install
+        ("juggler-pi", "txt"), // PiExtensionInstaller.install
         ("iterm2_daemon", "py"), // iTerm2Bridge
         // Sibling resources copied by the install scripts above:
         ("notify", "sh"), // install.sh copies it to ~/.claude/hooks/juggler/

@@ -1,6 +1,6 @@
 # Hook Server
 
-The HookServer is an HTTP server running on `localhost:7483` that receives state change notifications from Claude Code, OpenCode, and Codex hooks.
+The HookServer is an HTTP server running on `localhost:7483` that receives state change notifications from Claude Code, OpenCode, Codex, and Pi hooks.
 
 ## Implementation
 
@@ -73,7 +73,7 @@ Or on error:
 
 ## Event Mapping
 
-`HookEventMapper.map(event:agent:)` (`Models/HookEventMapper.swift`) converts each event to a `MappedAction`, dispatching to per-agent mappers (`mapClaudeCode` / `mapOpenCode` / `mapCodex`) by the `agent` parameter. The Claude Code mapping is the Event Types table above; the other two agents map as follows (canonical source: `HookEventMapper.swift`).
+`HookEventMapper.map(event:agent:)` (`Models/HookEventMapper.swift`) converts each event to a `MappedAction`, dispatching to per-agent mappers (`mapClaudeCode` / `mapOpenCode` / `mapCodex` / `mapPi`) by the `agent` parameter. The Claude Code mapping is the Event Types table above; the other agents map as follows (canonical source: `HookEventMapper.swift`).
 
 OpenCode:
 
@@ -108,6 +108,22 @@ canonical hook fingerprint) - so the hooks run without manual review. The
 `0` - a user's preexisting hook for the same event pushes Juggler's group to a
 higher index). See [Codex Hooks](codex-hooks.md) for the full mechanism.
 Requires Codex CLI ≥ v0.114.
+
+Pi:
+
+| Event | Mapped State |
+|-------|--------------|
+| `session_start`, `agent_settled`, `session_compact_idle` | `idle` |
+| `agent_start`, `session_compact_working` | `working` |
+| `session_before_compact` | `compacting` |
+| `session_shutdown` | (removed) |
+
+Pi integrates via a TypeScript extension (like OpenCode), not shell hooks — no
+trust step, no feature flag. Pi has no native permission event, so no `permission`
+state is produced. The `session_compact_idle`/`session_compact_working` split is
+synthesized by the extension from Pi's `session_compact` `reason`. Only a real
+`quit` removes the session (new/resume/reload/fork keep the terminal session). See
+[Pi Extension](pi-extension.md) for the full mechanism.
 
 ## Backburner Protection
 

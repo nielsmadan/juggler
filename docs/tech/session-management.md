@@ -1,6 +1,6 @@
 # Session Management
 
-The SessionManager is the central state manager for tracking agent sessions (Claude Code, OpenCode, Codex).
+The SessionManager is the central state manager for tracking agent sessions (Claude Code, OpenCode, Codex, Pi).
 
 ## Implementation
 

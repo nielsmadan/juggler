@@ -13,6 +13,8 @@ enum HookEventMapper {
             mapOpenCode(event: event)
         case "codex":
             mapCodex(event: event)
+        case "pi":
+            mapPi(event: event)
         default:
             mapClaudeCode(event: event)
         }
@@ -51,6 +53,25 @@ enum HookEventMapper {
             .updateState(.permission)
         case "PreCompact":
             .updateState(.compacting)
+        default:
+            .ignore
+        }
+    }
+
+    private nonisolated static func mapPi(event: String) -> MappedAction {
+        switch event {
+        // Idle sources: session_start (fires at launch and on new/resume/reload/fork),
+        // agent_settled (turn finished), session_compact_idle (a manual /compact completed).
+        case "session_start", "agent_settled", "session_compact_idle":
+            .updateState(.idle)
+        // session_compact_working: a threshold/overflow compaction resumes the turn.
+        case "agent_start", "session_compact_working":
+            .updateState(.working)
+        case "session_before_compact":
+            .updateState(.compacting)
+        // Pi has no native permission event, so .permission is never produced.
+        case "session_shutdown":
+            .removeSession
         default:
             .ignore
         }

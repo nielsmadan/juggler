@@ -18,6 +18,7 @@ struct IntegrationHubView: View {
     @State private var showingClaudeCodeSetup = false
     @State private var showingOpenCodeSetup = false
     @State private var showingCodexSetup = false
+    @State private var showingPiSetup = false
 
     @State private var iterm2Configured = false
     @State private var kittyConfigured = false
@@ -25,6 +26,7 @@ struct IntegrationHubView: View {
     @State private var claudeCodeConfigured = false
     @State private var openCodeConfigured = false
     @State private var codexConfigured = false
+    @State private var piConfigured = false
 
     @State private var showingIncompleteAlert = false
 
@@ -33,7 +35,7 @@ struct IntegrationHubView: View {
     }
 
     var hasAnyAgent: Bool {
-        claudeCodeConfigured || openCodeConfigured || codexConfigured
+        claudeCodeConfigured || openCodeConfigured || codexConfigured || piConfigured
     }
 
     var body: some View {
@@ -114,6 +116,14 @@ struct IntegrationHubView: View {
                     isConfigured: codexConfigured,
                     action: { showingCodexSetup = true }
                 )
+
+                IntegrationCard(
+                    icon: "circle.hexagongrid",
+                    title: "Pi",
+                    description: "Install extension for session tracking",
+                    isConfigured: piConfigured,
+                    action: { showingPiSetup = true }
+                )
             }
 
             Button("Continue") {
@@ -157,6 +167,10 @@ struct IntegrationHubView: View {
         .sheet(isPresented: $showingCodexSetup) {
             CodexSetupView(isConfigured: $codexConfigured, isEnabled: $codexEnabled)
                 .frame(width: 540, height: 560)
+        }
+        .sheet(isPresented: $showingPiSetup) {
+            PiSetupView(isConfigured: $piConfigured)
+                .frame(width: 540, height: 420)
         }
     }
 }
@@ -597,6 +611,98 @@ struct OpenCodeSetupView: View {
 
         do {
             try OpenCodePluginInstaller.install()
+            isInstalled = true
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isInstalling = false
+    }
+}
+
+// MARK: - Pi Setup
+
+struct PiSetupView: View {
+    @Binding var isConfigured: Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var isInstalling = false
+    @State private var isInstalled = false
+    @State private var errorMessage: String?
+
+    private var extensionPath: String {
+        PiExtensionInstaller.extensionFilePath
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Pi Setup")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Text(
+                "Juggler installs an extension for Pi to detect when sessions become idle, start working, or compact."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+
+            VStack(alignment: .leading, spacing: 16) {
+                SetupStep(
+                    number: 1,
+                    isComplete: isInstalled,
+                    title: "Install Extension",
+                    detail: "Adds juggler-pi.ts to Pi's extensions directory (~/.pi/agent/extensions/)"
+                )
+            }
+            .padding()
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(8)
+
+            if isInstalled {
+                Label("Extension Installed", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Text("Restart Pi or run /reload for it to take effect.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if let error = errorMessage {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            }
+
+            if !isInstalled {
+                Button("Install Extension") {
+                    installExtension()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isInstalling)
+            }
+
+            Spacer()
+
+            if isInstalled {
+                Button("Done") {
+                    isConfigured = true
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+        }
+        .padding()
+        .onAppear {
+            isInstalled = FileManager.default.fileExists(atPath: extensionPath)
+        }
+    }
+
+    private func installExtension() {
+        isInstalling = true
+        errorMessage = nil
+
+        do {
+            try PiExtensionInstaller.install()
             isInstalled = true
         } catch {
             errorMessage = error.localizedDescription

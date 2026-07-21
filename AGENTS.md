@@ -2,7 +2,7 @@
 
 This is the single source of truth for agent/contributor guidance in this repo. `CLAUDE.md` imports this file, so every coding agent shares it.
 
-Juggler is a SwiftUI menu bar app (macOS 14+) that tracks Claude Code, OpenCode, and Codex sessions via hooks and provides global hotkeys to navigate between them.
+Juggler is a SwiftUI menu bar app (macOS 14+) that tracks Claude Code, OpenCode, Codex, and Pi sessions via hooks and provides global hotkeys to navigate between them.
 
 ## Project Structure & Module Organization
 
@@ -34,7 +34,7 @@ Or use Xcode: `⌘B` to build, `⌘R` to run.
 ## Architecture
 
 **Data flow:**
-1. Claude Code / OpenCode / Codex hooks → HTTP POST to `HookServer` (port 7483)
+1. Claude Code / OpenCode / Codex / Pi hooks → HTTP POST to `HookServer` (port 7483)
 2. `HookServer` → updates `SessionManager` (in-memory `@Observable`)
 3. Global hotkeys → `HotkeyManager` → `SessionManager.cycleForward/Backward()`
 4. Activation → `TerminalBridge` (iTerm2Bridge/KittyBridge) → terminal
@@ -55,7 +55,7 @@ Juggler/
 │   └── UpdateManager.swift       # Sparkle auto-updates
 ├── Models/
 │   ├── CyclingEngine.swift       # Session cycling protocol and implementation
-│   ├── HookEventMapper.swift     # Hook event → state mapping (Claude Code + OpenCode + Codex)
+│   ├── HookEventMapper.swift     # Hook event → state mapping (Claude Code + OpenCode + Codex + Pi)
 │   ├── Shortcut+Persistence.swift # Save/load shortcuts via UserDefaults (extends ShortcutField's Shortcut)
 │   ├── QueueOrderMode.swift      # Fair, Prio, Static, Grouped modes
 │   ├── Session.swift             # Session data model
@@ -68,7 +68,7 @@ Juggler/
 │   ├── KittyBridge.swift         # Kitty terminal integration via kitten CLI
 │   ├── TerminalBridge.swift      # Terminal abstraction protocol + TerminalActivation
 │   ├── TerminalBridgeRegistry.swift  # Bridge registration and lifecycle
-│   └── ...                       # CodexHooksInstaller, OpenCodePluginInstaller, ScriptInstaller, ConfigFileWriter (agent integration installers)
+│   └── ...                       # CodexHooksInstaller, OpenCodePluginInstaller, PiExtensionInstaller, ScriptInstaller, ConfigFileWriter (agent integration installers)
 ├── Views/
 │   ├── AboutView.swift           # About window
 │   ├── BeaconContentView.swift   # Beacon overlay content
@@ -93,8 +93,10 @@ Juggler/
     ├── codex-hooks/
     │   ├── codex-install.sh      # Codex hook install script
     │   └── codex-notify.sh       # Codex hook notification script
-    └── opencode-plugin/
-        └── juggler-opencode.txt  # OpenCode plugin (bundled as .txt; installer writes it to disk as .ts)
+    ├── opencode-plugin/
+    │   └── juggler-opencode.txt  # OpenCode plugin (bundled as .txt; installer writes it to disk as .ts)
+    └── pi-extension/
+        └── juggler-pi.txt        # Pi extension (bundled as .txt; installer writes it to disk as .ts)
 ```
 
 **Session states:** `idle`, `permission`, `working`, `backburner` (excluded from cycle), `compacting`
@@ -113,6 +115,8 @@ Juggler/
 Hooks are installed to `~/.claude/hooks/juggler/`. The `notify.sh` script reads session data from stdin (JSON) and posts to Juggler's HTTP server.
 
 Codex hooks install the bundled `codex-notify.sh` to `~/.codex/hooks/juggler/notify.sh`, register it in `~/.codex/hooks.json`, and trust it via `~/.codex/config.toml`. See [docs/tech/codex-hooks.md](docs/tech/codex-hooks.md).
+
+Pi installs the bundled `juggler-pi.txt` as a TypeScript extension to `~/.pi/agent/extensions/juggler-pi.ts` (honoring `PI_CODING_AGENT_DIR`). No trust step or feature flag — Pi auto-discovers global extensions on restart/`/reload`. See [docs/tech/pi-extension.md](docs/tech/pi-extension.md).
 
 ### Testing Hooks
 

@@ -1,0 +1,152 @@
+// Juggler extension for Pi (@earendil-works/pi-coding-agent)
+// Installed to ${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/juggler-pi.ts
+// Posts session lifecycle events to Juggler's HTTP server for session tracking.
+//
+// Pi loads this on startup (or /reload). It subscribes to lifecycle events and
+// mirrors Juggler's OpenCode plugin: it detects the terminal from the
+// environment and fetch()es a unified payload to localhost:7483/hook. No tool
+// interception, so it never influences Pi's behavior.
+
+import { execFileSync } from "node:child_process";
+import { hostname } from "node:os";
+
+const JUGGLER_PORT = process.env.JUGGLER_PORT || "7483";
+const JUGGLER_URL = `http://localhost:${JUGGLER_PORT}/hook`;
+
+// Detect terminal type from the environment (same fields the OpenCode plugin sends).
+function getTerminalInfo(): Record<string, string> {
+  const env = process.env;
+  const info: Record<string, string> = {
+    cwd: process.cwd(),
+  };
+
+  if (env.KITTY_WINDOW_ID) {
+    info.terminalType = "kitty";
+    info.sessionId = env.KITTY_WINDOW_ID;
+    if (env.KITTY_LISTEN_ON) info.kittyListenOn = env.KITTY_LISTEN_ON;
+    if (env.KITTY_PID) info.kittyPid = env.KITTY_PID;
+  } else if (env.ITERM_SESSION_ID) {
+    info.terminalType = "iterm2";
+    info.sessionId = env.ITERM_SESSION_ID;
+  }
+
+  return info;
+}
+
+// Get git info from the working directory (best effort).
+function getGitInfo(): { branch: string; repo: string } | null {
+  try {
+    const branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const toplevel = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const repo = toplevel.split("/").pop() || "";
+    return { branch, repo };
+  } catch {
+    return null;
+  }
+}
+
+// Get tmux info if running inside tmux.
+function getTmuxInfo(): Record<string, string> | null {
+  const pane = process.env.TMUX_PANE;
+  if (!pane) return null;
+  return { pane };
+}
+
+// SSH detection: $SSH_CONNECTION is set by sshd for any interactive ssh session.
+function getRemoteHost(): string | null {
+  if (!process.env.SSH_CONNECTION) return null;
+  const user = process.env.USER || process.env.LOGNAME || "";
+  // $HOSTNAME is a bash-ism often not exported to a Node process — fall back
+  // to os.hostname() so SSH Pi sessions still get tagged.
+  let host = process.env.HOSTNAME || "";
+  if (!host) {
+    try {
+      host = hostname();
+    } catch {
+      host = "";
+    }
+  }
+  host = host.split(".")[0];
+  if (!user || !host) return null;
+  return `${user}@${host}`;
+}
+
+export default function (pi: any) {
+  const terminal = getTerminalInfo();
+  const git = getGitInfo();
+  const tmux = getTmuxInfo();
+  const remoteHost = getRemoteHost();
+
+  async function postEvent(eventType: string, sessionId?: string) {
+    const payload: Record<string, any> = {
+      agent: "pi",
+      event: eventType,
+      terminal,
+    };
+
+    if (sessionId) {
+      payload.hookInput = { session_id: sessionId };
+    }
+    if (git) payload.git = git;
+    if (tmux) payload.tmux = tmux;
+    if (remoteHost) payload.remoteHost = remoteHost;
+
+    try {
+      await fetch(JUGGLER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(2000),
+      });
+    } catch {
+      // Juggler not running — silently ignore.
+    }
+  }
+
+  function sessionId(ctx: any): string | undefined {
+    try {
+      return ctx?.sessionManager?.getSessionId?.() ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  // Session appears (fires at launch with reason "startup", and again on
+  // new/resume/reload/fork — re-posting idle is correct: the session is idle).
+  pi.on("session_start", async (_event: any, ctx: any) => {
+    await postEvent("session_start", sessionId(ctx));
+  });
+
+  // Turn boundaries. agent_settled is Pi's recommended "done" signal — unlike
+  // agent_end, Pi will not auto-retry/compact/continue after it.
+  pi.on("agent_start", async (_event: any, ctx: any) => {
+    await postEvent("agent_start", sessionId(ctx));
+  });
+  pi.on("agent_settled", async (_event: any, ctx: any) => {
+    await postEvent("agent_settled", sessionId(ctx));
+  });
+
+  // Compaction. session_compact carries a reason: a manual /compact leaves the
+  // session idle; a threshold/overflow compaction is mid-turn and resumes work.
+  pi.on("session_before_compact", async (_event: any, ctx: any) => {
+    await postEvent("session_before_compact", sessionId(ctx));
+  });
+  pi.on("session_compact", async (event: any, ctx: any) => {
+    const done = event?.reason === "manual" ? "session_compact_idle" : "session_compact_working";
+    await postEvent(done, sessionId(ctx));
+  });
+
+  // Session removal. Only a real quit removes the session — new/resume/reload/
+  // fork keep the same terminal session and are followed by a session_start.
+  pi.on("session_shutdown", async (event: any, ctx: any) => {
+    if (event?.reason === "quit") {
+      await postEvent("session_shutdown", sessionId(ctx));
+    }
+  });
+}

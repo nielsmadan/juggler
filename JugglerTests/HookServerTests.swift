@@ -718,6 +718,24 @@ struct HookServerTests {
         #expect(payload?.tmux?.sessionName == "dev")
     }
 
+    // Pins the payload shape the Pi `juggler-pi.ts` extension emits against the server's decoder.
+    @Test func decodeUnifiedPayload_piPayload_succeeds() async {
+        let server = HookServer(sessionManager: SessionManager())
+        let body = """
+        {"agent":"pi","event":"agent_start","hookInput":{"session_id":"pi-sess-1"},\
+        "terminal":{"sessionId":"w0t0p0:xyz","cwd":"/test","terminalType":"iterm2"},\
+        "git":{"branch":"main","repo":"juggler"},"tmux":{"pane":"%1"}}
+        """
+        let payload = await server.decodeUnifiedPayload(body)
+        #expect(payload != nil)
+        #expect(payload?.agent == "pi")
+        #expect(payload?.event == "agent_start")
+        #expect(payload?.hookInput?.sessionId == "pi-sess-1")
+        #expect(payload?.terminal?.terminalType == "iterm2")
+        #expect(payload?.git?.repo == "juggler")
+        #expect(payload?.tmux?.pane == "%1")
+    }
+
     @Test func decodeUnifiedPayload_invalidJSON_returnsNil() async {
         let server = HookServer(sessionManager: SessionManager())
         let payload = await server.decodeUnifiedPayload("not json")

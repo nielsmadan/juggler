@@ -45,6 +45,7 @@ struct Session: Identifiable, Codable, Equatable {
         switch agent {
         case "opencode": "OC"
         case "codex": "CX"
+        case "pi": "PI"
         default: "CC"
         }
     }

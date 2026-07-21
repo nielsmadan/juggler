@@ -1360,4 +1360,90 @@ struct IntegrationTests {
         #expect(manager.sessions.first { $0.id == "s-codex" }?.state == .working)
         #expect(manager.sessions.first { $0.id == "s-cc" }?.state == .idle)
     }
+
+    // MARK: - Pi Extension Integration
+
+    @Test @MainActor func integration_pi_sessionStart_createsSession() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(
+            server: server,
+            agent: "pi",
+            event: "session_start",
+            claudeSessionID: "pi-1",
+            terminalSessionID: "s1",
+            projectPath: "/Users/test/pi-project"
+        )
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].terminalSessionID == "s1")
+        #expect(manager.sessions[0].state == .idle)
+        #expect(manager.sessions[0].agent == "pi")
+        #expect(manager.sessions[0].projectPath == "/Users/test/pi-project")
+    }
+
+    @Test @MainActor func integration_pi_stateTransitions() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(server: server, agent: "pi", event: "session_start",
+                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .idle)
+
+        await simulateHook(server: server, agent: "pi", event: "agent_start",
+                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .working)
+
+        // A mid-turn (overflow/threshold) compaction goes compacting then resumes work.
+        await simulateHook(server: server, agent: "pi", event: "session_before_compact",
+                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .compacting)
+
+        await simulateHook(server: server, agent: "pi", event: "session_compact_working",
+                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .working)
+
+        await simulateHook(server: server, agent: "pi", event: "agent_settled",
+                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .idle)
+
+        // The whole sequence is a single session.
+        #expect(manager.sessions.count == 1)
+    }
+
+    // A manual /compact leaves the session idle once compaction completes.
+    @Test @MainActor func integration_pi_manualCompact_returnsToIdle() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(server: server, agent: "pi", event: "session_start",
+                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .idle)
+
+        await simulateHook(server: server, agent: "pi", event: "session_before_compact",
+                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .compacting)
+
+        await simulateHook(server: server, agent: "pi", event: "session_compact_idle",
+                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .idle)
+
+        #expect(manager.sessions.count == 1)
+    }
+
+    // Swift maps any session_shutdown to removal; the reason==="quit" gate lives in the
+    // TS extension (juggler-pi.txt) and is not exercised here.
+    @Test @MainActor func integration_pi_shutdown_removesSession() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(server: server, agent: "pi", event: "session_start",
+                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+        #expect(manager.sessions.count == 1)
+
+        await simulateHook(server: server, agent: "pi", event: "session_shutdown",
+                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+        #expect(manager.sessions.isEmpty)
+    }
 }
