@@ -24,6 +24,8 @@ I usually have 3-6 terminals open, each of which will have 2-6 tabs focused on v
 - **Never lose a window** - Color-coded tab and pane highlighting lets you spot the active session immediately, even across monitors
 - **Zero workflow changes** - No new terminal to learn and set up, no forced worktrees, no single-repo limit. Your existing setup stays exactly as it was
 
+I like software that does one thing and does it well. Juggler has a few bells and whistles where it makes sense, but it's first and foremost about cycling through your sessions. It never reads your code or your conversations, it never looks at your agent's logs, and it never will. I'm adding support for more agents and terminals, and making some improvements here and there, but at its core Juggler is feature complete.
+
 ## Installation
 
 ### Homebrew (recommended)
