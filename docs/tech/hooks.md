@@ -1,6 +1,6 @@
 # Claude Code Hooks
 
-Juggler integrates with Claude Code and OpenCode via hooks, receiving notifications when session state changes.
+Juggler integrates with Claude Code via shell hooks, receiving notifications when session state changes. The other agents use their own mechanisms — see [OpenCode Plugin](opencode-plugin.md), [Codex Hooks](codex-hooks.md), and [Pi Extension](pi-extension.md).
 
 ## Installation
 
@@ -189,6 +189,7 @@ curl http://localhost:7483/hook -X POST -d '{"agent":"test","event":"ping"}'
 - Removes `~/.claude/hooks/juggler/` and surgically strips Juggler's hook entries from `~/.claude/settings.json` (parser-based, leaving other hooks intact).
 - Removes the Kitty watcher (`~/.config/kitty/juggler_watcher.py`).
 - Removes the OpenCode plugin (`~/.config/opencode/plugins/juggler-opencode.ts`).
+- Removes the Pi extension (`${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/juggler-pi.ts`). See [Pi Extension](pi-extension.md).
 - Removes Codex hooks (`~/.codex/hooks/juggler/`), strips Juggler entries from `~/.codex/hooks.json`, and restores `~/.codex/config.toml` from `<path>.juggler-backup` (removing the `[features] hooks` flag and `[hooks.state]` trust blocks). See [Codex Hooks](codex-hooks.md) for the install side this reverses.
 - Resets the Automation (Apple Events) permission via `tccutil`.
 
