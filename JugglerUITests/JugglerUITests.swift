@@ -17,13 +17,16 @@ final class JugglerUITests: XCTestCase {
     @MainActor
     func testExample() throws {
         let app = XCUIApplication()
+        app.launchArguments += ["-uiTesting"]
         app.launch()
     }
 
     @MainActor
     func testLaunchPerformance() throws {
         measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+            let app = XCUIApplication()
+            app.launchArguments += ["-uiTesting"]
+            app.launch()
         }
     }
 }

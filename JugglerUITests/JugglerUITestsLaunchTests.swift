@@ -19,6 +19,7 @@ final class JugglerUITestsLaunchTests: XCTestCase {
     @MainActor
     func testLaunch() throws {
         let app = XCUIApplication()
+        app.launchArguments += ["-uiTesting"]
         app.launch()
 
         let attachment = XCTAttachment(screenshot: app.screenshot())

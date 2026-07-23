@@ -6,7 +6,7 @@ Juggler is a SwiftUI menu bar app (macOS 14+) that tracks Claude Code, OpenCode,
 
 ## Project Structure & Module Organization
 
-`Juggler/` contains the macOS app source. Key folders are `Models/`, `Managers/`, `Services/`, `Views/`, `Animation/`, and `Resources/` for bundled scripts such as hooks and terminal helpers. UI assets live in `Juggler/Assets.xcassets/`. Unit tests are in `JugglerTests/`; UI and launch tests are in `JugglerUITests/`. Product, technical, and planning docs live under `docs/`. Build output is written to `build/` and should not be committed.
+`Juggler/` contains the macOS app source. Key folders are `Models/`, `Managers/`, `Services/`, `Views/`, `Animation/`, and `Resources/` for bundled scripts such as hooks and terminal helpers. UI assets live in `Juggler/Assets.xcassets/`. Unit tests are in `JugglerTests/`; UI and launch tests are in `JugglerUITests/`. Product, technical, and planning docs live under `docs/`. Build output is written to `build/` and should not be committed. The Xcode project uses `PBXFileSystemSynchronizedRootGroup`: files added under `Juggler/` are auto-discovered — no `project.pbxproj` edits needed when adding files.
 
 ## Build, Test, and Development Commands
 
@@ -38,6 +38,10 @@ Or use Xcode: `⌘B` to build, `⌘R` to run.
 2. `HookServer` → updates `SessionManager` (in-memory `@Observable`)
 3. Global hotkeys → `HotkeyManager` → `SessionManager.cycleForward/Backward()`
 4. Activation → `TerminalBridge` (iTerm2Bridge/KittyBridge) → terminal
+
+**Bridges & session identity:**
+- `TerminalBridgeRegistry` is an `actor` singleton (`.shared`) mapping `TerminalType → any TerminalBridge`; `JugglerApp` registers the bridges and starts each one based on its `@AppStorage` key.
+- `Session` has a composite identity: `terminalSessionID` plus optional `tmuxPane`.
 
 **Project structure:**
 ```
@@ -112,7 +116,7 @@ Juggler/
 
 ## Hook Installation
 
-Hooks are installed to `~/.claude/hooks/juggler/`. The `notify.sh` script reads session data from stdin (JSON) and posts to Juggler's HTTP server.
+Hooks are installed to `~/.claude/hooks/juggler/`. The `notify.sh` script reads session data from stdin (JSON) and posts to Juggler's HTTP server. `notify.sh` detects the terminal type from env vars (`$KITTY_WINDOW_ID` → Kitty, else `$ITERM_SESSION_ID` → iTerm2).
 
 Codex hooks install the bundled `codex-notify.sh` to `~/.codex/hooks/juggler/notify.sh`, register it in `~/.codex/hooks.json`, and trust it via `~/.codex/config.toml`. See [docs/tech/codex-hooks.md](docs/tech/codex-hooks.md).
 
@@ -131,9 +135,15 @@ curl -X POST "http://localhost:7483/hook" \
 
 This is a Swift codebase (Xcode `SWIFT_VERSION = 5.0` language mode) with 4-space indentation and a 120-character line target. Formatting is enforced by `.swiftformat`; linting is enforced by `.swiftlint.yml`. Follow existing Swift naming: `UpperCamelCase` for types, `lowerCamelCase` for properties/functions, and test files named after the subject, for example `SessionManagerTests.swift`. Use `@Observable` (not `ObservableObject`) for app state and keep persistence in `@AppStorage` where applicable.
 
+- Tests use the Swift Testing framework (`@Test`, `#expect`), not XCTest.
+- `Decodable` payload structs declare an explicit `nonisolated init(from:)` to avoid Swift 6 actor-isolation warnings.
+- Don't add explanatory "why this case exists" comments next to new switch cases, hook entries, set members, or tests — even when a one-off example exists nearby. The codebase deliberately omits them; let symbol names speak and push rationale into `docs/tech/*.md` or the commit/PR body.
+- Adding a `LogManager` category means adding the enum case, its debug flag, and handling it in `shouldPrint`.
+- **Setup/integration UIs:** in onboarding/integration screens (e.g. `IntegrationHubView`), give each discrete action its own button and status indicator — don't bundle multiple side-effecting actions behind one button. If an action bypasses another tool's safeguard (e.g. "Enable in Codex" skips Codex's own hook-review), surface that in a caption and offer the manual alternative.
+
 ## Testing Guidelines
 
-Add unit tests in `JugglerTests/` for business logic and service behavior; reserve `JugglerUITests/` for end-to-end UI flows. Keep tests narrowly scoped and name methods for the behavior under test. Run `just test` before pushing; run `just test-ui` when changing onboarding, settings, hotkeys, or monitor views.
+Add unit tests in `JugglerTests/` for business logic and service behavior; reserve `JugglerUITests/` for end-to-end UI flows. Keep tests narrowly scoped and name methods for the behavior under test. Run `just test` before pushing; run `just test-ui` when changing onboarding, settings, hotkeys, or monitor views. `JugglerTests` must run with `-parallel-testing-enabled NO` (the `test`, `test-all`, and `coverage` recipes already do): tests share process-global state (`UserDefaults.standard`, `SessionManager.shared`, `TerminalBridgeRegistry.shared`), and Swift Testing's `.serialized` only serializes within one process — it can't stop interference between xcodebuild's parallel runner processes.
 
 ## Documentation
 

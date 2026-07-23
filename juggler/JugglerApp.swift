@@ -9,7 +9,29 @@ import Carbon.HIToolbox
 import ShortcutField
 import SwiftUI
 
+private var isUnitTestHost: Bool {
+    ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+}
+
+private func isRunningUnderTests() -> Bool {
+    if isUnitTestHost { return true }
+    #if DEBUG
+    return ProcessInfo.processInfo.arguments.contains("-uiTesting")
+    #else
+    return false
+    #endif
+}
+
+private func otherRunningInstance() -> NSRunningApplication? {
+    guard let bundleID = Bundle.main.bundleIdentifier else { return nil }
+    return NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        .first { $0 != .current && !$0.isTerminated }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate {
+    fileprivate static let duplicateInstance: NSRunningApplication? =
+        isRunningUnderTests() ? nil : otherRunningInstance()
+
     private var mainWindowNeedsRestore = true
     private var hideAccessoryWorkItem: DispatchWorkItem?
 
@@ -33,9 +55,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_: Notification) {
         // If another instance is already running, activate it and exit.
-        let others = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
-            .filter { $0 != .current }
-        if let existing = others.first {
+        if let existing = AppDelegate.duplicateInstance {
             existing.activate()
             NSApp.terminate(nil)
             return
@@ -225,7 +245,9 @@ struct JugglerApp: App {
         setupDefaultLocalShortcuts()
 
         // Skip heavy service startup when running as a test host
-        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        guard !isUnitTestHost else { return }
+
+        guard AppDelegate.duplicateInstance == nil else { return }
 
         NotificationManager.shared.requestPermission()
 
