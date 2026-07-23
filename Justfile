@@ -52,6 +52,14 @@ coverage xcconfig="":
         -parallel-testing-enabled NO -resultBundlePath {{xcresult}} -only-testing:JugglerTests test
     @xcrun xccov view --report --only-targets {{xcresult}} | grep -E "^--|Juggler\.app"
 
+# Performance / resource-hygiene guards (idle-CPU & leak regressions). Deterministic
+# but timing-sensitive, so kept out of the fast loop — intended for a weekly schedule.
+# Marked with the `.performance` tag; run the suites that carry those guards.
+test-perf xcconfig="":
+    @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
+        {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} \
+        -parallel-testing-enabled NO -only-testing:JugglerTests/ITerm2StderrDrainTests test
+
 run: build clean-registrations
     @{{app_path}}/Contents/MacOS/Juggler
 

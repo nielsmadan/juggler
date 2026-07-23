@@ -11,4 +11,8 @@ extension Tag {
     /// Tests that have historically been flaky — tag while investigating so they can be isolated.
     // periphery:ignore - reserved for investigating flaky tests
     @Tag static var flaky: Self
+
+    /// Resource-hygiene / performance guards (thread & fd leaks, idle CPU). Deterministic
+    /// but heavier than a unit test; run via `just test-perf` (e.g. on a weekly schedule).
+    @Tag static var performance: Self
 }

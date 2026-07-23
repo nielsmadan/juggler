@@ -60,6 +60,29 @@ final nonisolated class StderrRingBuffer: @unchecked Sendable {
     }
 }
 
+/// Installs a readability handler that drains `fileHandle` into `buffer`, hopping
+/// through `drainQueue` so appends stay off the calling thread.
+///
+/// On EOF the handler removes itself. This is load-bearing: an empty read means the
+/// write end closed, and the kernel then reports the fd readable-at-EOF *forever*, so
+/// GCD re-fires the handler in a tight loop that pins a CPU core per dead daemon. The
+/// process's `terminationHandler` also clears it, but can lose the race to this EOF
+/// signal — hence the teardown lives here too. Regression-tested in ITerm2BridgeTests.
+nonisolated func installStderrDrain(
+    on fileHandle: FileHandle,
+    into buffer: StderrRingBuffer,
+    drainQueue: DispatchQueue
+) {
+    fileHandle.readabilityHandler = { handle in
+        let chunk = handle.availableData
+        guard !chunk.isEmpty else {
+            handle.readabilityHandler = nil
+            return
+        }
+        drainQueue.async { buffer.append(chunk) }
+    }
+}
+
 actor ITerm2Bridge: TerminalBridge {
     static let shared = ITerm2Bridge()
 
@@ -151,12 +174,7 @@ actor ITerm2Bridge: TerminalBridge {
         let stderrPipe = Pipe()
         let buffer = StderrRingBuffer()
         stderrBuffer = buffer
-        let drainQueue = stderrQueue
-        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-            let chunk = handle.availableData
-            guard !chunk.isEmpty else { return }
-            drainQueue.async { buffer.append(chunk) }
-        }
+        installStderrDrain(on: stderrPipe.fileHandleForReading, into: buffer, drainQueue: stderrQueue)
 
         process.standardOutput = FileHandle.nullDevice
         process.standardError = stderrPipe
