@@ -1,6 +1,6 @@
 # Technical Overview
 
-Juggler is a SwiftUI menu bar app that tracks Claude Code, OpenCode, Codex (experimental), and Pi sessions via HTTP hooks and provides global hotkeys for navigation. It communicates with iTerm2 through a persistent Python daemon and with Kitty via the `kitten @` CLI.
+Juggler is a SwiftUI menu bar app that tracks Claude Code, OpenCode, Codex (experimental), and Pi sessions via HTTP hooks and provides global hotkeys for navigation. It communicates with iTerm2 through a persistent Python daemon, with Kitty via the `kitten @` CLI, and with WezTerm via the `wezterm cli` CLI.
 
 ## System Architecture
 
@@ -55,8 +55,8 @@ orientation and entry points, not a per-file inventory (that would drift):
   notifications, the beacon, logging, and Sparkle updates.
 - **`Services/`**: I/O. `HookServer` (HTTP :7483, the ingress for every agent hook) plus the
   terminal layer: `TerminalBridge` / `TerminalBridgeRegistry` with `iTerm2Bridge` (Unix
-  socket to the Python daemon) and `KittyBridge` (`kitten @` CLI). Agent-integration
-  installers also live here.
+  socket to the Python daemon), `KittyBridge` (`kitten @` CLI), and `WezTermBridge`
+  (`wezterm cli`). Agent-integration installers also live here.
 - **`Views/`**: SwiftUI: menu-bar popover, session-monitor window, settings, onboarding, and
   the stats/beacon UI.
 
@@ -139,6 +139,7 @@ are the reusable lessons for anyone working in the affected area.
 - [iTerm2 Daemon](iterm2-daemon.md) - Python daemon protocol
 - [iTerm2 Bridge](iterm2-bridge.md) - Daemon supervisor lifecycle, auto-recovery, and self-healing monitors
 - [Kitty Integration](kitty-integration.md) - Kitten CLI and watcher
+- [WezTerm Bridge](wezterm-bridge.md) - `wezterm cli` activation and gone-cleanup (no highlight/focus-sync)
 - [Terminal Bridges](terminal-bridges.md) - Bridge protocol and how to add a terminal
 - [Session Management](session-management.md) - Cycling and state logic
 - [Busy-Time Stats](stats.md) - Per-session accrual, DailyStatsStore persistence, chart + corner-tab layout

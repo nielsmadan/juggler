@@ -22,6 +22,9 @@ function getTerminalInfo(): Record<string, string> {
   } else if (env.ITERM_SESSION_ID) {
     info.terminalType = "iterm2";
     info.sessionId = env.ITERM_SESSION_ID;
+  } else if (env.WEZTERM_PANE) {
+    info.terminalType = "wezterm";
+    info.sessionId = env.WEZTERM_PANE;
   }
 
   return info;

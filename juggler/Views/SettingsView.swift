@@ -244,6 +244,8 @@ struct IntegrationSettingsView: View {
     @State private var kittyWatcherError: String?
     @State private var kittyConfigError: String?
 
+    @State private var wezTermCliFound = false
+
     @State private var tmuxConfigured = false
     @State private var isConfiguringTmux = false
     @State private var tmuxConfigError: String?
@@ -279,7 +281,7 @@ struct IntegrationSettingsView: View {
     }
 
     private let tmuxUpdateEnvironmentLine =
-        "set-option -ga update-environment ' ITERM_SESSION_ID KITTY_WINDOW_ID KITTY_LISTEN_ON KITTY_PID'"
+        "set-option -ga update-environment ' ITERM_SESSION_ID KITTY_WINDOW_ID KITTY_LISTEN_ON KITTY_PID WEZTERM_PANE'"
 
     var body: some View {
         ScrollView {
@@ -303,6 +305,7 @@ struct IntegrationSettingsView: View {
             checkPermissions()
             checkHooksInstalled()
             checkKittyStatus()
+            checkWezTermStatus()
             checkTmuxConfigured()
             checkOpenCodePluginInstalled()
             codexController.refresh()
@@ -431,6 +434,25 @@ struct IntegrationSettingsView: View {
                         URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!
                     )
                 }
+            }
+
+            Section("WezTerm") {
+                HStack {
+                    Text("wezterm CLI")
+                    Spacer()
+                    if wezTermCliFound {
+                        Label("Found", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Found", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text(
+                    "Juggler activates WezTerm panes via the wezterm CLI — no configuration needed. Highlighting and focus-sync aren't available for WezTerm."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -717,6 +739,14 @@ struct IntegrationSettingsView: View {
     private func appendToKittyConf(_ line: String) {
         kittyConfigError = KittyConfigParser.appendToConf(line)
         checkKittyStatus()
+    }
+
+    // MARK: - WezTerm
+
+    private func checkWezTermStatus() {
+        // Use the bridge's own resolution (fixed paths + PATH) so the status can't disagree
+        // with what the bridge would actually run.
+        wezTermCliFound = WezTermBridge.locateCLI() != nil
     }
 
     private func configureKittyRemoteControl() {
@@ -1070,6 +1100,12 @@ struct HighlightingSettingsView: View {
                     Text("5 seconds").tag(5.0)
                 }
                 .disabled(!paneHighlightEnabled)
+
+                Text(
+                    "Terminal highlighting applies to iTerm2 and Kitty only. WezTerm has no external tab/pane coloring, so its sessions activate without a highlight."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

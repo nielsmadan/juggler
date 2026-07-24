@@ -113,7 +113,7 @@ Backburner allows temporarily removing a session from the cycling queue without 
 
 ## Terminal Highlighting
 
-When cycling to a session, Juggler can highlight the terminal tab/pane (iTerm2 and Kitty) to make it easy to find:
+When cycling to a session, Juggler can highlight the terminal tab/pane (iTerm2 and Kitty) to make it easy to find (WezTerm sessions activate normally but aren't highlighted — WezTerm exposes no external tab/pane coloring):
 
 ### Tab Bar Highlighting
 

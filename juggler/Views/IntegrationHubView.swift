@@ -10,10 +10,12 @@ struct IntegrationHubView: View {
 
     @AppStorage(AppStorageKeys.iterm2Enabled) private var iterm2Enabled = true
     @AppStorage(AppStorageKeys.kittyEnabled) private var kittyEnabled = false
+    @AppStorage(AppStorageKeys.wezTermEnabled) private var wezTermEnabled = false
     @AppStorage(AppStorageKeys.codexEnabled) private var codexEnabled = false
 
     @State private var showingITerm2Setup = false
     @State private var showingKittySetup = false
+    @State private var showingWezTermSetup = false
     @State private var showingTmuxSetup = false
     @State private var showingClaudeCodeSetup = false
     @State private var showingOpenCodeSetup = false
@@ -22,6 +24,7 @@ struct IntegrationHubView: View {
 
     @State private var iterm2Configured = false
     @State private var kittyConfigured = false
+    @State private var wezTermConfigured = false
     @State private var tmuxConfigured = false
     @State private var claudeCodeConfigured = false
     @State private var openCodeConfigured = false
@@ -31,7 +34,7 @@ struct IntegrationHubView: View {
     @State private var showingIncompleteAlert = false
 
     var hasAnyTerminal: Bool {
-        iterm2Configured || kittyConfigured
+        iterm2Configured || kittyConfigured || wezTermConfigured
     }
 
     var hasAnyAgent: Bool {
@@ -71,6 +74,14 @@ struct IntegrationHubView: View {
                     description: "GPU-accelerated terminal with remote control",
                     isConfigured: kittyConfigured,
                     action: { showingKittySetup = true }
+                )
+
+                IntegrationCard(
+                    icon: "w.square.fill",
+                    title: "WezTerm",
+                    description: "GPU-accelerated terminal, controlled via wezterm cli",
+                    isConfigured: wezTermConfigured,
+                    action: { showingWezTermSetup = true }
                 )
             }
 
@@ -151,6 +162,10 @@ struct IntegrationHubView: View {
         .sheet(isPresented: $showingKittySetup) {
             KittySetupView(isConfigured: $kittyConfigured, isEnabled: $kittyEnabled)
                 .frame(width: 540, height: 540)
+        }
+        .sheet(isPresented: $showingWezTermSetup) {
+            WezTermSetupView(isConfigured: $wezTermConfigured, isEnabled: $wezTermEnabled)
+                .frame(width: 540, height: 460)
         }
         .sheet(isPresented: $showingTmuxSetup) {
             TmuxSetupView(isConfigured: $tmuxConfigured)
@@ -334,6 +349,83 @@ struct ITerm2SetupView: View {
     }
 }
 
+// MARK: - WezTerm Setup
+
+struct WezTermSetupView: View {
+    @Binding var isConfigured: Bool
+    @Binding var isEnabled: Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var isInstalled = false
+    @State private var cliFound = false
+
+    private var ready: Bool { isInstalled && cliFound }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("WezTerm Setup")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Text(
+                "WezTerm needs no extra setup — Juggler controls it through the wezterm CLI. Highlighting and focus-sync aren't available for WezTerm."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+
+            VStack(alignment: .leading, spacing: 16) {
+                SetupStep(
+                    isComplete: isInstalled,
+                    title: "WezTerm Installed",
+                    detail: "WezTerm.app found on this Mac"
+                )
+
+                SetupStep(
+                    isComplete: cliFound,
+                    title: "wezterm CLI Available",
+                    detail: "Found the wezterm binary Juggler uses to activate panes"
+                )
+            }
+            .padding()
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(8)
+
+            if !ready {
+                Button("Re-check") { refresh() }
+                    .buttonStyle(.borderedProminent)
+                Text("Install WezTerm (and ensure the wezterm CLI is on your PATH), then re-check.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Spacer()
+
+            HStack {
+                Button("Cancel") { dismiss() }
+                Spacer()
+                Button("Done") {
+                    isConfigured = true
+                    isEnabled = true
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!ready)
+            }
+        }
+        .padding()
+        .onAppear { refresh() }
+    }
+
+    private func refresh() {
+        isInstalled = NSWorkspace.shared
+            .urlForApplication(withBundleIdentifier: "com.github.wez.wezterm") != nil
+        // Use the bridge's own resolution (fixed paths + PATH) so a PATH-only install isn't
+        // reported missing and the Done button isn't wrongly disabled.
+        cliFound = WezTermBridge.locateCLI() != nil
+    }
+}
+
 // MARK: - tmux Setup
 
 struct TmuxSetupView: View {
@@ -349,7 +441,7 @@ struct TmuxSetupView: View {
     }
 
     private let updateEnvironmentLine =
-        "set-option -ga update-environment ' ITERM_SESSION_ID KITTY_WINDOW_ID KITTY_LISTEN_ON KITTY_PID'"
+        "set-option -ga update-environment ' ITERM_SESSION_ID KITTY_WINDOW_ID KITTY_LISTEN_ON KITTY_PID WEZTERM_PANE'"
 
     var body: some View {
         VStack(spacing: 16) {
@@ -369,7 +461,7 @@ struct TmuxSetupView: View {
                     number: 1,
                     isComplete: envConfigured,
                     title: "Add update-environment to ~/.tmux.conf",
-                    detail: "Forwards ITERM_SESSION_ID, KITTY_WINDOW_ID, KITTY_LISTEN_ON, and KITTY_PID into tmux sessions"
+                    detail: "Forwards ITERM_SESSION_ID, KITTY_WINDOW_ID, KITTY_LISTEN_ON, KITTY_PID, and WEZTERM_PANE into tmux sessions"
                 )
             }
             .padding()

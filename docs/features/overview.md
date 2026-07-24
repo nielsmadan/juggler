@@ -1,12 +1,12 @@
 # Juggler - Product Overview
 
-macOS menu bar app for navigating multiple Claude Code, OpenCode, Codex, and Pi sessions in iTerm2 and Kitty via global hotkeys.
+macOS menu bar app for navigating multiple Claude Code, OpenCode, Codex, and Pi sessions in iTerm2, Kitty, and WezTerm via global hotkeys.
 
-**Target platform:** macOS 14.0+ (Sonoma), iTerm2, Kitty. **License:** MIT.
+**Target platform:** macOS 14.0+ (Sonoma), iTerm2, Kitty, WezTerm. **License:** MIT.
 
 ## What is Juggler?
 
-Juggler monitors Claude Code, OpenCode, Codex, and Pi sessions running in iTerm2 or Kitty and provides global hotkeys to cycle through sessions needing attention. Users keep their existing terminal setup; Juggler adds keyboard-first navigation.
+Juggler monitors Claude Code, OpenCode, Codex, and Pi sessions running in iTerm2, Kitty, or WezTerm and provides global hotkeys to cycle through sessions needing attention. Users keep their existing terminal setup; Juggler adds keyboard-first navigation.
 
 ## Unique Selling Points
 

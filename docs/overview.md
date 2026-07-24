@@ -1,6 +1,6 @@
 # Juggler Documentation
 
-macOS menu bar app for navigating multiple Claude Code, OpenCode, Codex, and Pi sessions in iTerm2 and Kitty via global hotkeys.
+macOS menu bar app for navigating multiple Claude Code, OpenCode, Codex, and Pi sessions in iTerm2, Kitty, and WezTerm via global hotkeys.
 
 ## What is Juggler?
 
@@ -43,6 +43,7 @@ Juggler solves the "context switching" problem when running multiple Claude Code
   - [iTerm2 Bridge](tech/iterm2-bridge.md) - Daemon supervisor lifecycle and auto-recovery
   - [Terminal Bridges](tech/terminal-bridges.md) - Bridge protocol abstracting terminal APIs
   - [Kitty Integration](tech/kitty-integration.md) - Kitty CLI and watcher integration
+  - [WezTerm Bridge](tech/wezterm-bridge.md) - WezTerm `wezterm cli` integration
   - [Session Management](tech/session-management.md) - Cycling and state logic
   - [Busy-Time Stats](tech/stats.md) - Stats accrual, persistence, and chart/tab layout
   - [Highlight Color](tech/highlight-color.md) - Active-session highlight color implementation

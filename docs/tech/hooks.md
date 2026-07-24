@@ -18,7 +18,7 @@ The script:
 
 1. Receives event name as `$1` (command-line argument)
 2. Reads JSON from stdin (hook payload from Claude Code)
-3. Detects terminal type (`$ITERM_SESSION_ID` for iTerm2, `$KITTY_WINDOW_ID` for Kitty)
+3. Detects terminal type (`$ITERM_SESSION_ID` for iTerm2, `$KITTY_WINDOW_ID` for Kitty, `$WEZTERM_PANE` for WezTerm)
 4. Detects tmux pane/session if running inside tmux
 5. Enriches with git info (branch, repo name)
 6. Detects an SSH session (`$SSH_CONNECTION`) and tags the payload with `remoteHost` (`user@host`)
@@ -49,12 +49,13 @@ Source: `Resources/hooks/notify.sh:73-82`.
 | `KITTY_WINDOW_ID` | Kitty | Terminal session ID (Kitty) |
 | `KITTY_LISTEN_ON` | Kitty | Socket path (Kitty) |
 | `KITTY_PID` | Kitty | Kitty process ID |
+| `WEZTERM_PANE` | WezTerm | Terminal session ID (WezTerm integer pane id) |
 | `TMUX_PANE` | tmux | Current pane ID (e.g., `%0`) |
 | `PWD` | shell | Working directory; also used for git detection |
 | `SSH_CONNECTION` | sshd | Presence flags an SSH session; payload gets `remoteHost` (`$USER@$HOSTNAME`, host FQDN stripped) |
 | `JUGGLER_PORT` | optional | Override port (default `7483`) |
 
-Terminal type is detected by presence: `KITTY_WINDOW_ID` wins over `ITERM_SESSION_ID`. Tmux session name is queried via `tmux display-message -p -t "$TMUX_PANE" '#{session_name}'`.
+Terminal type is detected by presence, in order: `KITTY_WINDOW_ID`, then `ITERM_SESSION_ID`, then `WEZTERM_PANE`. Tmux session name is queried via `tmux display-message -p -t "$TMUX_PANE" '#{session_name}'`.
 
 ### Output (POST body to `/hook`)
 

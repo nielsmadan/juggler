@@ -29,7 +29,7 @@ enum TerminalType: String, Codable, CaseIterable {
         case .iterm2: "apple.terminal.fill"
         case .kitty: "cat.fill"
         case .ghostty: "apple.terminal.fill"
-        case .wezterm: "apple.terminal.fill"
+        case .wezterm: "w.square.fill"
         }
     }
 }

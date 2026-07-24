@@ -106,7 +106,7 @@ When window is focused (defaults shown; all configurable in Settings > Shortcuts
 
 ### Click Session
 
-- Activates session in the terminal (iTerm2 or Kitty)
+- Activates session in the terminal (iTerm2, Kitty, or WezTerm)
 - Focuses corresponding tab/pane
 - Optionally highlights tab/pane
 

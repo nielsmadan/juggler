@@ -1,6 +1,18 @@
 import Foundation
 
 enum ScriptInstaller {
+    /// Installed location of the Claude Code notify hook (written by `install.sh`).
+    static var claudeNotifyScriptPath: String {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/hooks/juggler/notify.sh").path
+    }
+
+    /// Installed location of the Kitty event watcher (written by `install_kitty_watcher.sh`).
+    static var kittyWatcherPath: String {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/kitty/juggler_watcher.py").path
+    }
+
     /// Runs a bundled shell script asynchronously.
     /// Returns nil on success, or an error message string on failure.
     static func runBundledScript(resource: String, type: String = "sh") async -> String? {

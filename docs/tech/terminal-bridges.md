@@ -1,6 +1,6 @@
 # Terminal Bridges
 
-Terminal bridges abstract terminal-specific APIs behind a uniform protocol so that session activation, highlighting, and info lookup work identically across iTerm2, Kitty, and (eventually) other terminals.
+Terminal bridges abstract terminal-specific APIs behind a uniform protocol so that session activation, highlighting, and info lookup work identically across iTerm2, Kitty, WezTerm, and (eventually) other terminals. (A bridge need not support every capability - `WezTermBridge` handles activation and gone-session cleanup but not highlighting or focus-sync; see [wezterm-bridge.md](wezterm-bridge.md).)
 
 ## Protocol
 
@@ -73,8 +73,8 @@ The registry is an actor singleton. At app launch, bridges are instantiated and 
 |------|--------|
 | `.iterm2` | `ITerm2Bridge` |
 | `.kitty` | `KittyBridge` |
+| `.wezterm` | `WezTermBridge` (activation + gone-cleanup; no highlight/focus-sync - see [wezterm-bridge.md](wezterm-bridge.md)) |
 | `.ghostty` | None - recognized for detection only |
-| `.wezterm` | None - recognized for detection only |
 
 Each case carries a `bundleIdentifier` and `iconName` for app discovery and UI display.
 

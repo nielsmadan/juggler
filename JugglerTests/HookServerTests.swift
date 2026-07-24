@@ -238,6 +238,27 @@ struct HookServerTests {
         #expect(payload.terminal?.sessionId == "42")
     }
 
+    @Test func decodePayload_wezTermTerminalType() throws {
+        let json = """
+        {
+            "agent": "claude-code",
+            "event": "SessionStart",
+            "terminal": {
+                "sessionId": "7",
+                "cwd": "/Users/test",
+                "terminalType": "wezterm"
+            }
+        }
+        """
+
+        let payload = try JSONDecoder().decode(UnifiedHookPayload.self, from: Data(json.utf8))
+
+        #expect(payload.terminal?.terminalType == "wezterm")
+        #expect(payload.terminal?.sessionId == "7")
+        // The raw string must resolve to the enum case HookServer routes on.
+        #expect(TerminalType(rawValue: payload.terminal?.terminalType ?? "") == .wezterm)
+    }
+
     @Test func decodePayload_noTerminalType_defaultsToNil() throws {
         let json = """
         {

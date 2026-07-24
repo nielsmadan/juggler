@@ -20,7 +20,7 @@ Auto-advance and auto-restart are toggled from the Session Monitor control bar (
 The Integration tab is organized into **Permissions**, **Terminals**, **Agents**, and **Tools** groups.
 
 - **Permissions**: Accessibility and Notifications status with links to System Settings (Automation lives under the iTerm2 terminal section).
-- **Terminals**: Kitty (remote control, listen socket, watcher script) and iTerm2 (Automation permission).
+- **Terminals**: Kitty (remote control, listen socket, watcher script), iTerm2 (Automation permission), and WezTerm (wezterm CLI status — no configuration needed).
 - **Agents**: Install or verify Claude Code hooks, the OpenCode plugin, Codex hooks (including the Codex feature flag and trust step), and the Pi extension.
 - **Tools**: tmux env forwarding and an SSH Tracking guide (reverse-tunnel setup for tracking Claude Code sessions on remote hosts).
 

@@ -65,7 +65,7 @@ The icon also reflects iTerm2 daemon health:
 ### Click
 
 Single click on a session row:
-- Activates the session in the terminal (iTerm2 or Kitty)
+- Activates the session in the terminal (iTerm2, Kitty, or WezTerm)
 - Focuses the corresponding tab and pane
 - Optionally highlights the tab/pane (if enabled)
 - Closes the popover

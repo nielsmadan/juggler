@@ -220,6 +220,9 @@ struct FinishStep: View {
                     if UserDefaults.standard.bool(forKey: AppStorageKeys.kittyEnabled) {
                         try? await TerminalBridgeRegistry.shared.start(.kitty)
                     }
+                    if UserDefaults.standard.bool(forKey: AppStorageKeys.wezTermEnabled) {
+                        try? await TerminalBridgeRegistry.shared.start(.wezterm)
+                    }
                 }
                 openWindow(id: "main")
                 NSApp.setActivationPolicy(.regular)

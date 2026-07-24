@@ -4,9 +4,9 @@
 
 A native macOS app that tracks your running coding agent sessions and cycles you to the next one that needs attention. No workflow changes. No new terminal. Just less time wasted.
 
-Currently works with iTerm2 / Kitty (tmux optional) and Claude Code, OpenCode, Codex (experimental), and Pi. More integrations coming soon.
+Currently works with iTerm2 / Kitty / WezTerm (tmux optional) and Claude Code, OpenCode, Codex (experimental), and Pi. More integrations coming soon.
 
-![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![Codex](https://img.shields.io/badge/Codex-experimental-yellow) ![Pi](https://img.shields.io/badge/Pi-supported-brightgreen) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![Codex](https://img.shields.io/badge/Codex-experimental-yellow) ![Pi](https://img.shields.io/badge/Pi-supported-brightgreen) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen) ![WezTerm](https://img.shields.io/badge/WezTerm-supported-brightgreen)
 
 <p align="center">
   <img src="site/video.gif" alt="Juggler demo" width="720">
@@ -73,7 +73,7 @@ All shortcuts are customizable in Settings.
 
 ## Compatibility
 
-**Terminals:** iTerm2, Kitty, tmux (optional multiplexer), Zellij (planned)
+**Terminals:** iTerm2, Kitty, WezTerm, tmux (optional multiplexer), Zellij (planned)
 
 **Coding agents:** Claude Code, OpenCode, Codex *(experimental - requires Codex CLI ≥ v0.114)*, Pi
 
@@ -83,7 +83,7 @@ All shortcuts are customizable in Settings.
 
 Juggler runs a lightweight HTTP server on port 7483 that receives state-change events from your coding agent. When a session goes idle, starts working, or needs permission, Juggler updates its tracking and can notify you or cycle you to sessions that need attention.
 
-**Terminal integration:** For iTerm2, a Python daemon communicates via iTerm2's Python API over a Unix socket, providing session switching, tab highlighting, and focus tracking. For Kitty, Juggler uses `kitten @` remote control commands.
+**Terminal integration:** For iTerm2, a Python daemon communicates via iTerm2's Python API over a Unix socket, providing session switching, tab highlighting, and focus tracking. For Kitty, Juggler uses `kitten @` remote control commands. For WezTerm, Juggler uses the `wezterm cli` for session switching (WezTerm exposes no external API for tab highlighting or focus tracking).
 
 **Session states:** idle, permission, working, compacting, backburner
 
@@ -108,7 +108,6 @@ Juggler requires terminals with a scriptable API to switch sessions and highligh
 
 **Planned:**
 
-- [WezTerm](https://wezfurlong.org/wezterm/) - cross-platform CLI API for session and tab control (macOS, Linux, Windows)
 - [Wave](https://github.com/wavetermdev/waveterm) - `wsh` CLI for workspace control (macOS, Linux, Windows)
 - [Tabby](https://github.com/Eugeny/tabby) - TypeScript plugin system for tab control (macOS, Linux, Windows)
 - [Zellij](https://github.com/zellij-org/zellij) - multiplexer with CLI session/tab control, as an alternative to tmux

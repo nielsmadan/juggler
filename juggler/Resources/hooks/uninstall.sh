@@ -60,6 +60,9 @@ if [ -f "$KITTY_WATCHER" ]; then
     echo "  Removed Kitty watcher"
 fi
 
+# WezTerm installs nothing on disk (no watcher, no config edit) — controlled entirely
+# through the wezterm CLI — so there is nothing to remove here.
+
 # Remove OpenCode plugin
 if [ -f "$OPENCODE_PLUGIN" ]; then
     rm -f "$OPENCODE_PLUGIN"

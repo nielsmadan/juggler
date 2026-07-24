@@ -19,7 +19,7 @@ struct Session: Identifiable, Codable, Equatable {
     let terminalSessionID: String    // e.g., "w0t0p0:UUID"
     var tmuxPane: String?            // e.g., "%1", nil if not inside tmux
     var id: String { ... }           // Computed: "\(terminalSessionID):\(tmuxPane)" or terminalSessionID
-    let terminalType: TerminalType   // .iterm2, .kitty
+    let terminalType: TerminalType   // .iterm2, .kitty, .wezterm
     let agent: String                // "claude-code", "opencode", or "codex"
     let projectPath: String          // Working directory
     var terminalTabName: String?     // Tab name from terminal

@@ -254,15 +254,22 @@ struct JugglerApp: App {
         Task {
             await TerminalBridgeRegistry.shared.register(ITerm2Bridge.shared, for: .iterm2)
             await TerminalBridgeRegistry.shared.register(KittyBridge.shared, for: .kitty)
+            await TerminalBridgeRegistry.shared.register(WezTermBridge.shared, for: .wezterm)
 
             try? await HookServer.shared.start()
             // Only start bridges if onboarding is complete (avoids early permission prompt)
             if UserDefaults.standard.bool(forKey: AppStorageKeys.hasCompletedOnboarding) {
+                // Refresh any installed hook/plugin that a prior app version left stale on disk,
+                // before sessions start arriving.
+                await IntegrationSync.run()
                 if UserDefaults.standard.bool(forKey: AppStorageKeys.iterm2Enabled) {
                     try? await TerminalBridgeRegistry.shared.start(.iterm2)
                 }
                 if UserDefaults.standard.bool(forKey: AppStorageKeys.kittyEnabled) {
                     try? await TerminalBridgeRegistry.shared.start(.kitty)
+                }
+                if UserDefaults.standard.bool(forKey: AppStorageKeys.wezTermEnabled) {
+                    try? await TerminalBridgeRegistry.shared.start(.wezterm)
                 }
             }
         }

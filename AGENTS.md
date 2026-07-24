@@ -37,7 +37,7 @@ Or use Xcode: `⌘B` to build, `⌘R` to run.
 1. Claude Code / OpenCode / Codex / Pi hooks → HTTP POST to `HookServer` (port 7483)
 2. `HookServer` → updates `SessionManager` (in-memory `@Observable`)
 3. Global hotkeys → `HotkeyManager` → `SessionManager.cycleForward/Backward()`
-4. Activation → `TerminalBridge` (iTerm2Bridge/KittyBridge) → terminal
+4. Activation → `TerminalBridge` (iTerm2Bridge/KittyBridge/WezTermBridge) → terminal
 
 **Bridges & session identity:**
 - `TerminalBridgeRegistry` is an `actor` singleton (`.shared`) mapping `TerminalType → any TerminalBridge`; `JugglerApp` registers the bridges and starts each one based on its `@AppStorage` key.
@@ -64,12 +64,13 @@ Juggler/
 │   ├── QueueOrderMode.swift      # Fair, Prio, Static, Grouped modes
 │   ├── Session.swift             # Session data model
 │   ├── SessionState.swift        # idle, working, permission, backburner, compacting
-│   ├── TerminalType.swift        # Terminal app abstraction (iTerm2, Kitty, Ghostty, WezTerm - latter two recognized but no bridge yet)
+│   ├── TerminalType.swift        # Terminal app abstraction (iTerm2, Kitty, WezTerm, Ghostty - Ghostty recognized but no bridge yet)
 │   └── ...                       # AppConstants, AppStorageKeys, BeaconPosition/PositionCalculator/Size/Anchor, ConfigValidator, DailyStatsStore, SessionStatsCalculator, SessionTitleMode, StatsBarLayout
 ├── Services/
 │   ├── HookServer.swift          # HTTP server receiving hooks (/hook, /kitty-event)
 │   ├── iTerm2Bridge.swift        # Unix socket communication with Python daemon
 │   ├── KittyBridge.swift         # Kitty terminal integration via kitten CLI
+│   ├── WezTermBridge.swift       # WezTerm integration via wezterm cli (activation + gone-cleanup only)
 │   ├── TerminalBridge.swift      # Terminal abstraction protocol + TerminalActivation
 │   ├── TerminalBridgeRegistry.swift  # Bridge registration and lifecycle
 │   └── ...                       # CodexHooksInstaller, OpenCodePluginInstaller, PiExtensionInstaller, ScriptInstaller, ConfigFileWriter (agent integration installers)
