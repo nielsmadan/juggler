@@ -5,7 +5,7 @@ actor HookServer {
     static let shared = HookServer()
 
     private var listener: NWListener?
-    private let port: UInt16 = 7483
+    private var port: UInt16 = 7483
     private let maxRequestSize = 1_048_576
     private let sessionManager: SessionManager
 
@@ -14,6 +14,7 @@ actor HookServer {
     }
 
     func start() async throws {
+        port = TestInstanceConfig.hookPort()
         let parameters = NWParameters.tcp
         parameters.allowLocalEndpointReuse = true
         parameters.requiredLocalEndpoint = NWEndpoint.hostPort(
@@ -29,10 +30,10 @@ actor HookServer {
             }
         }
 
-        listener?.stateUpdateHandler = { state in
+        listener?.stateUpdateHandler = { [port] state in
             switch state {
             case .ready:
-                Task { await MainActor.run { logInfo(.hooks, "Hook server listening on port \(self.port)") } }
+                Task { await MainActor.run { logInfo(.hooks, "Hook server listening on port \(port)") } }
             case let .failed(error):
                 Task { await MainActor.run { logError(.hooks, "Hook server failed: \(error)") } }
             default:

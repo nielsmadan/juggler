@@ -92,7 +92,7 @@ actor ITerm2Bridge: TerminalBridge {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = appSupport.appendingPathComponent("Juggler")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("iterm2_daemon.sock").path
+        return dir.appendingPathComponent(TestInstanceConfig.daemonSocketFilename()).path
     }()
 
     private nonisolated var pidFilePath: String { socketPath + ".pid" }
