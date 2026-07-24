@@ -82,5 +82,11 @@
             <pubDate>Thu, 23 Jul 2026 13:50:47 +0000</pubDate>
             <enclosure url="https://github.com/nielsmadan/juggler/releases/download/v1.5.1/Juggler.zip" length="3159805" type="application/octet-stream" sparkle:edSignature="xCVJoT/sRkqBPATh0zJ4BFLBEdNaHnmWbOzmvniA7qnV3/OIWZgoHfbr1uv7vLhLZAdaW9lC0lNP0V8iT4wwBA==" />
         </item>
+        <item>
+            <title>Version 1.6.0</title>
+            <sparkle:version>1.6.0</sparkle:version>
+            <pubDate>Fri, 24 Jul 2026 20:04:35 +0000</pubDate>
+            <enclosure url="https://github.com/nielsmadan/juggler/releases/download/v1.6.0/Juggler.zip" length="3206231" type="application/octet-stream" sparkle:edSignature="paoNzVs2IoizcX+mT8TD/U3L/t2hh/HY4sVlWKBll37EN5NQpEHnAemvj2KGeFI7d0vOg3phc1joMWLZUFX0DA==" />
+        </item>
     </channel>
 </rss>
