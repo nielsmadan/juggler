@@ -48,3 +48,17 @@ jobs:
 
       - name: Check for unused code
         run: just unused-check
+
+  idle-cpu:
+    runs-on: macos-26
+    timeout-minutes: 15
+    env:
+      PERF_XCCONFIG: ci.xcconfig
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - name: Install Just
+        run: brew install just
+
+      - name: Idle-CPU guard
+        run: just test-idle-cpu

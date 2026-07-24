@@ -60,6 +60,12 @@ test-perf xcconfig="":
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} \
         -parallel-testing-enabled NO -only-testing:JugglerTests/ITerm2StderrDrainTests test
 
+# Layer 2 idle-CPU guard: launch a populated, rendering instance and assert it
+# stays quiet. `--with-bridges` exercises the real iTerm2 daemon (local only).
+test-idle-cpu *args:
+    @just build "${PERF_XCCONFIG:-}"
+    @bash scripts/perf/idle-cpu.sh "{{app_path}}/Contents/MacOS/Juggler" {{args}}
+
 run: build clean-registrations
     @{{app_path}}/Contents/MacOS/Juggler
 
