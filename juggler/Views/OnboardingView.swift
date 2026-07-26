@@ -5,8 +5,9 @@
 //  Created by Niels Madan on 22.01.26.
 //
 
-import KeyboardShortcuts
 import ServiceManagement
+import ShortcutKit
+import ShortcutKitUI
 import Sparkle
 import SwiftUI
 
@@ -151,13 +152,14 @@ struct ShortcutsStep: View {
 
             Form {
                 Section("Global Shortcuts") {
-                    KeyboardShortcuts.Recorder("Cycle Forward:", name: .cycleForward)
-                    KeyboardShortcuts.Recorder("Cycle Backward:", name: .cycleBackward)
-                    KeyboardShortcuts.Recorder("Backburner Current:", name: .backburner)
-                    KeyboardShortcuts.Recorder("Send to Back:", name: .sendToBack)
-                    KeyboardShortcuts.Recorder("Reactivate All:", name: .reactivateAll)
-                    KeyboardShortcuts.Recorder("Show Monitor:", name: .showMonitor)
-                    KeyboardShortcuts.Recorder("Last Notification:", name: .goToLastNotification)
+                    let global = ShortcutCenter.shared.globalContext
+                    ShortcutBindingEditor(.cycleForward, in: global)
+                    ShortcutBindingEditor(.cycleBackward, in: global)
+                    ShortcutBindingEditor(.backburner, in: global)
+                    ShortcutBindingEditor(.sendToBack, in: global)
+                    ShortcutBindingEditor(.reactivateAll, in: global)
+                    ShortcutBindingEditor(.showMonitor, in: global)
+                    ShortcutBindingEditor(.goToLastNotification, in: global)
                 }
             }
             .formStyle(.grouped)

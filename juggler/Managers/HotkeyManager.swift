@@ -6,18 +6,7 @@
 //
 
 import Foundation
-import KeyboardShortcuts
 import SwiftUI
-
-extension KeyboardShortcuts.Name {
-    static let cycleForward = Self("cycleForward", default: .init(.k, modifiers: [.command, .shift]))
-    static let cycleBackward = Self("cycleBackward", default: .init(.j, modifiers: [.command, .shift]))
-    static let backburner = Self("backburner", default: .init(.l, modifiers: [.command, .shift]))
-    static let sendToBack = Self("sendToBack", default: .init(.o, modifiers: [.command, .shift]))
-    static let reactivateAll = Self("reactivateAll", default: .init(.h, modifiers: [.command, .shift]))
-    static let showMonitor = Self("showMonitor", default: .init(.semicolon, modifiers: [.command, .shift]))
-    static let goToLastNotification = Self("goToLastNotification", default: .init(.e, modifiers: [.command, .shift]))
-}
 
 @MainActor
 final class HotkeyManager {
@@ -60,35 +49,29 @@ final class HotkeyManager {
                 await self?.handleAutoRestart(sessionID: sessionID)
             }
         }
+    }
 
-        KeyboardShortcuts.onKeyDown(for: .cycleForward) {
-            // Capture frontmost app synchronously before async Task scheduling
+    /// Entry point for a global hotkey firing. Called from `ShortcutCenter`'s
+    /// global context handler (which runs synchronously on key-down via the
+    /// Carbon activator), so terminal-frontmost state is captured here before
+    /// any async hop — mirroring the old `KeyboardShortcuts.onKeyDown` path.
+    func dispatch(_ action: GlobalAction) {
+        switch action {
+        case .cycleForward:
             let wasTerminalFrontmost = SessionManager.shared.isTerminalFrontmost()
             Task { await self.handleCycleForward(wasTerminalFrontmost: wasTerminalFrontmost) }
-        }
-
-        KeyboardShortcuts.onKeyDown(for: .cycleBackward) {
+        case .cycleBackward:
             let wasTerminalFrontmost = SessionManager.shared.isTerminalFrontmost()
             Task { await self.handleCycleBackward(wasTerminalFrontmost: wasTerminalFrontmost) }
-        }
-
-        KeyboardShortcuts.onKeyDown(for: .backburner) {
+        case .backburner:
             Task { await self.handleBackburner() }
-        }
-
-        KeyboardShortcuts.onKeyDown(for: .sendToBack) {
+        case .sendToBack:
             Task { await self.handleSendToBack() }
-        }
-
-        KeyboardShortcuts.onKeyDown(for: .reactivateAll) {
-            self.handleReactivateAll()
-        }
-
-        KeyboardShortcuts.onKeyDown(for: .showMonitor) {
-            self.handleShowMonitor()
-        }
-
-        KeyboardShortcuts.onKeyDown(for: .goToLastNotification) {
+        case .reactivateAll:
+            handleReactivateAll()
+        case .showMonitor:
+            handleShowMonitor()
+        case .goToLastNotification:
             Task { await self.handleGoToLastNotification() }
         }
     }

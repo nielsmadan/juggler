@@ -1,39 +1,9 @@
 import AppKit
 @testable import Juggler
-import ShortcutField
 import Testing
 
 @Suite("SessionListController", .serialized)
-@MainActor
 struct SessionListControllerTests {
-    private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
-        let cgFlags = CGEventFlags(rawValue: UInt64(modifiers.rawValue))
-        let event = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)!
-        event.flags = cgFlags
-        return NSEvent(cgEvent: event)!
-    }
-
-    /// Snapshot the given `UserDefaults.standard` keys and return a restore closure
-    /// to call in `defer`. Shortcut persistence shares `.standard` with the running
-    /// app, so a test that `save`s/`remove`s a binding would otherwise wipe the
-    /// developer's real app config — restore the original value, don't just delete.
-    private func preserveDefaults(_ keys: String...) -> () -> Void {
-        let snapshot = keys.map { ($0, UserDefaults.standard.object(forKey: $0)) }
-        return {
-            for (key, value) in snapshot {
-                if let value { UserDefaults.standard.set(value, forKey: key) }
-                else { UserDefaults.standard.removeObject(forKey: key) }
-            }
-        }
-    }
-
-    @MainActor
-    private func overrideQueueOrderMode(_ mode: QueueOrderMode) -> () -> Void {
-        let restore = preserveDefaults(AppStorageKeys.queueOrderMode)
-        UserDefaults.standard.set(mode.rawValue, forKey: AppStorageKeys.queueOrderMode)
-        return restore
-    }
-
     // MARK: - moveSelection Tests
 
     // Selection is id-based and moves within the *visible* (rendered) order passed
@@ -248,8 +218,8 @@ struct SessionListControllerTests {
     @Test @MainActor func sendToBackSelected_middleSelection_movesAndSelectsNext() {
         let controller = SessionListController()
         let manager = SessionManager()
-        let restore = overrideQueueOrderMode(.fair)
-        defer { restore() }
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
@@ -266,8 +236,8 @@ struct SessionListControllerTests {
     @Test @MainActor func sendToBackSelected_lastSelection_wrapsSelectionToTop() {
         let controller = SessionListController()
         let manager = SessionManager()
-        let restore = overrideQueueOrderMode(.fair)
-        defer { restore() }
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
+        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
@@ -335,63 +305,6 @@ struct SessionListControllerTests {
         #expect(controller.sessionToRename == nil)
     }
 
-    // MARK: - reloadShortcuts Tests
-
-    @Test @MainActor func reloadShortcuts_usesDefaultsWhenUnset() {
-        let keys = [
-            AppStorageKeys.localShortcutToggleBeacon,
-            AppStorageKeys.localShortcutToggleAutoNext,
-            AppStorageKeys.localShortcutToggleAutoRestart,
-            AppStorageKeys.localShortcutTogglePermissionFirst
-        ]
-        let restore = preserveDefaults(
-            AppStorageKeys.localShortcutToggleBeacon,
-            AppStorageKeys.localShortcutToggleAutoNext,
-            AppStorageKeys.localShortcutToggleAutoRestart,
-            AppStorageKeys.localShortcutTogglePermissionFirst
-        )
-        defer { restore() }
-        for key in keys {
-            UserDefaults.standard.removeObject(forKey: key)
-        }
-
-        let controller = SessionListController()
-
-        #expect(controller.shortcutToggleBeacon == DiscreteShortcut(keyCode: 11, modifiers: []))
-        #expect(controller.shortcutToggleAutoNext == DiscreteShortcut(keyCode: 0, modifiers: []))
-        #expect(controller.shortcutToggleAutoRestart == DiscreteShortcut(keyCode: 12, modifiers: []))
-        #expect(controller.shortcutTogglePermissionFirst == DiscreteShortcut(keyCode: 35, modifiers: []))
-    }
-
-    @Test @MainActor func reloadShortcuts_prefersSavedValues() {
-        let restore = preserveDefaults(
-            AppStorageKeys.localShortcutMoveDown,
-            AppStorageKeys.localShortcutRename
-        )
-        defer { restore() }
-        let savedMoveDown = DiscreteShortcut(keyCode: 15, modifiers: .command)
-        let savedRename = DiscreteShortcut(keyCode: 17, modifiers: .shift)
-        savedMoveDown.save(to: AppStorageKeys.localShortcutMoveDown)
-        savedRename.save(to: AppStorageKeys.localShortcutRename)
-
-        let controller = SessionListController()
-
-        #expect(controller.shortcutMoveDown == savedMoveDown)
-        #expect(controller.shortcutRename == savedRename)
-    }
-
-    @Test @MainActor func reloadShortcuts_respectsExplicitlyUnboundDefault() {
-        let key = AppStorageKeys.localShortcutTogglePermissionFirst
-        let restore = preserveDefaults(key)
-        defer { restore() }
-        DiscreteShortcut.unbind(from: key)
-
-        let controller = SessionListController()
-
-        #expect(controller.shortcutTogglePermissionFirst == nil)
-        #expect(controller.matcherTogglePermissionFirst == nil)
-    }
-
     // MARK: - reactivateAll Tests
 
     @Test @MainActor func reactivateAll_reactivatesBackburneredSessions() {
@@ -405,238 +318,6 @@ struct SessionListControllerTests {
         controller.reactivateAll(sessionManager: manager)
 
         #expect(manager.sessions.allSatisfy { $0.state == .idle })
-    }
-
-    // MARK: - handleKeyEvent Tests
-
-    @Test @MainActor func handleKeyEvent_moveDown_updatesSelection() {
-        let controller = SessionListController()
-        let manager = SessionManager()
-        manager.testSetSessions([makeSession("s1"), makeSession("s2")])
-        controller.visibleSessionsProvider = { manager.sessions }
-        let restore = preserveDefaults(AppStorageKeys.localShortcutMoveDown)
-        defer { restore() }
-        let shortcut = DiscreteShortcut(keyCode: 125, modifiers: [])
-        shortcut.save(to: AppStorageKeys.localShortcutMoveDown)
-        controller.reloadShortcuts()
-        var queueMode = QueueOrderMode.fair.rawValue
-
-        let handled = controller.handleKeyEvent(
-            makeKeyEvent(keyCode: 125),
-            sessionManager: manager,
-            queueOrderMode: &queueMode
-        )
-
-        #expect(handled == true)
-        #expect(controller.selectedSessionID == "s1")
-
-        // Selection survives a reorder — it's tracked by id.
-        manager.testSetSessions([manager.sessions[1], manager.sessions[0]])
-        controller.syncSelection(sessions: manager.sessions)
-        #expect(controller.selectedSessionID == "s1")
-    }
-
-    @Test @MainActor func handleKeyEvent_cycleModeForward_updatesQueueMode() {
-        let controller = SessionListController()
-        let manager = SessionManager()
-        let restore = preserveDefaults(AppStorageKeys.localShortcutCycleModeForward)
-        defer { restore() }
-        let shortcut = DiscreteShortcut(keyCode: 124, modifiers: .command)
-        shortcut.save(to: AppStorageKeys.localShortcutCycleModeForward)
-        controller.reloadShortcuts()
-        var queueMode = QueueOrderMode.fair.rawValue
-
-        let handled = controller.handleKeyEvent(
-            makeKeyEvent(keyCode: 124, modifiers: .command),
-            sessionManager: manager,
-            queueOrderMode: &queueMode
-        )
-
-        #expect(handled == true)
-        #expect(queueMode == QueueOrderMode.prio.rawValue)
-    }
-
-    @Test @MainActor func handleKeyEvent_backburnerShortcut_updatesSelectedSession() {
-        let controller = SessionListController()
-        let manager = SessionManager()
-        manager.testSetSessions([makeSession("s1"), makeSession("s2")])
-        controller.visibleSessionsProvider = { manager.sessions }
-        controller.moveSelection(by: 1, in: manager.sessions) // s1
-        let restore = preserveDefaults(AppStorageKeys.localShortcutBackburner)
-        defer { restore() }
-        let shortcut = DiscreteShortcut(keyCode: 11, modifiers: .shift)
-        shortcut.save(to: AppStorageKeys.localShortcutBackburner)
-        controller.reloadShortcuts()
-        var queueMode = QueueOrderMode.fair.rawValue
-
-        let handled = controller.handleKeyEvent(
-            makeKeyEvent(keyCode: 11, modifiers: .shift),
-            sessionManager: manager,
-            queueOrderMode: &queueMode
-        )
-
-        #expect(handled == true)
-        #expect(manager.sessions.first { $0.id == "s1" }?.state == .backburner)
-    }
-
-    @Test @MainActor func handleKeyEvent_unmatchedShortcut_returnsFalse() {
-        let controller = SessionListController()
-        let manager = SessionManager()
-        var queueMode = QueueOrderMode.fair.rawValue
-
-        let handled = controller.handleKeyEvent(
-            makeKeyEvent(keyCode: 123),
-            sessionManager: manager,
-            queueOrderMode: &queueMode
-        )
-
-        #expect(handled == false)
-        #expect(queueMode == QueueOrderMode.fair.rawValue)
-    }
-
-    @Test @MainActor func handleKeyEvent_coreMatch_suppressesExtraAction() {
-        let controller = SessionListController()
-        let manager = SessionManager()
-        manager.testSetSessions([makeSession("s1"), makeSession("s2")])
-        controller.visibleSessionsProvider = { manager.sessions }
-        let restore = preserveDefaults(AppStorageKeys.localShortcutMoveDown)
-        defer { restore() }
-        let shortcut = DiscreteShortcut(keyCode: 125, modifiers: [])
-        shortcut.save(to: AppStorageKeys.localShortcutMoveDown)
-        controller.reloadShortcuts()
-        var queueMode = QueueOrderMode.fair.rawValue
-        var extraActionCount = 0
-
-        let handled = controller.handleKeyEvent(
-            makeKeyEvent(keyCode: 125),
-            sessionManager: manager,
-            queueOrderMode: &queueMode,
-            extraHandler: { _, canPerformAction in
-                if canPerformAction { extraActionCount += 1 }
-                return true
-            }
-        )
-
-        #expect(handled)
-        #expect(controller.selectedSessionID == "s1")
-        #expect(extraActionCount == 0)
-    }
-
-    @Test @MainActor func handleKeyEvent_coreMatch_advancesSharedExtraSequenceWithoutFiringIt() {
-        let controller = SessionListController()
-        let manager = SessionManager()
-        manager.testSetSessions([makeSession("s1"), makeSession("s2")])
-        controller.visibleSessionsProvider = { manager.sessions }
-        let restore = preserveDefaults(AppStorageKeys.localShortcutMoveDown)
-        defer { restore() }
-        DiscreteShortcut(keyCode: 0, modifiers: []).save(to: AppStorageKeys.localShortcutMoveDown)
-        controller.reloadShortcuts()
-        let extraMatcher = ShortcutMatcher(.discrete(DiscreteShortcut(steps: [
-            .init(keyCode: 0, modifiers: []),
-            .init(keyCode: 17, modifiers: [])
-        ])))
-        var queueMode = QueueOrderMode.fair.rawValue
-        var extraActionCount = 0
-
-        let extraHandler: (NSEvent, Bool) -> Bool = { event, canPerformAction in
-            let result = extraMatcher.handle(event)
-            if result == .fired, canPerformAction { extraActionCount += 1 }
-            return result != .ignored
-        }
-
-        _ = controller.handleKeyEvent(
-            makeKeyEvent(keyCode: 0),
-            sessionManager: manager,
-            queueOrderMode: &queueMode,
-            extraHandler: extraHandler
-        )
-        let handled = controller.handleKeyEvent(
-            makeKeyEvent(keyCode: 17),
-            sessionManager: manager,
-            queueOrderMode: &queueMode,
-            extraHandler: extraHandler
-        )
-
-        #expect(handled)
-        #expect(controller.selectedSessionID == "s1")
-        #expect(extraActionCount == 1)
-    }
-
-    @Test @MainActor func handleKeyEvent_withoutCoreMatch_allowsExtraAction() {
-        let controller = SessionListController()
-        let manager = SessionManager()
-        var queueMode = QueueOrderMode.fair.rawValue
-        var extraActionCount = 0
-
-        let handled = controller.handleKeyEvent(
-            makeKeyEvent(keyCode: 123),
-            sessionManager: manager,
-            queueOrderMode: &queueMode,
-            extraHandler: { _, canPerformAction in
-                if canPerformAction { extraActionCount += 1 }
-                return true
-            }
-        )
-
-        #expect(handled)
-        #expect(extraActionCount == 1)
-    }
-
-    @Test @MainActor func handleKeyEvent_multiStepShortcut_firesOnlyOnCompletion() {
-        let controller = SessionListController()
-        let manager = SessionManager()
-        manager.testSetSessions([makeSession("s1"), makeSession("s2")])
-        controller.visibleSessionsProvider = { manager.sessions }
-        let restore = preserveDefaults(AppStorageKeys.localShortcutMoveDown)
-        defer { restore() }
-        // Two-step sequence: A (keyCode 0) then T (keyCode 17).
-        let shortcut = DiscreteShortcut(steps: [
-            .init(keyCode: 0, modifiers: []),
-            .init(keyCode: 17, modifiers: [])
-        ])
-        shortcut.save(to: AppStorageKeys.localShortcutMoveDown)
-        controller.reloadShortcuts()
-        var queueMode = QueueOrderMode.fair.rawValue
-
-        // First step advances the sequence but must not fire the action.
-        _ = controller.handleKeyEvent(
-            makeKeyEvent(keyCode: 0), sessionManager: manager, queueOrderMode: &queueMode
-        )
-        #expect(controller.selectedSessionID == nil)
-
-        // Second step completes the sequence and fires.
-        let handled = controller.handleKeyEvent(
-            makeKeyEvent(keyCode: 17), sessionManager: manager, queueOrderMode: &queueMode
-        )
-        #expect(handled == true)
-        #expect(controller.selectedSessionID == "s1")
-    }
-
-    @Test @MainActor func handleKeyEvent_multiStepShortcut_wrongSecondKeyResetsSequence() {
-        let controller = SessionListController()
-        let manager = SessionManager()
-        manager.testSetSessions([makeSession("s1"), makeSession("s2")])
-        controller.visibleSessionsProvider = { manager.sessions }
-        let restore = preserveDefaults(AppStorageKeys.localShortcutMoveDown)
-        defer { restore() }
-        let shortcut = DiscreteShortcut(steps: [
-            .init(keyCode: 0, modifiers: []),
-            .init(keyCode: 17, modifiers: [])
-        ])
-        shortcut.save(to: AppStorageKeys.localShortcutMoveDown)
-        controller.reloadShortcuts()
-        var queueMode = QueueOrderMode.fair.rawValue
-
-        // A, then a non-matching key — the sequence resets to step 0.
-        _ = controller.handleKeyEvent(makeKeyEvent(keyCode: 0), sessionManager: manager, queueOrderMode: &queueMode)
-        _ = controller.handleKeyEvent(makeKeyEvent(keyCode: 18), sessionManager: manager, queueOrderMode: &queueMode)
-        // T alone now does nothing — the matcher is back at step 0 expecting A.
-        let handled = controller.handleKeyEvent(
-            makeKeyEvent(keyCode: 17), sessionManager: manager, queueOrderMode: &queueMode
-        )
-
-        #expect(handled == false)
-        #expect(controller.selectedSessionID == nil)
     }
 
     // MARK: - activeColorIndex Tests (color is an independent cycling counter)

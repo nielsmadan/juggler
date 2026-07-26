@@ -5,9 +5,9 @@
 //  Created by Niels Madan on 22.01.26.
 //
 
-import KeyboardShortcuts
 import ServiceManagement
-import ShortcutField
+import ShortcutKit
+import ShortcutKitUI
 import Sparkle
 import SwiftUI
 import UserNotifications
@@ -922,148 +922,31 @@ private struct PermissionRow: View {
 
 struct ShortcutsSettingsView: View {
     @AppStorage(AppStorageKeys.showShortcutHelper) private var showShortcutHelper = true
+    @ObservedObject private var registry = ShortcutCenter.shared.registry
 
     var body: some View {
+        // Hybrid: Juggler's "Display" section is pinned above ShortcutKit's
+        // KeyBindingsView, which renders the Global and Session List contexts
+        // (with a context picker, search, and built-in conflict warnings).
+        KeyBindingsView(registry: registry, style: .native, contextLayout: .picker)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                displaySection
+            }
+            .padding()
+    }
+
+    private var displaySection: some View {
         Form {
             Section("Display") {
                 Toggle("Show Shortcut Helper", isOn: $showShortcutHelper)
+                Toggle("Show Shortcut Hints", isOn: Binding(
+                    get: { registry.hintsEnabled },
+                    set: { registry.setHintsEnabled($0) }
+                ))
             }
-
-            Section("Global Shortcuts") {
-                KeyboardShortcuts.Recorder("Cycle Forward:", name: .cycleForward)
-                KeyboardShortcuts.Recorder("Cycle Backward:", name: .cycleBackward)
-                KeyboardShortcuts.Recorder("Backburner Current:", name: .backburner)
-                KeyboardShortcuts.Recorder("Send to Back:", name: .sendToBack)
-                KeyboardShortcuts.Recorder("Reactivate All:", name: .reactivateAll)
-                SettingWithDescription(
-                    description: "Activates the session from the most recent notification."
-                ) {
-                    KeyboardShortcuts.Recorder("Last Notification:", name: .goToLastNotification)
-                }
-                SettingWithDescription(
-                    description: "Cycles: popover → monitor window → back to previous app."
-                ) {
-                    KeyboardShortcuts.Recorder("Show Monitor:", name: .showMonitor)
-                }
-            }
-
-            SessionListShortcutsSection()
         }
         .formStyle(.grouped)
-        .padding()
-    }
-}
-
-struct SessionListShortcutsSection: View {
-    @State private var moveDown = DiscreteShortcut.load(from: AppStorageKeys.localShortcutMoveDown)
-    @State private var moveUp = DiscreteShortcut.load(from: AppStorageKeys.localShortcutMoveUp)
-    @State private var backburner = DiscreteShortcut.load(from: AppStorageKeys.localShortcutBackburner)
-    @State private var sendToBack: DiscreteShortcut? = DiscreteShortcut.load(
-        from: AppStorageKeys.localShortcutSendToBack,
-        defaultingTo: DiscreteShortcut(keyCode: 31, modifiers: []) // O
-    )
-    @State private var reactivateSelected = DiscreteShortcut.load(from: AppStorageKeys.localShortcutReactivateSelected)
-    @State private var reactivateAll = DiscreteShortcut.load(from: AppStorageKeys.localShortcutReactivateAll)
-    @State private var rename = DiscreteShortcut.load(from: AppStorageKeys.localShortcutRename)
-    @State private var cycleModeForward = DiscreteShortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
-    @State private var cycleModeBackward = DiscreteShortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
-    @State private var toggleBeacon: DiscreteShortcut? = DiscreteShortcut.load(
-        from: AppStorageKeys.localShortcutToggleBeacon,
-        defaultingTo: DiscreteShortcut(keyCode: 11, modifiers: []) // B
-    )
-    @State private var toggleAutoNext: DiscreteShortcut? = DiscreteShortcut.load(
-        from: AppStorageKeys.localShortcutToggleAutoNext,
-        defaultingTo: DiscreteShortcut(keyCode: 0, modifiers: []) // A
-    )
-    @State private var toggleAutoRestart: DiscreteShortcut? = DiscreteShortcut.load(
-        from: AppStorageKeys.localShortcutToggleAutoRestart,
-        defaultingTo: DiscreteShortcut(keyCode: 12, modifiers: []) // Q
-    )
-    @State private var togglePermissionFirst: DiscreteShortcut? = DiscreteShortcut.load(
-        from: AppStorageKeys.localShortcutTogglePermissionFirst,
-        defaultingTo: DiscreteShortcut(keyCode: 35, modifiers: []) // P
-    )
-
-    var body: some View {
-        Section("Session List Shortcuts") {
-            ShortcutRow(label: "Move Down", shortcut: $moveDown, storageKey: AppStorageKeys.localShortcutMoveDown)
-            ShortcutRow(label: "Move Up", shortcut: $moveUp, storageKey: AppStorageKeys.localShortcutMoveUp)
-            ShortcutRow(
-                label: "Backburner",
-                shortcut: $backburner,
-                storageKey: AppStorageKeys.localShortcutBackburner
-            )
-            ShortcutRow(
-                label: "Send to Back",
-                shortcut: $sendToBack,
-                storageKey: AppStorageKeys.localShortcutSendToBack
-            )
-            ShortcutRow(
-                label: "Reactivate Selected",
-                shortcut: $reactivateSelected,
-                storageKey: AppStorageKeys.localShortcutReactivateSelected
-            )
-            ShortcutRow(
-                label: "Reactivate All",
-                shortcut: $reactivateAll,
-                storageKey: AppStorageKeys.localShortcutReactivateAll
-            )
-            ShortcutRow(label: "Rename", shortcut: $rename, storageKey: AppStorageKeys.localShortcutRename)
-            ShortcutRow(
-                label: "Cycle Mode Forward",
-                shortcut: $cycleModeForward,
-                storageKey: AppStorageKeys.localShortcutCycleModeForward
-            )
-            ShortcutRow(
-                label: "Cycle Mode Backward",
-                shortcut: $cycleModeBackward,
-                storageKey: AppStorageKeys.localShortcutCycleModeBackward
-            )
-            ShortcutRow(
-                label: "Toggle Beacon",
-                shortcut: $toggleBeacon,
-                storageKey: AppStorageKeys.localShortcutToggleBeacon
-            )
-            ShortcutRow(
-                label: "Auto Next",
-                shortcut: $toggleAutoNext,
-                storageKey: AppStorageKeys.localShortcutToggleAutoNext
-            )
-            ShortcutRow(
-                label: "Auto Restart",
-                shortcut: $toggleAutoRestart,
-                storageKey: AppStorageKeys.localShortcutToggleAutoRestart
-            )
-            ShortcutRow(
-                label: "Permission First",
-                shortcut: $togglePermissionFirst,
-                storageKey: AppStorageKeys.localShortcutTogglePermissionFirst
-            )
-        }
-    }
-}
-
-struct ShortcutRow: View {
-    let label: String
-    @Binding var shortcut: DiscreteShortcut?
-    let storageKey: String
-
-    var body: some View {
-        HStack {
-            Text(label)
-            Spacer()
-            ShortcutRecorderView($shortcut)
-                .frame(width: 130)
-                .padding(.trailing, 4)
-                .onChange(of: shortcut) { _, newValue in
-                    if let newValue {
-                        newValue.save(to: storageKey)
-                    } else {
-                        DiscreteShortcut.unbind(from: storageKey)
-                    }
-                    NotificationCenter.default.post(name: .localShortcutsDidChange, object: nil)
-                }
-        }
+        .frame(height: 130)
     }
 }
 

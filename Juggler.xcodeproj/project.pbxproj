@@ -7,9 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		19A2F3EB2F70715F00ACEE1C /* ShortcutField in Frameworks */ = {isa = PBXBuildFile; productRef = 19A2F3EA2F70715F00ACEE1C /* ShortcutField */; };
+		5C0DE5C0DE5C0DE000000020 /* ShortcutKit in Frameworks */ = {isa = PBXBuildFile; productRef = 5C0DE5C0DE5C0DE000000010 /* ShortcutKit */; };
+		5C0DE5C0DE5C0DE000000021 /* ShortcutKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 5C0DE5C0DE5C0DE000000011 /* ShortcutKitUI */; };
+		5C0DE5C0DE5C0DE000000022 /* ShortcutKitGlobal in Frameworks */ = {isa = PBXBuildFile; productRef = 5C0DE5C0DE5C0DE000000012 /* ShortcutKitGlobal */; };
 		19E7C7C62F2752EC00708D20 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 19E7C7C52F2752EC00708D20 /* Sparkle */; };
-		19F658642F22BA5700CB4D71 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 19F658632F22BA5700CB4D71 /* KeyboardShortcuts */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,9 +59,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				19F658642F22BA5700CB4D71 /* KeyboardShortcuts in Frameworks */,
+				5C0DE5C0DE5C0DE000000020 /* ShortcutKit in Frameworks */,
+				5C0DE5C0DE5C0DE000000021 /* ShortcutKitUI in Frameworks */,
+				5C0DE5C0DE5C0DE000000022 /* ShortcutKitGlobal in Frameworks */,
 				19E7C7C62F2752EC00708D20 /* Sparkle in Frameworks */,
-				19A2F3EB2F70715F00ACEE1C /* ShortcutField in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -120,9 +122,10 @@
 			);
 			name = Juggler;
 			packageProductDependencies = (
-				19F658632F22BA5700CB4D71 /* KeyboardShortcuts */,
+				5C0DE5C0DE5C0DE000000010 /* ShortcutKit */,
+				5C0DE5C0DE5C0DE000000011 /* ShortcutKitUI */,
+				5C0DE5C0DE5C0DE000000012 /* ShortcutKitGlobal */,
 				19E7C7C52F2752EC00708D20 /* Sparkle */,
-				19A2F3EA2F70715F00ACEE1C /* ShortcutField */,
 			);
 			productName = Juggler;
 			productReference = 19F6582C2F22B72E00CB4D71 /* Juggler.app */;
@@ -180,9 +183,8 @@
 			mainGroup = 19F658232F22B72E00CB4D71;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				19F658622F22BA5700CB4D71 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+				5C0DE5C0DE5C0DE000000001 /* XCRemoteSwiftPackageReference "ShortcutKit" */,
 				19F658652F22BA7600CB4D71 /* XCRemoteSwiftPackageReference "Sparkle" */,
-				190EAA1D2F7043EF002C2C4B /* XCRemoteSwiftPackageReference "ShortcutField" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 19F6582D2F22B72E00CB4D71 /* Products */;
@@ -507,20 +509,12 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		190EAA1D2F7043EF002C2C4B /* XCRemoteSwiftPackageReference "ShortcutField" */ = {
+		5C0DE5C0DE5C0DE000000001 /* XCRemoteSwiftPackageReference "ShortcutKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/nielsmadan/ShortcutField";
+			repositoryURL = "https://github.com/nielsmadan/ShortcutKit";
 			requirement = {
 				kind = exactVersion;
-				version = 2.2.4;
-			};
-		};
-		19F658622F22BA5700CB4D71 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.4.0;
+				version = 0.5.1;
 			};
 		};
 		19F658652F22BA7600CB4D71 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
@@ -534,20 +528,25 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		19A2F3EA2F70715F00ACEE1C /* ShortcutField */ = {
+		5C0DE5C0DE5C0DE000000010 /* ShortcutKit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 190EAA1D2F7043EF002C2C4B /* XCRemoteSwiftPackageReference "ShortcutField" */;
-			productName = ShortcutField;
+			package = 5C0DE5C0DE5C0DE000000001 /* XCRemoteSwiftPackageReference "ShortcutKit" */;
+			productName = ShortcutKit;
+		};
+		5C0DE5C0DE5C0DE000000011 /* ShortcutKitUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5C0DE5C0DE5C0DE000000001 /* XCRemoteSwiftPackageReference "ShortcutKit" */;
+			productName = ShortcutKitUI;
+		};
+		5C0DE5C0DE5C0DE000000012 /* ShortcutKitGlobal */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5C0DE5C0DE5C0DE000000001 /* XCRemoteSwiftPackageReference "ShortcutKit" */;
+			productName = ShortcutKitGlobal;
 		};
 		19E7C7C52F2752EC00708D20 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 19F658652F22BA7600CB4D71 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
-		};
-		19F658632F22BA5700CB4D71 /* KeyboardShortcuts */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 19F658622F22BA5700CB4D71 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
-			productName = KeyboardShortcuts;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

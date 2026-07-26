@@ -5,8 +5,6 @@
 //  Created by Niels Madan on 22.01.26.
 //
 
-import Carbon.HIToolbox
-import ShortcutField
 import SwiftUI
 
 private var isUnitTestHost: Bool {
@@ -232,8 +230,6 @@ struct JugglerApp: App {
             AppStorageKeys.statsBarColorBlue: 0.0
         ])
 
-        setupDefaultLocalShortcuts()
-
         // Skip heavy service startup when running as a test host
         guard !isUnitTestHost else { return }
 
@@ -266,6 +262,7 @@ struct JugglerApp: App {
 
         Task { @MainActor in
             HotkeyManager.shared.setupHotkeys()
+            ShortcutCenter.shared.start()
             StatusBarManager.shared.setup()
             SessionManager.shared.startAppFocusObserver()
         }
@@ -313,24 +310,5 @@ struct AboutCommands: Commands {
                 openWindow(id: "about")
             }
         }
-    }
-}
-
-private func setupDefaultLocalShortcuts() {
-    let defaults: [(key: String, keyCode: Int, shift: Bool)] = [
-        (AppStorageKeys.localShortcutMoveDown, kVK_ANSI_K, false),
-        (AppStorageKeys.localShortcutMoveUp, kVK_ANSI_J, false),
-        (AppStorageKeys.localShortcutBackburner, kVK_ANSI_L, false),
-        (AppStorageKeys.localShortcutReactivateSelected, kVK_ANSI_L, true),
-        (AppStorageKeys.localShortcutReactivateAll, kVK_ANSI_H, false),
-        (AppStorageKeys.localShortcutRename, kVK_ANSI_R, false),
-        (AppStorageKeys.localShortcutCycleModeForward, kVK_Tab, false),
-        (AppStorageKeys.localShortcutCycleModeBackward, kVK_Tab, true)
-    ]
-
-    for (key, keyCode, shift) in defaults where UserDefaults.standard.data(forKey: key) == nil {
-        let modifiers: NSEvent.ModifierFlags = shift ? .shift : []
-        let shortcut = DiscreteShortcut(keyCode: UInt16(keyCode), modifiers: modifiers)
-        shortcut.save(to: key)
     }
 }

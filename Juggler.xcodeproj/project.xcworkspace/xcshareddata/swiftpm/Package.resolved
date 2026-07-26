@@ -1,15 +1,6 @@
 {
-  "originHash" : "524597ac8ddb4eca03915bdd132bc8745f25b408613116846bc7bc157e202a74",
+  "originHash" : "cc130945fd281ceb2d0312c89806e15065a12cf408db773c382099e5a7d630ee",
   "pins" : [
-    {
-      "identity" : "keyboardshortcuts",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/sindresorhus/KeyboardShortcuts",
-      "state" : {
-        "revision" : "1aef85578fdd4f9eaeeb8d53b7b4fc31bf08fe27",
-        "version" : "2.4.0"
-      }
-    },
     {
       "identity" : "shortcutfield",
       "kind" : "remoteSourceControl",
@@ -20,12 +11,30 @@
       }
     },
     {
+      "identity" : "shortcutkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/nielsmadan/ShortcutKit",
+      "state" : {
+        "revision" : "fd1bd67efd3b589d59539e445127640d7d85288c",
+        "version" : "0.5.1"
+      }
+    },
+    {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
       "state" : {
         "revision" : "79bc9e872948e47877e76f194cb0c8e0412b0b90",
         "version" : "2.9.5"
+      }
+    },
+    {
+      "identity" : "tomlkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/LebJe/TOMLKit",
+      "state" : {
+        "revision" : "ec6198d37d495efc6acd4dffbd262cdca7ff9b3f",
+        "version" : "0.6.0"
       }
     }
   ],

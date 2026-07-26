@@ -6,7 +6,8 @@
 //
 
 import Carbon.HIToolbox
-import ShortcutField
+import ShortcutKit
+import ShortcutKitUI
 import SwiftUI
 
 struct SessionMonitorView: View {
@@ -110,7 +111,11 @@ struct SessionMonitorView: View {
     var body: some View {
         mainContent
             .background(WindowAccessor { controller.ownWindow = $0 })
-            .suppressShortcutBeep()
+            .keyWindowShortcutContext(ShortcutCenter.shared.sessionListContext,
+                                      isActive: isMonitorWindowKey) { action, _ in
+                handleSessionListAction(action)
+            }
+            .shortcutHintHUD(registry: ShortcutCenter.shared.registry)
             .focusable()
             .focusEffectDisabled()
             .onKeyPress(.downArrow) {
@@ -124,7 +129,6 @@ struct SessionMonitorView: View {
                 return .handled
             }
             .onKeyPress(.return) { activateSelected(); return .handled }
-            .onKeyPress { handleKeyPress($0) }
             .sheet(item: $controller.sessionToRename) { session in
                 RenameSessionView(session: session)
                     .environment(sessionManager)
@@ -136,47 +140,10 @@ struct SessionMonitorView: View {
                 todayTabWidths = todayTabWidths.filter { alive.contains($0.key) }
             }
             .onAppear {
+                controller.ownerLabel = "Monitor"
                 controller.syncSelection(sessions: sessionManager.sessions)
-                controller.reloadShortcuts()
-                controller.installKeyMonitor(
-                    owner: "Monitor",
-                    sessionManager: sessionManager,
-                    queueOrderMode: $queueOrderMode,
-                    visibleSessions: { sessionManager.orderedVisibleSessions() },
-                    extraHandler: { event, canPerformAction in
-                        var handled = false
-                        var firedAction: (() -> Void)?
-                        for (matcher, action) in [
-                            (
-                                controller.matcherTogglePermissionFirst,
-                                {
-                                    if permissionFirstAvailable {
-                                        prioritizePermissionSessions.toggle()
-                                    }
-                                }
-                            ),
-                            (controller.matcherToggleAutoNext, { autoAdvanceOnBusy.toggle() }),
-                            (controller.matcherToggleAutoRestart, { autoRestartOnIdle.toggle() })
-                        ] {
-                            switch matcher?.handle(event) ?? .ignored {
-                            case .fired:
-                                handled = true
-                                if canPerformAction, firedAction == nil {
-                                    firedAction = action
-                                }
-                            case let .advanced(consumeEvent):
-                                if consumeEvent { handled = true }
-                            case .ignored, .continuousFired:
-                                break
-                            }
-                        }
-                        firedAction?()
-                        return handled
-                    }
-                )
             }
             .onDisappear {
-                controller.removeKeyMonitor()
                 scrollTask?.cancel()
             }
             .onChange(of: queueOrderMode) { _, newMode in
@@ -217,9 +184,6 @@ struct SessionMonitorView: View {
                     logDebug(.navigation, "isSessionFocused → true → setSelection(\(session.id))")
                     controller.setSelection(toSessionID: session.id)
                 }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
-                controller.reloadShortcuts()
             }
             .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
                 if let window = notification.object as? NSWindow, window.identifier?.rawValue == "main" {
@@ -627,29 +591,24 @@ struct SessionMonitorView: View {
         }
     }
 
-    private func handleKeyPress(_ press: KeyPress) -> KeyPress.Result {
-        let result = controller.handleKeyPress(press, sessionManager: sessionManager, queueOrderMode: &queueOrderMode)
-        if result == .handled { return .handled }
-
-        if let shortcut = controller.shortcutToggleBeacon, shortcut.matches(press) {
-            beaconEnabled.toggle()
-            return .handled
+    /// Dispatch a session-list shortcut while the monitor window is key.
+    private func handleSessionListAction(_ action: SessionListAction) {
+        switch action {
+        case .moveDown: controller.moveSelection(by: 1, in: sessionManager.orderedVisibleSessions())
+        case .moveUp: controller.moveSelection(by: -1, in: sessionManager.orderedVisibleSessions())
+        case .backburner: controller.backburnerSelected(sessionManager: sessionManager)
+        case .sendToBack: controller.sendToBackSelected(sessionManager: sessionManager)
+        case .reactivateSelected: controller.reactivateSelected(sessionManager: sessionManager)
+        case .reactivateAll: controller.reactivateAll(sessionManager: sessionManager)
+        case .rename: controller.renameSelected(sessions: sessionManager.sessions)
+        case .cycleModeForward: queueOrderMode = controller.cycleMode(forward: true, currentMode: queueOrderMode)
+        case .cycleModeBackward: queueOrderMode = controller.cycleMode(forward: false, currentMode: queueOrderMode)
+        case .toggleBeacon: beaconEnabled.toggle()
+        case .toggleAutoNext: autoAdvanceOnBusy.toggle()
+        case .toggleAutoRestart: autoRestartOnIdle.toggle()
+        case .togglePermissionFirst:
+            if permissionFirstAvailable { prioritizePermissionSessions.toggle() }
         }
-        if let shortcut = controller.shortcutToggleAutoNext, shortcut.matches(press) {
-            autoAdvanceOnBusy.toggle()
-            return .handled
-        }
-        if let shortcut = controller.shortcutToggleAutoRestart, shortcut.matches(press) {
-            autoRestartOnIdle.toggle()
-            return .handled
-        }
-        if permissionFirstAvailable,
-           let shortcut = controller.shortcutTogglePermissionFirst,
-           shortcut.matches(press) {
-            prioritizePermissionSessions.toggle()
-            return .handled
-        }
-        return .ignored
     }
 
     private var permissionFirstAvailable: Bool {
@@ -675,46 +634,15 @@ struct SessionMonitorView: View {
 
     @ViewBuilder
     private var shortcutsReference: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Shortcuts")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140, maximum: 180))], alignment: .leading, spacing: 2) {
-                shortcutRow("↑/↓", "Navigate")
-                shortcutRow("↵", "Activate")
-                shortcutRow(controller.shortcutMoveUp?.displayString ?? "–", "Move Up")
-                shortcutRow(controller.shortcutMoveDown?.displayString ?? "–", "Move Down")
-                shortcutRow(controller.shortcutBackburner?.displayString ?? "–", "Backburner")
-                shortcutRow(controller.shortcutSendToBack?.displayString ?? "–", "Send to Back")
-                shortcutRow(controller.shortcutReactivateSelected?.displayString ?? "–", "Reactivate")
-                shortcutRow(controller.shortcutReactivateAll?.displayString ?? "–", "Reactivate All")
-                shortcutRow(controller.shortcutRename?.displayString ?? "–", "Rename")
-                shortcutRow(controller.shortcutCycleModeForward?.displayString ?? "–", "Mode →")
-                shortcutRow(controller.shortcutCycleModeBackward?.displayString ?? "–", "Mode ←")
-                shortcutRow(controller.shortcutToggleBeacon?.displayString ?? "–", "Toggle Beacon")
-                shortcutRow(controller.shortcutToggleAutoNext?.displayString ?? "–", "Auto Next")
-                shortcutRow(controller.shortcutToggleAutoRestart?.displayString ?? "–", "Auto Restart")
-                shortcutRow(controller.shortcutTogglePermissionFirst?.displayString ?? "–", "Permission First")
-            }
-        }
+        KeyBindingsLegendView(
+            registry: ShortcutCenter.shared.registry,
+            style: .panel,
+            contextIDs: ["sessionList"],
+            options: LegendOptions(compact: true)
+        )
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private func shortcutRow(_ key: String, _ action: String) -> some View {
-        HStack(spacing: 4) {
-            Text(key)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(.primary)
-                .frame(minWidth: 48, alignment: .trailing)
-            Text(action)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-        }
     }
 }
 

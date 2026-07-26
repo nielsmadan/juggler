@@ -6,15 +6,20 @@
 //
 
 import Carbon.HIToolbox
-import ShortcutField
+import ShortcutKit
+import ShortcutKitUI
 import SwiftUI
 
 struct MenuBarView: View {
     @Environment(SessionManager.self) private var sessionManager
     @Environment(\.dismiss) private var dismiss
     @State private var controller = SessionListController()
+    @State private var isPopoverKey = false
     @AppStorage(AppStorageKeys.queueOrderMode) private var queueOrderMode: String = QueueOrderMode.default.rawValue
     @AppStorage(AppStorageKeys.showShortcutHelper) private var showShortcutHelper = true
+    @AppStorage(AppStorageKeys.beaconEnabled) private var beaconEnabled = true
+    @AppStorage(AppStorageKeys.autoAdvanceOnBusy) private var autoAdvanceOnBusy = false
+    @AppStorage(AppStorageKeys.autoRestartOnIdle) private var autoRestartOnIdle = false
     @AppStorage(AppStorageKeys.prioritizePermissionSessions) private var prioritizePermissionSessions = false
 
     var body: some View {
@@ -67,43 +72,21 @@ struct MenuBarView: View {
             if showShortcutHelper {
                 Divider()
 
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 12) {
-                        if let up = controller.shortcutMoveUp, let down = controller.shortcutMoveDown {
-                            Text("\(up.displayString)/\(down.displayString) navigate")
-                        }
-                        if let backburner = controller.shortcutBackburner {
-                            Text("\(backburner.displayString) backburner")
-                        }
-                        if let sendToBack = controller.shortcutSendToBack {
-                            Text("\(sendToBack.displayString) send to back")
-                        }
-                        if let reactivate = controller.shortcutReactivateSelected {
-                            Text("\(reactivate.displayString) reactivate")
-                        }
-                    }
-                    HStack(spacing: 12) {
-                        if let reactivateAll = controller.shortcutReactivateAll {
-                            Text("\(reactivateAll.displayString) reactivate all")
-                        }
-                        if let rename = controller.shortcutRename {
-                            Text("\(rename.displayString) rename")
-                        }
-                        if let forward = controller.shortcutCycleModeForward,
-                           let backward = controller.shortcutCycleModeBackward {
-                            Text("\(forward.displayString)/\(backward.displayString) mode")
-                        }
-                    }
-                }
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+                KeyBindingsLegendView(
+                    registry: ShortcutCenter.shared.registry,
+                    style: .panel,
+                    contextIDs: ["sessionList"],
+                    options: LegendOptions(compact: true)
+                )
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
             }
         }
         .frame(width: 280)
         .background(WindowAccessor { controller.ownWindow = $0 })
-        .suppressShortcutBeep()
+        .keyWindowShortcutContext(ShortcutCenter.shared.sessionListContext, isActive: isPopoverKey) { action, _ in
+            handleSessionListAction(action)
+        }
         .focusable()
         .focusEffectDisabled()
         .onKeyPress(.downArrow) {
@@ -115,21 +98,6 @@ struct MenuBarView: View {
             return .handled
         }
         .onKeyPress(.return) { activateSelected(); return .handled }
-        .onKeyPress { press in
-            let result = controller.handleKeyPress(
-                press,
-                sessionManager: sessionManager,
-                queueOrderMode: &queueOrderMode
-            )
-            if result == .handled { return .handled }
-            if permissionFirstAvailable,
-               let shortcut = controller.shortcutTogglePermissionFirst,
-               shortcut.matches(press) {
-                prioritizePermissionSessions.toggle()
-                return .handled
-            }
-            return .ignored
-        }
         .sheet(item: $controller.sessionToRename) { session in
             RenameSessionView(session: session)
                 .environment(sessionManager)
@@ -139,37 +107,23 @@ struct MenuBarView: View {
         }
         .onAppear {
             // `syncColor: false` — opening the popover must not retint the global cycling color.
+            controller.ownerLabel = "MenuBar"
             if let initial = sessionManager.currentReferenceSessionID ?? sessionManager.sessions.first?.id {
                 controller.setSelection(toSessionID: initial, syncColor: false)
             } else {
                 controller.syncSelection(sessions: sessionManager.sessions)
             }
-            controller.reloadShortcuts()
-            controller.installKeyMonitor(
-                owner: "MenuBar",
-                sessionManager: sessionManager,
-                queueOrderMode: $queueOrderMode,
-                visibleSessions: { sessionManager.sessions },
-                extraHandler: { event, canPerformAction in
-                    switch controller.matcherTogglePermissionFirst?.handle(event) ?? .ignored {
-                    case .fired:
-                        if canPerformAction, permissionFirstAvailable {
-                            prioritizePermissionSessions.toggle()
-                        }
-                        return true
-                    case let .advanced(consumeEvent):
-                        return consumeEvent
-                    case .ignored, .continuousFired:
-                        return false
-                    }
-                }
-            )
+            isPopoverKey = controller.ownWindow?.isKeyWindow ?? true
         }
-        .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
-            controller.reloadShortcuts()
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
+            if let window = notification.object as? NSWindow, window === controller.ownWindow {
+                isPopoverKey = true
+            }
         }
-        .onDisappear {
-            controller.removeKeyMonitor()
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notification in
+            if let window = notification.object as? NSWindow, window === controller.ownWindow {
+                isPopoverKey = false
+            }
         }
         .onChange(of: queueOrderMode) { _, newMode in
             if let mode = QueueOrderMode(rawValue: newMode) {
@@ -185,6 +139,47 @@ struct MenuBarView: View {
 
     private var permissionFirstAvailable: Bool {
         QueueOrderMode(rawValue: queueOrderMode)?.supportsPermissionPriority == true
+    }
+
+    /// Dispatch a session-list shortcut while the popover is key. The toggle
+    /// actions flip the same app-global settings the monitor's control-bar
+    /// buttons do; since the popover has no button to reflect the new state, each
+    /// confirms via a forced beacon message (shown regardless of the beacon
+    /// setting itself).
+    private func handleSessionListAction(_ action: SessionListAction) {
+        switch action {
+        case .moveDown: controller.moveSelection(by: 1, in: sessionManager.sessions)
+        case .moveUp: controller.moveSelection(by: -1, in: sessionManager.sessions)
+        case .backburner: controller.backburnerSelected(sessionManager: sessionManager)
+        case .sendToBack: controller.sendToBackSelected(sessionManager: sessionManager)
+        case .reactivateSelected: controller.reactivateSelected(sessionManager: sessionManager)
+        case .reactivateAll: controller.reactivateAll(sessionManager: sessionManager)
+        case .rename: controller.renameSelected(sessions: sessionManager.sessions)
+        case .cycleModeForward: queueOrderMode = controller.cycleMode(forward: true, currentMode: queueOrderMode)
+        case .cycleModeBackward: queueOrderMode = controller.cycleMode(forward: false, currentMode: queueOrderMode)
+        case .toggleBeacon:
+            beaconEnabled.toggle()
+            showToggleBeacon("Beacon", enabled: beaconEnabled)
+        case .toggleAutoNext:
+            autoAdvanceOnBusy.toggle()
+            showToggleBeacon("Auto Next", enabled: autoAdvanceOnBusy)
+        case .toggleAutoRestart:
+            autoRestartOnIdle.toggle()
+            showToggleBeacon("Auto Restart", enabled: autoRestartOnIdle)
+        case .togglePermissionFirst:
+            if permissionFirstAvailable {
+                prioritizePermissionSessions.toggle()
+                showToggleBeacon("Permission First", enabled: prioritizePermissionSessions)
+            } else {
+                BeaconManager.shared.show(sessionName: "Permission First N/A", force: true)
+            }
+        }
+    }
+
+    /// Flash a beacon confirming a toggle's new state. Forced so it appears even
+    /// when the beacon overlay is itself disabled.
+    private func showToggleBeacon(_ name: String, enabled: Bool) {
+        BeaconManager.shared.show(sessionName: "\(name) \(enabled ? "Enabled" : "Disabled")", force: true)
     }
 
     private func activateSelected() {

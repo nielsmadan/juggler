@@ -69,18 +69,4 @@ enum AppStorageKeys {
     static let verboseLogging = "verboseLogging"
 
     static let mainWindowFrame = "mainWindowFrame"
-
-    static let localShortcutMoveDown = "localShortcutMoveDown"
-    static let localShortcutMoveUp = "localShortcutMoveUp"
-    static let localShortcutBackburner = "localShortcutBackburner"
-    static let localShortcutSendToBack = "localShortcutSendToBack"
-    static let localShortcutReactivateSelected = "localShortcutReactivateSelected"
-    static let localShortcutReactivateAll = "localShortcutReactivateAll"
-    static let localShortcutRename = "localShortcutRename"
-    static let localShortcutCycleModeForward = "localShortcutCycleModeForward"
-    static let localShortcutCycleModeBackward = "localShortcutCycleModeBackward"
-    static let localShortcutToggleBeacon = "localShortcutToggleBeacon"
-    static let localShortcutToggleAutoNext = "localShortcutToggleAutoNext"
-    static let localShortcutToggleAutoRestart = "localShortcutToggleAutoRestart"
-    static let localShortcutTogglePermissionFirst = "localShortcutTogglePermissionFirst"
 }
