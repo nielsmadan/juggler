@@ -64,6 +64,7 @@ enum AppStorageKeys {
 
     // Agent enablement
     static let codexEnabled = "codexEnabled"
+    static let antigravityEnabled = "antigravityEnabled"
 
     // Beacon HUD
     static let beaconEnabled = "beaconEnabled"

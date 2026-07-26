@@ -281,6 +281,12 @@ final class SessionManager {
     ) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
 
+        // Record whether the session was awaiting the user (idle/permission) when it
+        // enters backburner — drives Antigravity's idle-origin auto-reactivation.
+        if newState == .backburner, oldState != .backburner {
+            sessions[index].wasAwaitingUserBeforeBackburner = oldState.isIncludedInCycle
+        }
+
         logDebug(.session, "\(sessions[index].displayName): \(oldState.rawValue) → \(newState.rawValue)")
 
         // Trigger animation (must be before state change so effectiveState works)
@@ -731,9 +737,16 @@ final class SessionManager {
             // early-return, so backburnered remote sessions stay reachable too).
             applyLiveHostPaneBinding(at: index, event: event)
 
+            // Antigravity has no UserPromptSubmit; a session shelved while idle is
+            // auto-reactivated on its next working event (a resume). One shelved while
+            // working stays put — see docs/superpowers/specs/antigravity-integration.md.
+            let isAntigravityResume = sessions[index].agent == "antigravity"
+                && state == .working
+                && sessions[index].wasAwaitingUserBeforeBackburner
+
             // Preserve backburner state - only UserPromptSubmit should exit backburner
             // (explicit reactivation via UI uses updateSessionState, not this method)
-            if oldState == .backburner, event != "UserPromptSubmit" {
+            if oldState == .backburner, event != "UserPromptSubmit", !isAntigravityResume {
                 mergeSessionMetadata(
                     at: index,
                     tmuxSessionName: tmuxSessionName,

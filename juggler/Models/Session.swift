@@ -41,11 +41,20 @@ struct Session: Identifiable, Codable, Equatable {
     /// Equatable.
     var liveHostPaneID: String?
 
+    /// True when this session was awaiting the user (idle *or* permission — i.e. any
+    /// cyclable state) at the moment it entered backburner. Antigravity has no
+    /// `UserPromptSubmit` to mark user re-engagement, so a backburnered Antigravity session
+    /// is auto-reactivated on its next `working` event only if it was shelved while awaiting
+    /// the user (a resume), never while working (a deliberate focus-shelve). Ephemeral —
+    /// neither coded nor part of Equatable.
+    var wasAwaitingUserBeforeBackburner = false
+
     var agentShortName: String {
         switch agent {
         case "opencode": "OC"
         case "codex": "CX"
         case "pi": "PI"
+        case "antigravity": "AG"
         default: "CC"
         }
     }

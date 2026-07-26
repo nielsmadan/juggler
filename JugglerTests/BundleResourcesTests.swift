@@ -15,6 +15,7 @@ struct BundleResourcesTests {
         ("install_kitty_watcher", "sh"), // ScriptInstaller.installKittyWatcher
         ("uninstall", "sh"), // SettingsView reset / ScriptInstaller
         ("codex-notify", "sh"), // CodexHooksInstaller.installHooks
+        ("antigravity-notify", "sh"), // AntigravityHooksInstaller.installHooks
         ("juggler-opencode", "txt"), // OpenCodePluginInstaller.install
         ("juggler-pi", "txt"), // PiExtensionInstaller.install
         ("iterm2_daemon", "py"), // iTerm2Bridge

@@ -37,7 +37,7 @@ The Session Monitor is a standalone window providing an expanded view of all ses
 
 ## Empty State
 
-With no tracked sessions, the window shows a "No Sessions" placeholder: *"Start or continue a session and it will show up here. Codex sessions appear after your first message."*
+With no tracked sessions, the window shows a "No Sessions" placeholder: *"Start or continue a session and it will show up here. Codex and Antigravity sessions appear after your first message."*
 
 ## Control Bar
 

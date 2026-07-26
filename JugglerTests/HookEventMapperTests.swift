@@ -154,6 +154,41 @@ struct HookEventMapperTests {
         #expect(action == .ignore)
     }
 
+    // MARK: - Antigravity Mappings
+
+    @Test func antigravity_preInvocation_mapsToWorking() {
+        let action = HookEventMapper.map(event: "PreInvocation", agent: "antigravity")
+        #expect(action == .updateState(.working))
+    }
+
+    @Test func antigravity_stop_mapsToIdle() {
+        let action = HookEventMapper.map(event: "Stop", agent: "antigravity")
+        #expect(action == .updateState(.idle))
+    }
+
+    // Antigravity has no permission or compaction events — those states are never produced.
+    @Test func antigravity_postToolUse_mapsToIgnore() {
+        let action = HookEventMapper.map(event: "PostToolUse", agent: "antigravity")
+        #expect(action == .ignore)
+    }
+
+    @Test func antigravity_preToolUse_mapsToIgnore() {
+        let action = HookEventMapper.map(event: "PreToolUse", agent: "antigravity")
+        #expect(action == .ignore)
+    }
+
+    // Antigravity has no session-end event; removal is via terminal-bridge cleanup.
+    @Test func antigravity_unknownEvent_mapsToIgnore() {
+        let action = HookEventMapper.map(event: "SomeFutureEvent", agent: "antigravity")
+        #expect(action == .ignore)
+    }
+
+    // mapAntigravity is case-sensitive (exact-string switch).
+    @Test func antigravity_lowercaseEvent_mapsToIgnore() {
+        let action = HookEventMapper.map(event: "stop", agent: "antigravity")
+        #expect(action == .ignore)
+    }
+
     // MARK: - OpenCode Mappings
 
     @Test func opencode_sessionCreated_mapsToIdle() {

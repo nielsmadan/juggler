@@ -42,7 +42,7 @@ brew install --cask nielsmadan/juggler/juggler
 
 1. **Download and open** - Launch Juggler from Applications
 2. **Walk through onboarding** - Grant Accessibility permissions, set up terminal integration(s), install hooks
-3. **Open your sessions** - Start Claude Code, OpenCode, Codex, or Pi as you normally would. Juggler detects them automatically
+3. **Open your sessions** - Start Claude Code, OpenCode, Codex, Pi, or Antigravity as you normally would. Juggler detects them automatically
 4. **Hit the hotkey** - Press `⇧⌘K` and you're at the next idle session
 
 ## Features

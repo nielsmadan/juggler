@@ -129,6 +129,41 @@ if modified:
 PYTHON
 fi
 
+# Remove Antigravity (agy) hooks
+ANTIGRAVITY_HOOKS_DIR="$HOME/.gemini/hooks/juggler"
+ANTIGRAVITY_HOOKS_JSON="$HOME/.gemini/config/hooks.json"
+
+if [ -d "$ANTIGRAVITY_HOOKS_DIR" ]; then
+    rm -rf "$ANTIGRAVITY_HOOKS_DIR"
+    echo "  Removed Antigravity hooks"
+fi
+
+rm -f "$ANTIGRAVITY_HOOKS_JSON.juggler-backup"
+
+if [ -f "$ANTIGRAVITY_HOOKS_JSON" ]; then
+    python3 << 'PYTHON'
+import json
+import os
+
+path = os.path.expanduser("~/.gemini/config/hooks.json")
+try:
+    with open(path) as f:
+        data = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    raise SystemExit(0)
+
+if isinstance(data, dict) and "juggler" in data:
+    del data["juggler"]
+    if data:
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2, sort_keys=True)
+        print("  Cleaned Antigravity hooks.json")
+    else:
+        os.remove(path)
+        print("  Removed empty Antigravity hooks.json")
+PYTHON
+fi
+
 # Reset Automation permission
 tccutil reset AppleEvents com.nielsmadan.Juggler 2>/dev/null && echo "  Reset Automation permission"
 

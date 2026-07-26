@@ -242,7 +242,7 @@ struct SessionMonitorView: View {
                     "No Sessions",
                     systemImage: "terminal",
                     description: Text(
-                        "Start or continue a session and it will show up here.\n\nCodex sessions appear after your first message."
+                        "Start or continue a session and it will show up here.\n\nCodex and Antigravity sessions appear after your first message."
                     )
                 )
                 .frame(maxHeight: .infinity)
@@ -594,11 +594,14 @@ struct SessionMonitorView: View {
     @ViewBuilder
     private func sessionMetadata(_ session: Session) -> some View {
         HStack {
-            if let branch = session.gitBranch {
-                Label(branch, systemImage: "arrow.triangle.branch")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            // Always render the branch line (hidden when absent) so a non-git session
+            // reserves the same row height as a git-backed one — otherwise the card
+            // collapses and the row layout differs from its neighbors.
+            Label(session.gitBranch ?? " ", systemImage: "arrow.triangle.branch")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .opacity(session.gitBranch == nil ? 0 : 1)
+                .accessibilityHidden(session.gitBranch == nil)
             Spacer()
         }
     }

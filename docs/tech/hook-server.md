@@ -1,6 +1,6 @@
 # Hook Server
 
-The HookServer is an HTTP server running on `localhost:7483` that receives state change notifications from Claude Code, OpenCode, Codex, and Pi hooks.
+The HookServer is an HTTP server running on `localhost:7483` that receives state change notifications from Claude Code, OpenCode, Codex, Pi, and Antigravity hooks.
 
 ## Implementation
 
@@ -73,7 +73,7 @@ Or on error:
 
 ## Event Mapping
 
-`HookEventMapper.map(event:agent:)` (`Models/HookEventMapper.swift`) converts each event to a `MappedAction`, dispatching to per-agent mappers (`mapClaudeCode` / `mapOpenCode` / `mapCodex` / `mapPi`) by the `agent` parameter. The Claude Code mapping is the Event Types table above; the other agents map as follows (canonical source: `HookEventMapper.swift`).
+`HookEventMapper.map(event:agent:)` (`Models/HookEventMapper.swift`) converts each event to a `MappedAction`, dispatching to per-agent mappers (`mapClaudeCode` / `mapOpenCode` / `mapCodex` / `mapPi` / `mapAntigravity`) by the `agent` parameter. The Claude Code mapping is the Event Types table above; the other agents map as follows (canonical source: `HookEventMapper.swift`).
 
 OpenCode:
 
@@ -125,9 +125,23 @@ synthesized by the extension from Pi's `session_compact` `reason`. Only a real
 `quit` removes the session (new/resume/reload/fork keep the terminal session). See
 [Pi Extension](pi-extension.md) for the full mechanism.
 
+Antigravity:
+
+| Event | Mapped State |
+|-------|--------------|
+| `PreInvocation` | `working` |
+| `Stop` | `idle` |
+
+Antigravity (agy) registers shell hooks under a `"juggler"` key in
+`~/.gemini/config/hooks.json` — no trust step, no feature flag. Only two of its five
+events are registered; it has no session-start/end, permission, or compaction event,
+so a session first appears as `working` and is removed via terminal-bridge cleanup.
+`Stop` requires the hook to return a `decision`, so the notify script always emits an
+allow. See [Antigravity Hooks](antigravity-hooks.md) for the full mechanism.
+
 ## Backburner Protection
 
-When a session is backburnered, most events are ignored to preserve the backburner state. Only `UserPromptSubmit` will exit backburner (indicating explicit user action).
+When a session is backburnered, most events are ignored to preserve the backburner state. Only `UserPromptSubmit` will exit backburner (indicating explicit user action). Antigravity has no `UserPromptSubmit`; a backburnered Antigravity session instead exits on its next `working` event, but only if it was awaiting the user when backburnered (`Session.wasAwaitingUserBeforeBackburner`) — see [Antigravity Hooks](antigravity-hooks.md).
 
 ## Testing with curl
 

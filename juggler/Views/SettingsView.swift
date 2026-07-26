@@ -152,7 +152,7 @@ struct GeneralSettingsView: View {
 
             Section("Uninstall") {
                 Text(
-                    "Removes all integrations (Claude Code hooks, Kitty watcher, OpenCode plugin, Pi extension), resets Automation permission, clears settings, and quits the app. Accessibility permission must be removed manually in System Settings."
+                    "Removes all integrations (Claude Code hooks, Kitty watcher, OpenCode plugin, Pi extension, Antigravity hooks), resets Automation permission, clears settings, and quits the app. Accessibility permission must be removed manually in System Settings."
                 )
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -201,7 +201,10 @@ struct GeneralSettingsView: View {
             if let error = await ScriptInstaller.runBundledScript(resource: "uninstall") {
                 actions.append("Integration cleanup failed: \(error)")
             } else {
-                actions.append("Removed integrations (Claude hooks, Kitty watcher, OpenCode plugin, Pi extension)")
+                actions
+                    .append(
+                        "Removed integrations (Claude hooks, Kitty watcher, OpenCode plugin, Pi extension, Antigravity hooks)"
+                    )
                 actions.append("Reset Automation permission")
             }
         }
@@ -260,6 +263,8 @@ struct IntegrationSettingsView: View {
     @State private var isInstallingPiExtension = false
     @State private var piInstallError: String?
 
+    @State private var antigravityController = AntigravitySetupController()
+
     @State private var showingSSHSheet = false
 
     private var hooksPath: String {
@@ -310,6 +315,7 @@ struct IntegrationSettingsView: View {
             checkOpenCodePluginInstalled()
             codexController.refresh()
             checkPiExtensionInstalled()
+            antigravityController.refresh()
         }
     }
 
@@ -607,6 +613,37 @@ struct IntegrationSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            Section("Antigravity") {
+                HStack {
+                    Text("Hook Script")
+                    Spacer()
+                    if antigravityController.hooksInstalled {
+                        Label("Installed", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Installed", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let error = antigravityController.errorMessage {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+
+                Button(antigravityController.hooksInstalled ? "Reinstall Hooks" : "Install Hooks") {
+                    antigravityController.installHooks()
+                }
+                .disabled(antigravityController.isInstallingHooks)
+
+                Text(
+                    "No permission or compaction events for agy sessions. Requires Antigravity CLI 1.0.8+; Juggler picks up the hooks on its next run."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

@@ -1446,4 +1446,35 @@ struct IntegrationTests {
                            claudeSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.isEmpty)
     }
+
+    // MARK: - Antigravity Hook Integration
+
+    // No session-start event: the session first appears as working on PreInvocation.
+    @Test @MainActor func integration_antigravity_preInvocation_createsWorkingSession() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(server: server, agent: "antigravity", event: "PreInvocation",
+                           claudeSessionID: "ag-1", terminalSessionID: "s1",
+                           projectPath: "/Users/test/ag-project")
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].agent == "antigravity")
+        #expect(manager.sessions[0].state == .working)
+        #expect(manager.sessions[0].projectPath == "/Users/test/ag-project")
+    }
+
+    @Test @MainActor func integration_antigravity_stop_returnsToIdle() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(server: server, agent: "antigravity", event: "PreInvocation",
+                           claudeSessionID: "ag-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .working)
+
+        await simulateHook(server: server, agent: "antigravity", event: "Stop",
+                           claudeSessionID: "ag-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .idle)
+        #expect(manager.sessions.count == 1)
+    }
 }

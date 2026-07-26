@@ -1,13 +1,33 @@
 #!/bin/bash
-# Juggler hook script for Codex CLI
-# Posts hook events to Juggler using unified payload format.
-# Codex passes hook data via stdin as JSON; the event name is argv[1].
+# Juggler hook script for the Antigravity CLI (agy)
+# Posts hook events to Juggler using the unified payload format, then emits the
+# hook response Antigravity reads from stdout.
+# Antigravity passes hook data via stdin as JSON (camelCase); the event name is argv[1].
+#
+# stdout contract (Antigravity reads it):
+#   Stop         -> {"decision":"stop"}  — any value other than "continue" allows the
+#                   stop; emitting "continue" would trap the agent back into its loop.
+#   PreInvocation-> {}                    — output is optional; {} is the safe no-op.
+# The response is emitted unconditionally, so a failed/slow POST never traps the agent.
 
 EVENT="$1"
 JUGGLER_PORT="${JUGGLER_PORT:-7483}"
 
-# Read raw JSON input from stdin (Codex passes hook data via stdin)
+# Read raw JSON input from stdin (Antigravity passes hook data via stdin)
 HOOK_INPUT=$(cat)
+
+# Antigravity runs the hook from its own config dir, not the session's cwd, so $PWD is
+# wrong here. The real project directory is in the payload's workspacePaths[0].
+WORKSPACE_DIR=$(printf '%s' "$HOOK_INPUT" | python3 -c '
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    paths = data.get("workspacePaths") if isinstance(data, dict) else None
+    print(paths[0] if isinstance(paths, list) and paths else "")
+except Exception:
+    print("")
+' 2>/dev/null)
+SESSION_CWD="${WORKSPACE_DIR:-$PWD}"
 
 ITERM_SESSION_ID="${ITERM_SESSION_ID:-}"
 KITTY_WINDOW_ID="${KITTY_WINDOW_ID:-}"
@@ -36,8 +56,8 @@ if [ -n "$TMUX_PANE_ID" ] && command -v tmux >/dev/null 2>&1; then
     TMUX_SESSION_NAME=$(tmux display-message -p -t "$TMUX_PANE_ID" '#{session_name}' 2>/dev/null || echo "")
 fi
 
-GIT_BRANCH=$(git -C "$PWD" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
-GIT_REPO=$(basename "$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "")
+GIT_BRANCH=$(git -C "$SESSION_CWD" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+GIT_REPO=$(basename "$(git -C "$SESSION_CWD" rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "")
 
 # SSH detection: $SSH_CONNECTION is set by sshd for any interactive ssh session.
 REMOTE_HOST=""
@@ -55,35 +75,38 @@ export JUGGLER_TERMINAL_SID="$TERMINAL_SESSION_ID"
 export JUGGLER_TERMINAL_TYPE="$TERMINAL_TYPE"
 export JUGGLER_KITTY_LISTEN_ON="$KITTY_LISTEN_ON"
 export JUGGLER_KITTY_PID="$KITTY_PID"
-export JUGGLER_CWD="$PWD"
+export JUGGLER_CWD="$SESSION_CWD"
 export JUGGLER_GIT_BRANCH="$GIT_BRANCH"
 export JUGGLER_GIT_REPO="$GIT_REPO"
 export JUGGLER_TMUX_PANE="$TMUX_PANE_ID"
 export JUGGLER_TMUX_SESSION="$TMUX_SESSION_NAME"
 export JUGGLER_REMOTE_HOST="$REMOTE_HOST"
 
-# Build unified payload using Python (quoted heredoc prevents shell expansion)
-# Pipe JSON output directly to curl via stdin
+# Build unified payload using Python (quoted heredoc prevents shell expansion).
+# Pipe JSON output directly to curl via stdin. curl is bounded so the script always
+# reaches the stdout response below, well within the hook timeout.
 python3 << 'PYTHON' | curl -s -X POST "http://localhost:${JUGGLER_PORT}/hook" \
     -H "Content-Type: application/json" \
     -d @- \
     --noproxy '*' \
     --connect-timeout 1 \
+    --max-time 2 \
     >/dev/null 2>&1 || true
 import json
 import os
 
-# Parse hook input from environment (safe - no shell interpolation)
-# Only extract fields Juggler needs; raw hookInput can be very large
-# (e.g. PostToolUse includes full tool_input/tool_result)
+# Antigravity's stdin uses camelCase. Normalize the fields Juggler needs to the
+# snake_case keys HookServer decodes (session_id, transcript_path).
 hook_input = {}
 raw = os.environ.get("JUGGLER_HOOK_INPUT", "")
 if raw.strip():
     try:
         full = json.loads(raw)
-        for key in ("session_id", "transcript_path", "tool_name"):
-            if key in full:
-                hook_input[key] = full[key]
+        if isinstance(full, dict):
+            if "conversationId" in full:
+                hook_input["session_id"] = full["conversationId"]
+            if "transcriptPath" in full:
+                hook_input["transcript_path"] = full["transcriptPath"]
     except json.JSONDecodeError:
         pass
 
@@ -105,7 +128,7 @@ if kitty_pid:
     terminal_info["kittyPid"] = kitty_pid
 
 payload = {
-    "agent": "codex",
+    "agent": "antigravity",
     "event": os.environ.get("JUGGLER_EVENT", ""),
     "hookInput": hook_input,
     "terminal": terminal_info,
@@ -129,3 +152,14 @@ if remote_host:
 
 print(json.dumps(payload))
 PYTHON
+
+# Emit the response Antigravity reads from stdout. Unconditional — independent of the
+# POST above — so Juggler being down never blocks or traps the agent.
+case "$EVENT" in
+    Stop)
+        printf '{"decision":"stop"}\n'
+        ;;
+    *)
+        printf '{}\n'
+        ;;
+esac

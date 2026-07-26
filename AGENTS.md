@@ -2,7 +2,7 @@
 
 This is the single source of truth for agent/contributor guidance in this repo. `CLAUDE.md` imports this file, so every coding agent shares it.
 
-Juggler is a SwiftUI menu bar app (macOS 14+) that tracks Claude Code, OpenCode, Codex, and Pi sessions via hooks and provides global hotkeys to navigate between them.
+Juggler is a SwiftUI menu bar app (macOS 14+) that tracks Claude Code, OpenCode, Codex, Pi, and Antigravity sessions via hooks and provides global hotkeys to navigate between them.
 
 ## Project Structure & Module Organization
 
@@ -34,7 +34,7 @@ Or use Xcode: `⌘B` to build, `⌘R` to run.
 ## Architecture
 
 **Data flow:**
-1. Claude Code / OpenCode / Codex / Pi hooks → HTTP POST to `HookServer` (port 7483)
+1. Claude Code / OpenCode / Codex / Pi / Antigravity hooks → HTTP POST to `HookServer` (port 7483)
 2. `HookServer` → updates `SessionManager` (in-memory `@Observable`)
 3. Global hotkeys → `HotkeyManager` → `SessionManager.cycleForward/Backward()`
 4. Activation → `TerminalBridge` (iTerm2Bridge/KittyBridge/WezTermBridge) → terminal
@@ -59,7 +59,7 @@ Juggler/
 │   └── UpdateManager.swift       # Sparkle auto-updates
 ├── Models/
 │   ├── CyclingEngine.swift       # Session cycling protocol and implementation
-│   ├── HookEventMapper.swift     # Hook event → state mapping (Claude Code + OpenCode + Codex + Pi)
+│   ├── HookEventMapper.swift     # Hook event → state mapping (Claude Code + OpenCode + Codex + Pi + Antigravity)
 │   ├── Shortcut+Persistence.swift # Save/load shortcuts via UserDefaults (extends ShortcutField's Shortcut)
 │   ├── QueueOrderMode.swift      # Fair, Prio, Static, Grouped modes
 │   ├── Session.swift             # Session data model
@@ -73,7 +73,7 @@ Juggler/
 │   ├── WezTermBridge.swift       # WezTerm integration via wezterm cli (activation + gone-cleanup only)
 │   ├── TerminalBridge.swift      # Terminal abstraction protocol + TerminalActivation
 │   ├── TerminalBridgeRegistry.swift  # Bridge registration and lifecycle
-│   └── ...                       # CodexHooksInstaller, OpenCodePluginInstaller, PiExtensionInstaller, ScriptInstaller, ConfigFileWriter (agent integration installers)
+│   └── ...                       # CodexHooksInstaller, AntigravityHooksInstaller, OpenCodePluginInstaller, PiExtensionInstaller, ScriptInstaller, ConfigFileWriter (agent integration installers)
 ├── Views/
 │   ├── AboutView.swift           # About window
 │   ├── BeaconContentView.swift   # Beacon overlay content
@@ -86,7 +86,7 @@ Juggler/
 │   ├── SessionMonitorView.swift  # Main window session list
 │   ├── SessionRowView.swift      # Individual session row
 │   ├── SettingsView.swift        # Preferences window
-│   └── ...                       # BeaconSettingsView, SessionListController, SettingWithDescription, CodexSetupController, BusyStatsCorner, StatsChartView, WindowAccessor
+│   └── ...                       # BeaconSettingsView, SessionListController, SettingWithDescription, CodexSetupController, AntigravitySetupController, BusyStatsCorner, StatsChartView, WindowAccessor
 └── Resources/
     ├── iterm2_daemon.py          # Python daemon for iTerm2 API
     ├── juggler_watcher.py        # Kitty event watcher
@@ -98,6 +98,8 @@ Juggler/
     ├── codex-hooks/
     │   ├── codex-install.sh      # Codex hook install script
     │   └── codex-notify.sh       # Codex hook notification script
+    ├── antigravity-hooks/
+    │   └── antigravity-notify.sh # Antigravity hook notification script
     ├── opencode-plugin/
     │   └── juggler-opencode.txt  # OpenCode plugin (bundled as .txt; installer writes it to disk as .ts)
     └── pi-extension/
@@ -122,6 +124,8 @@ Hooks are installed to `~/.claude/hooks/juggler/`. The `notify.sh` script reads 
 Codex hooks install the bundled `codex-notify.sh` to `~/.codex/hooks/juggler/notify.sh`, register it in `~/.codex/hooks.json`, and trust it via `~/.codex/config.toml`. See [docs/tech/codex-hooks.md](docs/tech/codex-hooks.md).
 
 Pi installs the bundled `juggler-pi.txt` as a TypeScript extension to `~/.pi/agent/extensions/juggler-pi.ts` (honoring `PI_CODING_AGENT_DIR`). No trust step or feature flag — Pi auto-discovers global extensions on restart/`/reload`. See [docs/tech/pi-extension.md](docs/tech/pi-extension.md).
+
+Antigravity installs the bundled `antigravity-notify.sh` to `~/.gemini/hooks/juggler/notify.sh` and registers it under a `"juggler"` key in `~/.gemini/config/hooks.json`. No trust step or feature flag. Only `PreInvocation` (working) and `Stop` (idle) are registered; `Stop` requires the hook to return a `decision`, so the script always emits an allow. No permission/compaction/session-end events. See [docs/tech/antigravity-hooks.md](docs/tech/antigravity-hooks.md).
 
 ### Testing Hooks
 

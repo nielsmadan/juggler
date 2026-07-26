@@ -66,6 +66,7 @@ export JUGGLER_REMOTE_HOST="$REMOTE_HOST"
 python3 << 'PYTHON' | curl -s -X POST "http://localhost:${JUGGLER_PORT}/hook" \
     -H "Content-Type: application/json" \
     -d @- \
+    --noproxy '*' \
     --connect-timeout 1 \
     >/dev/null 2>&1 || true
 import json

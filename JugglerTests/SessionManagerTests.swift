@@ -252,6 +252,68 @@ struct SessionManagerTests {
         #expect(manager.sessions[0].state == .working)
     }
 
+    // Antigravity has no UserPromptSubmit: a session shelved while idle auto-reactivates on
+    // its next working event (a resume).
+    @Test @MainActor func addOrUpdateSession_antigravity_backburneredFromIdle_reactivatesOnWorking() {
+        let manager = SessionManager()
+
+        manager.addOrUpdateSession(
+            claudeSessionID: "c1", terminalSessionID: "s1", agent: "antigravity",
+            projectPath: "/p", state: .idle
+        )
+        manager.backburnerSession(terminalSessionID: "s1")
+        #expect(manager.sessions[0].state == .backburner)
+
+        manager.addOrUpdateSession(
+            claudeSessionID: "c1", terminalSessionID: "s1", agent: "antigravity",
+            projectPath: "/p", state: .working, event: "PreInvocation"
+        )
+
+        #expect(manager.sessions[0].state == .working)
+    }
+
+    // A session shelved while working stays shelved — a working event is the agent's own
+    // loop, not user re-engagement.
+    @Test @MainActor func addOrUpdateSession_antigravity_backburneredFromWorking_staysBackburnered() {
+        let manager = SessionManager()
+
+        manager.addOrUpdateSession(
+            claudeSessionID: "c1", terminalSessionID: "s1", agent: "antigravity",
+            projectPath: "/p", state: .working
+        )
+        manager.backburnerSession(terminalSessionID: "s1")
+        #expect(manager.sessions[0].state == .backburner)
+
+        manager.addOrUpdateSession(
+            claudeSessionID: "c1", terminalSessionID: "s1", agent: "antigravity",
+            projectPath: "/p", state: .working, event: "PreInvocation"
+        )
+
+        #expect(manager.sessions[0].state == .backburner)
+    }
+
+    // The idle-origin reactivation is Antigravity-specific: other agents keep the
+    // UserPromptSubmit-only exit. A claude-code session shelved while idle must NOT
+    // reactivate on a working event — this pins the `agent == "antigravity"` gate so
+    // removing it fails here.
+    @Test @MainActor func addOrUpdateSession_claudeCode_backburneredFromIdle_staysBackburneredOnWorking() {
+        let manager = SessionManager()
+
+        manager.addOrUpdateSession(
+            claudeSessionID: "c1", terminalSessionID: "s1", agent: "claude-code",
+            projectPath: "/p", state: .idle
+        )
+        manager.backburnerSession(terminalSessionID: "s1")
+        #expect(manager.sessions[0].state == .backburner)
+
+        manager.addOrUpdateSession(
+            claudeSessionID: "c1", terminalSessionID: "s1", agent: "claude-code",
+            projectPath: "/p", state: .working, event: "PreToolUse"
+        )
+
+        #expect(manager.sessions[0].state == .backburner)
+    }
+
     @Test @MainActor func addOrUpdateSession_tmuxPane_createsCompositeID() {
         let manager = SessionManager()
 

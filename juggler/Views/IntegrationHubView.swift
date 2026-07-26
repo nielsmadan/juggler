@@ -12,6 +12,7 @@ struct IntegrationHubView: View {
     @AppStorage(AppStorageKeys.kittyEnabled) private var kittyEnabled = false
     @AppStorage(AppStorageKeys.wezTermEnabled) private var wezTermEnabled = false
     @AppStorage(AppStorageKeys.codexEnabled) private var codexEnabled = false
+    @AppStorage(AppStorageKeys.antigravityEnabled) private var antigravityEnabled = false
 
     @State private var showingITerm2Setup = false
     @State private var showingKittySetup = false
@@ -21,6 +22,7 @@ struct IntegrationHubView: View {
     @State private var showingOpenCodeSetup = false
     @State private var showingCodexSetup = false
     @State private var showingPiSetup = false
+    @State private var showingAntigravitySetup = false
 
     @State private var iterm2Configured = false
     @State private var kittyConfigured = false
@@ -30,6 +32,7 @@ struct IntegrationHubView: View {
     @State private var openCodeConfigured = false
     @State private var codexConfigured = false
     @State private var piConfigured = false
+    @State private var antigravityConfigured = false
 
     @State private var showingIncompleteAlert = false
 
@@ -39,6 +42,7 @@ struct IntegrationHubView: View {
 
     var hasAnyAgent: Bool {
         claudeCodeConfigured || openCodeConfigured || codexConfigured || piConfigured
+            || antigravityConfigured
     }
 
     var body: some View {
@@ -135,6 +139,14 @@ struct IntegrationHubView: View {
                     isConfigured: piConfigured,
                     action: { showingPiSetup = true }
                 )
+
+                IntegrationCard(
+                    icon: "arrow.up.circle",
+                    title: "Antigravity",
+                    description: "Install hooks for session tracking (experimental)",
+                    isConfigured: antigravityConfigured,
+                    action: { showingAntigravitySetup = true }
+                )
             }
 
             Button("Continue") {
@@ -186,6 +198,10 @@ struct IntegrationHubView: View {
         .sheet(isPresented: $showingPiSetup) {
             PiSetupView(isConfigured: $piConfigured)
                 .frame(width: 540, height: 420)
+        }
+        .sheet(isPresented: $showingAntigravitySetup) {
+            AntigravitySetupView(isConfigured: $antigravityConfigured, isEnabled: $antigravityEnabled)
+                .frame(width: 540, height: 460)
         }
     }
 }
@@ -884,6 +900,79 @@ struct CodexSetupView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(controller.isEnablingInCodex)
             }
+
+            Spacer()
+
+            HStack {
+                Button("Cancel") { dismiss() }
+                Spacer()
+                Button("Done") {
+                    isConfigured = true
+                    isEnabled = true
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!controller.allComplete)
+            }
+        }
+        .padding()
+        .onAppear {
+            controller.refresh()
+        }
+    }
+}
+
+// MARK: - Antigravity Setup
+
+struct AntigravitySetupView: View {
+    @Binding var isConfigured: Bool
+    @Binding var isEnabled: Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var controller = AntigravitySetupController()
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Antigravity Setup")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Text(
+                "Juggler installs hooks for the Antigravity CLI (agy). No feature flag or trust step — Antigravity picks them up on its next run."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+
+            VStack(alignment: .leading, spacing: 16) {
+                SetupStep(
+                    number: 1,
+                    isComplete: controller.hooksInstalled,
+                    title: "Install Hooks",
+                    detail: "Adds notify.sh to ~/.gemini/hooks/juggler/ and registers it in ~/.gemini/config/hooks.json"
+                )
+            }
+            .padding()
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(8)
+
+            Text(
+                "Antigravity has no permission or compaction events, so those states won't show for agy sessions. Requires Antigravity CLI 1.0.8+."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+
+            if let error = controller.errorMessage {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            }
+
+            Button(controller.hooksInstalled ? "Reinstall Hooks" : "Install Hooks") {
+                controller.installHooks()
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(controller.isInstallingHooks)
 
             Spacer()
 

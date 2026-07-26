@@ -1,6 +1,6 @@
 # Technical Overview
 
-Juggler is a SwiftUI menu bar app that tracks Claude Code, OpenCode, Codex (experimental), and Pi sessions via HTTP hooks and provides global hotkeys for navigation. It communicates with iTerm2 through a persistent Python daemon, with Kitty via the `kitten @` CLI, and with WezTerm via the `wezterm cli` CLI.
+Juggler is a SwiftUI menu bar app that tracks Claude Code, OpenCode, Codex (experimental), Pi, and Antigravity (experimental) sessions via HTTP hooks and provides global hotkeys for navigation. It communicates with iTerm2 through a persistent Python daemon, with Kitty via the `kitten @` CLI, and with WezTerm via the `wezterm cli` CLI.
 
 ## System Architecture
 
@@ -136,6 +136,7 @@ are the reusable lessons for anyone working in the affected area.
 - [OpenCode Plugin](opencode-plugin.md) - TypeScript plugin integration
 - [Codex Hooks](codex-hooks.md) - Codex hook integration and trust mechanism
 - [Pi Extension](pi-extension.md) - Pi TypeScript extension integration
+- [Antigravity Hooks](antigravity-hooks.md) - Antigravity (agy) hook integration
 - [iTerm2 Daemon](iterm2-daemon.md) - Python daemon protocol
 - [iTerm2 Bridge](iterm2-bridge.md) - Daemon supervisor lifecycle, auto-recovery, and self-healing monitors
 - [Kitty Integration](kitty-integration.md) - Kitten CLI and watcher

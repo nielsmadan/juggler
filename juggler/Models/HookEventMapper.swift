@@ -15,6 +15,8 @@ enum HookEventMapper {
             mapCodex(event: event)
         case "pi":
             mapPi(event: event)
+        case "antigravity":
+            mapAntigravity(event: event)
         default:
             mapClaudeCode(event: event)
         }
@@ -72,6 +74,21 @@ enum HookEventMapper {
         // Pi has no native permission event, so .permission is never produced.
         case "session_shutdown":
             .removeSession
+        default:
+            .ignore
+        }
+    }
+
+    private nonisolated static func mapAntigravity(event: String) -> MappedAction {
+        switch event {
+        // Stop fires when the execution loop terminates (turn done → waiting for user).
+        case "Stop":
+            .updateState(.idle)
+        // PreInvocation fires before each model call; the session first appears here as working.
+        case "PreInvocation":
+            .updateState(.working)
+        // Antigravity has no permission, compaction, or session-end event, so those actions
+        // are never produced. Sessions are removed via terminal-bridge cleanup.
         default:
             .ignore
         }
