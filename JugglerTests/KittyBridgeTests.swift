@@ -196,7 +196,6 @@ struct KittyBridgeTests {
         // We can't directly read socketPaths, but getSessionInfo without a real socket
         // will return nil gracefully (proving the path was set but socket is not real)
         let info = try? await bridge.getSessionInfo(sessionID: "test-123")
-        // Won't have valid data since socket doesn't exist, but shouldn't crash
         #expect(info == nil)
     }
 

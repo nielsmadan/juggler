@@ -88,7 +88,6 @@ struct HookEventMapperTests {
     }
 
     @Test func lowercaseEvent_mapsToIgnore() {
-        // Events are case-sensitive
         let action = HookEventMapper.map(event: "sessionstart")
         #expect(action == .ignore)
     }
@@ -125,8 +124,6 @@ struct HookEventMapperTests {
         #expect(action == .updateState(.permission))
     }
 
-    // Codex does not emit a session-end event. Pin this so a future SessionEnd handler
-    // isn't added by accident.
     @Test func codex_sessionEnd_mapsToIgnore() {
         let action = HookEventMapper.map(event: "SessionEnd", agent: "codex")
         #expect(action == .ignore)
@@ -137,7 +134,6 @@ struct HookEventMapperTests {
         #expect(action == .updateState(.compacting))
     }
 
-    // PostCompact fires when compaction finishes and the agent resumes its turn.
     @Test func codex_postCompact_mapsToWorking() {
         let action = HookEventMapper.map(event: "PostCompact", agent: "codex")
         #expect(action == .updateState(.working))
@@ -148,7 +144,6 @@ struct HookEventMapperTests {
         #expect(action == .ignore)
     }
 
-    // mapCodex is case-sensitive (exact-string switch). Pin that a lowercase event is ignored.
     @Test func codex_lowercaseEvent_mapsToIgnore() {
         let action = HookEventMapper.map(event: "sessionstart", agent: "codex")
         #expect(action == .ignore)
@@ -166,7 +161,6 @@ struct HookEventMapperTests {
         #expect(action == .updateState(.idle))
     }
 
-    // Antigravity has no permission or compaction events — those states are never produced.
     @Test func antigravity_postToolUse_mapsToIgnore() {
         let action = HookEventMapper.map(event: "PostToolUse", agent: "antigravity")
         #expect(action == .ignore)
@@ -177,13 +171,11 @@ struct HookEventMapperTests {
         #expect(action == .ignore)
     }
 
-    // Antigravity has no session-end event; removal is via terminal-bridge cleanup.
     @Test func antigravity_unknownEvent_mapsToIgnore() {
         let action = HookEventMapper.map(event: "SomeFutureEvent", agent: "antigravity")
         #expect(action == .ignore)
     }
 
-    // mapAntigravity is case-sensitive (exact-string switch).
     @Test func antigravity_lowercaseEvent_mapsToIgnore() {
         let action = HookEventMapper.map(event: "stop", agent: "antigravity")
         #expect(action == .ignore)
@@ -253,13 +245,11 @@ struct HookEventMapperTests {
 
     // MARK: - Pi Mappings
 
-    // session_start fires at launch and on new/resume/reload/fork — always idle.
     @Test func pi_sessionStart_mapsToIdle() {
         let action = HookEventMapper.map(event: "session_start", agent: "pi")
         #expect(action == .updateState(.idle))
     }
 
-    // agent_settled is Pi's recommended "done" signal (no retry/compaction/follow-up left).
     @Test func pi_agentSettled_mapsToIdle() {
         let action = HookEventMapper.map(event: "agent_settled", agent: "pi")
         #expect(action == .updateState(.idle))
@@ -275,13 +265,11 @@ struct HookEventMapperTests {
         #expect(action == .updateState(.compacting))
     }
 
-    // A manual /compact leaves the session idle once compaction finishes.
     @Test func pi_sessionCompactIdle_mapsToIdle() {
         let action = HookEventMapper.map(event: "session_compact_idle", agent: "pi")
         #expect(action == .updateState(.idle))
     }
 
-    // A threshold/overflow compaction is mid-turn and resumes work.
     @Test func pi_sessionCompactWorking_mapsToWorking() {
         let action = HookEventMapper.map(event: "session_compact_working", agent: "pi")
         #expect(action == .updateState(.working))
@@ -304,7 +292,6 @@ struct HookEventMapperTests {
         #expect(action == .ignore)
     }
 
-    // mapPi is case-sensitive (exact-string switch). Pin that an uppercase event is ignored.
     @Test func pi_uppercaseEvent_mapsToIgnore() {
         let action = HookEventMapper.map(event: "Session_Start", agent: "pi")
         #expect(action == .ignore)

@@ -1,10 +1,3 @@
-//
-//  JugglerUITestsLaunchTests.swift
-//  JugglerUITests
-//
-//  Created by Niels Madan on 22.01.26.
-//
-
 import XCTest
 
 final class JugglerUITestsLaunchTests: XCTestCase {

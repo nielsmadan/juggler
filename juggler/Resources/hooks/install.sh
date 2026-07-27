@@ -39,10 +39,8 @@ hooks = settings["hooks"]
 
 notify_cmd = "~/.claude/hooks/juggler/notify.sh"
 
-# All Claude Code hook events we want to capture
 # Events with matchers use "*" to match all tools
 hook_configs = {
-    # Session lifecycle
     "SessionStart": [{
         "hooks": [{"type": "command", "command": f"{notify_cmd} SessionStart", "timeout": 5}]
     }],
@@ -50,12 +48,10 @@ hook_configs = {
         "hooks": [{"type": "command", "command": f"{notify_cmd} SessionEnd", "timeout": 5}]
     }],
 
-    # User interaction
     "UserPromptSubmit": [{
         "hooks": [{"type": "command", "command": f"{notify_cmd} UserPromptSubmit", "timeout": 5}]
     }],
 
-    # Tool usage
     "PreToolUse": [{
         "matcher": "*",
         "hooks": [{"type": "command", "command": f"{notify_cmd} PreToolUse", "timeout": 5}]
@@ -69,20 +65,17 @@ hook_configs = {
         "hooks": [{"type": "command", "command": f"{notify_cmd} PostToolUseFailure", "timeout": 5}]
     }],
 
-    # Permission handling
     "PermissionRequest": [{
         "matcher": "*",
         "hooks": [{"type": "command", "command": f"{notify_cmd} PermissionRequest", "timeout": 5}]
     }],
 
-    # Subagents
     # Note: SubagentStop is intentionally NOT hooked - it fires asynchronously after Stop
     # and would overwrite the idle state. See docs/tech/hooks.md for details.
     "SubagentStart": [{
         "hooks": [{"type": "command", "command": f"{notify_cmd} SubagentStart", "timeout": 5}]
     }],
 
-    # Response completion
     "Stop": [{
         "hooks": [{"type": "command", "command": f"{notify_cmd} Stop", "timeout": 5}]
     }],
@@ -90,7 +83,6 @@ hook_configs = {
         "hooks": [{"type": "command", "command": f"{notify_cmd} StopFailure", "timeout": 5}]
     }],
 
-    # Context compaction
     "PreCompact": [{
         "matcher": "*",
         "hooks": [{"type": "command", "command": f"{notify_cmd} PreCompact", "timeout": 5}]
@@ -113,7 +105,6 @@ for event, configs in hook_configs.items():
     if event not in hooks:
         hooks[event] = []
 
-    # Remove any existing Juggler hooks for this event
     hooks[event] = [h for h in hooks[event] if "juggler/notify.sh" not in str(h)]
 
     hooks[event].extend(configs)

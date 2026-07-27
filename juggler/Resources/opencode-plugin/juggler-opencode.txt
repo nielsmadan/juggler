@@ -7,7 +7,6 @@ import { hostname } from "node:os";
 const JUGGLER_PORT = process.env.JUGGLER_PORT || "7483";
 const JUGGLER_URL = `http://localhost:${JUGGLER_PORT}/hook`;
 
-// Detect terminal type from environment
 function getTerminalInfo(): Record<string, string> {
   const env = process.env;
   const info: Record<string, string> = {
@@ -30,7 +29,6 @@ function getTerminalInfo(): Record<string, string> {
   return info;
 }
 
-// Get git info from working directory
 async function getGitInfo(
   $: any
 ): Promise<{ branch: string; repo: string } | null> {
@@ -48,7 +46,6 @@ async function getGitInfo(
   }
 }
 
-// Get tmux info if running inside tmux
 function getTmuxInfo(): Record<string, string> | null {
   const pane = process.env.TMUX_PANE;
   if (!pane) return null;
@@ -74,7 +71,6 @@ function getRemoteHost(): string | null {
   return `${user}@${host}`;
 }
 
-// Events we care about for session tracking
 const TRACKED_EVENTS = new Set([
   "session.created",
   "session.status",

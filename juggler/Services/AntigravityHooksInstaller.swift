@@ -123,7 +123,6 @@ enum AntigravityHooksInstaller {
             options: [.prettyPrinted, .sortedKeys]
         )
 
-        // Back up the pre-existing file before overwriting it (once).
         if existed {
             let backupPath = path + ".juggler-backup"
             if !fm.fileExists(atPath: backupPath) {

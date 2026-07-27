@@ -71,7 +71,6 @@ def is_juggler_group(group):
                for h in handlers)
 
 
-# Merge hooks.json
 existed_hooks = os.path.exists(hooks_json_path)
 root = {}
 if existed_hooks:
@@ -110,7 +109,6 @@ with open(hooks_json_path, "w") as f:
     f.write("\n")
 
 
-# Compute trusted_hash for each Juggler hook
 def trusted_hash(event):
     handler = {
         "async": False,
@@ -133,8 +131,6 @@ def trust_key(event):
     return f"{hooks_json_path}:{EVENT_SNAKE[event]}:{group_indices[event]}:0"
 
 
-# Edit config.toml: ensure [features] hooks = true, then upsert
-# [hooks.state."..."] blocks for each Juggler hook.
 existed_toml = os.path.exists(config_toml_path)
 original = ""
 if existed_toml:

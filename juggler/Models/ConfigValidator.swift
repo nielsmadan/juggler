@@ -1,11 +1,5 @@
-//
-//  ConfigValidator.swift
-//  Juggler
-//
-
 import Foundation
 
-/// Resolves `$XDG_CONFIG_HOME`, falling back to `~/.config`.
 enum XDGPaths {
     static var configHome: String {
         if let xdg = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"],
@@ -18,10 +12,7 @@ enum XDGPaths {
 
 /// Kitty config file parsing — extracted from SettingsView for testability.
 enum KittyConfigParser {
-    /// Resolves the kitty config directory following kitty's search order:
-    /// 1. $KITTY_CONFIG_DIRECTORY (exclusive override)
-    /// 2. $XDG_CONFIG_HOME/kitty
-    /// 3. ~/.config/kitty (default)
+    // Mirrors kitty's own config search order.
     static var configDirectory: String {
         if let kittyDir = ProcessInfo.processInfo.environment["KITTY_CONFIG_DIRECTORY"],
            !kittyDir.isEmpty {
@@ -30,7 +21,6 @@ enum KittyConfigParser {
         return XDGPaths.configHome + "/kitty"
     }
 
-    /// Full path to kitty.conf using the resolved config directory.
     static var confFilePath: String {
         configDirectory + "/kitty.conf"
     }

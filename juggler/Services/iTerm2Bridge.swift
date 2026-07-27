@@ -60,9 +60,6 @@ final nonisolated class StderrRingBuffer: @unchecked Sendable {
     }
 }
 
-/// Installs a readability handler that drains `fileHandle` into `buffer`, hopping
-/// through `drainQueue` so appends stay off the calling thread.
-///
 /// On EOF the handler removes itself. This is load-bearing: an empty read means the
 /// write end closed, and the kernel then reports the fd readable-at-EOF *forever*, so
 /// GCD re-fires the handler in a tight loop that pins a CPU core per dead daemon. The
@@ -113,8 +110,6 @@ actor ITerm2Bridge: TerminalBridge {
     private var hasNotifiedWaiting = false
     private var hasNotifiedFailed = false
 
-    /// NSWorkspace observers for iTerm2 launch/quit. Held on actor; touched only in
-    /// installLifecycleObservers / removeLifecycleObservers.
     private var iterm2LaunchObserver: NSObjectProtocol?
     private var iterm2TerminateObserver: NSObjectProtocol?
 
@@ -180,7 +175,6 @@ actor ITerm2Bridge: TerminalBridge {
         process.standardError = stderrPipe
 
         process.terminationHandler = { [weak self] terminated in
-            // Drain any trailing bytes still in the pipe.
             let trailing = stderrPipe.fileHandleForReading.availableData
             if !trailing.isEmpty {
                 buffer.append(trailing)
@@ -220,9 +214,8 @@ actor ITerm2Bridge: TerminalBridge {
         }
     }
 
-    /// Locates the Python interpreter to run the daemon. iTerm2 ships a bundled
-    /// Python with the `iterm2` module pre-installed; prefer the newest such
-    /// version, falling back to the system interpreter.
+    /// iTerm2's bundled Python has the `iterm2` module pre-installed; prefer the newest
+    /// such version over the system interpreter.
     private func resolveDaemonPython() -> String {
         let iterm2PythonBase = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/iTerm2/iterm2env/versions")
@@ -240,9 +233,7 @@ actor ITerm2Bridge: TerminalBridge {
         return "/usr/bin/python3"
     }
 
-    /// Polls the daemon socket via connect+ping until it responds successfully or
-    /// the deadline passes. Yields with `Task.sleep` so the actor can service other
-    /// work between polls. Returns true on first successful pong.
+    /// Yields with `Task.sleep` between polls so the actor can service other work.
     private func waitForDaemonReady(deadline: Date) async throws -> Bool {
         while Date() < deadline {
             if Task.isCancelled { return false }
@@ -259,9 +250,6 @@ actor ITerm2Bridge: TerminalBridge {
         return false
     }
 
-    /// Background monitor that takes over after the actor-side initial wait fails.
-    /// Polls every 1s for up to 60s. On success, completes startup. On exhaustion,
-    /// transitions to .failed with the captured stderr tail.
     private func runStartupMonitor() async {
         let deadline = Date().addingTimeInterval(extendedReadinessWait - initialReadinessWait)
         while Date() < deadline {
@@ -285,7 +273,6 @@ actor ITerm2Bridge: TerminalBridge {
         await postFailedNotification(tail: tail)
     }
 
-    /// Finalize a successful startup: wire event listener and health check, transition state.
     private func finishStartupReady() async {
         await MainActor.run { logInfo(.daemon, "Daemon ready") }
         startEventListener()
@@ -293,7 +280,6 @@ actor ITerm2Bridge: TerminalBridge {
         await setDaemonState(.ready)
     }
 
-    /// Transition to waitingForITerm2 and post one notification per start cycle.
     private func transitionToWaiting() async {
         await setDaemonState(.waitingForITerm2)
         if !hasNotifiedWaiting {
@@ -307,10 +293,8 @@ actor ITerm2Bridge: TerminalBridge {
         }
     }
 
-    /// Connect to the daemon socket, send a ping command, and verify we got a
-    /// pong response. Returns true only on a fully successful round-trip; this
-    /// is much stricter than checking that the socket file exists, which gives
-    /// false positives for stale sockets and dead-but-just-started daemons.
+    /// A full ping round-trip, not a socket-file existence check — the latter gives false
+    /// positives for stale sockets and dead-but-just-started daemons.
     private nonisolated func daemonPingSucceeds() async -> Bool {
         guard FileManager.default.fileExists(atPath: socketPath) else { return false }
 
@@ -363,9 +347,6 @@ actor ITerm2Bridge: TerminalBridge {
         }
     }
 
-    /// Called from the process's terminationHandler when the daemon exits. Surfaces a
-    /// failure state if the daemon dies before we've reached .ready, and refreshes the
-    /// stderr tail in the observable status either way.
     private func handleDaemonExit(status: Int32, stderrTail: String) async {
         await MainActor.run {
             ITerm2DaemonStatus.shared.lastStderrTail = stderrTail
@@ -455,7 +436,6 @@ actor ITerm2Bridge: TerminalBridge {
             await MainActor.run { logInfo(.daemon, "iTerm2 launched — restarting daemon") }
             try? await restart()
         case .starting, .ready:
-            // Already on it / already up. Nothing to do.
             break
         }
     }
@@ -602,7 +582,6 @@ actor ITerm2Bridge: TerminalBridge {
                     return
                 }
             }
-            // All retries exhausted — full daemon restart
             await MainActor.run { logWarning(.daemon, "Event listener reconnect failed, restarting daemon...") }
             try? await restart()
         }
@@ -759,9 +738,6 @@ actor ITerm2Bridge: TerminalBridge {
     func restart() async throws {
         await MainActor.run { logWarning(.daemon, "Restarting daemon...") }
         await stop()
-        // Allow a future failed → recovered → failed cycle to surface a fresh
-        // notification. The waiting flag stays set: status bar already conveys
-        // "waiting" ambiently and we don't want to nag the user repeatedly.
         hasNotifiedFailed = false
         try await Task.sleep(nanoseconds: 500_000_000)
         try await start()
@@ -772,6 +748,7 @@ actor ITerm2Bridge: TerminalBridge {
         switch event.event {
         case "focus_changed":
             logDebug(.daemon, "Focus changed to: \(event.sessionID ?? "nil")")
+            // FocusMonitor reports a bare UUID; hooks supply `w1t0p0:UUID` — match with hasSuffix, never ==.
             SessionManager.shared.updateFocusedSession(terminalSessionID: event.sessionID, focusTerminalType: .iterm2)
         case "session_terminated":
             guard let sessionID = event.sessionID else { return }

@@ -223,11 +223,6 @@ final class SessionListController {
 
     // MARK: - Key Event Monitor
 
-    /// Install a local NSEvent monitor that feeds every keydown to the configured
-    /// matchers. This is what makes multi-step sequences (e.g. `A → T`) work:
-    /// `ShortcutMatcher` is stateful and needs to see every event to advance,
-    /// not just keys SwiftUI's `.onKeyPress` happens to forward.
-    ///
     /// The `extraHandler` closure lets the calling view handle view-specific
     /// shortcuts on the same event stream.
     func installKeyMonitor(
@@ -294,9 +289,6 @@ final class SessionListController {
 
     // MARK: - Key Handling
 
-    /// Feed a key event to every configured matcher. Returns true if the event
-    /// should be consumed.
-    ///
     /// Every matcher must see every event so prefix-sharing multi-step sequences
     /// all advance together. Completed matches are collected and only the first
     /// fires, so a single keystroke never triggers two list actions.

@@ -10,7 +10,6 @@ struct TerminalBridgeRegistryTests {
 
     // MARK: - TerminalBridgeRegistry Tests
 
-    /// A minimal mock bridge for testing registry behavior
     private actor MockBridge: TerminalBridge {
         var started = false
         var stopped = false

@@ -27,9 +27,8 @@ extension DiscreteShortcut {
         UserDefaults.standard.removeObject(forKey: key)
     }
 
-    /// Match against a SwiftUI `KeyPress`. Only meaningful for single-step
-    /// shortcuts — multi-step sequences need the stateful ``ShortcutMatcher``
-    /// (which only consumes `NSEvent`s, not `KeyPress`).
+    // Single-step only; multi-step sequences need `ShortcutMatcher`, which consumes
+    // `NSEvent`s rather than `KeyPress`.
     @available(macOS 14.0, *)
     func matches(_ press: KeyPress) -> Bool {
         guard steps.count == 1 else { return false }

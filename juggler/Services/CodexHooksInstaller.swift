@@ -134,7 +134,6 @@ enum CodexHooksInstaller {
             options: [.prettyPrinted, .sortedKeys]
         )
 
-        // Back up the pre-existing file before overwriting it (once).
         if existed {
             let backupPath = path + ".juggler-backup"
             if !fm.fileExists(atPath: backupPath) {
@@ -394,7 +393,6 @@ enum CodexHooksInstaller {
         hooksJSONPath: String,
         notifyScriptPath: String
     ) -> String {
-        // Remove only the exact keys we are about to rewrite — never prefix-match.
         let currentKeys = Set(indices.map {
             trustEntryKey(event: $0.event, groupIndex: $0.groupIndex, hooksJSONPath: hooksJSONPath)
         })
@@ -457,7 +455,6 @@ enum CodexHooksInstaller {
     // MARK: - TOML helpers
 
     private static func editedTOML(original: String) -> String {
-        // Case: missing or empty file
         if original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return "[features]\nhooks = true\n"
         }
@@ -465,8 +462,8 @@ enum CodexHooksInstaller {
         var lines = original.components(separatedBy: "\n")
         var currentSection = ""
         var featuresEnd: Int? // index *after* last line of [features] (exclusive)
-        var hooksIndex: Int? // line index of `hooks = ...` in [features]
-        var legacyIndex: Int? // line index of deprecated `codex_hooks = ...` in [features]
+        var hooksLineIndex: Int?
+        var legacyCodexHooksLineIndex: Int?
 
         for (idx, rawLine) in lines.enumerated() {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
@@ -479,10 +476,10 @@ enum CodexHooksInstaller {
             }
             if currentSection == "features" {
                 if parseBoolAssignment(line: line, key: "hooks") != nil {
-                    hooksIndex = idx
+                    hooksLineIndex = idx
                 }
                 if parseBoolAssignment(line: line, key: "codex_hooks") != nil {
-                    legacyIndex = idx
+                    legacyCodexHooksLineIndex = idx
                 }
             }
         }
@@ -490,28 +487,24 @@ enum CodexHooksInstaller {
             featuresEnd = lines.count
         }
 
-        // `hooks` key already present: set it true, drop any deprecated alias.
-        if let hooksIndex {
-            lines[hooksIndex] = "hooks = true"
-            if let legacyIndex {
-                lines.remove(at: legacyIndex)
+        if let hooksLineIndex {
+            lines[hooksLineIndex] = "hooks = true"
+            if let legacyCodexHooksLineIndex {
+                lines.remove(at: legacyCodexHooksLineIndex)
             }
             return joinPreservingTrailingNewline(lines: lines, original: original)
         }
 
-        // Only the deprecated alias present: migrate it in place.
-        if let legacyIndex {
-            lines[legacyIndex] = "hooks = true"
+        if let legacyCodexHooksLineIndex {
+            lines[legacyCodexHooksLineIndex] = "hooks = true"
             return joinPreservingTrailingNewline(lines: lines, original: original)
         }
 
-        // [features] section exists but no flag: insert at end of section.
         if let featuresEnd {
             lines.insert("hooks = true", at: featuresEnd)
             return joinPreservingTrailingNewline(lines: lines, original: original)
         }
 
-        // No [features] section: append one.
         var trailing = original
         if !trailing.hasSuffix("\n") { trailing += "\n" }
         trailing += "\n[features]\nhooks = true\n"

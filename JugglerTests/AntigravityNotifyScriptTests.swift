@@ -69,7 +69,6 @@ struct AntigravityNotifyScriptTests {
         #expect(try runNotify(event: "SomethingElse", stdinJSON: #"{"conversationId":"c1"}"#) == "{}\n")
     }
 
-    // The safety guarantee: the decision is emitted even when Juggler is down and stdin empty.
     @Test func stop_emitsAllowDecision_withEmptyStdin() throws {
         #expect(try runNotify(event: "Stop", stdinJSON: "") == "{\"decision\":\"stop\"}\n")
     }
@@ -158,7 +157,7 @@ struct AntigravityNotifyScriptTests {
         throw CancellationError()
     }
 
-    // The fix from the last bug report: cwd comes from workspacePaths[0], not $PWD.
+    // cwd comes from workspacePaths[0], not $PWD.
     @Test func workspacePaths_drivesReportedCwd() throws {
         let ws = "/tmp/ag-workspace-\(UUID().uuidString)"
         let payload = try capturePayload(
@@ -169,7 +168,6 @@ struct AntigravityNotifyScriptTests {
         #expect(terminal["cwd"] as? String == ws)
     }
 
-    // Antigravity's camelCase stdin is normalized to the snake_case keys HookServer decodes.
     @Test func normalizesConversationIdAndTranscriptPath() throws {
         let payload = try capturePayload(
             event: "PreInvocation",

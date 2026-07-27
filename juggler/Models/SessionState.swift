@@ -4,7 +4,7 @@ enum SessionState: String, Codable, CaseIterable {
     case working
     case idle
     case permission
-    case backburner // Manually deprioritized
+    case backburner
     case compacting
 
     var isIncludedInCycle: Bool {

@@ -1,12 +1,7 @@
 import CoreGraphics
 
-/// Pure layout math for the busy-time bar chart.
-///
-/// Bars are laid out from the right (today is always rightmost). The number of
-/// bars is "however many fit" at `minWidth`, capped by how much history exists.
-/// Once the count is fixed, every bar is the same width: the available space is
-/// divided evenly, then clamped to `[minWidth, maxWidth]`. When the clamp hits
-/// `maxWidth` (few days, wide window) the leftover space is simply unused.
+// Bars run right-to-left with today rightmost, and all share one width; when the
+// clamp hits `maxWidth` the leftover space is left unused.
 enum StatsBarLayout {
     static func layout(
         availableWidth: CGFloat,
@@ -23,7 +18,6 @@ enum StatsBarLayout {
         let fit = Int(((availableWidth + gap) / (minWidth + gap)).rounded(.down))
         let count = max(1, min(dayCount, fit))
 
-        // Divide the width evenly among `count` bars, then clamp.
         let raw = (availableWidth - CGFloat(count - 1) * gap) / CGFloat(count)
         let barWidth = min(max(raw, minWidth), maxWidth)
 

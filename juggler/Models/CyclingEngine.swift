@@ -1,8 +1,3 @@
-//
-//  CyclingEngine.swift
-//  Juggler
-//
-
 import Foundation
 
 struct CyclingState: Equatable {
@@ -119,7 +114,7 @@ struct DefaultCyclingEngine: CyclingEngine {
         return state
     }
 
-    /// Finds a session by composite id or terminalSessionID (focusedSessionID is normalized on entry).
+    // `focusedID` is already normalized by the caller.
     private func findSessionIndex(in sessions: [Session], matching focusedID: String) -> Int? {
         sessions.firstIndex(where: { $0.id == focusedID || $0.terminalSessionID == focusedID })
     }

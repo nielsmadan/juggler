@@ -21,6 +21,7 @@ enum PiExtensionInstaller {
     }
 
     static func install() throws {
+        // Bundled as .txt so Xcode doesn't try to build the .ts; written out as .ts.
         guard let sourceURL = Bundle.main.url(forResource: "juggler-pi", withExtension: "txt") else {
             throw NSError(domain: "PiExtensionInstaller", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "Extension resource not found in bundle"])

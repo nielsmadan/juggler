@@ -4,8 +4,7 @@ import SwiftUI
 /// Backing state for the Antigravity setup flow — used by `AntigravitySetupView` (the
 /// onboarding sheet) and the Antigravity section of `IntegrationSettingsView`. Each view
 /// holds its own instance: the two surfaces have independent lifecycles and must not share
-/// state. Simpler than Codex — Antigravity has no feature flag or trust step, so installing
-/// the hooks is the only action.
+/// state.
 @MainActor
 @Observable
 final class AntigravitySetupController {

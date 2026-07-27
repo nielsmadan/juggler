@@ -252,8 +252,6 @@ struct SessionManagerTests {
         #expect(manager.sessions[0].state == .working)
     }
 
-    // Antigravity has no UserPromptSubmit: a session shelved while idle auto-reactivates on
-    // its next working event (a resume).
     @Test @MainActor func addOrUpdateSession_antigravity_backburneredFromIdle_reactivatesOnWorking() {
         let manager = SessionManager()
 
@@ -272,8 +270,6 @@ struct SessionManagerTests {
         #expect(manager.sessions[0].state == .working)
     }
 
-    // A session shelved while working stays shelved — a working event is the agent's own
-    // loop, not user re-engagement.
     @Test @MainActor func addOrUpdateSession_antigravity_backburneredFromWorking_staysBackburnered() {
         let manager = SessionManager()
 
@@ -292,10 +288,7 @@ struct SessionManagerTests {
         #expect(manager.sessions[0].state == .backburner)
     }
 
-    // The idle-origin reactivation is Antigravity-specific: other agents keep the
-    // UserPromptSubmit-only exit. A claude-code session shelved while idle must NOT
-    // reactivate on a working event — this pins the `agent == "antigravity"` gate so
-    // removing it fails here.
+    // Pins the `agent == "antigravity"` gate — removing it must fail here.
     @Test @MainActor func addOrUpdateSession_claudeCode_backburneredFromIdle_staysBackburneredOnWorking() {
         let manager = SessionManager()
 
@@ -345,7 +338,6 @@ struct SessionManagerTests {
     @Test @MainActor func disambiguatedDisplayName_duplicateNames_appendsIndex() {
         let manager = SessionManager()
 
-        // Both sessions share the same project path
         manager.addOrUpdateSession(
             claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/same-project", state: .idle
         )
@@ -907,7 +899,6 @@ struct SessionManagerTests {
         manager.testSetLastActiveSessionID("s1")
         manager.testSetFocusedSessionID("s1")
 
-        // cycleForward should consume the anchor and use it as effective focus
         let result = manager.cycleForward()
         #expect(result != nil)
         #expect(manager.lastActiveSessionID == nil)
@@ -1022,7 +1013,6 @@ struct SessionManagerTests {
             ])
             manager.testSetLastActiveSessionID("s1")
 
-            // With anchor set and auto-advance OFF, currentSession should return the busy session
             let current = manager.currentSession
             #expect(current?.id == "s1")
         }
@@ -1038,7 +1028,6 @@ struct SessionManagerTests {
             ])
             manager.testSetLastActiveSessionID("s1")
 
-            // With auto-advance ON, the anchor is ignored for currentSession
             let current = manager.currentSession
             #expect(current?.id != "s1")
         }
@@ -1046,7 +1035,6 @@ struct SessionManagerTests {
         @Test @MainActor func cycleForward_withAnchor_usesAnchorAsEffectiveFocus() {
             let manager = SessionManager()
 
-            // s1=idle, s2=working (anchored), s3=idle
             manager.testSetSessions([
                 makeSession("s1", state: .idle),
                 makeSession("s2", state: .working),
@@ -1055,7 +1043,6 @@ struct SessionManagerTests {
             manager.testSetLastActiveSessionID("s2")
             manager.testSetFocusedSessionID("s2")
 
-            // Cycling forward from s2 (working, anchored) should advance to s3
             let result = manager.cycleForward()
             #expect(result?.id == "s3")
             #expect(manager.lastActiveSessionID == nil) // anchor consumed
@@ -1064,7 +1051,6 @@ struct SessionManagerTests {
         @Test @MainActor func cycleBackward_withAnchor_usesAnchorAsEffectiveFocus() {
             let manager = SessionManager()
 
-            // s1=idle, s2=working (anchored), s3=idle
             manager.testSetSessions([
                 makeSession("s1", state: .idle),
                 makeSession("s2", state: .working),
@@ -1073,7 +1059,6 @@ struct SessionManagerTests {
             manager.testSetLastActiveSessionID("s2")
             manager.testSetFocusedSessionID("s2")
 
-            // Cycling backward from s2 should go to s1
             let result = manager.cycleBackward()
             #expect(result?.id == "s1")
             #expect(manager.lastActiveSessionID == nil) // anchor consumed
@@ -1123,7 +1108,6 @@ struct SessionManagerTests {
 
             manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
 
-            // Not focused on s1, so no anchor should be set
             #expect(manager.lastActiveSessionID == nil)
         }
 
@@ -1877,7 +1861,6 @@ struct SessionManagerTests {
 
         manager.testReconcileFocusForTerminal(bundleID: TerminalType.iterm2.bundleIdentifier)
 
-        // iTerm2 activation should not trigger reconciliation — focus unchanged
         #expect(manager.focusedSessionID == "kitty1")
     }
 
@@ -1887,11 +1870,9 @@ struct SessionManagerTests {
         manager.testSetSessions([makeSession("iterm1")])
         manager.testSetFocusedSessionID("iterm1")
 
-        // Simulate a new Kitty session being added
         let kittySession = makeKittySession("kitty1")
         manager.testSetSessions([makeSession("iterm1"), kittySession])
 
-        // Simulate Kitty activation
         manager.testReconcileFocusForTerminal(bundleID: TerminalType.kitty.bundleIdentifier)
 
         #expect(manager.focusedSessionID == "kitty1")
@@ -2046,7 +2027,6 @@ struct SessionManagerTests {
             makeSession("s3", state: .backburner)
         ])
 
-        // s1 goes to backburner — lands at bottom of backburner section
         manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .backburner)
 
         #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s3", "s1"])
@@ -2531,7 +2511,6 @@ struct SessionManagerTests {
 
         // 23:00 -> 00:00 = 3600s committed to yesterday's bucket.
         #expect(store.busySeconds(for: yesterday) == 3600)
-        // Per-session today counter reset.
         #expect(manager.sessions[0].busyTimeToday == 0)
         // Working clock restarted at midnight so post-midnight time accrues to today.
         #expect(manager.sessions[0].lastBecameWorking == today)

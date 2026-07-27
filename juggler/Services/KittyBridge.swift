@@ -86,7 +86,6 @@ actor KittyBridge: TerminalBridge {
         }
     }
 
-    /// Whether the kitty instance behind `socketPath` currently has a window with `windowID`.
     private func socketOwnsWindow(_ socketPath: String, windowID: String) async -> Bool {
         guard let json = try? await runKittenCommand(["@", "ls"], socketPath: socketPath) else { return false }
         return parseKittyLsOutput(json, windowID: windowID) != nil

@@ -30,7 +30,6 @@ class iTerm2Daemon:
         # Track active highlight reset tasks to cancel on new highlights
         self.active_tab_reset_tasks: dict[str, asyncio.Task] = {}
         self.active_pane_reset_tasks: dict[str, asyncio.Task] = {}
-        # Track event subscribers (persistent connections)
         self.event_subscribers: list[tuple[socket.socket, asyncio.Lock]] = []
 
     async def start(self) -> None:
@@ -104,7 +103,7 @@ class iTerm2Daemon:
         subscriber = (client, write_lock)
         self.event_subscribers.append(subscriber)
 
-        # Keep connection alive by waiting for it to close
+        # 1-byte read only to detect EOF
         try:
             while self.running:
                 client.setblocking(False)
@@ -157,7 +156,6 @@ class iTerm2Daemon:
             return {"status": "error", "message": f"Unknown command: {command}"}
 
     async def run_focus_monitor(self) -> None:
-        """Monitor iTerm2 focus changes and push events."""
         consecutive_failures: int = 0
         while self.running:
             try:
@@ -181,7 +179,6 @@ class iTerm2Daemon:
                     await asyncio.sleep(5)
 
     async def run_session_monitor(self) -> None:
-        """Monitor iTerm2 session terminations and push events."""
         consecutive_failures: int = 0
         while self.running:
             try:
@@ -229,7 +226,6 @@ class iTerm2Daemon:
                     await asyncio.sleep(5)
 
     def _get_all_session_ids(self) -> set[str]:
-        """Get all current iTerm2 session IDs."""
         sessions: set[str] = set()
         for window in self.app.terminal_windows:
             for tab in window.tabs:
@@ -259,7 +255,6 @@ class iTerm2Daemon:
                 self.event_subscribers.remove(sub)
 
     async def get_session_info(self, session_id: str) -> dict[str, Any]:
-        """Get info for ONE session - direct API call."""
         uuid = self._extract_uuid(session_id)
         if not uuid:
             return {"status": "error", "message": "Session not found"}
@@ -388,7 +383,6 @@ class iTerm2Daemon:
         self, session: iterm2.Session, profile: iterm2.LocalWriteOnlyProfile,
         label: str, escape_fallback: Optional[bytes] = None
     ) -> None:
-        """Apply profile properties with one retry and optional escape sequence fallback."""
         try:
             await session.async_set_profile_properties(profile)
         except Exception as e:

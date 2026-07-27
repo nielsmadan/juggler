@@ -153,7 +153,6 @@ final class HotkeyManager {
         await activateWithRetry(
             direction: "auto-restart",
             cycle: {
-                // Return the target session directly if it's still cyclable, otherwise nil
                 SessionManager.shared.sessions.first { $0.id == sessionID && $0.state.isIncludedInCycle }
             }
         )

@@ -47,7 +47,6 @@ struct AntigravityHooksJSONTests {
             #expect(handler["type"] as? String == "command")
             #expect(handler["command"] as? String == "\(notifyPath) Stop")
             #expect(handler["timeout"] as? Int == AntigravityHooksInstaller.hookTimeoutSeconds)
-            // No nested "hooks" wrapper.
             #expect(handler["hooks"] == nil)
         }
     }

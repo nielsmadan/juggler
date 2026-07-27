@@ -20,22 +20,18 @@ final class SessionManager {
     /// Start-of-day of the last day we observed, for detecting midnight rollover.
     private var lastSeenDay: Date
 
-    /// Test-only: directly set session properties. Only accessible via @testable import.
     func testSetSessions(_ newSessions: [Session]) {
         sessions = newSessions
     }
 
-    /// Test-only: set focusedSessionID. Only accessible via @testable import.
     func testSetFocusedSessionID(_ id: String?) {
         focusedSessionID = id
     }
 
-    /// Test-only: set lastActiveSessionID. Only accessible via @testable import.
     func testSetLastActiveSessionID(_ id: String?) {
         lastActiveSessionID = id
     }
 
-    /// Test-only: set the last-seen day for rollover tests.
     func testSetLastSeenDay(_ date: Date) {
         lastSeenDay = date
     }
@@ -51,7 +47,6 @@ final class SessionManager {
         applyStateChange(sessionID: sessionID, from: oldState, to: newState, now: now)
     }
 
-    /// Test-only: trigger focus reconciliation. Only accessible via @testable import.
     @MainActor
     func testReconcileFocusForTerminal(bundleID: String) {
         reconcileFocusForTerminal(bundleID: bundleID)
@@ -107,13 +102,8 @@ final class SessionManager {
         return matchesTrackedSession(focusedID)
     }
 
-    /// The session shown as the "current"/reference highlight: the `lastActiveSessionID`
-    /// anchor if it's still present (that field is only ever set when auto-advance is
-    /// off — see `applyStateChange` — so no flag check is needed here), otherwise
-    /// `currentSession` while a terminal is focused (which may resolve via the cycling
-    /// cursor, not strictly `focusedSessionID`). `nil` if neither. Single source of
-    /// truth for the popover's reference highlight and its initial selection on open;
-    /// preserves the old per-row `SessionRowView.isCurrent` logic.
+    /// No auto-advance flag check needed: the `lastActiveSessionID` anchor is only ever
+    /// set while auto-advance is off — see `applyStateChange`.
     var currentReferenceSessionID: String? {
         if let lastActive = lastActiveSessionID, sessions.contains(where: { $0.id == lastActive }) {
             return lastActive
@@ -179,13 +169,8 @@ final class SessionManager {
             .sorted { $0.key < $1.key }
     }
 
-    /// The sessions in the exact top-to-bottom order the monitor renders them for
-    /// the current queue mode. This is the single source of truth for keyboard
-    /// navigation, so selection/highlight/scroll follow what's on screen rather
-    /// than the raw `sessions` array order (which drifts out of section order and
-    /// disagrees with the render during section animations). Derived from the same
-    /// `sessionsBySection`/`sessionsByWindowGroup` the view renders, so the two
-    /// can't diverge.
+    /// Use this for navigation, not the raw `sessions` array, which drifts out of section
+    /// order and disagrees with the render during section animations.
     func orderedVisibleSessions() -> [Session] {
         switch queueOrderMode {
         case .fair, .prio:
@@ -251,7 +236,6 @@ final class SessionManager {
         let isBackburner = newState == .backburner
         let wasBackburner = oldState == .backburner
 
-        // Determine target position
         var targetPosition: QueuePosition?
         if isBackburner, !wasBackburner {
             targetPosition = .bottomOfBackburner
@@ -331,24 +315,20 @@ final class SessionManager {
             if isStillFocused {
                 let autoAdvance = UserDefaults.standard.bool(forKey: AppStorageKeys.autoAdvanceOnBusy)
                 if autoAdvance {
-                    // Auto-advance ON: notify HotkeyManager to navigate to next idle session
                     logDebug(.session, "Auto-advance triggered for \(sessionID)")
                     NotificationCenter.default.post(name: .shouldAutoAdvance, object: nil)
                 } else {
-                    // Auto-advance OFF: remember this session as the anchor
                     logDebug(.session, "Anchored lastActiveSessionID to \(sessionID)")
                     lastActiveSessionID = sessionID
                 }
             }
         }
 
-        // Clear lastActiveSessionID when the session returns to cyclable state
         if isCyclable, lastActiveSessionID == sessionID {
             logDebug(.session, "Cleared lastActiveSessionID for \(sessionID)")
             lastActiveSessionID = nil
         }
 
-        // Handle auto-restart: when a session becomes idle and it's the only cyclable one
         if !wasCyclable, isCyclable {
             let autoRestart = UserDefaults.standard.bool(forKey: AppStorageKeys.autoRestartOnIdle)
             if autoRestart {
@@ -479,7 +459,6 @@ final class SessionManager {
             return session
         }
 
-        // Fall back to index-based
         let safeIndex = cyclingState.currentIndex % cyclable.count
         return cyclable[safeIndex]
     }
@@ -496,7 +475,6 @@ final class SessionManager {
         activationTarget = nil
     }
 
-    /// Whether the given terminal session ID matches any tracked session.
     private func matchesTrackedSession(_ terminalSessionID: String) -> Bool {
         sessions.contains(where: {
             $0.id == terminalSessionID
@@ -532,7 +510,6 @@ final class SessionManager {
             }
         }
 
-        // Initialize based on current frontmost app
         if let frontmost = NSWorkspace.shared.frontmostApplication,
            let bundleID = frontmost.bundleIdentifier {
             isTerminalAppActive = terminalBundleIDs.contains(bundleID)
@@ -562,14 +539,12 @@ final class SessionManager {
                 + "isSessionFocused=\(isSessionFocused)"
         )
 
-        // Check if focusedSessionID already matches a session in this terminal
         if let focusedID = focusedSessionID,
            kittySessions.contains(where: { $0.id == focusedID || $0.terminalSessionID == focusedID }) {
             logDebug(.kitty, "Reconcile: already focused on kitty session, no change needed")
             return
         }
 
-        // Set focus to a session in this terminal
         if let session = kittySessions.first {
             logDebug(.kitty, "Reconcile: setting focus to \(session.terminalSessionID)")
             updateFocusedSession(terminalSessionID: session.terminalSessionID)
@@ -620,7 +595,6 @@ final class SessionManager {
                 // Focus arrived at our target — accept it and clear the guard
                 activationTarget = nil
             } else {
-                // Spurious intermediate focus event — ignore it
                 logDebug(.hotkey, "Suppressed intermediate focus event for \(newID) during activation of \(target)")
                 return
             }
@@ -665,14 +639,8 @@ final class SessionManager {
         }
     }
 
-    /// Decides the live host-pane binding for a remote tmux session. Pure so it can be
-    /// unit-tested without a live iTerm2 / NSWorkspace.
-    ///
-    /// - A `UserPromptSubmit` fires in the pane the user is actively typing in, so it is
-    ///   the authoritative signal and always (re)binds.
-    /// - Any other event binds only to bootstrap an as-yet-unbound session, so a
-    ///   background event that fires while the user is looking at a different pane can't
-    ///   clobber a good binding.
+    /// `UserPromptSubmit` fires in the pane the user is typing in, so it always (re)binds;
+    /// other events only bootstrap an unbound session so they can't clobber a good binding.
     static func resolveLiveHostPaneBinding(
         current: String?,
         lastFocusedPaneUUID: String?,
@@ -801,8 +769,6 @@ final class SessionManager {
             case .idle, .permission:
                 session.lastBecameIdle = now
             case .backburner:
-                // No relevant timestamp; explicit reactivation will set
-                // `lastBecameIdle` via `handleStateTransition`.
                 break
             }
             session.remoteHost = remoteHost?.isEmpty == true ? nil : remoteHost

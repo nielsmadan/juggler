@@ -1,8 +1,3 @@
-//
-//  ConfigValidatorTests.swift
-//  JugglerTests
-//
-
 import Foundation
 @testable import Juggler
 import Testing

@@ -75,7 +75,6 @@ struct DailyStatsStoreTests {
         let store1 = DailyStatsStore(defaults: defaults)
         store1.addBusyTime(123, on: day)
 
-        // A second store reading the same defaults sees the persisted data.
         let store2 = DailyStatsStore(defaults: defaults)
         #expect(store2.busySeconds(for: day) == 123)
     }

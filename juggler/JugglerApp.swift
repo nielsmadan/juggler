@@ -16,9 +16,9 @@ private var isUnitTestHost: Bool {
 private func isRunningUnderTests() -> Bool {
     if isUnitTestHost { return true }
     #if DEBUG
-    return ProcessInfo.processInfo.arguments.contains("-uiTesting")
+        return ProcessInfo.processInfo.arguments.contains("-uiTesting")
     #else
-    return false
+        return false
     #endif
 }
 
@@ -54,7 +54,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_: Notification) {
-        // If another instance is already running, activate it and exit.
         if let existing = AppDelegate.duplicateInstance {
             existing.activate()
             NSApp.terminate(nil)
@@ -195,47 +194,37 @@ struct JugglerApp: App {
         UserDefaults.standard.set(300, forKey: "NSInitialToolTipDelay")
 
         UserDefaults.standard.register(defaults: [
-            // Highlight triggers (all on by default)
             "highlightOnHotkey": true,
             "highlightOnGuiSelect": true,
             "highlightOnNotification": true,
-            // Tab highlighting
             "tabHighlightEnabled": true,
             "tabHighlightDuration": 2.0,
             "tabHighlightColorRed": 255.0,
             "tabHighlightColorGreen": 165.0,
             "tabHighlightColorBlue": 0.0,
-            // Pane highlighting
             "paneHighlightEnabled": true,
             "paneHighlightDuration": 1.0,
             "paneHighlightColorRed": 255.0,
             "paneHighlightColorGreen": 165.0,
             "paneHighlightColorBlue": 0.0,
-            // Notifications
             "notifyOnIdle": true,
             "notifyOnPermission": true,
             "playSound": true,
-            // Backburner behavior
             "goToNextOnBackburner": true,
-            // Auto-advance behavior
             AppStorageKeys.autoAdvanceOnBusy: false,
             AppStorageKeys.autoRestartOnIdle: false,
-            // Cycling colors
             "useCyclingColors": true,
             "useTerminalCyclingColors": true,
             // Terminal enablement (iTerm2 on by default for existing users)
             AppStorageKeys.iterm2Enabled: true,
             AppStorageKeys.kittyEnabled: false,
-            // Dock & window behavior
             AppStorageKeys.showInDock: true,
             AppStorageKeys.quitOnMonitorClose: false,
-            // Beacon HUD
             "beaconEnabled": true,
             "beaconDuration": 1.5,
             "beaconPosition": BeaconPosition.center.rawValue,
             "beaconSize": BeaconSize.m.rawValue,
             "beaconAnchor": BeaconAnchor.screen.rawValue,
-            // Stats bar chart colors
             AppStorageKeys.statsUseCyclingColors: true,
             AppStorageKeys.statsBarColorRed: 255.0,
             AppStorageKeys.statsBarColorGreen: 165.0,
@@ -331,11 +320,11 @@ private func setupDefaultLocalShortcuts() {
         (AppStorageKeys.localShortcutMoveDown, kVK_ANSI_K, false),
         (AppStorageKeys.localShortcutMoveUp, kVK_ANSI_J, false),
         (AppStorageKeys.localShortcutBackburner, kVK_ANSI_L, false),
-        (AppStorageKeys.localShortcutReactivateSelected, kVK_ANSI_L, true), // Shift+L
+        (AppStorageKeys.localShortcutReactivateSelected, kVK_ANSI_L, true),
         (AppStorageKeys.localShortcutReactivateAll, kVK_ANSI_H, false),
         (AppStorageKeys.localShortcutRename, kVK_ANSI_R, false),
         (AppStorageKeys.localShortcutCycleModeForward, kVK_Tab, false),
-        (AppStorageKeys.localShortcutCycleModeBackward, kVK_Tab, true) // Shift+Tab
+        (AppStorageKeys.localShortcutCycleModeBackward, kVK_Tab, true)
     ]
 
     for (key, keyCode, shift) in defaults where UserDefaults.standard.data(forKey: key) == nil {

@@ -22,10 +22,8 @@ actor WezTermBridge: TerminalBridge {
         "/Applications/WezTerm.app/Contents/MacOS/wezterm"
     ]
 
-    /// Locates the `wezterm` binary the same way `start()` resolves it: the fixed candidate
-    /// paths first, then anywhere on the process `PATH` (what `/usr/bin/env wezterm` finds).
-    /// Returns `nil` if not found. The UI uses this so a PATH-only install isn't reported
-    /// missing and setup isn't blocked for a binary the bridge would happily run.
+    /// Mirrors `start()`'s resolution order (candidate paths, then `PATH`) so the UI can't
+    /// report a PATH-only install as missing and block setup.
     nonisolated static func locateCLI() -> String? {
         for candidate in cliCandidatePaths where FileManager.default.fileExists(atPath: candidate) {
             return candidate
@@ -60,7 +58,6 @@ actor WezTermBridge: TerminalBridge {
             return
         }
 
-        // Fall back to PATH resolution via env.
         if await (try? runWezTermCommand(["--version"], executableOverride: "/usr/bin/env")) != nil {
             weztermPath = "/usr/bin/env"
             await MainActor.run { logInfo(.daemon, "Found wezterm via PATH") }
@@ -131,9 +128,7 @@ actor WezTermBridge: TerminalBridge {
         return panes
     }
 
-    /// Builds `TerminalSessionInfo` for `paneID` from a decoded `wezterm cli list` pane array,
-    /// or `nil` if no such pane exists. `isActive` is best-effort `false` — WezTerm's `list`
-    /// output carries no active-pane flag. A pure function (no actor state), unit-testable.
+    /// `isActive` is best-effort `false` — WezTerm's `list` output carries no active-pane flag.
     nonisolated static func parseWezTermList(_ panes: [[String: Any]], paneID: String) -> TerminalSessionInfo? {
         guard let target = panes.first(where: { paneIDString($0["pane_id"]) == paneID }) else { return nil }
 
@@ -177,8 +172,8 @@ actor WezTermBridge: TerminalBridge {
         return nil
     }
 
-    /// Runs `wezterm <arguments>` and returns stdout. Drains stdout/stderr on detached tasks
-    /// to avoid a buffer-full deadlock, with a 5 s timeout guard. Mirrors `KittyBridge`.
+    /// Drains stdout/stderr on detached tasks to avoid a buffer-full deadlock, with a 5 s
+    /// timeout guard. Mirrors `KittyBridge`.
     private func runWezTermCommand(
         _ arguments: [String],
         executableOverride: String? = nil

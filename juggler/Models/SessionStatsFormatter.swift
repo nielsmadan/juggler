@@ -1,16 +1,7 @@
-//
-//  SessionStatsCalculator.swift
-//  Juggler
-//
-
 import Foundation
 
 /// Pure formatting helpers for session statistics.
-enum SessionStatsCalculator {
-    /// Human-readable duration:
-    /// `0m` (exactly zero / negative), `<1m` (under a minute),
-    /// `Xm` (under an hour), `XhYYm` (under a day, zero-padded minutes),
-    /// `XdYYh` (a day or more, minutes dropped, zero-padded hours).
+enum SessionStatsFormatter {
     static func formatDuration(_ seconds: TimeInterval) -> String {
         if seconds <= 0 { return "0m" }
         if seconds < 60 { return "<1m" }

@@ -66,7 +66,6 @@ struct SectionAnimationTests {
         let controller = SectionAnimationController()
         // idle → permission stays in same section
         controller.animateTransition(sessionID: "s1", from: .idle, to: .permission)
-        // No animation should be triggered for same-section transitions
         #expect(controller.isDownAnimating(sessionID: "s1") == false)
     }
 
@@ -121,7 +120,6 @@ struct SectionAnimationTests {
     @Test func effectiveSection_duringDownAnimation_returnsSourceSection() {
         let controller = SectionAnimationController()
 
-        // Trigger down animation from idle to working
         controller.animateTransition(sessionID: "s1", from: .idle, to: .working)
 
         // The session's actual state would be .working now, but during departing phase

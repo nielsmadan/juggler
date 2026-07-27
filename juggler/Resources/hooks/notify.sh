@@ -28,7 +28,6 @@ else
     TERMINAL_SESSION_ID=""
 fi
 
-# Get tmux pane ID and session name (if running inside tmux)
 TMUX_PANE_ID="${TMUX_PANE:-}"
 TMUX_SESSION_NAME=""
 if [ -n "$TMUX_PANE_ID" ] && command -v tmux >/dev/null 2>&1; then
@@ -62,7 +61,6 @@ export JUGGLER_TMUX_SESSION="$TMUX_SESSION_NAME"
 export JUGGLER_REMOTE_HOST="$REMOTE_HOST"
 
 # Build unified payload using Python (quoted heredoc prevents shell expansion)
-# Pipe JSON output directly to curl via stdin
 python3 << 'PYTHON' | curl -s -X POST "http://localhost:${JUGGLER_PORT}/hook" \
     -H "Content-Type: application/json" \
     -d @- \

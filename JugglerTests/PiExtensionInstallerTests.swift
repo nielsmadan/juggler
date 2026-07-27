@@ -25,7 +25,6 @@ struct PiExtensionInstallerTests {
         try body(dir)
     }
 
-    // Default (no override) resolves under ~/.pi/agent/extensions/juggler-pi.ts.
     @Test func defaultPath_isUnderPiAgentExtensions() {
         let previous = ProcessInfo.processInfo.environment["PI_CODING_AGENT_DIR"]
         unsetenv("PI_CODING_AGENT_DIR")
@@ -37,7 +36,6 @@ struct PiExtensionInstallerTests {
         #expect(PiExtensionInstaller.extensionFilePath == home + "/.pi/agent/extensions/juggler-pi.ts")
     }
 
-    // PI_CODING_AGENT_DIR overrides the config root.
     @Test func honorsPiCodingAgentDirOverride() {
         withPiAgentDir { dir in
             #expect(PiExtensionInstaller.agentDirectory == dir.path)
@@ -45,7 +43,6 @@ struct PiExtensionInstallerTests {
         }
     }
 
-    // install() writes the bundled extension as .ts and its contents match the bundle.
     @Test func install_writesExtensionMatchingBundle() throws {
         try withPiAgentDir { _ in
             try PiExtensionInstaller.install()
@@ -61,7 +58,6 @@ struct PiExtensionInstallerTests {
         }
     }
 
-    // install() is idempotent — a second run overwrites cleanly.
     @Test func install_isIdempotent() throws {
         try withPiAgentDir { _ in
             try PiExtensionInstaller.install()

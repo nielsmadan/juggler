@@ -74,18 +74,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: - UNUserNotificationCenterDelegate
 
-    // Notification click activation on macOS
-    // ──────────────────────────────────────
-    // macOS always brings the posting app to the foreground when a notification
-    // banner is clicked. This is system-level behavior with no opt-out API.
-    // The activation happens in two phases: once before didReceive, and once
-    // after completionHandler(). We work with this by setting a flag here and
-    // letting windowDidBecomeKey in AppDelegate detect it. After the system's
-    // activation settles, we yield focus and activate the terminal so the user
-    // lands in the right place. There will be a brief flash of Juggler — this
-    // is a platform limitation, not a bug.
-    // See: FB13131879 (NSApp.yield API request), WWDC23 cooperative activation.
-    // See also: docs/tech/overview.md "Known Platform Limitations".
+    // macOS force-foregrounds the posting app on banner click with no opt-out (FB13131879), so the flag
+    // set here lets windowDidBecomeKey hand focus back. See docs/tech/overview.md "Known Platform Limitations".
 
     nonisolated func userNotificationCenter(
         _: UNUserNotificationCenter,

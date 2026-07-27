@@ -9,10 +9,7 @@ struct TodayTabWidthKey: PreferenceKey {
     }
 }
 
-/// Two trapezoid tabs anchored to the bottom-right of a session row.
-/// "Turn" appears only when the session is actively working/compacting;
-/// "Today" is always shown. Today is rendered last so its diagonal left edge
-/// cleanly overlays the Turn tab beneath it.
+/// Today is rendered last so its diagonal left edge overlays the Turn tab beneath it.
 struct BusyStatsCorner: View {
     let session: Session
     let highlightColor: Color
@@ -24,7 +21,7 @@ struct BusyStatsCorner: View {
                 if let turn = session.currentWorkingDuration {
                     StatsTab(
                         label: "Turn",
-                        value: SessionStatsCalculator.formatDuration(turn),
+                        value: SessionStatsFormatter.formatDuration(turn),
                         icon: "stopwatch",
                         background: turnBackground,
                         foreground: textColor,
@@ -35,7 +32,7 @@ struct BusyStatsCorner: View {
                 }
                 StatsTab(
                     label: "Today",
-                    value: SessionStatsCalculator.formatDuration(session.busyTimeTodayLive),
+                    value: SessionStatsFormatter.formatDuration(session.busyTimeTodayLive),
                     icon: "calendar",
                     background: todayBackground,
                     foreground: textColor,
@@ -116,9 +113,8 @@ private struct TabShape: Shape {
     }
 }
 
-/// Open outline of `TabShape` with the bottom and right edges omitted — only
-/// the diagonal-left edge and the top edge are drawn. This reads as a "shelf"
-/// resting on the row's bottom edge rather than a fully enclosing frame.
+/// Bottom and right edges are omitted so the tab reads as a shelf resting on the row's
+/// bottom edge rather than a fully enclosing frame.
 private struct TabBorderShape: Shape {
     let cut: CGFloat
 

@@ -13,7 +13,7 @@ struct CodexInstallScriptParityTests {
     private static var scriptPath: String {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // JugglerTests/
-            .deletingLastPathComponent() // app4/
+            .deletingLastPathComponent() // repo root
             .appendingPathComponent("juggler/Resources/codex-hooks/codex-install.sh")
             .path
     }

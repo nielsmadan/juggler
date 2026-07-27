@@ -13,7 +13,6 @@
 EVENT="$1"
 JUGGLER_PORT="${JUGGLER_PORT:-7483}"
 
-# Read raw JSON input from stdin (Antigravity passes hook data via stdin)
 HOOK_INPUT=$(cat)
 
 # Antigravity runs the hook from its own config dir, not the session's cwd, so $PWD is
@@ -49,7 +48,6 @@ else
     TERMINAL_SESSION_ID=""
 fi
 
-# Get tmux pane ID and session name (if running inside tmux)
 TMUX_PANE_ID="${TMUX_PANE:-}"
 TMUX_SESSION_NAME=""
 if [ -n "$TMUX_PANE_ID" ] && command -v tmux >/dev/null 2>&1; then
@@ -83,8 +81,8 @@ export JUGGLER_TMUX_SESSION="$TMUX_SESSION_NAME"
 export JUGGLER_REMOTE_HOST="$REMOTE_HOST"
 
 # Build unified payload using Python (quoted heredoc prevents shell expansion).
-# Pipe JSON output directly to curl via stdin. curl is bounded so the script always
-# reaches the stdout response below, well within the hook timeout.
+# curl is bounded so the script always reaches the stdout response below, well
+# within the hook timeout.
 python3 << 'PYTHON' | curl -s -X POST "http://localhost:${JUGGLER_PORT}/hook" \
     -H "Content-Type: application/json" \
     -d @- \

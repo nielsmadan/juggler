@@ -91,7 +91,6 @@ struct CodexHooksJSONTests {
             ) as? [String: Any]
             let sessionStart = (obj?["hooks"] as? [String: Any])?["SessionStart"] as? [[String: Any]]
             #expect((sessionStart?.count ?? 0) == 2)
-            // The user's hook stays at index 0; Juggler's is appended at index 1.
             #expect(handlerCommand(sessionStart?[0]) == "echo other")
             #expect(handlerCommand(sessionStart?[1]) == "\(notifyPath) SessionStart")
         }
@@ -145,7 +144,6 @@ struct CodexHooksJSONTests {
             #expect(throws: CodexHooksError.hooksJSONUnparseable(hooksJSON)) {
                 try CodexHooksInstaller.mergeHooksJSON(at: hooksJSON, notifyScriptPath: notifyPath)
             }
-            // Original file untouched — no silent overwrite.
             #expect(readFile(hooksJSON) == garbage)
         }
     }
@@ -257,7 +255,6 @@ struct CodexConfigTOMLTests {
         }
     }
 
-    // Deprecated `codex_hooks` is migrated to the current `hooks` key.
     @Test func deprecatedKey_isMigratedToHooks() throws {
         try withTempFile(contents: """
         [features]
@@ -270,7 +267,6 @@ struct CodexConfigTOMLTests {
         }
     }
 
-    // When both keys exist, `codex_hooks` is dropped and `hooks` is kept.
     @Test func deprecatedKeyAlongsideHooks_dropsDeprecated() throws {
         try withTempFile(contents: """
         [features]
@@ -286,7 +282,6 @@ struct CodexConfigTOMLTests {
         }
     }
 
-    // A trailing `# comment` on the flag line is recognized — no duplicate key inserted.
     // The comment is dropped as part of idempotent normalization.
     @Test func commentedFlagLine_isRecognizedAndNotDuplicated() throws {
         try withTempFile(contents: "[features]\nhooks = true # already on\n") { path in
@@ -294,7 +289,7 @@ struct CodexConfigTOMLTests {
             try CodexHooksInstaller.enableFeatureFlag(at: path)
             let out = readFile(path)
             #expect(out.components(separatedBy: "hooks = true").count == 2) // exactly one occurrence
-            #expect(!out.contains("already on")) // comment dropped on normalization
+            #expect(!out.contains("already on"))
         }
     }
 
@@ -313,7 +308,6 @@ struct CodexConfigTOMLTests {
         }
     }
 
-    // Fix 9: a no-op call (file already correct) must not drop a `.juggler-backup`.
     @Test func enableFeatureFlag_noOpDoesNotCreateBackup() throws {
         try withTempFile(contents: "[features]\nhooks = true\n") { path in
             try CodexHooksInstaller.enableFeatureFlag(at: path)
@@ -321,7 +315,6 @@ struct CodexConfigTOMLTests {
         }
     }
 
-    // Fix 9: a real modification backs up the pre-existing file with its original content.
     @Test func enableFeatureFlag_modificationBacksUpOriginal() throws {
         let original = "[features]\nhooks = false\n"
         try withTempFile(contents: original) { path in
@@ -330,8 +323,7 @@ struct CodexConfigTOMLTests {
         }
     }
 
-    // `joinPreservingTrailingNewline` (private) is exercised through `enableFeatureFlag`:
-    // a trailing newline is preserved when present and not added when absent.
+    // Exercises the private `joinPreservingTrailingNewline` through `enableFeatureFlag`.
     @Test func enableFeatureFlag_preservesTrailingNewlinePresence() throws {
         try withTempFile(contents: "[features]\nhooks = false\n") { path in
             try CodexHooksInstaller.enableFeatureFlag(at: path)
@@ -573,8 +565,6 @@ struct CodexEnableInCodexTests {
         }
     }
 
-    // enableInCodex writes trust blocks only for events that actually have a Juggler hook
-    // registered — it does not invent keys for unregistered events.
     @Test func enableInCodex_partialRegistration_writesOnlyRegisteredEvents() throws {
         try withTempDir { dir in
             let config = dir.appendingPathComponent("config.toml").path
@@ -650,7 +640,6 @@ struct CodexEnableInCodexTests {
         }
     }
 
-    // isEnabledInCodex must never go falsely-green: if an event isn't registered, return false.
     @Test func isEnabledInCodex_falseWhenAnEventNotRegistered() throws {
         try withCodexFixture { config, hooksJSON, notify in
             try CodexHooksInstaller.enableInCodex(
@@ -694,7 +683,6 @@ struct CodexEnableInCodexTests {
         }
     }
 
-    // Fix 4: a trailing `# comment` on a `trusted_hash` line is tolerated by the parser.
     @Test func isEnabledInCodex_toleratesTrailingCommentOnTrustedHash() throws {
         try withCodexFixture { config, hooksJSON, notify in
             try CodexHooksInstaller.enableInCodex(

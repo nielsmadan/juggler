@@ -187,16 +187,26 @@ struct GeneralSettingsView: View {
         }
     }
 
+    private var bundleId: String {
+        Bundle.main.bundleIdentifier ?? "com.nielsmadan.Juggler"
+    }
+
     private func performUninstall() async -> String {
         var actions: [String] = []
-        let fm = FileManager.default
-        let bundleId = Bundle.main.bundleIdentifier ?? "com.nielsmadan.Juggler"
+        actions += await unregisterLoginItem()
+        actions += await runIntegrationCleanup()
+        actions += clearDefaults()
+        actions += clearCaches()
+        return actions.joined(separator: "\n")
+    }
 
-        // 1. Unregister login item
+    private func unregisterLoginItem() async -> [String] {
         try? await SMAppService.mainApp.unregister()
-        actions.append("Removed login item")
+        return ["Removed login item"]
+    }
 
-        // 2. Run bundled uninstall.sh for integration cleanup
+    private func runIntegrationCleanup() async -> [String] {
+        var actions: [String] = []
         if Bundle.main.path(forResource: "uninstall", ofType: "sh") != nil {
             if let error = await ScriptInstaller.runBundledScript(resource: "uninstall") {
                 actions.append("Integration cleanup failed: \(error)")
@@ -212,22 +222,22 @@ struct GeneralSettingsView: View {
             .append(
                 "Note: Remove Accessibility permission manually in System Settings > Privacy & Security > Accessibility"
             )
+        return actions
+    }
 
-        // 3. Clear UserDefaults
+    private func clearDefaults() -> [String] {
         UserDefaults.standard.removePersistentDomain(forName: bundleId)
         UserDefaults.standard.synchronize()
-        actions.append("Cleared all settings")
+        return ["Cleared all settings"]
+    }
 
-        // 4. Clear caches
-        if let cachesDir = fm.urls(for: .cachesDirectory, in: .userDomainMask).first {
-            let appCache = cachesDir.appendingPathComponent(bundleId)
-            if fm.fileExists(atPath: appCache.path) {
-                try? fm.removeItem(at: appCache)
-                actions.append("Cleared caches")
-            }
-        }
-
-        return actions.joined(separator: "\n")
+    private func clearCaches() -> [String] {
+        let fm = FileManager.default
+        guard let cachesDir = fm.urls(for: .cachesDirectory, in: .userDomainMask).first else { return [] }
+        let appCache = cachesDir.appendingPathComponent(bundleId)
+        guard fm.fileExists(atPath: appCache.path) else { return [] }
+        try? fm.removeItem(at: appCache)
+        return ["Cleared caches"]
     }
 }
 

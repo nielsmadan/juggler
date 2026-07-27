@@ -8,11 +8,7 @@ struct DailyBusyEntry: Identifiable, Equatable {
     var id: String { key }
 }
 
-/// Passive store of per-day busy-second totals, JSON-persisted to UserDefaults.
-///
-/// "Busy time" is summed across all sessions, so a day total can exceed 24h.
-/// Knows nothing about sessions — `SessionManager` feeds it deltas. Days with
-/// zero busy time are never stored, so an unworked day simply has no entry.
+// Totals are summed across all sessions, so a day can exceed 24h.
 @Observable
 final class DailyStatsStore {
     private(set) var dailyBusySeconds: [String: TimeInterval]
@@ -38,13 +34,10 @@ final class DailyStatsStore {
         }
     }
 
-    /// Local-date key ("yyyy-MM-dd") for `date`.
     static func dayKey(for date: Date) -> String {
         dateFormatter.string(from: date)
     }
 
-    /// Adds a positive busy-time delta to `date`'s day bucket. Non-positive
-    /// values are ignored, so zero-time days never get an entry.
     func addBusyTime(_ seconds: TimeInterval, on date: Date) {
         guard seconds > 0 else { return }
         dailyBusySeconds[Self.dayKey(for: date), default: 0] += seconds
@@ -60,7 +53,6 @@ final class DailyStatsStore {
     }
 
     /// The most recent `limit` days that have data, oldest -> newest.
-    /// Days with no busy time are absent (no gap, no empty bar).
     func recentDays(limit: Int) -> [DailyBusyEntry] {
         let entries = dailyBusySeconds.compactMap { key, seconds -> DailyBusyEntry? in
             guard let date = Self.dateFormatter.date(from: key) else { return nil }

@@ -1,9 +1,7 @@
 import Combine
 import SwiftUI
 
-/// Bar chart of busy time per day, shown at the bottom of the monitor window.
-/// Each bar is one day's total busy time (summed across sessions). Today is the
-/// rightmost bar and grows live; older days fall off the left edge.
+/// Busy time per day; today is the rightmost bar and grows live.
 struct StatsChartView: View {
     @Environment(SessionManager.self) private var sessionManager
     @AppStorage(AppStorageKeys.statsUseCyclingColors) private var useCyclingColors = true
@@ -41,7 +39,7 @@ struct StatsChartView: View {
     @ViewBuilder
     private func chart(width: CGFloat) -> some View {
         let entries = displayEntries()
-        let contentWidth = max(width - 24, 0) // 12pt horizontal padding each side
+        let contentWidth = max(width - StatsChart.horizontalPadding * 2, 0)
         let result = StatsBarLayout.layout(
             availableWidth: contentWidth,
             dayCount: entries.count,
@@ -62,7 +60,7 @@ struct StatsChartView: View {
 
             overlayText
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, StatsChart.horizontalPadding)
         .padding(.top, 10)
     }
 
@@ -80,12 +78,9 @@ struct StatsChartView: View {
                     .fill(barColor(for: bar))
                     .frame(height: barHeight)
                 }
-                // Label sits at the bottom, drawn on top of the bar (and the
-                // background below, for very short bars). Ink + opposite-tone
-                // halo are chosen from the bar's own luminance so the text stays
-                // legible over bright bars (green, yellow) as well as dark ones.
+                // Drawn over the bar — and over the window background for very short bars.
                 let ink = labelInk(for: bar)
-                Text(SessionStatsCalculator.formatDuration(bar.seconds))
+                Text(SessionStatsFormatter.formatDuration(bar.seconds))
                     .font(.system(size: 11))
                     .foregroundStyle(ink.ink)
                     .lineLimit(1)

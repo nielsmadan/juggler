@@ -1,10 +1,10 @@
 import Foundation
 
 enum QueueOrderMode: String, CaseIterable {
-    case fair // Return-to-idle goes to end (round-robin)
-    case prio // Return-to-idle goes to top (most recent first)
+    case fair
+    case prio
     case `static`
-    case grouped // Grouped by terminal window
+    case grouped
 
     static let `default`: QueueOrderMode = .fair
 

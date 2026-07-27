@@ -28,7 +28,6 @@ struct SessionListControllerTests {
 
     // MARK: - moveSelection Tests
 
-    //
     // Selection is id-based and moves within the *visible* (rendered) order passed
     // in — not the raw `sessions` array index — so navigation follows what's on
     // screen even when the backing array drifts out of section order.

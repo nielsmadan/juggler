@@ -13,7 +13,6 @@ import { hostname } from "node:os";
 const JUGGLER_PORT = process.env.JUGGLER_PORT || "7483";
 const JUGGLER_URL = `http://localhost:${JUGGLER_PORT}/hook`;
 
-// Detect terminal type from the environment (same fields the OpenCode plugin sends).
 function getTerminalInfo(): Record<string, string> {
   const env = process.env;
   const info: Record<string, string> = {
@@ -36,7 +35,6 @@ function getTerminalInfo(): Record<string, string> {
   return info;
 }
 
-// Get git info from the working directory (best effort).
 function getGitInfo(): { branch: string; repo: string } | null {
   try {
     const branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
@@ -54,7 +52,6 @@ function getGitInfo(): { branch: string; repo: string } | null {
   }
 }
 
-// Get tmux info if running inside tmux.
 function getTmuxInfo(): Record<string, string> | null {
   const pane = process.env.TMUX_PANE;
   if (!pane) return null;

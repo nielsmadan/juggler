@@ -48,7 +48,6 @@ enum HookEventMapper {
         switch event {
         case "SessionStart", "Stop":
             .updateState(.idle)
-        // PostCompact fires when compaction finishes and the agent resumes its turn.
         case "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostCompact":
             .updateState(.working)
         case "PermissionRequest":
@@ -62,16 +61,12 @@ enum HookEventMapper {
 
     private nonisolated static func mapPi(event: String) -> MappedAction {
         switch event {
-        // Idle sources: session_start (fires at launch and on new/resume/reload/fork),
-        // agent_settled (turn finished), session_compact_idle (a manual /compact completed).
         case "session_start", "agent_settled", "session_compact_idle":
             .updateState(.idle)
-        // session_compact_working: a threshold/overflow compaction resumes the turn.
         case "agent_start", "session_compact_working":
             .updateState(.working)
         case "session_before_compact":
             .updateState(.compacting)
-        // Pi has no native permission event, so .permission is never produced.
         case "session_shutdown":
             .removeSession
         default:
@@ -81,14 +76,10 @@ enum HookEventMapper {
 
     private nonisolated static func mapAntigravity(event: String) -> MappedAction {
         switch event {
-        // Stop fires when the execution loop terminates (turn done → waiting for user).
         case "Stop":
             .updateState(.idle)
-        // PreInvocation fires before each model call; the session first appears here as working.
         case "PreInvocation":
             .updateState(.working)
-        // Antigravity has no permission, compaction, or session-end event, so those actions
-        // are never produced. Sessions are removed via terminal-bridge cleanup.
         default:
             .ignore
         }

@@ -258,7 +258,7 @@ struct IntegrationCard: View {
     }
 }
 
-// MARK: - iTerm2 Setup (extracted from OnboardingView)
+// MARK: - iTerm2 Setup
 
 struct ITerm2SetupView: View {
     @Binding var isConfigured: Bool

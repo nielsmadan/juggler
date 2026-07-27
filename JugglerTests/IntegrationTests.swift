@@ -344,7 +344,6 @@ struct IntegrationTests {
         await simulateHook(server: server, event: "UserPromptSubmit", terminalSessionID: "s1")
         #expect(manager.sessions[0].state == .working)
 
-        // SubagentStop maps to .ignore — state should not change
         await simulateHook(server: server, event: "SubagentStop", terminalSessionID: "s1")
         #expect(manager.sessions[0].state == .working)
     }
@@ -359,11 +358,9 @@ struct IntegrationTests {
         manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .backburner)
         #expect(manager.sessions[0].state == .backburner)
 
-        // Stop hook on backburnered session — should stay backburner
         await simulateHook(server: server, event: "Stop", terminalSessionID: "s1")
         #expect(manager.sessions[0].state == .backburner)
 
-        // PreToolUse hook on backburnered session — should stay backburner
         await simulateHook(server: server, event: "PreToolUse", terminalSessionID: "s1")
         #expect(manager.sessions[0].state == .backburner)
     }
@@ -376,7 +373,6 @@ struct IntegrationTests {
         manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .backburner)
         #expect(manager.sessions[0].state == .backburner)
 
-        // UserPromptSubmit should exit backburner
         await simulateHook(server: server, event: "UserPromptSubmit", terminalSessionID: "s1")
         #expect(manager.sessions[0].state == .working)
     }
@@ -407,7 +403,6 @@ struct IntegrationTests {
 
         manager.updateFocusedSession(terminalSessionID: "s1")
 
-        // Backburner s1 — should NOT set lastActiveSessionID anchor
         manager.backburnerSession(terminalSessionID: "s1")
 
         #expect(manager.lastActiveSessionID == nil)
@@ -537,8 +532,7 @@ struct IntegrationTests {
             projectPath: "/a"
         )
 
-        // In fair mode, s1 (now working) should move to bottom of busy section
-        // s2 and s3 remain idle, s1 is working
+        // Precondition for the fair-mode reorder assertion below.
         let workingIDs = manager.sessions.filter { $0.state == .working }.map(\.id)
         #expect(workingIDs == ["s1"])
 
@@ -941,7 +935,6 @@ struct IntegrationTests {
         // focusedSessionID should be re-normalized to the full composite ID
         #expect(manager.focusedSessionID == "w0t0p0:abc-uuid")
 
-        // isSessionFocused should work correctly now
         manager.isTerminalAppActive = true
         #expect(manager.isSessionFocused == true)
     }
@@ -1038,10 +1031,8 @@ struct IntegrationTests {
         manager.updateFocusedSession(terminalSessionID: "uuid-a")
         #expect(manager.focusedSessionID == "w0t0p0:uuid-a")
 
-        // currentSession should resolve correctly
         #expect(manager.currentSession?.id == "w0t0p0:uuid-a")
 
-        // Cycling should move to the other session
         let next = manager.cycleForward()
         #expect(next?.id == "w0t1p0:uuid-b")
     }
@@ -1209,8 +1200,6 @@ struct IntegrationTests {
         )
         #expect(manager.sessions.count == 1)
 
-        // server.instance.disposed maps to .removeSession in HookEventMapper.mapOpenCode,
-        // so the associated session should be removed from the manager.
         await simulateHook(
             server: server,
             agent: "opencode",
@@ -1225,7 +1214,6 @@ struct IntegrationTests {
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)
 
-        // Claude Code session
         await simulateHook(
             server: server,
             agent: "claude-code",
@@ -1235,7 +1223,6 @@ struct IntegrationTests {
             projectPath: "/claude/project"
         )
 
-        // OpenCode session
         await simulateHook(
             server: server,
             agent: "opencode",
@@ -1395,7 +1382,6 @@ struct IntegrationTests {
                            claudeSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .working)
 
-        // A mid-turn (overflow/threshold) compaction goes compacting then resumes work.
         await simulateHook(server: server, agent: "pi", event: "session_before_compact",
                            claudeSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .compacting)
@@ -1412,7 +1398,6 @@ struct IntegrationTests {
         #expect(manager.sessions.count == 1)
     }
 
-    // A manual /compact leaves the session idle once compaction completes.
     @Test @MainActor func integration_pi_manualCompact_returnsToIdle() async {
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)

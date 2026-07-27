@@ -29,11 +29,7 @@ struct SessionRowView: View {
         useCyclingColors ? sessionManager.activeColor : Color.accentColor
     }
 
-    /// Color for the "where you came from" residual highlight: the session's palette
-    /// color by its list index — the app's usual per-position color scheme (same basis
-    /// as `syncColorIndex`). Unlike the keyboard-selected `highlightColor` (the cycling
-    /// `activeColor`), it does NOT change tint as the user navigates the popover. It can
-    /// still change if the list reorders, like every other session color in the app.
+    /// Indexed palette color, not the cycling `activeColor` — must not re-tint as the user navigates.
     private var referenceColor: Color {
         guard useCyclingColors,
               let index = sessionManager.sessions.firstIndex(where: { $0.id == session.id })

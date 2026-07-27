@@ -1,8 +1,3 @@
-//
-//  BeaconPositionCalculator.swift
-//  Juggler
-//
-
 import CoreGraphics
 import Foundation
 

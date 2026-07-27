@@ -111,8 +111,6 @@ enum TerminalActivation {
         )
     }
 
-    /// Whether a local `tmux select-pane` is meaningful for this session: only for local
-    /// tmux, never for a remote (ssh) tmux whose pane lives on another host.
     static func shouldRunLocalTmuxSelect(for session: Session) -> Bool {
         session.tmuxPane != nil && (session.remoteHost?.isEmpty ?? true)
     }

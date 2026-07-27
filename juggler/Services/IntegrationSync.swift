@@ -6,13 +6,8 @@
 import Foundation
 
 /// Keeps already-installed integration scripts in sync with the ones bundled in the current app.
-///
-/// The "installed" checkmark in Settings only checks that a hook/plugin file *exists*, not that
-/// it's *current*. So when Juggler ships a changed `notify.sh` (e.g. adding a new terminal or
-/// agent), a user who upgrades keeps running the old script on disk behind a green check, and the
-/// new behavior silently never happens. On launch we compare each installed integration's script
-/// against the bundled version and silently reinstall the ones that changed, so an upgrade can't
-/// leave a user stranded on a stale hook.
+/// Settings' green "installed" check only proves the file exists, not that it's current — without
+/// this, an upgrade leaves the user running a stale `notify.sh` behind a green check.
 enum IntegrationSync {
     /// Reinstall any installed integration whose on-disk script differs from the bundled one.
     /// Best-effort: a failure for one integration is logged and never blocks the others or launch.

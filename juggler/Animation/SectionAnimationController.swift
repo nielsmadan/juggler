@@ -2,10 +2,6 @@
 //  SectionAnimationController.swift
 //  Juggler
 //
-//  Manages animations for sessions moving between sections.
-//  DOWN: slide out right, delay, slide in from right (using transitions)
-//  UP: smooth vertical movement (using matchedGeometryEffect)
-//
 
 import Foundation
 import SwiftUI
@@ -28,15 +24,15 @@ enum SectionType: Int {
 }
 
 enum AnimationDirection {
-    case down // Idle→Busy, Busy→Backburner (slide out/in)
-    case up // Busy→Idle, Backburner→Busy (vertical movement)
-    case none // Same section
+    case down
+    case up
+    case none
 }
 
 enum DownPhase {
-    case departing // Still in source section
-    case inFlight // Not visible (between sections)
-    case arriving // Appearing in target section
+    case departing
+    case inFlight
+    case arriving
 }
 
 struct DownAnimationState: Equatable {
@@ -77,12 +73,10 @@ final class SectionAnimationController {
         return SectionType(from: session.state)
     }
 
-    /// Returns whether this session is doing a DOWN animation.
     func isDownAnimating(sessionID: String) -> Bool {
         downAnimation?.sessionID == sessionID
     }
 
-    /// Triggers animation for a session moving between states.
     func animateTransition(
         sessionID: String,
         from fromState: SessionState,

@@ -181,11 +181,8 @@ actor HookServer {
         let remoteHost = payload.remoteHost
         let compositeID = tmuxPane.map { "\(terminalSessionID):\($0)" } ?? terminalSessionID
 
-        // A session with no terminal session ID has no activation address — neither
-        // bridge (iTerm2 needs ITERM_SESSION_ID, Kitty needs KITTY_WINDOW_ID) can
-        // reach it. Creating one anyway mints a phantom row that can never be
-        // activated and never auto-removed (the iTerm2 daemon's get_session_by_id
-        // asserts on an empty id). Drop it at the door.
+        // No terminal session ID means no activation address: the row could never be
+        // activated or auto-removed (the iTerm2 daemon asserts on an empty id).
         guard !terminalSessionID.isEmpty else {
             await MainActor.run {
                 logWarning(
@@ -204,8 +201,6 @@ actor HookServer {
             .iterm2
         }
 
-        // Let the terminal's own bridge register any local addressing this hook implies
-        // (kitty maps a control socket; iTerm2 addresses panes directly and no-ops).
         if let bridge = await TerminalBridgeRegistry.shared.bridge(for: terminalType) {
             await bridge.prepareAddressing(
                 sessionID: terminalSessionID,
@@ -337,10 +332,6 @@ actor HookServer {
 
         switch payload.event {
         case "focus_changed":
-            // The watcher runs inside the local kitty, so windowID is a live local window
-            // id. Map a locally-discovered control socket to it so a remote tmux session
-            // bound to this window can be activated (its hook-supplied socket is a remote,
-            // unusable path).
             await KittyBridge.shared.registerLocalSocket(forWindowID: payload.windowID)
             await MainActor.run {
                 self.sessionManager.updateFocusedSession(

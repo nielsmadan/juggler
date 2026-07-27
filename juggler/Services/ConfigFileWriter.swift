@@ -2,9 +2,7 @@ import Foundation
 
 enum ConfigFileWriter {
     enum DuplicateCheck {
-        /// No duplicate checking
         case none
-        /// Skip if the file contains the exact line
         case exactMatch
         /// Skip if a non-commented line starts with the same first word (directive key)
         case directiveKey

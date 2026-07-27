@@ -18,6 +18,7 @@ enum OpenCodePluginInstaller {
     }
 
     static func install() throws {
+        // Bundled as .txt so Xcode doesn't try to build the .ts; written out as .ts.
         guard let sourceURL = Bundle.main.url(forResource: "juggler-opencode", withExtension: "txt") else {
             throw NSError(domain: "OpenCodePluginInstaller", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "Plugin resource not found in bundle"])

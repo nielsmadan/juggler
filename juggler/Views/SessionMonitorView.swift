@@ -35,8 +35,6 @@ struct SessionMonitorView: View {
 
     @State private var controller = SessionListController()
     @State private var isMonitorWindowKey = false
-    /// Pending scroll-into-view work. Cancelled and replaced on each request so
-    /// rapid navigation collapses to a single `scrollTo` instead of piling up.
     @State private var scrollTask: Task<Void, Never>?
     /// Per-session Today-tab rendered width, captured via PreferenceKey so the
     /// state badge can align its horizontal center with the tab's diagonal apex.
@@ -422,7 +420,6 @@ struct SessionMonitorView: View {
 
     // MARK: - Row Views
 
-    /// Terminal-type icon, agent initials, and an SSH tag for remote sessions.
     @ViewBuilder
     private func agentColumn(_ session: Session) -> some View {
         VStack(spacing: 2) {
@@ -443,7 +440,6 @@ struct SessionMonitorView: View {
         .padding(.top, 2)
     }
 
-    /// Row view for List (static mode)
     @ViewBuilder
     private func listSessionRow(_ session: Session) -> some View {
         HStack(alignment: .top, spacing: 8) {
@@ -483,14 +479,12 @@ struct SessionMonitorView: View {
         (sessionManager.isSessionFocused || isMonitorWindowKey) && controller.selectedSessionID == session.id
     }
 
-    /// Row view for ScrollView (Fair/Prio mode with animations)
     @ViewBuilder
     private func scrollViewSessionRow(_ session: Session) -> some View {
         let isDownAnimation = animationController.isDownAnimating(sessionID: session.id)
 
         let row = HStack(alignment: .top, spacing: 8) {
             agentColumn(session)
-            // ScrollView rows apply 16pt horizontal padding (see below).
             sessionContent(session, rowHorizontalPadding: 16)
         }
         .padding(.vertical, 8)
@@ -539,11 +533,6 @@ struct SessionMonitorView: View {
         }
     }
 
-    /// State-badge x offset that keeps the badge's vertical center aligned
-    /// with the Today tab's diagonal apex. Falls back to a reasonable default
-    /// (matches a short-value tab with the calendar icon) until the
-    /// PreferenceKey populates the actual rendered width.
-    ///
     /// `rowHorizontalPadding` must match the row's outer `.padding(.horizontal, X)`
     /// — differs between row variants (List = 0, ScrollView = 16).
     private func stateBadgeOffset(for session: Session, rowHorizontalPadding: CGFloat) -> CGFloat {
@@ -584,9 +573,6 @@ struct SessionMonitorView: View {
             }
             .frame(width: StateBadgeLayout.frameWidth)
             .padding(.trailing, StateBadgeLayout.trailingPadding)
-            // Shift the badge horizontally so its vertical center sits at the
-            // same x as the Today tab's diagonal apex. Offset is recomputed
-            // whenever the Today tab's width changes (via PreferenceKey).
             .offset(x: stateBadgeOffset(for: session, rowHorizontalPadding: rowHorizontalPadding))
         }
     }
@@ -632,7 +618,6 @@ struct SessionMonitorView: View {
     }
 
     private func activateSession(_ session: Session) {
-        // Only update color when clicking a different session (not Enter on already-selected)
         if controller.selectedSessionID != session.id {
             sessionManager.syncColorIndex(toSessionID: session.id)
         }

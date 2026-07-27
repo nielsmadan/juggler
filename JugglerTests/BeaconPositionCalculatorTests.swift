@@ -1,8 +1,3 @@
-//
-//  BeaconPositionCalculatorTests.swift
-//  JugglerTests
-//
-
 import CoreGraphics
 import Foundation
 @testable import Juggler

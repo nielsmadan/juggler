@@ -889,8 +889,6 @@ struct HookServerTests {
 
     @Test @MainActor func processRequest_postHook_kittyTerminalWithoutSocket_stillCreatesSession_noBridgeSideEffect()
         async {
-        // With kitty terminal type but no kittyListenOn field, the code logs a warning
-        // and skips bridge registration. Session is still created with .kitty terminalType.
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)
         let body = """
@@ -944,7 +942,6 @@ struct HookServerTests {
     }
 
     @Test @MainActor func processRequest_postHook_missingGitFields_createsSessionWithoutBranch() async {
-        // Payload omits the `git` object entirely — branch/repo end up nil on the session.
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)
         let body = """

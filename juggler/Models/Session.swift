@@ -32,21 +32,13 @@ struct Session: Identifiable, Codable, Equatable {
     var transcriptPath: String?
     var remoteHost: String?
 
-    /// Bare UUID of the local iTerm2 pane currently hosting this session, learned from
-    /// live focus events. Set only for remote tmux sessions, whose remote-captured
-    /// `terminalSessionID` is a stale value that no longer maps to a live local pane
-    /// (tmux caches `ITERM_SESSION_ID` in its environment). When set, activation and
-    /// focus-matching address this pane instead of `terminalSessionID`. Ephemeral —
-    /// pane UUIDs don't survive an iTerm2 restart — so it is neither coded nor part of
-    /// Equatable.
+    // Bare UUID of the live local iTerm2 pane, learned from focus events. Set only for
+    // remote tmux sessions, whose captured `terminalSessionID` is stale (tmux caches
+    // `ITERM_SESSION_ID`). Takes precedence over `terminalSessionID` when set.
     var liveHostPaneID: String?
 
-    /// True when this session was awaiting the user (idle *or* permission — i.e. any
-    /// cyclable state) at the moment it entered backburner. Antigravity has no
-    /// `UserPromptSubmit` to mark user re-engagement, so a backburnered Antigravity session
-    /// is auto-reactivated on its next `working` event only if it was shelved while awaiting
-    /// the user (a resume), never while working (a deliberate focus-shelve). Ephemeral —
-    /// neither coded nor part of Equatable.
+    // Antigravity has no `UserPromptSubmit`, so a backburnered session is auto-reactivated
+    // on its next `working` event only if it was shelved while awaiting the user.
     var wasAwaitingUserBeforeBackburner = false
 
     var agentShortName: String {
@@ -105,11 +97,8 @@ struct Session: Identifiable, Codable, Equatable {
         case paneIndex, paneCount, gitBranch, gitRepoName, transcriptPath, remoteHost
     }
 
-    // Explicit Equatable: excludes computed 'id', volatile timing fields
-    // (lastBecameIdle, lastBecameWorking, busyTimeToday), and the ephemeral
-    // 'liveHostPaneID' binding — to prevent .onChange(of: sessions) from firing on
-    // every hook event heartbeat.
-    // Timing fields are display-only and refreshed by TimelineView on a 5-second cadence.
+    // Excludes the volatile timing fields so .onChange(of: sessions) doesn't fire on
+    // every hook event.
     static func == (lhs: Session, rhs: Session) -> Bool {
         lhs.claudeSessionID == rhs.claudeSessionID &&
             lhs.terminalSessionID == rhs.terminalSessionID &&
@@ -144,7 +133,6 @@ struct Session: Identifiable, Codable, Equatable {
         return Date().timeIntervalSince(lastBecameWorking)
     }
 
-    /// Busy time accrued today by this session, including the current turn.
     var busyTimeTodayLive: TimeInterval {
         busyTimeToday + (currentWorkingDuration ?? 0)
     }
