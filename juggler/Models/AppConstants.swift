@@ -44,12 +44,6 @@ extension CyclingColors {
             blue: Double(rgb[2]) * factor / 255
         )
     }
-
-    /// 50%-brightness ("dark") palette variant at `index` (wraps).
-    /// Kept for pane-background callers; new dim treatments should use `dimColor(at:factor:)`.
-    static func darkColor(at index: Int) -> Color {
-        dimColor(at: index, factor: 0.5)
-    }
 }
 
 /// Layout + sizing constants for the busy-time bar chart in the monitor window.
