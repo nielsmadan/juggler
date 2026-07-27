@@ -34,11 +34,10 @@ struct HookServerTests {
         #expect(request?.body == "")
     }
 
-    @Test func parse_invalidData_returnsNil() {
+    @Test func parse_invalidData_parsesWithEmptyBody() {
         let request = HTTPRequest.parse(Data("not http at all".utf8))
 
-        // "not http at all" has 4 space-separated parts, so it still parses the first two as method/path
-        // but there's no proper body separator
+        // Space-separated, so the first two words parse as method/path; there is no body separator.
         #expect(request?.body == "")
     }
 

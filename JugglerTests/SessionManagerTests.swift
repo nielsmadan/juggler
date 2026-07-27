@@ -1211,10 +1211,9 @@ struct SessionManagerTests {
 
         // MARK: - Auto-advance × Auto-restart × Focus Races
 
-        @Test @MainActor func autoAdvance_focusedSessionCompacting_triggersAdvance() {
-            // working → compacting is non-cyclable → non-cyclable. The guard in applyStateChange
-            // only fires on cyclable → non-cyclable, so no notification should post and no
-            // anchor should be set. Pin that behavior here.
+        @Test @MainActor func autoAdvance_focusedSessionCompacting_doesNotTriggerAdvance() {
+            // The applyStateChange guard only fires on cyclable → non-cyclable, and working →
+            // compacting is non-cyclable → non-cyclable.
             UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
             defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 

@@ -74,7 +74,7 @@ class iTerm2Daemon:
             # Handle subscribe specially - keep connection open
             if request.get("command") == "subscribe":
                 await self.handle_subscription(client)
-                return  # Don't close connection
+                return
 
             response = await self.process_command(request)
 

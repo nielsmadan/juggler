@@ -58,7 +58,8 @@ final class SessionManager {
     }
 
     private(set) var cyclingState = CyclingState.initial
-    private(set) var focusedSessionID: String? // terminalSessionID of actually focused session in iTerm2
+    // Normalized to the session's composite id by updateFocusedSession.
+    private(set) var focusedSessionID: String?
     internal(set) var isTerminalAppActive = false
 
     /// Live local handle (iTerm2 pane UUID / kitty window id) of the most recently
