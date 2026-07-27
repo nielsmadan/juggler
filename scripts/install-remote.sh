@@ -7,7 +7,8 @@
 #   ssh user@remote 'curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/v1.6.0/scripts/install-remote.sh | bash'
 #
 # The SettingsView SSH tab pins the curl URL to a release tag; this script's
-# default BASE matches that tag so the two halves stay in sync. Bump on release.
+# default BASE matches that tag so the two halves stay in sync.
+# `just tag-release` rewrites both.
 
 set -e
 

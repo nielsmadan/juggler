@@ -232,6 +232,12 @@ tag-release bump="":
     if [ -z "$LATEST_TAG" ]; then
         echo "Error: no existing tags found."; exit 1
     fi
+    # These get rewritten below, so uncommitted edits would be swept into the release commit.
+    for f in Juggler.xcodeproj/project.pbxproj scripts/install-remote.sh juggler/Views/SettingsView.swift; do
+        if ! git diff --quiet -- "$f"; then
+            echo "Error: $f has uncommitted changes. Commit or stash them first."; exit 1
+        fi
+    done
     if [ -n "{{bump}}" ]; then
         MAJOR=$(echo "$LATEST_TAG" | cut -d. -f1)
         MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
@@ -247,7 +253,6 @@ tag-release bump="":
         sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = $VERSION/" \
             Juggler.xcodeproj/project.pbxproj
         git add Juggler.xcodeproj/project.pbxproj
-        git commit -m "chore: bump version to $VERSION"
     else
         VERSION=$(xcodebuild -scheme {{scheme}} -configuration Release -showBuildSettings 2>/dev/null \
             | grep MARKETING_VERSION | head -1 | tr -d ' ' | cut -d= -f2)
@@ -256,6 +261,13 @@ tag-release bump="":
             echo "Run: just tag-release-patch, tag-release-minor, or tag-release-major"
             exit 1
         fi
+    fi
+    # Remote hosts fetch install-remote.sh and the hook scripts it pulls at this tag.
+    sed -i '' "s|nielsmadan/juggler/v[0-9]*\.[0-9]*\.[0-9]*/|nielsmadan/juggler/v$VERSION/|g" \
+        scripts/install-remote.sh juggler/Views/SettingsView.swift
+    git add scripts/install-remote.sh juggler/Views/SettingsView.swift
+    if ! git diff --cached --quiet; then
+        git commit -m "chore: bump version to $VERSION"
     fi
     echo "Tagging v$VERSION..."
     git tag -m "Release v$VERSION" "v$VERSION" && git push origin main "v$VERSION" && \
