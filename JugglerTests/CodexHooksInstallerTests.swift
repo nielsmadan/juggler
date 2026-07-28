@@ -166,7 +166,7 @@ struct CodexHooksJSONTests {
     }
 
     // The handler Juggler writes must match what `computeTrustedHash` folds into the hash —
-    // `type: "command"` and `timeout: hookTimeoutSeconds`.
+    // `type: "command"` and the event's `timeoutSeconds(for:)`.
     @Test func mergeHooksJSON_writesExpectedHandlerStructure() throws {
         try withTempDir { dir in
             let hooksJSON = dir.appendingPathComponent("hooks.json").path
@@ -344,7 +344,7 @@ struct CodexTrustHashTests {
 
     // Vectors captured from a real Codex 0.130.0 config.toml after the user trusted
     // the hooks via /hooks. Reproducing these proves our hash matches Codex's — and
-    // pins the `hookTimeoutSeconds` value the hash folds in.
+    // pins the default timeout the hash folds in.
     @Test func computeTrustedHash_matchesKnownVectors() {
         let vectors: [(event: String, hash: String)] = [
             ("SessionStart", "sha256:69df9d8472ca7e042284549900dd402e90f4288ca8dba3cd942d157b58974ae4"),
@@ -391,6 +391,51 @@ struct CodexEnableInCodexTests {
             #expect(CodexHooksInstaller.isEnabledInCodex(
                 at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
             ) == true)
+        }
+    }
+
+    // The state that motivated this check: the user enabled the feature flag but chose Codex's
+    // own /hooks review over Juggler's button, so no Juggler trust entry exists to refresh.
+    @Test func hasExistingTrustEntries_featureFlagOnButNeverTrusted_false() throws {
+        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, notify in
+            #expect(CodexHooksInstaller.hasExistingTrustEntries(
+                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+            ) == false)
+        }
+    }
+
+    @Test func hasExistingTrustEntries_afterEnableInCodex_true() throws {
+        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, notify in
+            try CodexHooksInstaller.enableInCodex(
+                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+            )
+            #expect(CodexHooksInstaller.hasExistingTrustEntries(
+                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+            ))
+        }
+    }
+
+    // A user's own hook trusted in the same hooks.json is not Juggler's consent.
+    @Test func hasExistingTrustEntries_foreignTrustEntryOnly_false() throws {
+        let foreign = """
+        [features]
+        hooks = true
+
+        [hooks.state."/some/other/hooks.json:session_start:0:0"]
+        trusted_hash = "sha256:deadbeef"
+        """
+        try withCodexFixture(config: foreign) { config, hooksJSON, notify in
+            #expect(CodexHooksInstaller.hasExistingTrustEntries(
+                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+            ) == false)
+        }
+    }
+
+    @Test func hasExistingTrustEntries_missingConfig_false() throws {
+        try withCodexFixture { _, hooksJSON, notify in
+            #expect(CodexHooksInstaller.hasExistingTrustEntries(
+                at: "/nonexistent/config.toml", hooksJSONPath: hooksJSON, notifyScriptPath: notify
+            ) == false)
         }
     }
 
@@ -769,6 +814,99 @@ struct CodexInstallHooksTests {
             #expect(error == nil)
             #expect(readFile(notifyPath) == "FRESH")
         }
+    }
+}
+
+// MARK: - SessionEnd timeout clamp
+
+@Suite("CodexHooksInstaller — SessionEnd timeout clamp")
+struct CodexSessionEndTimeoutTests {
+    @Test func sessionEndUsesClampedTimeout() {
+        #expect(CodexHooksInstaller.timeoutSeconds(for: "SessionEnd") == 3)
+    }
+
+    @Test func otherEventsUseDefaultTimeout() {
+        for event in CodexHooksInstaller.agentEvents where event != "SessionEnd" {
+            #expect(
+                CodexHooksInstaller.timeoutSeconds(for: event) == CodexHooksInstaller.hookTimeoutSeconds,
+                "unexpected timeout for \(event)"
+            )
+        }
+    }
+
+    /// Codex fingerprints the post-clamp timeout, so a 5s entry would install but never match.
+    @Test func hooksJSONWritesClampedTimeoutForSessionEnd() throws {
+        try withCodexFixture { _, hooksJSONPath, _ in
+            let root = try JSONSerialization.jsonObject(
+                with: Data(contentsOf: URL(fileURLWithPath: hooksJSONPath))
+            ) as? [String: Any]
+            let hooks = root?["hooks"] as? [String: Any]
+
+            for event in CodexHooksInstaller.agentEvents {
+                let groups = hooks?[event] as? [[String: Any]]
+                let handler = (groups?.last?["hooks"] as? [[String: Any]])?.first
+                #expect(
+                    handler?["timeout"] as? Int == CodexHooksInstaller.timeoutSeconds(for: event),
+                    "unexpected timeout in hooks.json for \(event)"
+                )
+            }
+        }
+    }
+
+    // Digest of the 3s canonical form, computed independently of this code. Unlike the vectors
+    // in CodexTrustHashTests it is not captured from a Codex-written config, so it pins the
+    // canonicalization and that the clamp reaches the hash — not that 3 is Codex's real clamp.
+    // That value comes from Codex 0.145.0's `clamping SessionEnd hook timeout to 3s` and from
+    // observing SessionEnd actually fire; a future clamp change would pass this test silently.
+    @Test func trustHashFoldsInClampedTimeout() {
+        let hash = CodexHooksInstaller.computeTrustedHash(
+            event: "SessionEnd", command: "/tmp/notify.sh SessionEnd"
+        )
+        #expect(hash == "sha256:6235468b2904e507eb76f6ef4c0ee7abffdf69edc69e0efeb4109b301d433088")
+    }
+}
+
+// MARK: - Event registration drift
+
+@Suite("CodexHooksInstaller — event registration drift")
+struct CodexEventRegistrationDriftTests {
+    @Test func allEventsRegistered_isNotStale() throws {
+        try withCodexFixture { _, hooksJSONPath, notifyPath in
+            #expect(
+                CodexHooksInstaller.hasUnregisteredEvents(
+                    hooksJSONPath: hooksJSONPath,
+                    notifyScriptPath: notifyPath
+                ) == false
+            )
+        }
+    }
+
+    /// An install from an older app version registers a subset of today's `agentEvents`.
+    @Test func eventMissingFromOlderInstall_isStale() throws {
+        try withCodexFixture { _, hooksJSONPath, notifyPath in
+            let url = URL(fileURLWithPath: hooksJSONPath)
+            var root = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as! [String: Any]
+            var hooks = root["hooks"] as! [String: Any]
+            hooks.removeValue(forKey: "SessionEnd")
+            root["hooks"] = hooks
+            try JSONSerialization.data(withJSONObject: root).write(to: url)
+
+            #expect(
+                CodexHooksInstaller.hasUnregisteredEvents(
+                    hooksJSONPath: hooksJSONPath,
+                    notifyScriptPath: notifyPath
+                )
+            )
+        }
+    }
+
+    @Test func missingHooksJSON_isNotStale() {
+        #expect(
+            CodexHooksInstaller.hasUnregisteredEvents(
+                hooksJSONPath: "/nonexistent/hooks.json",
+                notifyScriptPath: "/nonexistent/notify.sh"
+            ) == false
+        )
     }
 }
 

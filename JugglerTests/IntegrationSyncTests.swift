@@ -35,4 +35,40 @@ struct IntegrationSyncTests {
             .appendingPathComponent("juggler-nonexistent-\(UUID().uuidString).sh").path
         #expect(IntegrationSync.isStale(installedPath: missing, bundledResource: "notify", ext: "sh") == false)
     }
+
+    // MARK: - codexNeedsReinstall
+
+    // Without the scriptInstalled guard, a user who has their own ~/.codex/hooks.json but never
+    // installed Juggler's hooks scores as drifted, and we'd install ourselves uninvited.
+    @Test func codexNeedsReinstall_notInstalled_falseEvenWhenEventsUnregistered() {
+        #expect(
+            IntegrationSync.codexNeedsReinstall(
+                scriptInstalled: false, scriptStale: false, hasUnregisteredEvents: true
+            ) == false
+        )
+    }
+
+    @Test func codexNeedsReinstall_installedAndScriptStale_true() {
+        #expect(
+            IntegrationSync.codexNeedsReinstall(
+                scriptInstalled: true, scriptStale: true, hasUnregisteredEvents: false
+            )
+        )
+    }
+
+    @Test func codexNeedsReinstall_installedAndEventsUnregistered_true() {
+        #expect(
+            IntegrationSync.codexNeedsReinstall(
+                scriptInstalled: true, scriptStale: false, hasUnregisteredEvents: true
+            )
+        )
+    }
+
+    @Test func codexNeedsReinstall_installedAndCurrent_false() {
+        #expect(
+            IntegrationSync.codexNeedsReinstall(
+                scriptInstalled: true, scriptStale: false, hasUnregisteredEvents: false
+            ) == false
+        )
+    }
 }

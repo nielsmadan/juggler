@@ -706,6 +706,12 @@ final class SessionManager {
             // early-return, so backburnered remote sessions stay reachable too).
             applyLiveHostPaneBinding(at: index, event: event)
 
+            // A new agent thread can take over a pane (Codex /new). Track whose thread the row
+            // now represents, so a late SessionEnd from the previous one can be told apart.
+            if !claudeSessionID.isEmpty {
+                sessions[index].claudeSessionID = claudeSessionID
+            }
+
             // Antigravity has no UserPromptSubmit; a session shelved while idle is
             // auto-reactivated on its next working event (a resume). One shelved while
             // working stays put — see docs/superpowers/specs/antigravity-integration.md.

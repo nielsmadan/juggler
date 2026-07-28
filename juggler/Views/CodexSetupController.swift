@@ -19,6 +19,7 @@ final class CodexSetupController {
 
     func refresh() {
         hooksInstalled = FileManager.default.fileExists(atPath: CodexHooksInstaller.notifyScriptPath)
+            && !CodexHooksInstaller.hasUnregisteredEvents()
         featureFlagEnabled = CodexHooksInstaller.isFeatureFlagEnabled()
         enabledInCodex = CodexHooksInstaller.isEnabledInCodex()
     }

@@ -93,12 +93,13 @@ Codex:
 | `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostCompact` | `working` |
 | `PermissionRequest` | `permission` |
 | `PreCompact` | `compacting` |
+| `SessionEnd` | *(removed)* |
 
 Codex hooks register under `~/.codex/hooks.json` and require `features.hooks = true`
-in `~/.codex/config.toml`. Codex supports eight hook events - `SessionStart`,
+in `~/.codex/config.toml`. Juggler registers nine hook events - `SessionStart`,
 `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `PostCompact`,
-`PermissionRequest`, `Stop` - but no `SessionEnd`; sessions are removed via terminal
-bridge cleanup on window close.
+`PermissionRequest`, `Stop`, `SessionEnd`. `SessionEnd` removes the session; before
+it existed, that relied on terminal bridge cleanup at window close.
 
 Codex gates user-installed hooks behind a trust review (`/hooks` in its TUI).
 `CodexHooksInstaller` writes `[hooks.state."<hooksJSONPath>:<event>:<groupIndex>:0"]`
@@ -107,7 +108,7 @@ canonical hook fingerprint) - so the hooks run without manual review. The
 `<groupIndex>` is resolved at install time from `hooks.json` (it is not always
 `0` - a user's preexisting hook for the same event pushes Juggler's group to a
 higher index). See [Codex Hooks](codex-hooks.md) for the full mechanism.
-Requires Codex CLI ≥ v0.114.
+Requires Codex CLI ≥ v0.114; `SessionEnd` additionally requires ≥ v0.145.
 
 Pi:
 

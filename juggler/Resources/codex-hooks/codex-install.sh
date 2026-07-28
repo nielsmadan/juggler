@@ -40,7 +40,7 @@ import shutil
 
 EVENTS = [
     "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse",
-    "PreCompact", "PostCompact", "PermissionRequest", "Stop"
+    "PreCompact", "PostCompact", "PermissionRequest", "Stop", "SessionEnd"
 ]
 EVENT_SNAKE = {
     "SessionStart": "session_start",
@@ -51,6 +51,7 @@ EVENT_SNAKE = {
     "PostCompact": "post_compact",
     "PermissionRequest": "permission_request",
     "Stop": "stop",
+    "SessionEnd": "session_end",
 }
 
 hooks_json_path = os.environ["JUGGLER_HOOKS_JSON"]
@@ -58,9 +59,35 @@ config_toml_path = os.environ["JUGGLER_CONFIG_TOML"]
 notify = os.environ["JUGGLER_NOTIFY_SCRIPT"]
 timeout = int(os.environ["JUGGLER_HOOK_TIMEOUT"])
 
+# Codex clamps SessionEnd hooks to 3s and fingerprints the post-clamp timeout, so a
+# longer entry installs cleanly but never matches its trust record.
+SESSION_END_TIMEOUT = 3
+
+
+def timeout_for(event):
+    return SESSION_END_TIMEOUT if event == "SessionEnd" else timeout
+
 
 def hook_command(event):
     return f"{notify} {event}"
+
+
+def write_atomic(path, text):
+    # os.replace swaps in the temp file's inode, so without copymode a 0600 config.toml
+    # would come back 0644. The Swift installer preserves the mode; this must match.
+    tmp = path + ".juggler-tmp"
+    try:
+        with open(tmp, "w") as f:
+            f.write(text)
+        if os.path.exists(path):
+            shutil.copymode(path, tmp)
+        else:
+            os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
 
 
 def is_juggler_group(group):
@@ -91,7 +118,7 @@ for event in EVENTS:
         "hooks": [{
             "type": "command",
             "command": hook_command(event),
-            "timeout": timeout,
+            "timeout": timeout_for(event),
         }]
     }
     entries.append(juggler_entry)
@@ -104,16 +131,14 @@ if existed_hooks:
     if not os.path.exists(backup):
         shutil.copy2(hooks_json_path, backup)
 
-with open(hooks_json_path, "w") as f:
-    json.dump(root, f, indent=2, sort_keys=True)
-    f.write("\n")
+write_atomic(hooks_json_path, json.dumps(root, indent=2, sort_keys=True) + "\n")
 
 
 def trusted_hash(event):
     handler = {
         "async": False,
         "command": hook_command(event),
-        "timeout": timeout,
+        "timeout": timeout_for(event),
         "type": "command",
     }
     identity = {
@@ -216,12 +241,9 @@ if updated != original:
         backup = config_toml_path + ".juggler-backup"
         if not os.path.exists(backup):
             shutil.copy2(config_toml_path, backup)
-    with open(config_toml_path, "w") as f:
-        f.write(updated)
-        if not updated.endswith("\n"):
-            f.write("\n")
+    write_atomic(config_toml_path, updated if updated.endswith("\n") else updated + "\n")
 
-print("Codex hooks installed for 8 events: " + ", ".join(EVENTS))
+print("Codex hooks installed for %d events: %s" % (len(EVENTS), ", ".join(EVENTS)))
 PYTHON
 
 echo "Juggler Codex hooks installed successfully!"

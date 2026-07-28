@@ -2,13 +2,13 @@
 
 Juggler integrates with [Codex CLI](https://github.com/openai/codex) via shell hooks, the same model as Claude Code. The wrinkle is Codex's *hook trust* gate: Codex refuses to run a newly registered hook until the user reviews it in the `/hooks` TUI. Juggler writes the trust record directly so the hooks work without that manual step.
 
-Requires Codex CLI ≥ v0.114.
+Requires Codex CLI ≥ v0.114; `SessionEnd` additionally requires ≥ v0.145 (older builds ignore the unregistered event without rejecting the rest of `hooks.json`).
 
 ## Installation
 
 Codex setup is **three separate steps** (three buttons in onboarding's Integration Hub and in Settings → Integration). They are independent and idempotent - run them in order:
 
-1. **Install Hooks**: copies the bundled script to `~/.codex/hooks/juggler/notify.sh` (`chmod 755`) and registers all eight events in `~/.codex/hooks.json`.
+1. **Install Hooks**: copies the bundled script to `~/.codex/hooks/juggler/notify.sh` (`chmod 755`) and registers all nine events in `~/.codex/hooks.json`.
 2. **Enable Feature Flag**: sets `[features] hooks = true` in `~/.codex/config.toml`. Codex ignores `hooks.json` entirely unless this flag is on.
 3. **Enable in Codex**: writes `[hooks.state]` trust records to `config.toml` so the hooks run without the manual `/hooks` review. This bypasses Codex's own trust-enabling flow; the alternative is to skip this step and run `/hooks` inside Codex to approve Juggler's hooks manually.
 
@@ -44,7 +44,7 @@ See [Claude Code Hooks](hooks.md) for the full payload contract - it is shared.
 
 ## Hook Events
 
-Codex fires eight events. There is **no `SessionEnd`**: sessions are removed via terminal-bridge cleanup when the window closes, not by a hook.
+Juggler registers nine events.
 
 | Event | Mapped State |
 |-------|--------------|
@@ -56,6 +56,9 @@ Codex fires eight events. There is **no `SessionEnd`**: sessions are removed via
 | `PostCompact` | `working` |
 | `PreCompact` | `compacting` |
 | `PermissionRequest` | `permission` |
+| `SessionEnd` | *(removes the session)* |
+
+Codex also fires `SubagentStart` and `SubagentStop`, which Juggler does not register.
 
 Mapping lives in `HookEventMapper.mapCodex`. Event names are matched case-sensitively; an unrecognized event maps to `.ignore`.
 
@@ -102,7 +105,27 @@ trusted_hash = "sha256:<hex>"
 
 ### SessionStart fires at first message, not at launch
 
-Codex does not fire `SessionStart` when the TUI opens - only when the user submits their first prompt. A freshly opened Codex window therefore does not appear in Juggler until the first message. The Session Monitor's empty-state text notes this. There is no `SessionEnd` either, so a stopped Codex session lingers until its terminal window closes (terminal-bridge cleanup removes it then).
+Codex does not fire `SessionStart` when the TUI opens - only when the user submits their first prompt. A freshly opened Codex window therefore does not appear in Juggler until the first message. The Session Monitor's empty-state text notes this.
+
+Verified against Codex 0.145.0: a TUI left open for 20s with no prompt submitted fires no hook at all, while the same capture path receives `SessionStart`/`UserPromptSubmit`/`Stop` the moment a prompt is sent. The `source: "startup"` field on `SessionStart` describes why the session was created, not when the process launched - Codex creates the session lazily.
+
+### SessionEnd hooks are clamped to 3s, and the clamp reaches the trust hash
+
+Codex caps `SessionEnd` hook timeouts at 3s (`clamping SessionEnd hook timeout to 3s`) and computes the trust fingerprint from the **post-clamp** value. Registering it with Juggler's usual 5s writes a well-formed entry whose `trusted_hash` Codex will never match: the hook installs, `isEnabledInCodex` reports green (it recomputes the same 5s hash), and the hook silently never runs. `CodexHooksInstaller.timeoutSeconds(for:)` returns 3 for `SessionEnd`, and both `mergeHooksJSON` and `computeTrustedHash` go through it. `codex-install.sh` mirrors this via `timeout_for`. The clamp is `SessionEnd`-specific — the other eight events use `hookTimeoutSeconds`.
+
+### A stale SessionEnd must not remove the live session
+
+Codex does not fire `SessionEnd` on `/new`, `/clear`, fork, resume, or compaction — those produce a bare `SessionStart` with the corresponding `source`. The abandoned thread still fires its own `SessionEnd` later (idle-unload, ~30 min, or at quit). Sessions are keyed by terminal pane, so `HookServer` compares the hook's `session_id` against the row's before removing; a mismatch is ignored. Agents that send no session id are unaffected.
+
+### Auto-sync refreshes trust, it never grants it
+
+`syncCodex` re-registers `hooks.json` on drift, but writing a `[hooks.state]` entry is a different act: it bypasses the `/hooks` review Codex asks the user for. So the re-trust is gated on `CodexHooksInstaller.hasExistingTrustEntries`, sampled *before* the reinstall (the re-merge can shift group indices, which are part of the trust key). With an existing matching entry we are refreshing a grant the user already made; with none we re-register and stop, and the setup UI shows "Enable in Codex" as outstanding. The check matches a full key+hash pair rather than prefix-matching the hooks.json path, so a user's own hook registered in the same file is never read as consent.
+
+The feature-flag gate alone was not enough: `features.hooks = true` is setup step 2, while the trust bypass is step 3, so a user who enabled the flag and then chose Codex's own review would have had entries written for them at launch.
+
+### Adding an event requires a registration-drift check
+
+`agentEvents` is registered into `hooks.json` at install time, so a Juggler release that adds an event does not reach existing installs on its own - `codex-notify.sh` is unchanged, and `IntegrationSync` keyed only off script staleness. `CodexHooksInstaller.hasUnregisteredEvents` closes that gap: `syncCodex` reinstalls when the script is stale **or** any `agentEvents` entry is missing from `hooks.json`. Keep the event list in `codex-install.sh` in sync too - `CodexInstallScriptParityTests` fails otherwise.
 
 ### No Separate Failure Event
 

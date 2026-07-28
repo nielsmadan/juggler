@@ -18,10 +18,7 @@ struct CodexInstallScriptParityTests {
             .path
     }
 
-    private static let events = [
-        "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse",
-        "PreCompact", "PostCompact", "PermissionRequest", "Stop"
-    ]
+    private static let events = CodexHooksInstaller.agentEvents
 
     @Test func scriptTrustHashesMatchSwiftImplementation() throws {
         let script = Self.scriptPath
@@ -59,7 +56,10 @@ struct CodexInstallScriptParityTests {
         let notifyPath = home.appendingPathComponent(".codex/hooks/juggler/notify.sh").path
         let scriptHashes = Set(Self.parseTrustedHashes(toml).values)
 
-        #expect(scriptHashes.count == Self.events.count, "expected 8 distinct trust hashes")
+        #expect(
+            scriptHashes.count == Self.events.count,
+            "expected \(Self.events.count) distinct trust hashes"
+        )
 
         for event in Self.events {
             let expected = CodexHooksInstaller.computeTrustedHash(
@@ -69,6 +69,27 @@ struct CodexInstallScriptParityTests {
             #expect(
                 scriptHashes.contains(expected),
                 "no script-generated trust hash matches Swift's for \(event)"
+            )
+        }
+
+        // The trust hashes alone can't catch a script that writes one timeout into hooks.json
+        // and fingerprints another — that combination installs cleanly and never fires.
+        let hooksJSON = try JSONSerialization.jsonObject(
+            with: Data(contentsOf: home.appendingPathComponent(".codex/hooks.json"))
+        ) as? [String: Any]
+        let hooks = hooksJSON?["hooks"] as? [String: Any]
+
+        for event in Self.events {
+            let groups = hooks?[event] as? [[String: Any]]
+            let handler = groups?
+                .compactMap { $0["hooks"] as? [[String: Any]] }
+                .flatMap(\.self)
+                .first { $0["command"] as? String == CodexHooksInstaller.hookCommand(
+                    for: event, notifyScriptPath: notifyPath
+                ) }
+            #expect(
+                handler?["timeout"] as? Int == CodexHooksInstaller.timeoutSeconds(for: event),
+                "script wrote the wrong hooks.json timeout for \(event)"
             )
         }
     }

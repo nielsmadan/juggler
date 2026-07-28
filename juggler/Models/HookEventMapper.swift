@@ -54,6 +54,8 @@ enum HookEventMapper {
             .updateState(.permission)
         case "PreCompact":
             .updateState(.compacting)
+        case "SessionEnd":
+            .removeSession
         default:
             .ignore
         }

@@ -317,7 +317,7 @@ struct IntegrationTests {
         #expect(manager.cyclableSessions.count == 2)
 
         // 7. Session ends
-        await simulateHook(server: server, event: "SessionEnd", terminalSessionID: "s1")
+        await simulateHook(server: server, event: "SessionEnd", claudeSessionID: "c1", terminalSessionID: "s1")
         #expect(manager.sessions.count == 1)
         #expect(manager.sessions[0].id == "s2")
     }
@@ -1308,6 +1308,41 @@ struct IntegrationTests {
 
         // The whole sequence is a single session.
         #expect(manager.sessions.count == 1)
+    }
+
+    @Test @MainActor func integration_codex_sessionEnd_removesSession() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(server: server, agent: "codex", event: "SessionStart",
+                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+        #expect(manager.sessions.count == 1)
+
+        await simulateHook(server: server, agent: "codex", event: "SessionEnd",
+                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+        #expect(manager.sessions.isEmpty)
+    }
+
+    // A thread abandoned via /new fires its SessionEnd long after a newer thread took over the
+    // pane. Sessions are keyed by pane, so the stale event must not remove the live row.
+    @Test @MainActor func integration_codex_staleSessionEnd_leavesLiveSessionAlone() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await simulateHook(server: server, agent: "codex", event: "SessionStart",
+                           claudeSessionID: "codex-old", terminalSessionID: "s1")
+        await simulateHook(server: server, agent: "codex", event: "SessionStart",
+                           claudeSessionID: "codex-new", terminalSessionID: "s1")
+        #expect(manager.sessions.count == 1)
+
+        await simulateHook(server: server, agent: "codex", event: "SessionEnd",
+                           claudeSessionID: "codex-old", terminalSessionID: "s1")
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions.first?.claudeSessionID == "codex-new")
+
+        await simulateHook(server: server, agent: "codex", event: "SessionEnd",
+                           claudeSessionID: "codex-new", terminalSessionID: "s1")
+        #expect(manager.sessions.isEmpty)
     }
 
     @Test @MainActor func integration_codex_mixedWithClaudeCode_bothTracked() async {

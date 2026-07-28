@@ -15,7 +15,7 @@ The SessionManager is the central state manager for tracking agent sessions (Cla
 
 ```swift
 struct Session: Identifiable, Codable, Equatable {
-    let claudeSessionID: String      // Claude session ID (may be shared across tmux panes)
+    var claudeSessionID: String      // Agent session ID; refreshed when a new thread takes the pane
     let terminalSessionID: String    // e.g., "w0t0p0:UUID"
     var tmuxPane: String?            // e.g., "%1", nil if not inside tmux
     var id: String { ... }           // Computed: "\(terminalSessionID):\(tmuxPane)" or terminalSessionID

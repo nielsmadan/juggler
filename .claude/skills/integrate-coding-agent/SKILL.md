@@ -30,7 +30,7 @@ Research the agent from its official documentation. Prefer reading the actual do
 List **every** event the agent fires: name, when it fires, and the payload fields it carries. Then answer each of these explicitly — a "no" is a finding, not a footnote:
 
 - **Session start.** Is there an event when a conversation/session begins? Critically: does it fire at *launch* of the agent, or only at the *first prompt*? (Claude Code: at start. Codex: at first prompt. Antigravity: no start event at all.)
-- **Session end.** Is there an event when the session closes/terminates? (Claude Code: `SessionEnd`. Codex / Antigravity: none — Juggler removes the session via terminal-bridge cleanup on window close instead.)
+- **Session end.** Is there an event when the session closes/terminates? (Claude Code: `SessionEnd`. Codex: `SessionEnd` since v0.145 — check the agent's *current* release, not its docs; this one was absent for months and the gap outlived the docs saying so. Antigravity: none — Juggler falls back to terminal-bridge cleanup on window close.)
 - **Working / idle transitions.** Which events mark the agent starting work and finishing a turn? Beware events that fire per-*model-call* or per-*tool* vs. per-*turn* — a turn can contain many model calls.
 - **Permission.** Is there an event when the agent pauses for user approval? If not, the `permission` state is unavailable for this agent.
 - **Compaction.** Is there a context-compaction event? If not, `compacting` is unused.

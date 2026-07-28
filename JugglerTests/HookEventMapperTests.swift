@@ -124,9 +124,9 @@ struct HookEventMapperTests {
         #expect(action == .updateState(.permission))
     }
 
-    @Test func codex_sessionEnd_mapsToIgnore() {
+    @Test func codex_sessionEnd_mapsToRemoveSession() {
         let action = HookEventMapper.map(event: "SessionEnd", agent: "codex")
-        #expect(action == .ignore)
+        #expect(action == .removeSession)
     }
 
     @Test func codex_preCompact_mapsToCompacting() {

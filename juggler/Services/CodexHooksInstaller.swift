@@ -27,12 +27,22 @@ enum CodexHooksInstaller {
         "PreCompact",
         "PostCompact",
         "PermissionRequest",
-        "Stop"
+        "Stop",
+        "SessionEnd"
     ]
 
-    /// Timeout (seconds) written into each hook entry in hooks.json. Must stay in sync with
-    /// the value folded into `computeTrustedHash` — Codex's trust hash covers the timeout.
+    /// Default hook timeout (seconds). Per-event values go through `timeoutSeconds(for:)`,
+    /// which both the hooks.json writer and the trust hash use — they cannot drift apart.
     static let hookTimeoutSeconds = 5
+
+    /// Codex clamps SessionEnd hooks to 3s and fingerprints the *post-clamp* timeout, so an
+    /// entry written with `hookTimeoutSeconds` installs cleanly but never matches its trust
+    /// record — the hook silently never runs.
+    static let sessionEndTimeoutSeconds = 3
+
+    static func timeoutSeconds(for event: String) -> Int {
+        event == "SessionEnd" ? sessionEndTimeoutSeconds : hookTimeoutSeconds
+    }
 
     static var codexDirectory: String {
         NSString(string: "~/.codex").expandingTildeInPath
@@ -119,7 +129,7 @@ enum CodexHooksInstaller {
                     [
                         "type": "command",
                         "command": "\(notifyScriptPath) \(event)",
-                        "timeout": hookTimeoutSeconds
+                        "timeout": timeoutSeconds(for: event)
                     ]
                 ]
             ]
@@ -200,12 +210,13 @@ enum CodexHooksInstaller {
 
     /// Computes the `trusted_hash` Codex stores in `[hooks.state]` for a command hook.
     /// Mirrors Codex's canonical fingerprint: SHA-256 over sorted-key, compact JSON of
-    /// `{"event_name":...,"hooks":[{"async":false,"command":...,"timeout":5,"type":"command"}]}`.
+    /// `{"event_name":...,"hooks":[{"async":false,"command":...,"timeout":N,"type":"command"}]}`,
+    /// where N is the event's `timeoutSeconds(for:)` — Codex hashes the clamped value.
     static func computeTrustedHash(event: String, command: String) -> String {
         let handler: [String: Any] = [
             "async": false,
             "command": command,
-            "timeout": hookTimeoutSeconds,
+            "timeout": timeoutSeconds(for: event),
             "type": "command"
         ]
         let identity: [String: Any] = [
@@ -288,6 +299,52 @@ enum CodexHooksInstaller {
         "\(notifyScriptPath) \(event)"
     }
 
+    /// True when config.toml already carries a matching trust entry for at least one currently
+    /// registered Juggler hook. Refreshing trust the user already granted is maintenance;
+    /// writing the first one for them is not — that grant is Codex's `/hooks` review to make.
+    /// Matches a full key+hash pair rather than prefix-matching, so a user's own hook registered
+    /// in the same hooks.json is never mistaken for consent.
+    static func hasExistingTrustEntries(
+        at path: String = configTOMLPath,
+        hooksJSONPath: String = Self.hooksJSONPath,
+        notifyScriptPath: String = Self.notifyScriptPath
+    ) -> Bool {
+        guard let contents = try? String(contentsOfFile: path, encoding: .utf8),
+              let indices = try? jugglerGroupIndices(
+                  hooksJSONPath: hooksJSONPath,
+                  notifyScriptPath: notifyScriptPath
+              )
+        else {
+            return false
+        }
+        let found = parseHookStateHashes(from: contents)
+        return indices.contains { event, groupIndex in
+            let key = trustEntryKey(event: event, groupIndex: groupIndex, hooksJSONPath: hooksJSONPath)
+            return found[key] == computeTrustedHash(
+                event: event,
+                command: hookCommand(for: event, notifyScriptPath: notifyScriptPath)
+            )
+        }
+    }
+
+    /// True when hooks.json lacks a Juggler registration for any event in `agentEvents`.
+    /// An app version that adds an event leaves `codex-notify.sh` byte-identical, so script
+    /// staleness alone would never re-register it on upgrade. An unreadable file means
+    /// "can't tell" and returns false, so a failed read never triggers a reinstall.
+    static func hasUnregisteredEvents(
+        hooksJSONPath: String = Self.hooksJSONPath,
+        notifyScriptPath: String = Self.notifyScriptPath
+    ) -> Bool {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: hooksJSONPath)),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return false
+        }
+        return agentEvents.contains { event in
+            jugglerGroupIndex(in: root, event: event, notifyScriptPath: notifyScriptPath) == nil
+        }
+    }
+
     /// Reads and parses hooks.json, returning the Juggler matcher-group index for each of
     /// `agentEvents` that has a Juggler hook registered. Throws if the file is missing,
     /// unparseable, or contains no Juggler hooks at all.
@@ -367,6 +424,7 @@ enum CodexHooksInstaller {
         case "PostCompact": "post_compact"
         case "PermissionRequest": "permission_request"
         case "Stop": "stop"
+        case "SessionEnd": "session_end"
         default: event.lowercased()
         }
     }

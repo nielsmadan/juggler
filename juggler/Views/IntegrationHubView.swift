@@ -127,7 +127,7 @@ struct IntegrationHubView: View {
                 IntegrationCard(
                     icon: "barcode",
                     title: "Codex",
-                    description: "Install hooks for session tracking (experimental)",
+                    description: "Install hooks for session tracking",
                     isConfigured: codexConfigured,
                     action: { showingCodexSetup = true }
                 )

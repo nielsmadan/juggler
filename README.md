@@ -4,9 +4,9 @@
 
 A native macOS app that tracks your running coding agent sessions and cycles you to the next one that needs attention. No workflow changes. No new terminal. Just less time wasted.
 
-Currently works with iTerm2 / Kitty / WezTerm (tmux optional) and Claude Code, OpenCode, Codex (experimental), and Pi. More integrations coming soon.
+Currently works with iTerm2 / Kitty / WezTerm (tmux optional) and Claude Code, OpenCode, Codex, and Pi. More integrations coming soon.
 
-![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![Codex](https://img.shields.io/badge/Codex-experimental-yellow) ![Pi](https://img.shields.io/badge/Pi-supported-brightgreen) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen) ![WezTerm](https://img.shields.io/badge/WezTerm-supported-brightgreen)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![Codex](https://img.shields.io/badge/Codex-supported-brightgreen) ![Pi](https://img.shields.io/badge/Pi-supported-brightgreen) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen) ![WezTerm](https://img.shields.io/badge/WezTerm-supported-brightgreen)
 
 <p align="center">
   <img src="site/video.gif" alt="Juggler demo" width="720">
@@ -75,7 +75,7 @@ All shortcuts are customizable in Settings.
 
 **Terminals:** iTerm2, Kitty, WezTerm, tmux (optional multiplexer), Zellij (planned)
 
-**Coding agents:** Claude Code, OpenCode, Codex *(experimental - requires Codex CLI ≥ v0.114)*, Pi
+**Coding agents:** Claude Code, OpenCode, Codex *(requires Codex CLI ≥ v0.114, or ≥ v0.145 for session-end tracking)*, Pi
 
 **Requires:** macOS 14.0+ (Sonoma)
 
@@ -93,7 +93,7 @@ Juggler's onboarding flow sets up agent integration automatically. You can also 
 
 - **Claude Code** - Shell hooks installed to `~/.claude/hooks/juggler/`. Alternatively, run `/Applications/Juggler.app/Contents/Resources/install.sh`
 - **OpenCode** - TypeScript plugin installed to `~/.config/opencode/plugins/juggler-opencode.ts`. Configure via Settings → Integrations
-- **Codex** *(experimental - requires Codex CLI ≥ v0.114)* - Three setup steps in Settings → Integrations: **Install Hooks** (adds `notify.sh` + `hooks.json` to `~/.codex/hooks/juggler/`), **Enable Feature Flag** (`features.hooks = true` in `~/.codex/config.toml`), and **Enable in Codex** (writes `[hooks.state]` trust entries so Codex runs the hooks - this bypasses Codex's own hook review; alternatively run `/hooks` in Codex and trust them manually)
+- **Codex** *(requires Codex CLI ≥ v0.114, or ≥ v0.145 for session-end tracking)* - Codex keeps hooks behind an opt-in flag, so all three setup steps in Settings → Integrations are required: **Install Hooks** (adds `notify.sh` + `hooks.json` to `~/.codex/hooks/juggler/`), **Enable Feature Flag** (`features.hooks = true` in `~/.codex/config.toml`), and **Enable in Codex** (writes `[hooks.state]` trust entries so Codex runs the hooks - this bypasses Codex's own hook review; alternatively run `/hooks` in Codex and trust them manually)
 - **Pi** - TypeScript extension installed to `~/.pi/agent/extensions/juggler-pi.ts`. Configure via Settings → Integrations. Restart Pi or run `/reload` for it to take effect
 
 ### Running over SSH

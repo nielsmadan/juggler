@@ -248,15 +248,36 @@ actor HookServer {
             }
 
         case .removeSession:
-            await MainActor.run {
-                self.sessionManager.removeSession(sessionID: compositeID)
-            }
+            await removeSessionIfCurrent(
+                compositeID: compositeID,
+                agentSessionID: claudeSessionID,
+                event: payload.event
+            )
 
         case .ignore:
             await MainActor.run {
                 logDebug(.hooks, "Ignoring unknown event: \(payload.event)")
             }
         }
+    }
+
+    /// A Codex thread abandoned via `/new` keeps firing its own SessionEnd at idle-unload, long
+    /// after a newer thread took over the pane. Sessions are keyed by pane, so removing
+    /// unconditionally would delete the live row. Only skip when both ids are known and disagree —
+    /// agents that send no session id keep the unconditional behaviour.
+    @MainActor
+    private func removeSessionIfCurrent(compositeID: String, agentSessionID: String, event: String) {
+        let current = sessionManager.sessions.first { $0.id == compositeID }
+        if let current, !agentSessionID.isEmpty, !current.claudeSessionID.isEmpty,
+           current.claudeSessionID != agentSessionID {
+            logDebug(
+                .hooks,
+                "Ignoring \(event) from stale session \(agentSessionID) "
+                    + "(pane holds \(current.claudeSessionID))"
+            )
+            return
+        }
+        sessionManager.removeSession(sessionID: compositeID)
     }
 
     private func sendNotificationIfEnabled(title: String, sessionID: String) async {
