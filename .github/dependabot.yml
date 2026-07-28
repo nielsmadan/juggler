@@ -1,4 +1,5 @@
 version: 2
+
 updates:
   - package-ecosystem: "swift"
     directory: "/"
@@ -7,5 +8,31 @@ updates:
       day: "monday"
       time: "08:00"
       timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
     assignees:
       - "nielsmadan"
+    groups:
+      non-breaking:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+          - "minor"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    assignees:
+      - "nielsmadan"
+    groups:
+      non-breaking:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+          - "minor"
