@@ -96,8 +96,8 @@ enum AntigravityHooksInstaller {
             // interrupted write to this IDE-shared file) has nothing to preserve — treat it
             // as `{}` rather than blocking install. Only non-empty-but-unparseable content
             // throws, so a real config is never silently clobbered.
-            let isBlank = String(decoding: data, as: UTF8.self)
-                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let isBlank = String(bytes: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? false
             if !isBlank {
                 guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                     throw AntigravityHooksError.hooksJSONUnparseable(path)
