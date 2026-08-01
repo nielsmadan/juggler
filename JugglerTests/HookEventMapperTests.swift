@@ -280,8 +280,17 @@ struct HookEventMapperTests {
         #expect(action == .removeSession)
     }
 
-    // Pi has no native permission event — the extension never posts one, and the
-    // agent-level Codex/Claude permission strings must not leak into the Pi mapping.
+    @Test func pi_permissionPrompt_mapsToPermission() {
+        let action = HookEventMapper.map(event: "permission_prompt", agent: "pi")
+        #expect(action == .updateState(.permission))
+    }
+
+    @Test func pi_permissionResolved_mapsToWorking() {
+        let action = HookEventMapper.map(event: "permission_resolved", agent: "pi")
+        #expect(action == .updateState(.working))
+    }
+
+    // Pi core has no native PermissionRequest event; Codex/Claude event names must not leak into Pi.
     @Test func pi_permissionRequest_mapsToIgnore() {
         let action = HookEventMapper.map(event: "PermissionRequest", agent: "pi")
         #expect(action == .ignore)

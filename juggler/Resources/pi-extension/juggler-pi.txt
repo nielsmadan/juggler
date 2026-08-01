@@ -82,8 +82,12 @@ export default function (pi: any) {
   const git = getGitInfo();
   const tmux = getTmuxInfo();
   const remoteHost = getRemoteHost();
+  let currentSessionId: string | undefined;
+  let isUISession = false;
+  const pendingPermissionRequestIds = new Set<string>();
+  let postQueue: Promise<void> = Promise.resolve();
 
-  async function postEvent(eventType: string, sessionId?: string) {
+  function postEvent(eventType: string, sessionId?: string): Promise<void> {
     const payload: Record<string, any> = {
       agent: "pi",
       event: eventType,
@@ -97,16 +101,19 @@ export default function (pi: any) {
     if (tmux) payload.tmux = tmux;
     if (remoteHost) payload.remoteHost = remoteHost;
 
-    try {
-      await fetch(JUGGLER_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(2000),
-      });
-    } catch {
-      // Juggler not running — silently ignore.
-    }
+    postQueue = postQueue.then(async () => {
+      try {
+        await fetch(JUGGLER_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(2000),
+        });
+      } catch {
+        // Juggler not running — silently ignore.
+      }
+    });
+    return postQueue;
   }
 
   function sessionId(ctx: any): string | undefined {
@@ -117,36 +124,93 @@ export default function (pi: any) {
     }
   }
 
+  function rememberSessionId(ctx: any): string | undefined {
+    currentSessionId = sessionId(ctx) ?? currentSessionId;
+    return currentSessionId;
+  }
+
+  function permissionRequestId(event: any): string | undefined {
+    return typeof event?.requestId === "string" ? event.requestId : undefined;
+  }
+
+  function postPermissionResolvedIfNonePending() {
+    if (pendingPermissionRequestIds.size === 0) {
+      void postEvent("permission_resolved", currentSessionId);
+    }
+  }
+
+  function isPromptDecision(event: any): boolean {
+    return [
+      "user_approved",
+      "user_approved_for_session",
+      "user_denied",
+      "confirmation_unavailable",
+    ].includes(event?.resolution);
+  }
+
+  const unsubscribePermissionPrompt = pi.events.on("permissions:ui_prompt", (event: any) => {
+    if (!isUISession) return;
+    const requestId = permissionRequestId(event);
+    if (!requestId) return;
+    pendingPermissionRequestIds.add(requestId);
+    void postEvent("permission_prompt", currentSessionId);
+  });
+  const unsubscribePermissionDecision = pi.events.on("permissions:decision", (event: any) => {
+    if (!isUISession || !isPromptDecision(event)) return;
+    const requestId = pendingPermissionRequestIds.values().next().value;
+    if (typeof requestId !== "string") return;
+    pendingPermissionRequestIds.delete(requestId);
+    postPermissionResolvedIfNonePending();
+  });
+
   // Session appears (fires at launch with reason "startup", and again on
   // new/resume/reload/fork — re-posting idle is correct: the session is idle).
   pi.on("session_start", async (_event: any, ctx: any) => {
-    await postEvent("session_start", sessionId(ctx));
+    pendingPermissionRequestIds.clear();
+    isUISession = ctx?.hasUI !== false;
+    currentSessionId = isUISession ? sessionId(ctx) : undefined;
+    if (isUISession) {
+      await postEvent("session_start", currentSessionId);
+    }
   });
 
   // Turn boundaries. agent_settled is Pi's recommended "done" signal — unlike
   // agent_end, Pi will not auto-retry/compact/continue after it.
   pi.on("agent_start", async (_event: any, ctx: any) => {
-    await postEvent("agent_start", sessionId(ctx));
+    if (!isUISession) return;
+    await postEvent("agent_start", rememberSessionId(ctx));
   });
   pi.on("agent_settled", async (_event: any, ctx: any) => {
-    await postEvent("agent_settled", sessionId(ctx));
+    if (!isUISession) return;
+    pendingPermissionRequestIds.clear();
+    await postEvent("agent_settled", rememberSessionId(ctx));
   });
 
   // Compaction. session_compact carries a reason: a manual /compact leaves the
   // session idle; a threshold/overflow compaction is mid-turn and resumes work.
   pi.on("session_before_compact", async (_event: any, ctx: any) => {
-    await postEvent("session_before_compact", sessionId(ctx));
+    if (!isUISession) return;
+    await postEvent("session_before_compact", rememberSessionId(ctx));
   });
   pi.on("session_compact", async (event: any, ctx: any) => {
+    if (!isUISession) return;
     const done = event?.reason === "manual" ? "session_compact_idle" : "session_compact_working";
-    await postEvent(done, sessionId(ctx));
+    await postEvent(done, rememberSessionId(ctx));
   });
 
   // Session removal. Only a real quit removes the session — new/resume/reload/
   // fork keep the same terminal session and are followed by a session_start.
   pi.on("session_shutdown", async (event: any, ctx: any) => {
-    if (event?.reason === "quit") {
-      await postEvent("session_shutdown", sessionId(ctx));
+    const id = isUISession ? rememberSessionId(ctx) : undefined;
+    unsubscribePermissionPrompt();
+    unsubscribePermissionDecision();
+    pendingPermissionRequestIds.clear();
+    currentSessionId = undefined;
+    if (isUISession && event?.reason === "quit") {
+      await postEvent("session_shutdown", id);
+    } else {
+      await postQueue;
     }
+    isUISession = false;
   });
 }

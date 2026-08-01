@@ -1417,6 +1417,14 @@ struct IntegrationTests {
                            claudeSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .working)
 
+        await simulateHook(server: server, agent: "pi", event: "permission_prompt",
+                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .permission)
+
+        await simulateHook(server: server, agent: "pi", event: "permission_resolved",
+                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .working)
+
         await simulateHook(server: server, agent: "pi", event: "session_before_compact",
                            claudeSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .compacting)

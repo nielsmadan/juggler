@@ -115,16 +115,20 @@ Pi:
 | Event | Mapped State |
 |-------|--------------|
 | `session_start`, `agent_settled`, `session_compact_idle` | `idle` |
-| `agent_start`, `session_compact_working` | `working` |
+| `agent_start`, `session_compact_working`, `permission_resolved` | `working` |
+| `permission_prompt` | `permission` |
 | `session_before_compact` | `compacting` |
 | `session_shutdown` | (removed) |
 
 Pi integrates via a TypeScript extension (like OpenCode), not shell hooks — no
-trust step, no feature flag. Pi has no native permission event, so no `permission`
-state is produced. The `session_compact_idle`/`session_compact_working` split is
-synthesized by the extension from Pi's `session_compact` `reason`. Only a real
-`quit` removes the session (new/resume/reload/fork keep the terminal session). See
-[Pi Extension](pi-extension.md) for the full mechanism.
+trust step, no feature flag. Pi core has no native permission event, but the extension
+observes the public `permissions:ui_prompt` and `permissions:decision` broadcasts from
+the optional `@gotgenes/pi-permission-system` package and synthesizes
+`permission_prompt`/`permission_resolved`. Without that package, no permission events
+are produced. The `session_compact_idle`/`session_compact_working` split is synthesized
+from Pi's `session_compact` `reason`. Only a real `quit` removes the session
+(new/resume/reload/fork keep the terminal session). See [Pi Extension](pi-extension.md)
+for the full mechanism.
 
 Antigravity:
 

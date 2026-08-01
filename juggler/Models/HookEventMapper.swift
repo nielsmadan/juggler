@@ -65,8 +65,10 @@ enum HookEventMapper {
         switch event {
         case "session_start", "agent_settled", "session_compact_idle":
             .updateState(.idle)
-        case "agent_start", "session_compact_working":
+        case "agent_start", "session_compact_working", "permission_resolved":
             .updateState(.working)
+        case "permission_prompt":
+            .updateState(.permission)
         case "session_before_compact":
             .updateState(.compacting)
         case "session_shutdown":
