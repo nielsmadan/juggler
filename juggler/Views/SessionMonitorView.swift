@@ -128,7 +128,6 @@ struct SessionMonitorView: View {
                 controller.moveSelection(by: -1, in: sessionManager.orderedVisibleSessions())
                 return .handled
             }
-            .onKeyPress(.return) { activateSelected(); return .handled }
             .sheet(item: $controller.sessionToRename) { session in
                 RenameSessionView(session: session)
                     .environment(sessionManager)
@@ -594,6 +593,7 @@ struct SessionMonitorView: View {
     /// Dispatch a session-list shortcut while the monitor window is key.
     private func handleSessionListAction(_ action: SessionListAction) {
         switch action {
+        case .activate: activateSelected()
         case .moveDown: controller.moveSelection(by: 1, in: sessionManager.orderedVisibleSessions())
         case .moveUp: controller.moveSelection(by: -1, in: sessionManager.orderedVisibleSessions())
         case .backburner: controller.backburnerSelected(sessionManager: sessionManager)

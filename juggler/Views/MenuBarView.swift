@@ -97,7 +97,6 @@ struct MenuBarView: View {
             controller.moveSelection(by: -1, in: sessionManager.sessions)
             return .handled
         }
-        .onKeyPress(.return) { activateSelected(); return .handled }
         .sheet(item: $controller.sessionToRename) { session in
             RenameSessionView(session: session)
                 .environment(sessionManager)
@@ -148,6 +147,7 @@ struct MenuBarView: View {
     /// setting itself).
     private func handleSessionListAction(_ action: SessionListAction) {
         switch action {
+        case .activate: activateSelected()
         case .moveDown: controller.moveSelection(by: 1, in: sessionManager.sessions)
         case .moveUp: controller.moveSelection(by: -1, in: sessionManager.sessions)
         case .backburner: controller.backburnerSelected(sessionManager: sessionManager)

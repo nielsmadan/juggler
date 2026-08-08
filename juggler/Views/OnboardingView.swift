@@ -158,8 +158,8 @@ struct ShortcutsStep: View {
                     ShortcutBindingEditor(.backburner, in: global)
                     ShortcutBindingEditor(.sendToBack, in: global)
                     ShortcutBindingEditor(.reactivateAll, in: global)
-                    ShortcutBindingEditor(.showMonitor, in: global)
-                    ShortcutBindingEditor(.goToLastNotification, in: global)
+                    ShortcutBindingEditor(.goToLastNotification, in: global, showsDescription: true)
+                    ShortcutBindingEditor(.showMonitor, in: global, showsDescription: true)
                 }
             }
             .formStyle(.grouped)

@@ -19,32 +19,32 @@ enum GlobalAction: String, ShortcutAction {
     case backburner
     case sendToBack
     case reactivateAll
-    case showMonitor
     case goToLastNotification
+    case showMonitor
 
     var definition: ShortcutActionDefinition {
         switch self {
         case .cycleForward:
-            .init("Cycle Forward", Shortcut("cmd+shift+k"))
+            .init("Cycle Forward:", Shortcut("cmd+shift+k"))
         case .cycleBackward:
-            .init("Cycle Backward", Shortcut("cmd+shift+j"))
+            .init("Cycle Backward:", Shortcut("cmd+shift+j"))
         case .backburner:
-            .init("Backburner Current", Shortcut("cmd+shift+l"))
+            .init("Backburner Current:", Shortcut("cmd+shift+l"))
         case .sendToBack:
-            .init("Send to Back", Shortcut("cmd+shift+o"))
+            .init("Send to Back:", Shortcut("cmd+shift+o"))
         case .reactivateAll:
-            .init("Reactivate All", Shortcut("cmd+shift+h"))
-        case .showMonitor:
-            .init(
-                "Show Monitor",
-                Shortcut("cmd+shift+semicolon"),
-                description: "Cycles: popover → monitor window → back to previous app."
-            )
+            .init("Reactivate All:", Shortcut("cmd+shift+h"))
         case .goToLastNotification:
             .init(
-                "Last Notification",
+                "Last Notification:",
                 Shortcut("cmd+shift+e"),
                 description: "Activates the session from the most recent notification."
+            )
+        case .showMonitor:
+            .init(
+                "Show Monitor:",
+                Shortcut("cmd+shift+semicolon"),
+                description: "Cycles: popover → monitor window → back to previous app."
             )
         }
     }
@@ -53,6 +53,7 @@ enum GlobalAction: String, ShortcutAction {
 /// Session-list shortcuts, active only while the monitor window or the menu-bar
 /// popover is the key window (see `ShortcutCenter.keyWindowShortcutContext`).
 enum SessionListAction: String, ShortcutAction {
+    case activate
     case moveDown
     case moveUp
     case backburner
@@ -69,6 +70,7 @@ enum SessionListAction: String, ShortcutAction {
 
     var definition: ShortcutActionDefinition {
         switch self {
+        case .activate: .init("Activate", Shortcut("return"))
         case .moveDown: .init("Move Down", Shortcut("k"))
         case .moveUp: .init("Move Up", Shortcut("j"))
         case .backburner: .init("Backburner", Shortcut("l"))
