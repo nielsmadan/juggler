@@ -3,6 +3,8 @@ import SwiftUI
 
 enum QueuePosition: Equatable {
     case topOfIdle
+    case topOfPrioritizedIdle
+    case bottomOfPermission
     case bottomOfIdle
     case bottomOfBusy
     case bottomOfBackburner
@@ -148,6 +150,10 @@ final class SessionManager {
         return QueueOrderMode(rawValue: rawValue) ?? .fair
     }
 
+    private var prioritizePermissionSessions: Bool {
+        UserDefaults.standard.bool(forKey: AppStorageKeys.prioritizePermissionSessions)
+    }
+
     /// Fallback group label for sessions with no `terminalWindowName` (Grouped mode).
     static let unknownWindowGroup = "Unknown"
 
@@ -209,7 +215,12 @@ final class SessionManager {
         let wasIdle = oldState == .idle || oldState == .permission
         let isIdle = newState == .idle || newState == .permission
 
-        if isIdle, !wasIdle {
+        let changedPriorityBand = queueOrderMode.supportsPermissionPriority
+            && prioritizePermissionSessions
+            && wasIdle
+            && isIdle
+            && oldState != newState
+        if isIdle, !wasIdle || changedPriorityBand {
             sessions[index].lastBecameIdle = now
         }
 
@@ -237,7 +248,11 @@ final class SessionManager {
         let wasBackburner = oldState == .backburner
 
         var targetPosition: QueuePosition?
-        if isBackburner, !wasBackburner {
+        if prioritizePermissionSessions, newState == .permission, oldState != .permission {
+            targetPosition = queueOrderMode == .prio ? .topOfIdle : .bottomOfPermission
+        } else if prioritizePermissionSessions, newState == .idle, oldState != .idle {
+            targetPosition = queueOrderMode == .prio ? .topOfPrioritizedIdle : .bottomOfIdle
+        } else if isBackburner, !wasBackburner {
             targetPosition = .bottomOfBackburner
         } else if isBusy, !wasBusy {
             targetPosition = .bottomOfBusy
@@ -246,7 +261,7 @@ final class SessionManager {
         }
 
         if let position = targetPosition {
-            let targetIdx = targetIndex(for: position, in: sessions)
+            let targetIdx = targetIndex(for: position, in: sessions, excluding: index)
             // Removing at `index` shifts later elements left by 1, so when moving forward
             // (index < targetIdx) the desired insertion slot is targetIdx - 1.
             let insertIdx = index < targetIdx ? targetIdx - 1 : targetIdx
@@ -385,10 +400,32 @@ final class SessionManager {
         }
     }
 
-    private func targetIndex(for position: QueuePosition, in sessions: [Session]) -> Int {
+    private func targetIndex(for position: QueuePosition, in sessions: [Session], excluding index: Int? = nil) -> Int {
         switch position {
         case .topOfIdle:
             return 0
+        case .topOfPrioritizedIdle:
+            if let firstIdle = sessions.indices.first(where: { $0 != index && sessions[$0].state == .idle }) {
+                return firstIdle
+            }
+            if let firstBusy = sessions.firstIndex(where: { $0.state == .working || $0.state == .compacting }) {
+                return firstBusy
+            }
+            if let firstBackburner = sessions.firstIndex(where: { $0.state == .backburner }) {
+                return firstBackburner
+            }
+            return sessions.count
+        case .bottomOfPermission:
+            if let firstIdle = sessions.firstIndex(where: { $0.state == .idle }) {
+                return firstIdle
+            }
+            if let firstBusy = sessions.firstIndex(where: { $0.state == .working || $0.state == .compacting }) {
+                return firstBusy
+            }
+            if let firstBackburner = sessions.firstIndex(where: { $0.state == .backburner }) {
+                return firstBackburner
+            }
+            return sessions.count
         case .bottomOfIdle:
             if let firstBusy = sessions.firstIndex(where: { $0.state == .working || $0.state == .compacting }) {
                 return firstBusy
@@ -418,7 +455,10 @@ final class SessionManager {
         let backburner = sessions.filter { $0.state == .backburner }
 
         let sortedIdle = idle.sorted {
-            switch mode {
+            if prioritizePermissionSessions, $0.state != $1.state {
+                return $0.state == .permission
+            }
+            return switch mode {
             case .fair:
                 ($0.lastBecameIdle ?? .distantPast) < ($1.lastBecameIdle ?? .distantPast)
             case .prio:
@@ -429,6 +469,44 @@ final class SessionManager {
         }
 
         sessions = sortedIdle + working + backburner
+    }
+
+    func reorderForPermissionPriority(_ enabled: Bool, mode: QueueOrderMode) {
+        guard mode.supportsPermissionPriority else { return }
+        guard enabled else {
+            reorderForMode(mode)
+            return
+        }
+
+        let permission = sessions.filter { $0.state == .permission }
+        let idle = sessions.filter { $0.state == .idle }
+        let working = sessions.filter { $0.state == .working || $0.state == .compacting }
+        let backburner = sessions.filter { $0.state == .backburner }
+        sessions = permission + idle + working + backburner
+    }
+
+    private func positionForNewSession(_ state: SessionState) -> QueuePosition {
+        switch state {
+        case .permission:
+            queueOrderMode == .prio ? .topOfIdle : .bottomOfPermission
+        case .idle:
+            queueOrderMode == .prio ? .topOfPrioritizedIdle : .bottomOfIdle
+        case .working, .compacting:
+            .bottomOfBusy
+        case .backburner:
+            .bottomOfBackburner
+        }
+    }
+
+    private func reorderNewSessionForPermissionPriorityIfNeeded() {
+        guard prioritizePermissionSessions, queueOrderMode == .fair || queueOrderMode == .prio else { return }
+        let index = sessions.count - 1
+        let targetIdx = targetIndex(for: positionForNewSession(sessions[index].state), in: sessions, excluding: index)
+        let insertIdx = index < targetIdx ? targetIdx - 1 : targetIdx
+        guard index != insertIdx else { return }
+
+        let session = sessions.remove(at: index)
+        sessions.insert(session, at: insertIdx)
     }
 
     var cyclableSessions: [Session] {
@@ -796,6 +874,7 @@ final class SessionManager {
             }
 
             logInfo(.session, "New session added: \(session.displayName)")
+            reorderNewSessionForPermissionPriorityIfNeeded()
         }
     }
 
@@ -1004,7 +1083,12 @@ final class SessionManager {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return false }
         guard sessions[index].state.isIncludedInCycle else { return false }
 
-        let targetIdx = targetIndex(for: .bottomOfIdle, in: sessions)
+        let position: QueuePosition = if prioritizePermissionSessions, sessions[index].state == .permission {
+            .bottomOfPermission
+        } else {
+            .bottomOfIdle
+        }
+        let targetIdx = targetIndex(for: position, in: sessions)
         let insertIdx = index < targetIdx ? targetIdx - 1 : targetIdx
         guard index != insertIdx else { return true }
 

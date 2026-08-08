@@ -20,7 +20,7 @@ cleanup() { [[ -n "$APP_PID" ]] && kill "$APP_PID" 2>/dev/null || true; }
 trap cleanup EXIT
 
 echo "Launching Juggler (port=$PORT, iterm2Enabled=$ITERM2_ENABLED)..."
-"$BIN" -uiTesting \
+"$BIN" -performanceTesting \
     -hasCompletedOnboarding YES \
     -iterm2Enabled "$ITERM2_ENABLED" \
     -kittyEnabled NO \

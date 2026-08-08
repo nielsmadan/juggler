@@ -15,6 +15,7 @@ struct MenuBarView: View {
     @State private var controller = SessionListController()
     @AppStorage(AppStorageKeys.queueOrderMode) private var queueOrderMode: String = QueueOrderMode.default.rawValue
     @AppStorage(AppStorageKeys.showShortcutHelper) private var showShortcutHelper = true
+    @AppStorage(AppStorageKeys.prioritizePermissionSessions) private var prioritizePermissionSessions = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -115,7 +116,19 @@ struct MenuBarView: View {
         }
         .onKeyPress(.return) { activateSelected(); return .handled }
         .onKeyPress { press in
-            controller.handleKeyPress(press, sessionManager: sessionManager, queueOrderMode: &queueOrderMode)
+            let result = controller.handleKeyPress(
+                press,
+                sessionManager: sessionManager,
+                queueOrderMode: &queueOrderMode
+            )
+            if result == .handled { return .handled }
+            if permissionFirstAvailable,
+               let shortcut = controller.shortcutTogglePermissionFirst,
+               shortcut.matches(press) {
+                prioritizePermissionSessions.toggle()
+                return .handled
+            }
+            return .ignored
         }
         .sheet(item: $controller.sessionToRename) { session in
             RenameSessionView(session: session)
@@ -136,7 +149,20 @@ struct MenuBarView: View {
                 owner: "MenuBar",
                 sessionManager: sessionManager,
                 queueOrderMode: $queueOrderMode,
-                visibleSessions: { sessionManager.sessions }
+                visibleSessions: { sessionManager.sessions },
+                extraHandler: { event, canPerformAction in
+                    switch controller.matcherTogglePermissionFirst?.handle(event) ?? .ignored {
+                    case .fired:
+                        if canPerformAction, permissionFirstAvailable {
+                            prioritizePermissionSessions.toggle()
+                        }
+                        return true
+                    case let .advanced(consumeEvent):
+                        return consumeEvent
+                    case .ignored, .continuousFired:
+                        return false
+                    }
+                }
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: .localShortcutsDidChange)) { _ in
@@ -150,6 +176,15 @@ struct MenuBarView: View {
                 sessionManager.reorderForMode(mode)
             }
         }
+        .onChange(of: prioritizePermissionSessions) {
+            if let mode = QueueOrderMode(rawValue: queueOrderMode) {
+                sessionManager.reorderForPermissionPriority(prioritizePermissionSessions, mode: mode)
+            }
+        }
+    }
+
+    private var permissionFirstAvailable: Bool {
+        QueueOrderMode(rawValue: queueOrderMode)?.supportsPermissionPriority == true
     }
 
     private func activateSelected() {

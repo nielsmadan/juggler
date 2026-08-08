@@ -13,7 +13,8 @@ The Settings window is organized into tabs, each covering a distinct configurati
 - **Backburner**: "Go to next session on backburner" option for rapid triage.
 - **Uninstall**: Remove all integrations (Claude Code hooks, Kitty watcher, OpenCode plugin), reset the Automation permission, clear settings, and quit.
 
-Auto-advance and auto-restart are toggled from the Session Monitor control bar (and via Session List shortcuts), not from this tab.
+Permission-first ordering, auto-advance, and auto-restart are toggled from the Session Monitor control bar (and
+via Session List shortcuts), not from this tab.
 
 ## Integration
 
@@ -44,7 +45,7 @@ The beacon is enabled/disabled from the Session Monitor control bar and the "Tog
 
 - **Show Shortcut Helper**: Toggle the shortcut hint bar in the popover and monitor.
 - **Global hotkeys**: Recorders for all six global shortcuts (see [Cycle Sessions](cycle-sessions.md#global-shortcuts) and [Notifications](notification.md)).
-- **Session List shortcuts**: Configurable local shortcuts for the popover and monitor window: Move Down, Move Up, Backburner, Reactivate Selected, Reactivate All, Rename, Cycle Mode Forward, Cycle Mode Backward, Toggle Beacon, Auto Next, Auto Restart.
+- **Session List shortcuts**: Configurable local shortcuts for the popover and monitor window: Move Down, Move Up, Backburner, Reactivate Selected, Reactivate All, Rename, Cycle Mode Forward, Cycle Mode Backward, Toggle Beacon, Permission First, Auto Next, Auto Restart.
 
 ## Updates
 

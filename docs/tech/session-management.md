@@ -109,6 +109,11 @@ Sessions are reordered based on mode when state changes:
 | Static | No reordering |
 | Grouped | Static order, grouped by terminal window |
 
+When Permission First is enabled, Fair and Prio partition their cyclable sessions into permission and idle queues.
+State-driven insertions retain the selected mode's `lastBecameIdle` ordering within each queue. Enabling the
+preference stable-partitions the current order, preserving manual Send to Back placement within each queue.
+Static and Grouped ignore this preference.
+
 ## Hotkeys
 
 `HotkeyManager` (`Managers/HotkeyManager.swift`) registers the global shortcuts and drives activation:

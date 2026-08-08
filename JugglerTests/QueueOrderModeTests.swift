@@ -12,4 +12,11 @@ struct QueueOrderModeTests {
         #expect(QueueOrderMode.static.displayName == "Static")
         #expect(QueueOrderMode.grouped.displayName == "Grouped")
     }
+
+    @Test func supportsPermissionPriority_onlyForDynamicModes() {
+        #expect(QueueOrderMode.fair.supportsPermissionPriority)
+        #expect(QueueOrderMode.prio.supportsPermissionPriority)
+        #expect(!QueueOrderMode.static.supportsPermissionPriority)
+        #expect(!QueueOrderMode.grouped.supportsPermissionPriority)
+    }
 }

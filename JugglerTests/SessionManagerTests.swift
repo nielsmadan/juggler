@@ -2,6 +2,23 @@ import Foundation
 @testable import Juggler
 import Testing
 
+private func preserveDefaults(_ keys: String...) -> () -> Void {
+    let snapshot = keys.map { ($0, UserDefaults.standard.object(forKey: $0)) }
+    return {
+        for (key, value) in snapshot {
+            if let value { UserDefaults.standard.set(value, forKey: key) }
+            else { UserDefaults.standard.removeObject(forKey: key) }
+        }
+    }
+}
+
+@MainActor
+private func overrideQueueOrderMode(_ mode: QueueOrderMode) -> () -> Void {
+    let restore = preserveDefaults(AppStorageKeys.queueOrderMode)
+    UserDefaults.standard.set(mode.rawValue, forKey: AppStorageKeys.queueOrderMode)
+    return restore
+}
+
 @Suite("SessionManager")
 struct SessionManagerTests {
     // MARK: - reorderForMode Tests
@@ -78,6 +95,143 @@ struct SessionManagerTests {
 
         #expect(manager.sessions[0].terminalSessionID == "s2")
         #expect(manager.sessions[1].terminalSessionID == "s1")
+    }
+
+    @Test @MainActor func reorderForMode_fair_permissionFirst_partitionsCyclableQueueAndPreservesFairOrder() {
+        let restore = preserveDefaults(AppStorageKeys.prioritizePermissionSessions)
+        defer { restore() }
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        var idleFirst = makeSession("idleFirst", state: .idle)
+        idleFirst.lastBecameIdle = Date(timeIntervalSince1970: 50)
+        var permissionFirst = makeSession("permissionFirst", state: .permission)
+        permissionFirst.lastBecameIdle = Date(timeIntervalSince1970: 100)
+        var idleSecond = makeSession("idleSecond", state: .idle)
+        idleSecond.lastBecameIdle = Date(timeIntervalSince1970: 150)
+        var permissionSecond = makeSession("permissionSecond", state: .permission)
+        permissionSecond.lastBecameIdle = Date(timeIntervalSince1970: 200)
+
+        let manager = SessionManager()
+        manager.testSetSessions([permissionSecond, idleSecond, permissionFirst, idleFirst])
+
+        manager.reorderForMode(.fair)
+
+        #expect(manager.sessions.map(\.terminalSessionID)
+            == ["permissionFirst", "permissionSecond", "idleFirst", "idleSecond"])
+    }
+
+    @Test @MainActor func reorderForMode_prio_permissionFirst_partitionsCyclableQueueAndPreservesPrioOrder() {
+        let restore = preserveDefaults(AppStorageKeys.prioritizePermissionSessions)
+        defer { restore() }
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        var idleFirst = makeSession("idleFirst", state: .idle)
+        idleFirst.lastBecameIdle = Date(timeIntervalSince1970: 50)
+        var permissionFirst = makeSession("permissionFirst", state: .permission)
+        permissionFirst.lastBecameIdle = Date(timeIntervalSince1970: 100)
+        var idleSecond = makeSession("idleSecond", state: .idle)
+        idleSecond.lastBecameIdle = Date(timeIntervalSince1970: 150)
+        var permissionSecond = makeSession("permissionSecond", state: .permission)
+        permissionSecond.lastBecameIdle = Date(timeIntervalSince1970: 200)
+
+        let manager = SessionManager()
+        manager.testSetSessions([idleFirst, permissionFirst, idleSecond, permissionSecond])
+
+        manager.reorderForMode(.prio)
+
+        #expect(manager.sessions.map(\.terminalSessionID)
+            == ["permissionSecond", "permissionFirst", "idleSecond", "idleFirst"])
+    }
+
+    @Test @MainActor func reorderForPermissionPriority_disablingRestoresUnifiedQueueOrder() {
+        let restore = preserveDefaults(AppStorageKeys.prioritizePermissionSessions)
+        defer { restore() }
+        var idleFirst = makeSession("idleFirst", state: .idle)
+        idleFirst.lastBecameIdle = Date(timeIntervalSince1970: 50)
+        var permission = makeSession("permission", state: .permission)
+        permission.lastBecameIdle = Date(timeIntervalSince1970: 100)
+        var idleSecond = makeSession("idleSecond", state: .idle)
+        idleSecond.lastBecameIdle = Date(timeIntervalSince1970: 150)
+
+        let manager = SessionManager()
+        manager.testSetSessions([idleSecond, permission, idleFirst])
+
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+        manager.reorderForPermissionPriority(true, mode: .fair)
+        #expect(manager.sessions.map(\.terminalSessionID) == ["permission", "idleSecond", "idleFirst"])
+
+        UserDefaults.standard.set(false, forKey: AppStorageKeys.prioritizePermissionSessions)
+        manager.reorderForPermissionPriority(false, mode: .fair)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["idleFirst", "permission", "idleSecond"])
+    }
+
+    @Test @MainActor func reorderForMode_staticAndGrouped_ignorePermissionFirst() {
+        let restore = preserveDefaults(AppStorageKeys.prioritizePermissionSessions)
+        defer { restore() }
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        var idle = makeSession("idle", state: .idle)
+        idle.startedAt = Date(timeIntervalSince1970: 100)
+        var permission = makeSession("permission", state: .permission)
+        permission.startedAt = Date(timeIntervalSince1970: 200)
+
+        let manager = SessionManager()
+        manager.testSetSessions([permission, idle])
+
+        manager.reorderForMode(.static)
+        #expect(manager.sessions.map(\.terminalSessionID) == ["idle", "permission"])
+
+        manager.testSetSessions([permission, idle])
+        manager.reorderForMode(.grouped)
+        #expect(manager.sessions.map(\.terminalSessionID) == ["idle", "permission"])
+    }
+
+    @Test @MainActor func staticAndGrouped_permissionStateChangesPreserveIdleTimestamp() {
+        let restore = preserveDefaults(
+            AppStorageKeys.queueOrderMode,
+            AppStorageKeys.prioritizePermissionSessions
+        )
+        defer { restore() }
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+        let timestamp = Date(timeIntervalSince1970: 100)
+
+        for mode in [QueueOrderMode.static, .grouped] {
+            UserDefaults.standard.set(mode.rawValue, forKey: AppStorageKeys.queueOrderMode)
+            var session = makeSession("session", state: .idle)
+            session.lastBecameIdle = timestamp
+            let manager = SessionManager()
+            manager.testSetSessions([session])
+
+            manager.testApplyStateChange(sessionID: "session", from: .idle, to: .permission)
+
+            #expect(manager.sessions[0].lastBecameIdle == timestamp)
+        }
+    }
+
+    @Test @MainActor func reorderForPermissionPriority_enablingPreservesManualOrderWithinBands() {
+        let restore = preserveDefaults(
+            AppStorageKeys.queueOrderMode,
+            AppStorageKeys.prioritizePermissionSessions
+        )
+        defer { restore() }
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: AppStorageKeys.queueOrderMode)
+        UserDefaults.standard.set(false, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        let manager = SessionManager()
+        manager.testSetSessions([
+            makeSession("permission1", state: .permission),
+            makeSession("idle1", state: .idle),
+            makeSession("permission2", state: .permission),
+            makeSession("idle2", state: .idle)
+        ])
+        manager.moveSessionToBackOfQueue(sessionID: "permission1")
+
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+        manager.reorderForPermissionPriority(true, mode: .fair)
+
+        #expect(manager.sessions.map(\.terminalSessionID)
+            == ["permission2", "permission1", "idle1", "idle2"])
     }
 
     @Test @MainActor func migrateLegacyQueueOrderModeValues_filoToFair() {
@@ -1004,8 +1158,9 @@ struct SessionManagerTests {
     struct AutoAdvanceAndAnchorTests {
         @Test @MainActor func currentSession_autoAdvanceOff_busySessionReturnedViaAnchor() {
             let manager = SessionManager()
+            let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy)
+            defer { restore() }
             UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
             manager.testSetSessions([
                 makeSession("s1", state: .working),
@@ -1019,8 +1174,9 @@ struct SessionManagerTests {
 
         @Test @MainActor func currentSession_autoAdvanceOn_busySessionNotReturnedViaAnchor() {
             let manager = SessionManager()
+            let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy)
+            defer { restore() }
             UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
             manager.testSetSessions([
                 makeSession("s1", state: .working),
@@ -1067,8 +1223,9 @@ struct SessionManagerTests {
         // MARK: - Auto-advance Tests
 
         @Test @MainActor func autoAdvance_on_focusedSessionGoesBusy_postsNotification() {
+            let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy)
+            defer { restore() }
             UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
             var posted = false
             let token = NotificationCenter.default.addObserver(
@@ -1086,8 +1243,9 @@ struct SessionManagerTests {
         }
 
         @Test @MainActor func autoAdvance_off_focusedSessionGoesBusy_setsAnchor() {
+            let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy)
+            defer { restore() }
             UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
             let manager = SessionManager()
             manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
@@ -1099,8 +1257,9 @@ struct SessionManagerTests {
         }
 
         @Test @MainActor func autoAdvance_sessionGoesBusy_notFocused_noAction() {
+            let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy)
+            defer { restore() }
             UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
             let manager = SessionManager()
             manager.testSetSessions([makeSession("s1", state: .idle), makeSession("s2", state: .idle)])
@@ -1112,8 +1271,9 @@ struct SessionManagerTests {
         }
 
         @Test @MainActor func autoAdvance_sessionGoesBusy_noFocus_noAction() {
+            let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy)
+            defer { restore() }
             UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
             let manager = SessionManager()
             manager.testSetSessions([makeSession("s1", state: .idle)])
@@ -1127,8 +1287,9 @@ struct SessionManagerTests {
         // MARK: - Auto-restart Tests
 
         @Test @MainActor func autoRestart_on_soleCyclable_postsNotification() {
+            let restore = preserveDefaults(AppStorageKeys.autoRestartOnIdle)
+            defer { restore() }
             UserDefaults.standard.set(true, forKey: AppStorageKeys.autoRestartOnIdle)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
 
             var postedSessionID: String?
             let token = NotificationCenter.default.addObserver(
@@ -1145,8 +1306,9 @@ struct SessionManagerTests {
         }
 
         @Test @MainActor func autoRestart_on_multipleCyclable_noAutoRestart() {
+            let restore = preserveDefaults(AppStorageKeys.autoRestartOnIdle)
+            defer { restore() }
             UserDefaults.standard.set(true, forKey: AppStorageKeys.autoRestartOnIdle)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
 
             let manager = SessionManager()
             manager.testSetSessions([makeSession("s1", state: .working), makeSession("s2", state: .idle)])
@@ -1159,8 +1321,9 @@ struct SessionManagerTests {
         }
 
         @Test @MainActor func autoRestart_off_soleCyclable_noAutoRestart() {
+            let restore = preserveDefaults(AppStorageKeys.autoRestartOnIdle)
+            defer { restore() }
             UserDefaults.standard.set(false, forKey: AppStorageKeys.autoRestartOnIdle)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
 
             let manager = SessionManager()
             manager.testSetSessions([makeSession("s1", state: .working)])
@@ -1198,8 +1361,9 @@ struct SessionManagerTests {
         @Test @MainActor func autoAdvance_focusedSessionCompacting_doesNotTriggerAdvance() {
             // The applyStateChange guard only fires on cyclable → non-cyclable, and working →
             // compacting is non-cyclable → non-cyclable.
+            let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy)
+            defer { restore() }
             UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
             var posted = false
             let token = NotificationCenter.default.addObserver(
@@ -1220,8 +1384,9 @@ struct SessionManagerTests {
         @Test @MainActor func autoAdvance_off_anchorCleared_whenAnchoredSessionReturnsIdle_viaPermission() {
             // Variant of anchorCleared_*: the anchored session first transitions to permission
             // (still cyclable), which should clear the anchor just like idle does.
+            let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy)
+            defer { restore() }
             UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
             let manager = SessionManager()
             manager.testSetSessions([makeSession("s1", state: .working)])
@@ -1235,8 +1400,9 @@ struct SessionManagerTests {
         @Test @MainActor func autoAdvance_off_anchorNotCleared_whenDifferentSessionGoesBusy() {
             // Anchor is on s1 (working); a different session s2 transitions idle → working.
             // The anchor must remain on s1 — unrelated state changes must not disturb it.
+            let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy)
+            defer { restore() }
             UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
             let manager = SessionManager()
             manager.testSetSessions([
@@ -1252,8 +1418,9 @@ struct SessionManagerTests {
         }
 
         @Test @MainActor func autoRestart_cyclableCountBecomesOne_firesOnce() {
+            let restore = preserveDefaults(AppStorageKeys.autoRestartOnIdle)
+            defer { restore() }
             UserDefaults.standard.set(true, forKey: AppStorageKeys.autoRestartOnIdle)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
 
             var fireCount = 0
             let token = NotificationCenter.default.addObserver(
@@ -1275,8 +1442,9 @@ struct SessionManagerTests {
         }
 
         @Test @MainActor func autoRestart_cyclableCountBecomesTwo_doesNotFire() {
+            let restore = preserveDefaults(AppStorageKeys.autoRestartOnIdle)
+            defer { restore() }
             UserDefaults.standard.set(true, forKey: AppStorageKeys.autoRestartOnIdle)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoRestartOnIdle) }
 
             var fireCount = 0
             let token = NotificationCenter.default.addObserver(
@@ -1298,8 +1466,9 @@ struct SessionManagerTests {
         }
 
         @Test @MainActor func autoAdvance_focusedSessionGoesBusy_withAnchor_anchorStaysOnFocused() {
+            let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy)
+            defer { restore() }
             UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
             let manager = SessionManager()
             manager.testSetSessions([
@@ -1319,8 +1488,9 @@ struct SessionManagerTests {
         }
 
         @Test @MainActor func autoAdvance_multipleFocusChanges_onlyLatestAnchored() {
+            let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy)
+            defer { restore() }
             UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
-            defer { UserDefaults.standard.removeObject(forKey: AppStorageKeys.autoAdvanceOnBusy) }
 
             let manager = SessionManager()
             manager.testSetSessions([
@@ -1751,6 +1921,118 @@ struct SessionManagerTests {
         #expect(manager.sessions.first { $0.id == "s1" }?.state == .idle)
     }
 
+    @Test @MainActor func permissionFirst_idleToPermission_movesSessionAheadOfIdleQueue() {
+        let restore = preserveDefaults(
+            AppStorageKeys.queueOrderMode,
+            AppStorageKeys.prioritizePermissionSessions
+        )
+        defer { restore() }
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: AppStorageKeys.queueOrderMode)
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        let manager = SessionManager()
+        manager.testSetSessions([
+            makeSession("idle1", state: .idle),
+            makeSession("idle2", state: .idle)
+        ])
+
+        manager.testApplyStateChange(sessionID: "idle2", from: .idle, to: .permission)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["idle2", "idle1"])
+    }
+
+    @Test @MainActor func permissionFirst_fairBandTransitionMatchesFullReorder() {
+        let restore = preserveDefaults(
+            AppStorageKeys.queueOrderMode,
+            AppStorageKeys.prioritizePermissionSessions
+        )
+        defer { restore() }
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: AppStorageKeys.queueOrderMode)
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        var permission1 = makeSession("permission1", state: .permission)
+        permission1.lastBecameIdle = Date(timeIntervalSince1970: 100)
+        var permission2 = makeSession("permission2", state: .permission)
+        permission2.lastBecameIdle = Date(timeIntervalSince1970: 200)
+        var idle = makeSession("idle", state: .idle)
+        idle.lastBecameIdle = Date(timeIntervalSince1970: 50)
+        let manager = SessionManager()
+        manager.testSetSessions([permission1, permission2, idle])
+        let transitionTime = Date(timeIntervalSince1970: 300)
+
+        manager.testApplyStateChange(
+            sessionID: "idle",
+            from: .idle,
+            to: .permission,
+            now: transitionTime
+        )
+        let incrementalOrder = manager.sessions.map(\.terminalSessionID)
+        manager.reorderForMode(.fair)
+
+        #expect(incrementalOrder == ["permission1", "permission2", "idle"])
+        #expect(manager.sessions.map(\.terminalSessionID) == incrementalOrder)
+        #expect(manager.sessions.last?.lastBecameIdle == transitionTime)
+    }
+
+    @Test @MainActor func permissionFirst_prioBandTransitionMatchesFullReorder() {
+        let restore = preserveDefaults(
+            AppStorageKeys.queueOrderMode,
+            AppStorageKeys.prioritizePermissionSessions
+        )
+        defer { restore() }
+        UserDefaults.standard.set(QueueOrderMode.prio.rawValue, forKey: AppStorageKeys.queueOrderMode)
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        var permission = makeSession("permission", state: .permission)
+        permission.lastBecameIdle = Date(timeIntervalSince1970: 50)
+        var idle1 = makeSession("idle1", state: .idle)
+        idle1.lastBecameIdle = Date(timeIntervalSince1970: 200)
+        var idle2 = makeSession("idle2", state: .idle)
+        idle2.lastBecameIdle = Date(timeIntervalSince1970: 100)
+        let manager = SessionManager()
+        manager.testSetSessions([permission, idle1, idle2])
+        let transitionTime = Date(timeIntervalSince1970: 300)
+
+        manager.testApplyStateChange(
+            sessionID: "permission",
+            from: .permission,
+            to: .idle,
+            now: transitionTime
+        )
+        let incrementalOrder = manager.sessions.map(\.terminalSessionID)
+        manager.reorderForMode(.prio)
+
+        #expect(incrementalOrder == ["permission", "idle1", "idle2"])
+        #expect(manager.sessions.map(\.terminalSessionID) == incrementalOrder)
+        #expect(manager.sessions.first?.lastBecameIdle == transitionTime)
+    }
+
+    @Test @MainActor func permissionFirst_newPermissionSession_movesAheadOfExistingIdleSession() {
+        let restore = preserveDefaults(
+            AppStorageKeys.queueOrderMode,
+            AppStorageKeys.prioritizePermissionSessions
+        )
+        defer { restore() }
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: AppStorageKeys.queueOrderMode)
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        let manager = SessionManager()
+        manager.addOrUpdateSession(
+            claudeSessionID: "idle",
+            terminalSessionID: "idle",
+            projectPath: "/idle",
+            state: .idle
+        )
+        manager.addOrUpdateSession(
+            claudeSessionID: "permission",
+            terminalSessionID: "permission",
+            projectPath: "/permission",
+            state: .permission
+        )
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["permission", "idle"])
+    }
+
     // MARK: - reorderForMode Tests
 
     @Test func reorderForMode_fair_permissionGroupedWithIdle() {
@@ -1882,8 +2164,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_idleToBusy_fairMode_movesBelowIdle() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -1899,8 +2181,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_idleToBusy_fairMode_landsBeforeBackburner() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -1916,8 +2198,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_idleToBusy_prioMode_movesBelowIdle() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.prio.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.prio)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -1933,8 +2215,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_permissionToBusy_fairMode_treatsPermissionAsIdle() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .permission),
@@ -1950,8 +2232,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_backburnerToIdle_prioMode_toTopOfIdle() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.prio.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.prio)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -1967,8 +2249,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_backburnerToIdle_fairMode_toBottomOfIdle() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -1984,8 +2266,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_busyToIdle_fairMode_landsBeforeBackburner() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2001,8 +2283,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_busyToIdle_prioMode_toTopOfIdle() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.prio.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.prio)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2018,8 +2300,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_idleToBackburner_fairMode_toBottomOfBackburner() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2034,8 +2316,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_busyToBackburner_fairMode_toBottomOfBackburner() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2051,8 +2333,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_compactingTreatedAsBusy() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2067,8 +2349,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_compactingToIdle_fairMode_toBottomOfIdle() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2083,8 +2365,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_staticMode_noReorderRegardlessOfTransition() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.static.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.static)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2100,8 +2382,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_groupedMode_noReorderOnStateChange() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.grouped.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.grouped)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2117,8 +2399,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func reorderDuringTransition_idleToIdleStateRoundtrip_noSpuriousReorder() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2138,8 +2420,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func moveToBack_fairMode_allIdle_movesToEnd() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2154,8 +2436,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func moveToBack_landsBeforeBusyAndBackburner() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2171,8 +2453,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func moveToBack_singleIdleSession_unchanged() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([makeSession("s1", state: .idle)])
 
@@ -2183,8 +2465,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func moveToBack_nonCyclableSession_isNoOp() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .working),
@@ -2199,8 +2481,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func moveToBack_doesNotChangeLastBecameIdle() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         var s1 = makeSession("s1", state: .idle)
         s1.lastBecameIdle = Date(timeIntervalSince1970: 0)
@@ -2214,8 +2496,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func moveToBack_prioMode_movesToEnd() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.prio.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.prio)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2227,10 +2509,110 @@ struct SessionManagerTests {
         #expect(manager.sessions.map(\.terminalSessionID) == ["s2", "s3", "s1"])
     }
 
+    @Test @MainActor func moveToBack_permissionFirst_staysWithinPermissionBand() {
+        let restore = preserveDefaults(
+            AppStorageKeys.queueOrderMode,
+            AppStorageKeys.prioritizePermissionSessions
+        )
+        defer { restore() }
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: AppStorageKeys.queueOrderMode)
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        let manager = SessionManager()
+        manager.testSetSessions([
+            makeSession("permission1", state: .permission),
+            makeSession("permission2", state: .permission),
+            makeSession("idle", state: .idle)
+        ])
+
+        manager.moveSessionToBackOfQueue(sessionID: "permission1")
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["permission2", "permission1", "idle"])
+    }
+
+    @Test @MainActor func moveToBack_permissionFirst_idleStaysBelowPermissions() {
+        let restore = preserveDefaults(
+            AppStorageKeys.queueOrderMode,
+            AppStorageKeys.prioritizePermissionSessions
+        )
+        defer { restore() }
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: AppStorageKeys.queueOrderMode)
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        let manager = SessionManager()
+        manager.testSetSessions([
+            makeSession("permission", state: .permission),
+            makeSession("idle1", state: .idle),
+            makeSession("idle2", state: .idle)
+        ])
+
+        manager.moveSessionToBackOfQueue(sessionID: "idle1")
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["permission", "idle2", "idle1"])
+    }
+
+    @Test @MainActor func moveToBack_permissionFirst_survivesUnrelatedStateTransition() {
+        let restore = preserveDefaults(
+            AppStorageKeys.queueOrderMode,
+            AppStorageKeys.prioritizePermissionSessions
+        )
+        defer { restore() }
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: AppStorageKeys.queueOrderMode)
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        var permission1 = makeSession("permission1", state: .permission)
+        permission1.lastBecameIdle = Date(timeIntervalSince1970: 1)
+        var permission2 = makeSession("permission2", state: .permission)
+        permission2.lastBecameIdle = Date(timeIntervalSince1970: 2)
+        let manager = SessionManager()
+        manager.testSetSessions([
+            permission1,
+            permission2,
+            makeSession("idle", state: .idle)
+        ])
+
+        manager.moveSessionToBackOfQueue(sessionID: "permission1")
+        manager.testApplyStateChange(sessionID: "idle", from: .idle, to: .working)
+
+        #expect(manager.sessions.map(\.terminalSessionID) == ["permission2", "permission1", "idle"])
+    }
+
+    @Test @MainActor func moveToBack_permissionFirst_survivesNewSessionArrival() {
+        let restore = preserveDefaults(
+            AppStorageKeys.queueOrderMode,
+            AppStorageKeys.prioritizePermissionSessions
+        )
+        defer { restore() }
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: AppStorageKeys.queueOrderMode)
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        var permission1 = makeSession("permission1", state: .permission)
+        permission1.lastBecameIdle = Date(timeIntervalSince1970: 1)
+        var permission2 = makeSession("permission2", state: .permission)
+        permission2.lastBecameIdle = Date(timeIntervalSince1970: 2)
+        let manager = SessionManager()
+        manager.testSetSessions([
+            permission1,
+            permission2,
+            makeSession("idle", state: .idle)
+        ])
+        manager.moveSessionToBackOfQueue(sessionID: "permission1")
+
+        manager.addOrUpdateSession(
+            claudeSessionID: "permission3",
+            terminalSessionID: "permission3",
+            projectPath: "/permission3",
+            state: .permission
+        )
+
+        #expect(manager.sessions.map(\.terminalSessionID)
+            == ["permission2", "permission1", "permission3", "idle"])
+    }
+
     @Test @MainActor func moveToBack_staticMode_isNoOp() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.static.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.static)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2244,8 +2626,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func moveToBack_groupedMode_isNoOp() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.grouped.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.grouped)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2259,8 +2641,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func moveToBack_alreadyAtBottomOfIdle_isNoOpButApplicable() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2274,8 +2656,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func moveToBack_withNilFocus_anchorsAndAdvancesToNext() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2292,8 +2674,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func moveToBack_thenCycleForward_advancesToNext() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2313,8 +2695,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func sendToBack_middleSession_returnsNextAndMoves() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2330,8 +2712,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func sendToBack_lastSession_wrapsToTop() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2347,8 +2729,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func sendToBack_topSession_returnsNext() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2364,8 +2746,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func sendToBack_wrapSkipsBusyAndBackburner() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2383,8 +2765,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func sendToBack_singleSession_returnsItself() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([makeSession("s1", state: .idle)])
 
@@ -2395,8 +2777,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func sendToBack_nonCyclableSession_returnsNil() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .working),
@@ -2409,8 +2791,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func sendToBack_staticMode_returnsNil() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.static.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.static)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2424,8 +2806,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func sendToBack_prioMode_returnsNextAndMoves() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.prio.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.prio)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2441,8 +2823,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func sendToBack_groupedMode_returnsNil() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.grouped.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.grouped)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2456,8 +2838,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func sendToBack_multipleSessions_advancesColorIndex() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([
             makeSession("s1", state: .idle),
@@ -2473,8 +2855,8 @@ struct SessionManagerTests {
 
     @Test @MainActor func sendToBack_singleSession_doesNotAdvanceColorIndex() {
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         manager.testSetSessions([makeSession("s1", state: .idle)])
         let before = manager.activeColorIndex

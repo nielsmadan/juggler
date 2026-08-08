@@ -135,10 +135,11 @@ When enabled (default), backburnering automatically cycles to the next idle sess
 
 Setting in **Settings > General > Backburner**.
 
-## Auto-Advance and Auto-Restart
+## Permission First, Auto-Advance, and Auto-Restart
 
-Two control-bar toggles (also bindable as Session List shortcuts) change cycling behavior automatically:
+Three control-bar toggles (also bindable as Session List shortcuts) change cycling behavior:
 
+- **Permission First**: in Fair and Prio modes, keep permission sessions ahead of idle sessions while preserving the selected queue order within each group.
 - **Auto-advance**: when the current session goes busy, cycle to the next idle session.
 - **Auto-restart**: when all sessions are busy and one becomes idle, jump to it.
 

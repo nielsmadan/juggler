@@ -19,6 +19,7 @@ struct SessionMonitorView: View {
     @AppStorage(AppStorageKeys.beaconEnabled) private var beaconEnabled = true
     @AppStorage(AppStorageKeys.autoAdvanceOnBusy) private var autoAdvanceOnBusy = false
     @AppStorage(AppStorageKeys.autoRestartOnIdle) private var autoRestartOnIdle = false
+    @AppStorage(AppStorageKeys.prioritizePermissionSessions) private var prioritizePermissionSessions = false
     @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode
         .default.rawValue
     @AppStorage(AppStorageKeys.controlBarHintDismissed) private var controlBarHintDismissed = false
@@ -142,22 +143,34 @@ struct SessionMonitorView: View {
                     sessionManager: sessionManager,
                     queueOrderMode: $queueOrderMode,
                     visibleSessions: { sessionManager.orderedVisibleSessions() },
-                    extraHandler: { event in
+                    extraHandler: { event, canPerformAction in
                         var handled = false
+                        var firedAction: (() -> Void)?
                         for (matcher, action) in [
+                            (
+                                controller.matcherTogglePermissionFirst,
+                                {
+                                    if permissionFirstAvailable {
+                                        prioritizePermissionSessions.toggle()
+                                    }
+                                }
+                            ),
                             (controller.matcherToggleAutoNext, { autoAdvanceOnBusy.toggle() }),
                             (controller.matcherToggleAutoRestart, { autoRestartOnIdle.toggle() })
                         ] {
                             switch matcher?.handle(event) ?? .ignored {
                             case .fired:
-                                action()
                                 handled = true
+                                if canPerformAction, firedAction == nil {
+                                    firedAction = action
+                                }
                             case let .advanced(consumeEvent):
                                 if consumeEvent { handled = true }
                             case .ignored, .continuousFired:
                                 break
                             }
                         }
+                        firedAction?()
                         return handled
                     }
                 )
@@ -169,6 +182,11 @@ struct SessionMonitorView: View {
             .onChange(of: queueOrderMode) { _, newMode in
                 if let mode = QueueOrderMode(rawValue: newMode) {
                     sessionManager.reorderForMode(mode)
+                }
+            }
+            .onChange(of: prioritizePermissionSessions) {
+                if let mode = QueueOrderMode(rawValue: queueOrderMode) {
+                    sessionManager.reorderForPermissionPriority(prioritizePermissionSessions, mode: mode)
                 }
             }
             .onChange(of: sessionManager.currentSession?.id) { _, newID in
@@ -387,6 +405,14 @@ struct SessionMonitorView: View {
                 .fill(controlBarDividerColor)
                 .frame(width: 2)
 
+            toggleButton(
+                isOn: $prioritizePermissionSessions,
+                icon: "hand.raised.fill",
+                activeColor: CyclingColors.palette[2],
+                help: "Permission first: keep sessions waiting for permission above idle sessions",
+                isEnabled: permissionFirstAvailable,
+                disabledHelp: "Permission First is disabled in Static and Grouped modes because those modes preserve fixed session ordering"
+            )
             toggleButton(isOn: $autoAdvanceOnBusy, icon: "forward.fill",
                          activeColor: CyclingColors.palette[0],
                          help: "Auto-advance: go to next session when current goes busy")
@@ -401,7 +427,14 @@ struct SessionMonitorView: View {
         .background(.bar)
     }
 
-    private func toggleButton(isOn: Binding<Bool>, icon: String, activeColor: Color, help: String) -> some View {
+    private func toggleButton(
+        isOn: Binding<Bool>,
+        icon: String,
+        activeColor: Color,
+        help: String,
+        isEnabled: Bool = true,
+        disabledHelp: String? = nil
+    ) -> some View {
         Button {
             isOn.wrappedValue.toggle()
         } label: {
@@ -413,9 +446,11 @@ struct SessionMonitorView: View {
                 .background(isOn.wrappedValue ? activeColor : Color.clear)
                 .foregroundStyle(isOn.wrappedValue ? .white : .primary)
                 .contentShape(Rectangle())
-                .help(help)
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.4)
+        .help(isEnabled ? help : disabledHelp ?? help)
     }
 
     // MARK: - Row Views
@@ -608,7 +643,17 @@ struct SessionMonitorView: View {
             autoRestartOnIdle.toggle()
             return .handled
         }
+        if permissionFirstAvailable,
+           let shortcut = controller.shortcutTogglePermissionFirst,
+           shortcut.matches(press) {
+            prioritizePermissionSessions.toggle()
+            return .handled
+        }
         return .ignored
+    }
+
+    private var permissionFirstAvailable: Bool {
+        QueueOrderMode(rawValue: queueOrderMode)?.supportsPermissionPriority == true
     }
 
     private func activateSelected() {
@@ -656,6 +701,7 @@ struct SessionMonitorView: View {
                 shortcutRow(controller.shortcutToggleBeacon?.displayString ?? "–", "Toggle Beacon")
                 shortcutRow(controller.shortcutToggleAutoNext?.displayString ?? "–", "Auto Next")
                 shortcutRow(controller.shortcutToggleAutoRestart?.displayString ?? "–", "Auto Restart")
+                shortcutRow(controller.shortcutTogglePermissionFirst?.displayString ?? "–", "Permission First")
             }
         }
         .padding(.horizontal)

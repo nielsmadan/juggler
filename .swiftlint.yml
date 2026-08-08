@@ -16,7 +16,6 @@ excluded:
   - build
   - DerivedData
   - JugglerTests
-  - JugglerUITests
 
 identifier_name:
   min_length: 1

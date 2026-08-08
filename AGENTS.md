@@ -6,7 +6,7 @@ Juggler is a SwiftUI menu bar app (macOS 14+) that tracks Claude Code, OpenCode,
 
 ## Project Structure & Module Organization
 
-`Juggler/` contains the macOS app source. Key folders are `Models/`, `Managers/`, `Services/`, `Views/`, `Animation/`, and `Resources/` for bundled scripts such as hooks and terminal helpers. UI assets live in `Juggler/Assets.xcassets/`. Unit tests are in `JugglerTests/`; UI and launch tests are in `JugglerUITests/`. Product, technical, and planning docs live under `docs/`. Build output is written to `build/` and should not be committed. The Xcode project uses `PBXFileSystemSynchronizedRootGroup`: files added under `Juggler/` are auto-discovered — no `project.pbxproj` edits needed when adding files.
+`Juggler/` contains the macOS app source. Key folders are `Models/`, `Managers/`, `Services/`, `Views/`, `Animation/`, and `Resources/` for bundled scripts such as hooks and terminal helpers. UI assets live in `Juggler/Assets.xcassets/`. Unit tests are in `JugglerTests/`. Product, technical, and planning docs live under `docs/`. Build output is written to `build/` and should not be committed. The Xcode project uses `PBXFileSystemSynchronizedRootGroup`: files added under `Juggler/` are auto-discovered — no `project.pbxproj` edits needed when adding files.
 
 ## Build, Test, and Development Commands
 
@@ -16,8 +16,6 @@ Use `just` targets for routine work:
 just build        # Build the Juggler Debug scheme into build/
 just run          # Build and run (usually the user does this, not the agent)
 just test         # Run unit tests only (fast, no UI)
-just test-ui      # Run UI tests only (launches the app under test)
-just test-all     # Run all tests (unit + UI)
 just clean        # Remove the build directory
 just lint         # Run SwiftLint (--strict)
 just format       # Run SwiftFormat
@@ -148,7 +146,9 @@ This is a Swift codebase (Xcode `SWIFT_VERSION = 5.0` language mode) with 4-spac
 
 ## Testing Guidelines
 
-Add unit tests in `JugglerTests/` for business logic and service behavior; reserve `JugglerUITests/` for end-to-end UI flows. Keep tests narrowly scoped and name methods for the behavior under test. Run `just test` before pushing; run `just test-ui` when changing onboarding, settings, hotkeys, or monitor views. `JugglerTests` must run with `-parallel-testing-enabled NO` (the `test`, `test-all`, and `coverage` recipes already do): tests share process-global state (`UserDefaults.standard`, `SessionManager.shared`, `TerminalBridgeRegistry.shared`), and Swift Testing's `.serialized` only serializes within one process — it can't stop interference between xcodebuild's parallel runner processes.
+Add unit tests in `JugglerTests/` for business logic and service behavior. Keep tests narrowly scoped and name methods for the behavior under test. Run `just test` before pushing. `JugglerTests` must run with `-parallel-testing-enabled NO` (the `test` and `coverage` recipes already do): tests share process-global state (`UserDefaults.standard`, `SessionManager.shared`, `TerminalBridgeRegistry.shared`), and Swift Testing's `.serialized` only serializes within one process — it can't stop interference between xcodebuild's parallel runner processes.
+
+Always ask the user for explicit approval before running any test that launches Juggler, including `just test-idle-cpu` and any UI tests added in the future. App-launching tests can interfere with the user's running Juggler instance and take over screen focus.
 
 ## Documentation
 

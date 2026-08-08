@@ -8,6 +8,10 @@ enum QueueOrderMode: String, CaseIterable {
 
     static let `default`: QueueOrderMode = .fair
 
+    var supportsPermissionPriority: Bool {
+        self == .fair || self == .prio
+    }
+
     var displayName: String {
         switch self {
         case .fair: "Fair"

@@ -36,4 +36,34 @@ struct ShortcutPersistenceTests {
         DiscreteShortcut.remove(from: testKey)
         #expect(DiscreteShortcut.load(from: testKey) == nil)
     }
+
+    @Test func loadDefaulted_missingKey_returnsDefault() {
+        DiscreteShortcut.remove(from: testKey)
+        let fallback = DiscreteShortcut(keyCode: 35, modifiers: [])
+
+        #expect(DiscreteShortcut.load(from: testKey, defaultingTo: fallback) == fallback)
+    }
+
+    @Test func loadDefaulted_explicitlyUnbound_returnsNil() {
+        DiscreteShortcut.unbind(from: testKey)
+        defer { DiscreteShortcut.remove(from: testKey) }
+
+        #expect(DiscreteShortcut.load(
+            from: testKey,
+            defaultingTo: DiscreteShortcut(keyCode: 35, modifiers: [])
+        ) == nil)
+    }
+
+    @Test func save_afterUnbind_replacesUnboundValue() {
+        DiscreteShortcut.unbind(from: testKey)
+        defer { DiscreteShortcut.remove(from: testKey) }
+        let shortcut = DiscreteShortcut(keyCode: 5, modifiers: .command)
+
+        shortcut.save(to: testKey)
+
+        #expect(DiscreteShortcut.load(
+            from: testKey,
+            defaultingTo: DiscreteShortcut(keyCode: 35, modifiers: [])
+        ) == shortcut)
+    }
 }

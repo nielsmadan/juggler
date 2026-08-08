@@ -14,6 +14,21 @@ extension DiscreteShortcut {
         guard let data = UserDefaults.standard.data(forKey: key) else {
             return nil
         }
+        return decode(data)
+    }
+
+    static func load(
+        from key: String,
+        defaultingTo defaultShortcut: @autoclosure () -> DiscreteShortcut
+    ) -> DiscreteShortcut? {
+        guard let data = UserDefaults.standard.data(forKey: key) else {
+            return defaultShortcut()
+        }
+        guard !data.isEmpty else { return nil }
+        return decode(data) ?? defaultShortcut()
+    }
+
+    private static func decode(_ data: Data) -> DiscreteShortcut? {
         if let shortcut = try? JSONDecoder().decode(DiscreteShortcut.self, from: data) {
             return shortcut
         }
@@ -21,6 +36,10 @@ extension DiscreteShortcut {
         // so user-recorded shortcuts persist across the package upgrade.
         return (try? JSONDecoder().decode(LegacyShortcut.self, from: data))
             .map { DiscreteShortcut(keyCode: $0.keyCode, modifiers: NSEvent.ModifierFlags(rawValue: $0.modifiers)) }
+    }
+
+    static func unbind(from key: String) {
+        UserDefaults.standard.set(Data(), forKey: key)
     }
 
     static func remove(from key: String) {

@@ -13,10 +13,10 @@ private var isUnitTestHost: Bool {
     ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 }
 
-private func isRunningUnderTests() -> Bool {
+private func allowsDuplicateTestInstance() -> Bool {
     if isUnitTestHost { return true }
     #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-uiTesting")
+        return ProcessInfo.processInfo.arguments.contains("-performanceTesting")
     #else
         return false
     #endif
@@ -30,7 +30,7 @@ private func otherRunningInstance() -> NSRunningApplication? {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     fileprivate static let duplicateInstance: NSRunningApplication? =
-        isRunningUnderTests() ? nil : otherRunningInstance()
+        allowsDuplicateTestInstance() ? nil : otherRunningInstance()
 
     private var mainWindowNeedsRestore = true
     private var hideAccessoryWorkItem: DispatchWorkItem?
@@ -213,6 +213,7 @@ struct JugglerApp: App {
             "goToNextOnBackburner": true,
             AppStorageKeys.autoAdvanceOnBusy: false,
             AppStorageKeys.autoRestartOnIdle: false,
+            AppStorageKeys.prioritizePermissionSessions: false,
             "useCyclingColors": true,
             "useTerminalCyclingColors": true,
             // Terminal enablement (iTerm2 on by default for existing users)

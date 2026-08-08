@@ -41,9 +41,10 @@ With no tracked sessions, the window shows a "No Sessions" placeholder: *"Start 
 
 ## Control Bar
 
-A single bar at the top combines the queue mode picker with three toggle buttons:
+A single bar at the top combines the queue mode picker with four toggle buttons:
 
 - **Queue mode picker**: Fair / Prio / Static / Grouped.
+- **Permission First** (`hand.raised.fill`) - In Fair and Prio modes, keep permission sessions above idle sessions. The control is disabled in Static and Grouped modes, which preserve fixed session ordering.
 - **Auto-advance** (`forward.fill`) - Go to the next session when the current one goes busy.
 - **Auto-restart** (`autostartstop`) - When all sessions are busy and one becomes idle, jump to it.
 - **Beacon** (`light.panel`) - Show the session-name beacon when cycling.
@@ -99,6 +100,7 @@ When window is focused (defaults shown; all configurable in Settings > Shortcuts
 | `Shift+L` | Reactivate selected |
 | `H` | Reactivate all |
 | `B` | Toggle beacon |
+| `P` | Toggle permission-first ordering |
 | `A` | Toggle auto-advance |
 | `Q` | Toggle auto-restart |
 

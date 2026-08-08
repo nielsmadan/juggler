@@ -53,6 +53,7 @@ brew install --cask nielsmadan/juggler/juggler
 - **Notifications** - Native macOS alerts when a session goes idle or needs permission. Click to jump there
 - **Menu bar & monitor** - Popover for a quick glance. Full session monitor window with jugglery animations and stats
 - **Queue modes** - Fair (round-robin), Priority (most recent first), Static (creation order), or Grouped (by window)
+- **Permission-first queue** - Optionally keep quick permission decisions ahead of ordinary idle sessions
 - **Backburner** - Park sessions you don't need right now. They stay tracked but won't appear in your cycle
 - **Idle time stats** - Per-session and global idle vs. working time
 - **Guided setup** - Onboarding walks you through permissions, terminal integration, and hook installation

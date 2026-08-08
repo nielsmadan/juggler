@@ -40,6 +40,7 @@ final class SessionListController {
     private(set) var shortcutToggleBeacon: DiscreteShortcut?
     private(set) var shortcutToggleAutoNext: DiscreteShortcut?
     private(set) var shortcutToggleAutoRestart: DiscreteShortcut?
+    private(set) var shortcutTogglePermissionFirst: DiscreteShortcut?
 
     // Stateful matchers — required for multi-step sequences (e.g. `A → T`)
     // because a step-by-step matcher needs to remember progress across events.
@@ -54,6 +55,7 @@ final class SessionListController {
     @ObservationIgnored private(set) var matcherCycleModeBackward: ShortcutMatcher?
     @ObservationIgnored private(set) var matcherToggleAutoNext: ShortcutMatcher?
     @ObservationIgnored private(set) var matcherToggleAutoRestart: ShortcutMatcher?
+    @ObservationIgnored private(set) var matcherTogglePermissionFirst: ShortcutMatcher?
 
     init() {
         reloadShortcuts()
@@ -63,19 +65,31 @@ final class SessionListController {
         shortcutMoveDown = DiscreteShortcut.load(from: AppStorageKeys.localShortcutMoveDown)
         shortcutMoveUp = DiscreteShortcut.load(from: AppStorageKeys.localShortcutMoveUp)
         shortcutBackburner = DiscreteShortcut.load(from: AppStorageKeys.localShortcutBackburner)
-        shortcutSendToBack = DiscreteShortcut.load(from: AppStorageKeys.localShortcutSendToBack)
-            ?? DiscreteShortcut(keyCode: 31, modifiers: []) // O
+        shortcutSendToBack = DiscreteShortcut.load(
+            from: AppStorageKeys.localShortcutSendToBack,
+            defaultingTo: DiscreteShortcut(keyCode: 31, modifiers: []) // O
+        )
         shortcutReactivateSelected = DiscreteShortcut.load(from: AppStorageKeys.localShortcutReactivateSelected)
         shortcutReactivateAll = DiscreteShortcut.load(from: AppStorageKeys.localShortcutReactivateAll)
         shortcutRename = DiscreteShortcut.load(from: AppStorageKeys.localShortcutRename)
         shortcutCycleModeForward = DiscreteShortcut.load(from: AppStorageKeys.localShortcutCycleModeForward)
         shortcutCycleModeBackward = DiscreteShortcut.load(from: AppStorageKeys.localShortcutCycleModeBackward)
-        shortcutToggleBeacon = DiscreteShortcut.load(from: AppStorageKeys.localShortcutToggleBeacon)
-            ?? DiscreteShortcut(keyCode: 11, modifiers: []) // B
-        shortcutToggleAutoNext = DiscreteShortcut.load(from: AppStorageKeys.localShortcutToggleAutoNext)
-            ?? DiscreteShortcut(keyCode: 0, modifiers: []) // A
-        shortcutToggleAutoRestart = DiscreteShortcut.load(from: AppStorageKeys.localShortcutToggleAutoRestart)
-            ?? DiscreteShortcut(keyCode: 12, modifiers: []) // Q
+        shortcutToggleBeacon = DiscreteShortcut.load(
+            from: AppStorageKeys.localShortcutToggleBeacon,
+            defaultingTo: DiscreteShortcut(keyCode: 11, modifiers: []) // B
+        )
+        shortcutToggleAutoNext = DiscreteShortcut.load(
+            from: AppStorageKeys.localShortcutToggleAutoNext,
+            defaultingTo: DiscreteShortcut(keyCode: 0, modifiers: []) // A
+        )
+        shortcutToggleAutoRestart = DiscreteShortcut.load(
+            from: AppStorageKeys.localShortcutToggleAutoRestart,
+            defaultingTo: DiscreteShortcut(keyCode: 12, modifiers: []) // Q
+        )
+        shortcutTogglePermissionFirst = DiscreteShortcut.load(
+            from: AppStorageKeys.localShortcutTogglePermissionFirst,
+            defaultingTo: DiscreteShortcut(keyCode: 35, modifiers: []) // P
+        )
 
         // A move binding that loads as `nil` (these have no default) means that
         // direction's key is unbound — it falls through and beeps. Logging the
@@ -100,6 +114,7 @@ final class SessionListController {
         matcherCycleModeBackward = shortcutCycleModeBackward.map { ShortcutMatcher(.discrete($0)) }
         matcherToggleAutoNext = shortcutToggleAutoNext.map { ShortcutMatcher(.discrete($0)) }
         matcherToggleAutoRestart = shortcutToggleAutoRestart.map { ShortcutMatcher(.discrete($0)) }
+        matcherTogglePermissionFirst = shortcutTogglePermissionFirst.map { ShortcutMatcher(.discrete($0)) }
     }
 
     // MARK: - Selection
@@ -223,14 +238,14 @@ final class SessionListController {
 
     // MARK: - Key Event Monitor
 
-    /// The `extraHandler` closure lets the calling view handle view-specific
-    /// shortcuts on the same event stream.
+    /// The `extraHandler` closure lets the calling view advance view-specific
+    /// matchers while suppressing their actions after a core shortcut consumes the event.
     func installKeyMonitor(
         owner: String = "",
         sessionManager: SessionManager,
         queueOrderMode: Binding<String>,
         visibleSessions: @escaping () -> [Session],
-        extraHandler: ((NSEvent) -> Bool)? = nil
+        extraHandler: ((NSEvent, Bool) -> Bool)? = nil
     ) {
         removeKeyMonitor()
         ownerLabel = owner
@@ -260,11 +275,13 @@ final class SessionListController {
                 return event
             }
             var mode = queueOrderMode.wrappedValue
-            var handled = handleKeyEvent(event, sessionManager: sessionManager, queueOrderMode: &mode)
+            let handled = handleKeyEvent(
+                event,
+                sessionManager: sessionManager,
+                queueOrderMode: &mode,
+                extraHandler: extraHandler
+            )
             queueOrderMode.wrappedValue = mode
-            if let extraHandler, extraHandler(event) {
-                handled = true
-            }
             if !handled {
                 // Event seen but not consumed by any list shortcut — it falls through
                 // to SwiftUI's `.onKeyPress` (arrows) or the responder chain (beep if
@@ -292,7 +309,12 @@ final class SessionListController {
     /// Every matcher must see every event so prefix-sharing multi-step sequences
     /// all advance together. Completed matches are collected and only the first
     /// fires, so a single keystroke never triggers two list actions.
-    func handleKeyEvent(_ event: NSEvent, sessionManager: SessionManager, queueOrderMode: inout String) -> Bool {
+    func handleKeyEvent(
+        _ event: NSEvent,
+        sessionManager: SessionManager,
+        queueOrderMode: inout String,
+        extraHandler: ((NSEvent, Bool) -> Bool)? = nil
+    ) -> Bool {
         // Cycle-mode actions can't capture the `inout` binding, so they write the
         // result into `newMode`, applied once after dispatch.
         let currentMode = queueOrderMode
@@ -347,6 +369,9 @@ final class SessionListController {
         }
         firedAction?()
         if let newMode { queueOrderMode = newMode }
+        if let extraHandler, extraHandler(event, !handled) {
+            handled = true
+        }
         return handled
     }
 

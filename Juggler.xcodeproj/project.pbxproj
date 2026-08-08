@@ -20,19 +20,11 @@
 			remoteGlobalIDString = 19F6582B2F22B72E00CB4D71;
 			remoteInfo = Juggler;
 		};
-		19F658442F22B72F00CB4D71 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19F658242F22B72E00CB4D71 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 19F6582B2F22B72E00CB4D71;
-			remoteInfo = Juggler;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		19F6582C2F22B72E00CB4D71 /* Juggler.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Juggler.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		19F658392F22B72F00CB4D71 /* JugglerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JugglerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		19F658432F22B72F00CB4D71 /* JugglerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JugglerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -59,11 +51,6 @@
 			path = JugglerTests;
 			sourceTree = "<group>";
 		};
-		19F658462F22B72F00CB4D71 /* JugglerUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = JugglerUITests;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,13 +65,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		19F658362F22B72F00CB4D71 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		19F658402F22B72F00CB4D71 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -106,7 +86,6 @@
 			children = (
 				19F6582E2F22B72E00CB4D71 /* Juggler */,
 				19F6583C2F22B72F00CB4D71 /* JugglerTests */,
-				19F658462F22B72F00CB4D71 /* JugglerUITests */,
 				19E7C7C42F2752EC00708D20 /* Frameworks */,
 				19F6582D2F22B72E00CB4D71 /* Products */,
 			);
@@ -117,7 +96,6 @@
 			children = (
 				19F6582C2F22B72E00CB4D71 /* Juggler.app */,
 				19F658392F22B72F00CB4D71 /* JugglerTests.xctest */,
-				19F658432F22B72F00CB4D71 /* JugglerUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -173,29 +151,6 @@
 			productReference = 19F658392F22B72F00CB4D71 /* JugglerTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		19F658422F22B72F00CB4D71 /* JugglerUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 19F658532F22B72F00CB4D71 /* Build configuration list for PBXNativeTarget "JugglerUITests" */;
-			buildPhases = (
-				19F6583F2F22B72F00CB4D71 /* Sources */,
-				19F658402F22B72F00CB4D71 /* Frameworks */,
-				19F658412F22B72F00CB4D71 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				19F658452F22B72F00CB4D71 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				19F658462F22B72F00CB4D71 /* JugglerUITests */,
-			);
-			name = JugglerUITests;
-			packageProductDependencies = (
-			);
-			productName = JugglerUITests;
-			productReference = 19F658432F22B72F00CB4D71 /* JugglerUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -210,10 +165,6 @@
 						CreatedOnToolsVersion = 26.2;
 					};
 					19F658382F22B72F00CB4D71 = {
-						CreatedOnToolsVersion = 26.2;
-						TestTargetID = 19F6582B2F22B72E00CB4D71;
-					};
-					19F658422F22B72F00CB4D71 = {
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = 19F6582B2F22B72E00CB4D71;
 					};
@@ -240,7 +191,6 @@
 			targets = (
 				19F6582B2F22B72E00CB4D71 /* Juggler */,
 				19F658382F22B72F00CB4D71 /* JugglerTests */,
-				19F658422F22B72F00CB4D71 /* JugglerUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -254,13 +204,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		19F658372F22B72F00CB4D71 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		19F658412F22B72F00CB4D71 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -284,13 +227,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		19F6583F2F22B72F00CB4D71 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -298,11 +234,6 @@
 			isa = PBXTargetDependency;
 			target = 19F6582B2F22B72E00CB4D71 /* Juggler */;
 			targetProxy = 19F6583A2F22B72F00CB4D71 /* PBXContainerItemProxy */;
-		};
-		19F658452F22B72F00CB4D71 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 19F6582B2F22B72E00CB4D71 /* Juggler */;
-			targetProxy = 19F658442F22B72F00CB4D71 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -543,46 +474,6 @@
 			};
 			name = Release;
 		};
-		19F658542F22B72F00CB4D71 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = U9724RY3FE;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.6.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nielsmadan.JugglerUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = Juggler;
-			};
-			name = Debug;
-		};
-		19F658552F22B72F00CB4D71 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = U9724RY3FE;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.6.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nielsmadan.JugglerUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = Juggler;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -609,15 +500,6 @@
 			buildConfigurations = (
 				19F658512F22B72F00CB4D71 /* Debug */,
 				19F658522F22B72F00CB4D71 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		19F658532F22B72F00CB4D71 /* Build configuration list for PBXNativeTarget "JugglerUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				19F658542F22B72F00CB4D71 /* Debug */,
-				19F658552F22B72F00CB4D71 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

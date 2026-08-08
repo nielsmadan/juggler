@@ -50,6 +50,7 @@ enum AppStorageKeys {
 
     static let autoAdvanceOnBusy = "autoAdvanceOnBusy"
     static let autoRestartOnIdle = "autoRestartOnIdle"
+    static let prioritizePermissionSessions = "prioritizePermissionSessions"
 
     static let iterm2Enabled = "iterm2Enabled"
     static let kittyEnabled = "kittyEnabled"
@@ -80,4 +81,5 @@ enum AppStorageKeys {
     static let localShortcutToggleBeacon = "localShortcutToggleBeacon"
     static let localShortcutToggleAutoNext = "localShortcutToggleAutoNext"
     static let localShortcutToggleAutoRestart = "localShortcutToggleAutoRestart"
+    static let localShortcutTogglePermissionFirst = "localShortcutTogglePermissionFirst"
 }

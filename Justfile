@@ -33,18 +33,6 @@ test xcconfig="":
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} -enableCodeCoverage YES \
         -parallel-testing-enabled NO -only-testing:JugglerTests test
 
-# UI tests only (launches app, slower)
-test-ui xcconfig="":
-    @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
-        {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} -enableCodeCoverage YES \
-        -only-testing:JugglerUITests test
-
-# All tests (unit + UI)
-test-all xcconfig="":
-    @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
-        {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} -enableCodeCoverage YES \
-        -parallel-testing-enabled NO test
-
 coverage xcconfig="":
     @rm -rf {{xcresult}}
     @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
