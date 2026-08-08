@@ -1,6 +1,6 @@
 # Beacon
 
-The beacon is a brief HUD overlay that shows the current session name whenever the user cycles between sessions. It answers "which session am I on now?" without requiring the user to look at the terminal tab bar or open Juggler.
+The beacon is a brief HUD overlay that shows the current session name whenever the user cycles between sessions. When active sessions span terminals or coding harnesses, it also identifies the target terminal and harness. It answers "which session am I on now?" without requiring the user to look at the terminal tab bar or open Juggler.
 
 ## Behavior
 
@@ -22,7 +22,15 @@ When the user requests an activation that **fails** for any reason - a missing/u
 
 ### What it shows
 
-A single line: the session's display name. White text on solid black with a 2 px white border, medium font weight. Long names truncate in the middle.
+The session's display name appears as the title. Successful activations add a centered subtitle when the tracked sessions need disambiguation:
+
+- More than one terminal application: the target terminal name, such as `iTerm2` or `Kitty`.
+- More than one coding harness: the target harness name, such as `Claude Code` or `Codex`.
+- Both vary: terminal first, as in `iTerm2 · Claude Code`.
+
+These conditions are independent and count every tracked session, including backburnered sessions. Fallback beacons such as "All At Work," "No Notification," and "Activation Failed" remain title-only.
+
+The title uses medium white text. The subtitle uses regular white text at half the configured title size, with a 10 pt minimum. Both are single-line, centered, and truncate in the middle on a solid black panel with a 2 px white border.
 
 ### Duration
 
@@ -49,7 +57,7 @@ The beacon is enabled or disabled from the Session Monitor control bar (the `lig
 
 ### Size
 
-Size scales font, padding, and minimum width. XS uses 16 px text and a 100 px min width; XL uses 52 px text and a 320 px min width; S / M / L scale between. Max width is capped at 600 px; height auto-fits content.
+Size scales title and subtitle fonts, padding, and minimum width. XS uses a 16 pt title and 10 pt subtitle with a 100 px min width; XL uses a 52 pt title and 26 pt subtitle with a 320 px min width; S / M / L scale between. Max width is capped at 600 px; height auto-fits content.
 
 ### Position and anchor
 
@@ -70,13 +78,14 @@ Models:
 - `BeaconPosition` - 5 cases (center + 4 corners)
 - `BeaconAnchor` - `screen` or `activeWindow`
 - `BeaconSize` - xs / s / m / l / xl
+- `BeaconMetadata` - resolves optional terminal and harness subtitles from all tracked sessions
 - `BeaconPositionCalculator.calculateOrigin()` - translates position + anchor + size into an `NSPoint` (40 px edge margin)
 
 Window: a single reused `NSPanel` (borderless, transparent, non-activating, floating). `canJoinAllSpaces` and `fullScreenAuxiliary` ensure it appears on every Space and over fullscreen apps.
 
 Animation: 0.2 s fade-in, 0.3 s fade-out via `alphaValue`.
 
-Triggers: cycling goes through `HotkeyManager.activateWithRetry()` (`HotkeyManager.swift:105`), which calls `BeaconManager.show(...)` on a successful landing, on "All At Work" when nothing is cyclable, or with `force: true` for "Activation Failed".
+Triggers: cycling goes through `HotkeyManager.activateWithRetry()`, which resolves metadata and calls `BeaconManager.show(...)` on a successful landing. Go-to-last-notification uses the same metadata resolution after a successful activation. "All At Work," "No Notification," and forced "Activation Failed" calls omit the subtitle.
 
 ## Edge Cases
 

@@ -126,7 +126,8 @@ final class HotkeyManager {
                 let displayName = SessionManager.shared.disambiguatedDisplayName(
                     for: target, titleMode: titleMode
                 )
-                BeaconManager.shared.show(sessionName: displayName)
+                let metadata = BeaconMetadata.resolve(for: target, among: SessionManager.shared.sessions)
+                BeaconManager.shared.show(sessionName: displayName, subtitle: metadata.subtitle)
                 return
             } catch TerminalBridgeError.sessionNotFound {
                 SessionManager.shared.endActivation()
@@ -175,7 +176,8 @@ final class HotkeyManager {
             let displayName = SessionManager.shared.disambiguatedDisplayName(
                 for: target, titleMode: titleMode
             )
-            BeaconManager.shared.show(sessionName: displayName)
+            let metadata = BeaconMetadata.resolve(for: target, among: SessionManager.shared.sessions)
+            BeaconManager.shared.show(sessionName: displayName, subtitle: metadata.subtitle)
         } catch TerminalBridgeError.sessionNotFound {
             SessionManager.shared.endActivation()
             BeaconManager.shared.show(sessionName: "No Notification")

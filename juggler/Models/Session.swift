@@ -51,6 +51,17 @@ struct Session: Identifiable, Codable, Equatable {
         }
     }
 
+    var agentDisplayName: String {
+        switch agent {
+        case "claude-code": "Claude Code"
+        case "opencode": "OpenCode"
+        case "codex": "Codex"
+        case "pi": "Pi"
+        case "antigravity": "Antigravity"
+        default: agent
+        }
+    }
+
     var displayName: String {
         if tmuxPane != nil {
             return customName ?? tmuxSessionName ?? projectFolderName

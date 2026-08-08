@@ -35,7 +35,7 @@ Controls terminal highlighting when a session is activated. See [Cycle Sessions 
 
 ## Beacon
 
-Beacon overlay that briefly shows the session name when cycling.
+Beacon overlay that briefly shows the session name when cycling. When tracked sessions span terminal applications or coding harnesses, successful activation beacons add a terminal/harness subtitle for disambiguation.
 
 - **Position**, **Relative to** (screen or active window), **Size** (XS-XL), **Duration** (0.5-3 s).
 

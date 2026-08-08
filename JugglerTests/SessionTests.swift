@@ -427,6 +427,18 @@ struct SessionTests {
         #expect(session.agentShortName == "CX")
     }
 
+    @Test func agentDisplayName_supportedHarnesses() {
+        #expect(makeSession(agent: "claude-code").agentDisplayName == "Claude Code")
+        #expect(makeSession(agent: "opencode").agentDisplayName == "OpenCode")
+        #expect(makeSession(agent: "codex").agentDisplayName == "Codex")
+        #expect(makeSession(agent: "pi").agentDisplayName == "Pi")
+        #expect(makeSession(agent: "antigravity").agentDisplayName == "Antigravity")
+    }
+
+    @Test func agentDisplayName_unknownHarnessPreservesIdentifier() {
+        #expect(makeSession(agent: "future-agent").agentDisplayName == "future-agent")
+    }
+
     // MARK: - Session displayName with tmux Tests
 
     @Test func displayName_tmux_prefersTmuxSessionName() {
@@ -651,5 +663,17 @@ struct SessionTests {
             state: .idle, startedAt: Date()
         )
         #expect(session.displayName == "project")
+    }
+
+    private func makeSession(agent: String) -> Session {
+        Session(
+            claudeSessionID: "test",
+            terminalSessionID: "w0t0p0:abc",
+            terminalType: .iterm2,
+            agent: agent,
+            projectPath: "/test",
+            state: .idle,
+            startedAt: Date()
+        )
     }
 }

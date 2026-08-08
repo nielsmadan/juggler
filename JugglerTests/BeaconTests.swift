@@ -39,6 +39,20 @@ struct BeaconTests {
         #expect(BeaconSize.xl.fontSize == 52)
     }
 
+    @Test func beaconSize_subtitleFontIsSmallerThanTitle() {
+        for size in BeaconSize.allCases {
+            #expect(size.subtitleFontSize < size.fontSize)
+        }
+    }
+
+    @Test func beaconSize_subtitleFontSize() {
+        #expect(BeaconSize.xs.subtitleFontSize == 10)
+        #expect(BeaconSize.s.subtitleFontSize == 11)
+        #expect(BeaconSize.m.subtitleFontSize == 15)
+        #expect(BeaconSize.l.subtitleFontSize == 20)
+        #expect(BeaconSize.xl.subtitleFontSize == 26)
+    }
+
     @Test func beaconSize_horizontalPadding() {
         #expect(BeaconSize.xs.horizontalPadding == 16)
         #expect(BeaconSize.s.horizontalPadding == 24)

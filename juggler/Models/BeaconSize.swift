@@ -23,6 +23,10 @@ enum BeaconSize: String, CaseIterable {
         }
     }
 
+    var subtitleFontSize: CGFloat {
+        max(10, fontSize * 0.5)
+    }
+
     var horizontalPadding: CGFloat {
         switch self {
         case .xs: 16
