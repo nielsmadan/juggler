@@ -1261,7 +1261,7 @@ struct SSHSettingsView: View {
     // Pinned to a release tag so onboarding new remotes uses a known-good revision
     // of install-remote.sh + the hook scripts it pulls. `just tag-release` rewrites it.
     private let installOneLiner =
-        "curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/v1.6.0/scripts/install-remote.sh | bash"
+        "curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/v1.7.0/scripts/install-remote.sh | bash"
 
     var body: some View {
         ScrollView {
