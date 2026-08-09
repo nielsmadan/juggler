@@ -7,12 +7,16 @@ enum HookEventMapper {
         case ignore
     }
 
-    nonisolated static func map(event: String, agent: String = "claude-code") -> MappedAction {
+    nonisolated static func map(
+        event: String,
+        agent: String = "claude-code",
+        toolName: String? = nil
+    ) -> MappedAction {
         switch agent {
         case "opencode":
             mapOpenCode(event: event)
         case "codex":
-            mapCodex(event: event)
+            mapCodex(event: event, toolName: toolName)
         case "pi":
             mapPi(event: event)
         case "antigravity":
@@ -44,9 +48,11 @@ enum HookEventMapper {
         }
     }
 
-    private nonisolated static func mapCodex(event: String) -> MappedAction {
+    private nonisolated static func mapCodex(event: String, toolName: String?) -> MappedAction {
         switch event {
         case "SessionStart", "Stop":
+            .updateState(.idle)
+        case "PreToolUse" where toolName == "request_user_input":
             .updateState(.idle)
         case "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostCompact":
             .updateState(.working)

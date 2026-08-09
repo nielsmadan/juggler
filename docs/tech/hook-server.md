@@ -90,7 +90,8 @@ Codex:
 | Event | Mapped State |
 |-------|--------------|
 | `SessionStart`, `Stop` | `idle` |
-| `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostCompact` | `working` |
+| `UserPromptSubmit`, `PostToolUse`, `PostCompact`, other `PreToolUse` | `working` |
+| `PreToolUse` with `tool_name: request_user_input` | `idle` |
 | `PermissionRequest` | `permission` |
 | `PreCompact` | `compacting` |
 | `SessionEnd` | *(removed)* |

@@ -573,6 +573,29 @@ struct HookServerTests {
         #expect(manager.sessions[0].state == .working)
     }
 
+    @Test @MainActor func processRequest_codexRequestUserInput_marksSessionIdle() async {
+        let manager = SessionManager()
+        manager.addOrUpdateSession(
+            claudeSessionID: "thread-1",
+            terminalSessionID: "s1",
+            agent: "codex",
+            projectPath: "/test/project",
+            state: .working
+        )
+        let server = HookServer(sessionManager: manager)
+        let body = """
+        {"agent":"codex","event":"PreToolUse","hookInput":{"session_id":"thread-1",\
+        "tool_name":"request_user_input"},\
+        "terminal":{"sessionId":"s1","cwd":"/test/project","terminalType":"iterm2"}}
+        """
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 200)
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].state == .idle)
+    }
+
     @Test @MainActor func processRequest_postHook_unknownEvent_isIgnored() async {
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)

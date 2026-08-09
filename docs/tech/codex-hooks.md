@@ -51,7 +51,7 @@ Juggler registers nine events.
 | `SessionStart` | `idle` |
 | `Stop` | `idle` |
 | `UserPromptSubmit` | `working` |
-| `PreToolUse` | `working` |
+| `PreToolUse` | `working` (`idle` for `request_user_input`) |
 | `PostToolUse` | `working` |
 | `PostCompact` | `working` |
 | `PreCompact` | `compacting` |
@@ -60,7 +60,9 @@ Juggler registers nine events.
 
 Codex also fires `SubagentStart` and `SubagentStop`, which Juggler does not register.
 
-Mapping lives in `HookEventMapper.mapCodex`. Event names are matched case-sensitively; an unrecognized event maps to `.ignore`.
+Mapping lives in `HookEventMapper.mapCodex`. Event and tool names are matched case-sensitively; an unrecognized event
+maps to `.ignore`. Codex executes `request_user_input` as a tool and waits inside it for the user's answers, so its
+`PreToolUse` event maps to `idle`; the matching `PostToolUse` maps back to `working` after the user responds.
 
 ## hooks.json Registration
 

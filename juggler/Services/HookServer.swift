@@ -201,21 +201,22 @@ actor HookServer {
             .iterm2
         }
 
-        if let bridge = await TerminalBridgeRegistry.shared.bridge(for: terminalType) {
-            await bridge.prepareAddressing(
-                sessionID: terminalSessionID,
-                context: HookAddressingContext(
-                    isRemote: !(remoteHost?.isEmpty ?? true),
-                    listenSocket: payload.terminal?.kittyListenOn
-                )
-            )
-        }
+        await prepareTerminalAddressing(
+            sessionID: terminalSessionID,
+            terminalType: terminalType,
+            remoteHost: remoteHost,
+            listenSocket: payload.terminal?.kittyListenOn
+        )
 
         await MainActor.run {
             logDebug(.hooks, "Hook received: \(payload.event) from \(payload.agent) (\(terminalType.displayName))")
         }
 
-        let action = HookEventMapper.map(event: payload.event, agent: payload.agent)
+        let action = HookEventMapper.map(
+            event: payload.event,
+            agent: payload.agent,
+            toolName: payload.hookInput?.toolName
+        )
 
         switch action {
         case let .updateState(state):
@@ -259,6 +260,22 @@ actor HookServer {
                 logDebug(.hooks, "Ignoring unknown event: \(payload.event)")
             }
         }
+    }
+
+    private func prepareTerminalAddressing(
+        sessionID: String,
+        terminalType: TerminalType,
+        remoteHost: String?,
+        listenSocket: String?
+    ) async {
+        guard let bridge = await TerminalBridgeRegistry.shared.bridge(for: terminalType) else { return }
+        await bridge.prepareAddressing(
+            sessionID: sessionID,
+            context: HookAddressingContext(
+                isRemote: !(remoteHost?.isEmpty ?? true),
+                listenSocket: listenSocket
+            )
+        )
     }
 
     /// A Codex thread abandoned via `/new` keeps firing its own SessionEnd at idle-unload, long

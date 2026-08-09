@@ -114,8 +114,26 @@ struct HookEventMapperTests {
         #expect(action == .updateState(.working))
     }
 
+    @Test func codex_requestUserInputPreToolUse_mapsToIdle() {
+        let action = HookEventMapper.map(
+            event: "PreToolUse",
+            agent: "codex",
+            toolName: "request_user_input"
+        )
+        #expect(action == .updateState(.idle))
+    }
+
     @Test func codex_postToolUse_mapsToWorking() {
         let action = HookEventMapper.map(event: "PostToolUse", agent: "codex")
+        #expect(action == .updateState(.working))
+    }
+
+    @Test func codex_requestUserInputPostToolUse_mapsToWorking() {
+        let action = HookEventMapper.map(
+            event: "PostToolUse",
+            agent: "codex",
+            toolName: "request_user_input"
+        )
         #expect(action == .updateState(.working))
     }
 
