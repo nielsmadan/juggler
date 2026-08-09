@@ -5,12 +5,27 @@ actor HookServer {
     static let shared = HookServer()
 
     private var listener: NWListener?
+    private var eventProcessingTask: Task<Void, Never>?
+    private var pendingActions: [HookServerRequestAction] = []
+    private var terminalRefreshTasks: [String: Task<Void, Never>] = [:]
+    private var pendingTerminalRefreshes: [String: TerminalRefreshRequest] = [:]
+    private var workGeneration = 0
     private var port: UInt16 = 7483
     private let maxRequestSize = 1_048_576
+    private let maxPendingActions = 256
+    private let maxRetainedInvalidBodySize = 200
     private let sessionManager: SessionManager
+    private let terminalBridgeRegistry: TerminalBridgeRegistry
+    private let willProcessQueuedAction: (@Sendable () async -> Void)?
 
-    init(sessionManager: SessionManager? = nil) {
+    init(
+        sessionManager: SessionManager? = nil,
+        terminalBridgeRegistry: TerminalBridgeRegistry = .shared,
+        willProcessQueuedAction: (@Sendable () async -> Void)? = nil
+    ) {
         self.sessionManager = sessionManager ?? .shared
+        self.terminalBridgeRegistry = terminalBridgeRegistry
+        self.willProcessQueuedAction = willProcessQueuedAction
     }
 
     func start() async throws {
@@ -47,6 +62,15 @@ actor HookServer {
     func stop() {
         listener?.cancel()
         listener = nil
+        workGeneration += 1
+        eventProcessingTask?.cancel()
+        eventProcessingTask = nil
+        pendingActions.removeAll()
+        for task in terminalRefreshTasks.values {
+            task.cancel()
+        }
+        terminalRefreshTasks.removeAll()
+        pendingTerminalRefreshes.removeAll()
     }
 
     private func handleConnection(_ connection: NWConnection) {
@@ -54,9 +78,66 @@ actor HookServer {
 
         receiveHTTPRequest(connection) { request in
             Task {
-                let response = await self.processRequest(request)
-                let responseData = response.serialize()
-                self.sendHTTPResponseData(connection, data: responseData)
+                await self.acknowledge(request, on: connection)
+            }
+        }
+    }
+
+    private func acknowledge(_ request: HTTPRequest, on connection: NWConnection) async {
+        await acknowledge(request) { [weak self] response in
+            self?.sendHTTPResponseData(connection, data: response.serialize())
+        }
+    }
+
+    func acknowledge(
+        _ request: HTTPRequest,
+        sendResponse: @escaping @Sendable (HTTPResponse) async -> Void
+    ) async {
+        let routedRequest = routeRequest(request)
+        await sendResponse(routedRequest.response)
+        await enqueue(routedRequest.action)
+    }
+
+    private func enqueue(_ action: HookServerRequestAction) async {
+        if case .none = action { return }
+
+        if pendingActions.count >= maxPendingActions {
+            pendingActions.removeFirst()
+            await MainActor.run {
+                logWarning(.hooks, "Hook event queue full; dropped oldest pending event")
+            }
+        }
+        pendingActions.append(action)
+        guard eventProcessingTask == nil else { return }
+
+        let generation = workGeneration
+        eventProcessingTask = Task { [weak self] in
+            await self?.processQueuedActions(generation: generation)
+        }
+    }
+
+    private func processQueuedActions(generation: Int) async {
+        while generation == workGeneration, !Task.isCancelled, !pendingActions.isEmpty {
+            let action = pendingActions.removeFirst()
+            await willProcessQueuedAction?()
+            guard generation == workGeneration, !Task.isCancelled else { break }
+            await processRequestAction(action)
+        }
+        if generation == workGeneration {
+            eventProcessingTask = nil
+        }
+    }
+
+    func waitForQueuedRequests() async {
+        let task = eventProcessingTask
+        await task?.value
+    }
+
+    func waitForTerminalRefreshes() async {
+        while !terminalRefreshTasks.isEmpty {
+            let tasks = Array(terminalRefreshTasks.values)
+            for task in tasks {
+                await task.value
             }
         }
     }
@@ -136,36 +217,80 @@ actor HookServer {
     }
 
     func processRequest(_ request: HTTPRequest) async -> HTTPResponse {
+        let routedRequest = routeRequest(request)
+        await processRequestAction(routedRequest.action)
+        return routedRequest.response
+    }
+
+    func routeRequest(_ request: HTTPRequest) -> RoutedHTTPRequest {
         guard request.method == "POST" else {
-            return HTTPResponse(status: 405, body: #"{"status":"error","message":"Method not allowed"}"#)
+            return RoutedHTTPRequest(
+                response: HTTPResponse(
+                    status: 405,
+                    body: #"{"status":"error","message":"Method not allowed"}"#
+                ),
+                action: .none
+            )
         }
 
         switch request.path {
         case "/hook":
             guard let payload = decodeUnifiedPayload(request.body) else {
-                await MainActor.run {
-                    logWarning(.hooks, "Invalid JSON in hook request: \(request.body.prefix(200))")
-                }
-                return HTTPResponse(status: 400, body: #"{"status":"error","message":"Invalid JSON"}"#)
+                return RoutedHTTPRequest(
+                    response: HTTPResponse(
+                        status: 400,
+                        body: #"{"status":"error","message":"Invalid JSON"}"#
+                    ),
+                    action: .invalidHook(String(request.body.prefix(maxRetainedInvalidBodySize)))
+                )
             }
 
-            await handleUnifiedHookEvent(payload)
-            return HTTPResponse(status: 200, body: #"{"status":"ok"}"#)
+            return RoutedHTTPRequest(
+                response: HTTPResponse(status: 200, body: #"{"status":"ok"}"#),
+                action: .hook(payload)
+            )
 
         case "/kitty-event":
             guard let eventPayload = try? JSONDecoder().decode(KittyEventPayload.self, from: Data(request.body.utf8))
             else {
-                await MainActor.run {
-                    logWarning(.kitty, "Invalid JSON in kitty-event request: \(request.body.prefix(200))")
-                }
-                return HTTPResponse(status: 400, body: #"{"status":"error","message":"Invalid JSON"}"#)
+                return RoutedHTTPRequest(
+                    response: HTTPResponse(
+                        status: 400,
+                        body: #"{"status":"error","message":"Invalid JSON"}"#
+                    ),
+                    action: .invalidKittyEvent(String(request.body.prefix(maxRetainedInvalidBodySize)))
+                )
             }
 
-            await handleKittyEvent(eventPayload)
-            return HTTPResponse(status: 200, body: #"{"status":"ok"}"#)
+            return RoutedHTTPRequest(
+                response: HTTPResponse(status: 200, body: #"{"status":"ok"}"#),
+                action: .kittyEvent(eventPayload)
+            )
 
         default:
-            return HTTPResponse(status: 404, body: #"{"status":"error","message":"Not found"}"#)
+            return RoutedHTTPRequest(
+                response: HTTPResponse(status: 404, body: #"{"status":"error","message":"Not found"}"#),
+                action: .none
+            )
+        }
+    }
+
+    private func processRequestAction(_ action: HookServerRequestAction) async {
+        switch action {
+        case let .hook(payload):
+            await handleUnifiedHookEvent(payload)
+        case let .kittyEvent(payload):
+            await handleKittyEvent(payload)
+        case let .invalidHook(body):
+            await MainActor.run {
+                logWarning(.hooks, "Invalid JSON in hook request: \(body.prefix(200))")
+            }
+        case let .invalidKittyEvent(body):
+            await MainActor.run {
+                logWarning(.kitty, "Invalid JSON in kitty-event request: \(body.prefix(200))")
+            }
+        case .none:
+            break
         }
     }
 
@@ -201,13 +326,6 @@ actor HookServer {
             .iterm2
         }
 
-        await prepareTerminalAddressing(
-            sessionID: terminalSessionID,
-            terminalType: terminalType,
-            remoteHost: remoteHost,
-            listenSocket: payload.terminal?.kittyListenOn
-        )
-
         await MainActor.run {
             logDebug(.hooks, "Hook received: \(payload.event) from \(payload.agent) (\(terminalType.displayName))")
         }
@@ -237,8 +355,6 @@ actor HookServer {
                     remoteHost: remoteHost
                 )
             }
-            await updateTerminalInfo(terminalSessionID: terminalSessionID, terminalType: terminalType)
-
             switch state {
             case .idle:
                 await sendNotificationIfEnabled(title: "Session Idle", sessionID: compositeID)
@@ -247,6 +363,13 @@ actor HookServer {
             default:
                 break
             }
+
+            scheduleTerminalRefresh(
+                terminalSessionID: terminalSessionID,
+                terminalType: terminalType,
+                remoteHost: remoteHost,
+                listenSocket: payload.terminal?.kittyListenOn
+            )
 
         case .removeSession:
             await removeSessionIfCurrent(
@@ -268,7 +391,7 @@ actor HookServer {
         remoteHost: String?,
         listenSocket: String?
     ) async {
-        guard let bridge = await TerminalBridgeRegistry.shared.bridge(for: terminalType) else { return }
+        guard let bridge = await terminalBridgeRegistry.bridge(for: terminalType) else { return }
         await bridge.prepareAddressing(
             sessionID: sessionID,
             context: HookAddressingContext(
@@ -276,6 +399,58 @@ actor HookServer {
                 listenSocket: listenSocket
             )
         )
+    }
+
+    private func scheduleTerminalRefresh(
+        terminalSessionID: String,
+        terminalType: TerminalType,
+        remoteHost: String?,
+        listenSocket: String?,
+        discoverKittySocket: Bool = false
+    ) {
+        let key = "\(terminalType.rawValue):\(terminalSessionID)"
+        pendingTerminalRefreshes[key] = TerminalRefreshRequest(
+            terminalSessionID: terminalSessionID,
+            terminalType: terminalType,
+            remoteHost: remoteHost,
+            listenSocket: listenSocket,
+            discoverKittySocket: discoverKittySocket
+        )
+        guard terminalRefreshTasks[key] == nil else { return }
+
+        let generation = workGeneration
+        terminalRefreshTasks[key] = Task { [weak self] in
+            await self?.processTerminalRefreshes(for: key, generation: generation)
+        }
+    }
+
+    private func processTerminalRefreshes(for key: String, generation: Int) async {
+        while generation == workGeneration,
+              !Task.isCancelled,
+              let refresh = pendingTerminalRefreshes.removeValue(forKey: key) {
+            if refresh.discoverKittySocket {
+                await KittyBridge.shared.registerLocalSocket(forWindowID: refresh.terminalSessionID)
+            } else {
+                await prepareTerminalAddressing(
+                    sessionID: refresh.terminalSessionID,
+                    terminalType: refresh.terminalType,
+                    remoteHost: refresh.remoteHost,
+                    listenSocket: refresh.listenSocket
+                )
+            }
+            guard generation == workGeneration, !Task.isCancelled else { break }
+
+            if pendingTerminalRefreshes[key] == nil {
+                await updateTerminalInfo(
+                    terminalSessionID: refresh.terminalSessionID,
+                    terminalType: refresh.terminalType
+                )
+            }
+        }
+
+        if generation == workGeneration {
+            terminalRefreshTasks[key] = nil
+        }
     }
 
     /// A Codex thread abandoned via `/new` keeps firing its own SessionEnd at idle-unload, long
@@ -332,7 +507,7 @@ actor HookServer {
             logDebug(.hooks, "updateTerminalInfo: calling getSessionInfo for \(terminalSessionID)")
         }
 
-        guard let bridge = await TerminalBridgeRegistry.shared.bridge(for: terminalType) else {
+        guard let bridge = await terminalBridgeRegistry.bridge(for: terminalType) else {
             await MainActor.run {
                 logDebug(.hooks, "No bridge available for \(terminalType.displayName)")
             }
@@ -341,6 +516,7 @@ actor HookServer {
 
         do {
             if let info = try await bridge.getSessionInfo(sessionID: terminalSessionID) {
+                guard !Task.isCancelled else { return }
                 await MainActor.run {
                     logDebug(.hooks, "Got terminal info for \(terminalSessionID): tab=\(info.tabName)")
                     self.sessionManager.updateSessionTerminalInfo(
@@ -370,13 +546,19 @@ actor HookServer {
 
         switch payload.event {
         case "focus_changed":
-            await KittyBridge.shared.registerLocalSocket(forWindowID: payload.windowID)
             await MainActor.run {
                 self.sessionManager.updateFocusedSession(
                     terminalSessionID: payload.windowID,
                     focusTerminalType: .kitty
                 )
             }
+            scheduleTerminalRefresh(
+                terminalSessionID: payload.windowID,
+                terminalType: .kitty,
+                remoteHost: nil,
+                listenSocket: nil,
+                discoverKittySocket: true
+            )
         case "session_terminated":
             await MainActor.run {
                 self.sessionManager.removeSessionsByTerminalID(payload.windowID)
@@ -442,6 +624,27 @@ struct HTTPResponse: Sendable {
 
         return Data(response.utf8)
     }
+}
+
+struct RoutedHTTPRequest: Sendable {
+    let response: HTTPResponse
+    let action: HookServerRequestAction
+}
+
+enum HookServerRequestAction: Sendable {
+    case hook(UnifiedHookPayload)
+    case kittyEvent(KittyEventPayload)
+    case invalidHook(String)
+    case invalidKittyEvent(String)
+    case none
+}
+
+private struct TerminalRefreshRequest: Sendable {
+    let terminalSessionID: String
+    let terminalType: TerminalType
+    let remoteHost: String?
+    let listenSocket: String?
+    let discoverKittySocket: Bool
 }
 
 // MARK: - Unified Hook Payload

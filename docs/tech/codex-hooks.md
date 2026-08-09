@@ -25,7 +25,7 @@ Codex setup is **three separate steps** (three buttons in onboarding's Integrati
 
 **File:** `Resources/codex-hooks/codex-notify.sh` (installed as `notify.sh`)
 
-Functionally identical to the Claude Code script (`Resources/hooks/notify.sh`): event name as `$1`, hook JSON on stdin, detects terminal type / tmux / git, builds the unified payload via a quoted Python heredoc, and fire-and-forgets it to `curl --connect-timeout 1`. It extracts only `session_id`, `transcript_path`, `tool_name` from stdin to stay under the HookServer's 1 MB request cap.
+Functionally identical to the Claude Code script (`Resources/hooks/notify.sh`): event name as `$1`, hook JSON on stdin, detects terminal type / tmux / git, builds the unified payload via a quoted Python heredoc, and posts it with `curl --connect-timeout 1 --max-time 2`. Delivery is best-effort, and the HTTP POST blocks for at most two seconds. It extracts only `session_id`, `transcript_path`, `tool_name` from stdin to stay under the HookServer's 1 MB request cap.
 
 The only meaningful difference: the payload's `agent` field is `"codex"`.
 

@@ -79,7 +79,7 @@ Every post uses `fetch` with an `AbortSignal.timeout(2000)` and a `try/catch` th
 | Terminal detection | Re-read from env each invocation | Captured once at plugin load |
 | Session create on resume | Fired by Claude Code | Synthesized by plugin on load |
 | Event namespace | `SessionStart`, `UserPromptSubmit`, `PreToolUse`, ... | `session.created`, `session.status.*`, `permission.asked`, ... |
-| Failure behavior | Fire-and-forget `curl --connect-timeout 1` | `fetch` with 2 s timeout, caught errors |
+| Failure behavior | Best-effort `curl`, bounded to 2 s | `fetch` with 2 s timeout, caught errors |
 
 See `docs/tech/hook-server.md` for the event-to-state mapping both agents share.
 

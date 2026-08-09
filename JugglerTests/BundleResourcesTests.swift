@@ -30,4 +30,20 @@ struct BundleResourcesTests {
             "build phase (e.g. .ts → Compile Sources). Rename to an extension Xcode bundles as a resource."
         #expect(url != nil, Comment(rawValue: hint))
     }
+
+    @Test(arguments: [
+        ("notify", "sh", "--max-time 2 \\"),
+        ("codex-notify", "sh", "--max-time 2 \\"),
+        ("antigravity-notify", "sh", "--max-time 2 \\"),
+        ("juggler_watcher", "py", "\"--max-time\", \"2\","),
+        ("juggler-opencode", "txt", "signal: AbortSignal.timeout(2000),"),
+        ("juggler-pi", "txt", "signal: AbortSignal.timeout(2000),")
+    ])
+    func hookDeliveryHasTotalTimeout(resource: String, ext: String, timeoutLine: String) throws {
+        let url = try #require(Bundle.main.url(forResource: resource, withExtension: ext))
+        let contents = try String(contentsOf: url, encoding: .utf8)
+        let lines = contents.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+
+        #expect(lines.contains(timeoutLine))
+    }
 }

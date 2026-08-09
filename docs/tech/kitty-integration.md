@@ -29,7 +29,7 @@ watcher /path/to/juggler_watcher.py
 
 GUI apps launched from Finder or the Dock do not inherit Kitty's `KITTY_LISTEN_ON` environment variable. Without a socket, `kitten @` hangs.
 
-`KittyBridge.discoverKittySocket()` (`Services/KittyBridge.swift:77-91`) scans `/tmp` for files matching `kitty-*` and uses the first match, formatted as `unix:/tmp/kitty-<pid>`. If none is found, the bridge reports an error telling the user to set `listen_on` and restart Kitty.
+For the setup connection test, `KittyBridge.discoverKittySocket()` scans `/tmp` for `kitty-*` sockets and uses the first candidate. Live sessions use `registerLocalSocket(forWindowID:)`: a sole candidate is mapped directly, while multiple candidates are probed with `kitten @ ls` until the bridge finds the socket that owns the window. Local hooks can register their usable `KITTY_LISTEN_ON` directly; remote hooks ignore that remote-only path and resolve the owning local socket instead.
 
 ## Watcher Installation
 
@@ -49,7 +49,9 @@ GUI apps launched from Finder or the Dock do not inherit Kitty's `KITTY_LISTEN_O
 | `on_focus_change` | `focus_changed` | `{"event":"focus_changed","window_id":"<id>"}` |
 | `on_close` | `session_terminated` | `{"event":"session_terminated","window_id":"<id>"}` |
 
-Posts to `http://localhost:7483/kitty-event` with a 1 s curl timeout. Fire-and-forget: if Juggler isn't running, the watcher silently drops the event.
+Posts to `http://localhost:7483/kitty-event` with a 1-second connection timeout and a 2-second total curl timeout. Fire-and-forget: if Juggler isn't running or does not respond, the watcher silently drops the event.
+
+`focus_changed` updates Juggler's focus state immediately, then schedules socket discovery and terminal metadata through HookServer's coalesced per-session refresh work. Slow Kitty probes do not hold up later state events. See [Hook Server](hook-server.md) for queueing details.
 
 ## Setup UI Flow
 

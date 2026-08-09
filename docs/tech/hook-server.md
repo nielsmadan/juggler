@@ -54,6 +54,11 @@ Or on error:
 {"status": "error", "message": "Invalid JSON"}
 ```
 
+Valid requests are acknowledged immediately after decoding. Session updates and notifications then run on a bounded
+ordered queue, while terminal addressing and metadata lookups run in coalesced tasks keyed by terminal session. Slow
+terminal I/O cannot hold up an agent hook or delay later state changes. The queue retains at most 256 actions and drops
+the oldest pending action if saturated; normal bursts reach `SessionManager` in enqueue order.
+
 ## Event Types
 
 | Event | Mapped State | Description |

@@ -66,6 +66,7 @@ python3 << 'PYTHON' | curl -s -X POST "http://localhost:${JUGGLER_PORT}/hook" \
     -d @- \
     --noproxy '*' \
     --connect-timeout 1 \
+    --max-time 2 \
     >/dev/null 2>&1 || true
 import json
 import os

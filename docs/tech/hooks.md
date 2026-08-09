@@ -1,6 +1,6 @@
 # Claude Code Hooks
 
-Juggler integrates with Claude Code via shell hooks, receiving notifications when session state changes. The other agents use their own mechanisms — see [OpenCode Plugin](opencode-plugin.md), [Codex Hooks](codex-hooks.md), and [Pi Extension](pi-extension.md).
+Juggler integrates with Claude Code via shell hooks, receiving notifications when session state changes. The other agents use their own mechanisms — see [OpenCode Plugin](opencode-plugin.md), [Codex Hooks](codex-hooks.md), [Pi Extension](pi-extension.md), and [Antigravity Hooks](antigravity-hooks.md).
 
 ## Installation
 
@@ -24,7 +24,7 @@ The script:
 6. Detects an SSH session (`$SSH_CONNECTION`) and tags the payload with `remoteHost` (`user@host`)
 7. Builds unified payload via Python (avoids shell injection) and posts to Juggler
 
-The script uses `python3` with a quoted heredoc to build JSON safely from environment variables, piping directly into `curl --connect-timeout 1`. This avoids shell interpolation of user-controlled fields.
+The script uses `python3` with a quoted heredoc to build JSON safely from environment variables, piping directly into `curl --connect-timeout 1 --max-time 2`. This avoids shell interpolation of user-controlled fields.
 
 ## Payload Contract
 
@@ -39,7 +39,7 @@ Claude Code invokes the hook with the event name as `$1` and a JSON blob on stdi
 | `tool_name` | yes |
 | everything else | dropped |
 
-Source: `Resources/hooks/notify.sh:73-82`.
+Source: `Resources/hooks/notify.sh:74-85`.
 
 ### Environment variables consumed
 
@@ -89,7 +89,7 @@ Optional blocks are omitted when empty:
 
 ### Delivery
 
-`curl -s -X POST http://localhost:${JUGGLER_PORT}/hook -d @- --connect-timeout 1 >/dev/null 2>&1 || true`. Fire-and-forget: if Juggler isn't running, the hook silently succeeds.
+`curl -s -X POST http://localhost:${JUGGLER_PORT}/hook -d @- --connect-timeout 1 --max-time 2 >/dev/null 2>&1 || true`. Delivery is best-effort and synchronous for at most two seconds; failures are ignored so the hook still succeeds.
 
 ### HookServer constraints
 

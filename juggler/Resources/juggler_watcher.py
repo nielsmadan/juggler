@@ -26,6 +26,7 @@ def _post_event(event: str, window_id: int) -> None:
                 "-H", "Content-Type: application/json",
                 "-d", payload,
                 "--connect-timeout", "1",
+                "--max-time", "2",
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

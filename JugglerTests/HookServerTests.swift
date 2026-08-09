@@ -4,6 +4,69 @@ import Testing
 
 @Suite("HookServer")
 struct HookServerTests {
+    private actor RequestOrderRecorder {
+        private var events: [String] = []
+
+        func record(_ event: String) {
+            events.append(event)
+        }
+
+        func recordedEvents() -> [String] {
+            events
+        }
+    }
+
+    private actor BlockingTerminalBridge: TerminalBridge {
+        private var prepareCallCount = 0
+        private var infoCallCount = 0
+        private var prepareStarted = false
+        private var prepareStartWaiters: [CheckedContinuation<Void, Never>] = []
+        private var prepareContinuation: CheckedContinuation<Void, Never>?
+
+        func start() async throws {}
+        func stop() async {}
+        func activate(sessionID _: String) async throws {}
+        func highlight(
+            sessionID _: String,
+            tabConfig _: HighlightConfig?,
+            paneConfig _: HighlightConfig?
+        ) async throws {}
+
+        func prepareAddressing(sessionID _: String, context _: HookAddressingContext) async {
+            prepareCallCount += 1
+            guard prepareCallCount == 1 else { return }
+            prepareStarted = true
+            for waiter in prepareStartWaiters {
+                waiter.resume()
+            }
+            prepareStartWaiters.removeAll()
+            await withCheckedContinuation { continuation in
+                prepareContinuation = continuation
+            }
+        }
+
+        func getSessionInfo(sessionID _: String) async throws -> TerminalSessionInfo? {
+            infoCallCount += 1
+            return nil
+        }
+
+        func waitUntilPrepareStarts() async {
+            if prepareStarted { return }
+            await withCheckedContinuation { continuation in
+                prepareStartWaiters.append(continuation)
+            }
+        }
+
+        func releasePrepare() {
+            prepareContinuation?.resume()
+            prepareContinuation = nil
+        }
+
+        func callCounts() -> (prepare: Int, info: Int) {
+            (prepareCallCount, infoCallCount)
+        }
+    }
+
     // MARK: - HTTPRequest.parse Tests
 
     @Test func parse_validGETRequest() {
@@ -529,6 +592,84 @@ struct HookServerTests {
         let request = HTTPRequest(method: "POST", path: "/hook", body: body)
         let response = await server.processRequest(request)
         #expect(response.status == 200)
+    }
+
+    @Test @MainActor func acknowledge_validHook_sendsResponseBeforeProcessing() async {
+        let manager = SessionManager()
+        let recorder = RequestOrderRecorder()
+        let server = HookServer(
+            sessionManager: manager,
+            willProcessQueuedAction: { await recorder.record("process") }
+        )
+        let body = """
+        {"agent":"claude-code","event":"SessionStart",\
+        "terminal":{"sessionId":"s1","cwd":"/test","terminalType":"iterm2"}}
+        """
+
+        await server.acknowledge(HTTPRequest(method: "POST", path: "/hook", body: body)) { response in
+            await recorder.record("response-\(response.status)")
+        }
+        await server.waitForQueuedRequests()
+
+        #expect(await recorder.recordedEvents() == ["response-200", "process"])
+        #expect(manager.sessions.count == 1)
+    }
+
+    @Test @MainActor func acknowledge_multipleHooks_processesEveryRequestInOrder() async {
+        let manager = SessionManager()
+        let recorder = RequestOrderRecorder()
+        let server = HookServer(
+            sessionManager: manager,
+            willProcessQueuedAction: { await recorder.record("process") }
+        )
+        let events = ["SessionStart", "PreToolUse", "Stop"]
+
+        for event in events {
+            let body = """
+            {"agent":"claude-code","event":"\(event)",\
+            "terminal":{"sessionId":"s1","cwd":"/test","terminalType":"iterm2"}}
+            """
+            await server.acknowledge(HTTPRequest(method: "POST", path: "/hook", body: body)) { _ in }
+        }
+        await server.waitForQueuedRequests()
+
+        #expect(await recorder.recordedEvents() == ["process", "process", "process"])
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].state == .idle)
+    }
+
+    @Test @MainActor func slowTerminalRefresh_doesNotBlockStateAndCoalescesRepeatedEvents() async {
+        let manager = SessionManager()
+        let registry = TerminalBridgeRegistry()
+        let bridge = BlockingTerminalBridge()
+        await registry.register(bridge, for: .kitty)
+        let server = HookServer(sessionManager: manager, terminalBridgeRegistry: registry)
+        let kittyBody = """
+        {"agent":"claude-code","event":"SessionStart","remoteHost":"user@host",\
+        "terminal":{"sessionId":"kitty-1","cwd":"/test","terminalType":"kitty"}}
+        """
+
+        await server.acknowledge(HTTPRequest(method: "POST", path: "/hook", body: kittyBody)) { _ in }
+        await bridge.waitUntilPrepareStarts()
+
+        for _ in 0 ..< 10 {
+            await server.acknowledge(HTTPRequest(method: "POST", path: "/hook", body: kittyBody)) { _ in }
+        }
+        let itermBody = """
+        {"agent":"codex","event":"SessionStart",\
+        "terminal":{"sessionId":"iterm-1","cwd":"/test","terminalType":"iterm2"}}
+        """
+        await server.acknowledge(HTTPRequest(method: "POST", path: "/hook", body: itermBody)) { _ in }
+        await server.waitForQueuedRequests()
+
+        #expect(manager.sessions.contains { $0.terminalSessionID == "kitty-1" })
+        #expect(manager.sessions.contains { $0.terminalSessionID == "iterm-1" })
+
+        await bridge.releasePrepare()
+        await server.waitForTerminalRefreshes()
+        let counts = await bridge.callCounts()
+        #expect(counts.prepare == 2)
+        #expect(counts.info == 1)
     }
 
     @Test @MainActor func processRequest_postHook_createsSessionInManager() async {
