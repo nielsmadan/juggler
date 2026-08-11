@@ -166,6 +166,11 @@ Hooks are configured in Claude Code's settings at `~/.claude/settings.json`. The
 }
 ```
 
+The installer refuses to change an unreadable, invalid, or structurally incompatible
+`settings.json`. For a valid existing file it preserves a one-time recovery copy at
+`settings.json.juggler-backup`, retains unrelated settings and hooks, and replaces the
+merged file atomically.
+
 **Note:** `SubagentStop` is intentionally **not** hooked - it fires asynchronously after `Stop` and would overwrite the idle state. The install script removes any existing `SubagentStop` hooks.
 
 ## Debugging
@@ -191,7 +196,7 @@ curl http://localhost:7483/hook -X POST -d '{"agent":"test","event":"ping"}'
 - Removes the Kitty watcher (`~/.config/kitty/juggler_watcher.py`).
 - Removes the OpenCode plugin (`~/.config/opencode/plugins/juggler-opencode.ts`).
 - Removes the Pi extension (`${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/juggler-pi.ts`). See [Pi Extension](pi-extension.md).
-- Removes Codex hooks (`~/.codex/hooks/juggler/`), strips Juggler entries from `~/.codex/hooks.json`, and restores `~/.codex/config.toml` from `<path>.juggler-backup` (removing the `[features] hooks` flag and `[hooks.state]` trust blocks). See [Codex Hooks](codex-hooks.md) for the install side this reverses.
+- Removes Codex hooks (`~/.codex/hooks/juggler/`), strips Juggler entries from `~/.codex/hooks.json`, and surgically removes Juggler-owned trust blocks from the current `~/.codex/config.toml`. Later user changes and the harmless global `features.hooks` flag are preserved. See [Codex Hooks](codex-hooks.md) for the install side this reverses.
 - Resets the Automation (Apple Events) permission via `tccutil`.
 
 ---

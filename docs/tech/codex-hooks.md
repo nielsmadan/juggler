@@ -107,7 +107,8 @@ trusted_hash = "sha256:<hex>"
 
 `uninstall.sh` (run by `just reset-integration`) fully reverts Codex:
 - `rm -rf ~/.codex/hooks/juggler/`.
-- If `~/.codex/config.toml.juggler-backup` exists → `mv` it back over `config.toml`. This restores the exact pre-Juggler state (no `[features] hooks`, no `[hooks.state]` blocks) without parsing TOML. If Juggler created `config.toml` from scratch (no backup), it is left alone - the leftover flag/blocks are harmless.
+- Juggler-owned `[hooks.state]` blocks are removed from the current `~/.codex/config.toml` without replacing the file. Current registrations are identified by their exact hooks.json group indices; stale registrations are identified by Juggler's trusted hash. Unrelated trust blocks and every setting added after installation are preserved.
+- The global `[features] hooks = true` flag remains. It is harmless without registered/trusted hooks, and Juggler cannot safely distinguish a flag it enabled from one the user now relies on. After successful cleanup, the old recovery snapshot is deleted so a later installation can capture a fresh baseline.
 - `~/.codex/hooks.json` is surgically stripped of Juggler's groups (or removed if it becomes empty); the stale `hooks.json.juggler-backup` is deleted.
 
 ## Known Quirks
@@ -142,7 +143,7 @@ Unlike Claude Code (which fires `StopFailure` on API errors instead of `Stop`) a
 
 ### config.toml is hand-edited, not TOML-parsed
 
-`CodexHooksInstaller` does targeted string edits on `config.toml` rather than round-tripping it through a TOML library (Swift has no bundled TOML parser). The helpers (`parseBoolAssignment`, `parseStringAssignment`, `editedTOML`) handle Juggler's known-shape values and tolerate trailing `# comment`s, but are not a general TOML parser. This is why reset prefers restore-from-backup over surgical removal for `config.toml`.
+`CodexHooksInstaller` does targeted string edits on `config.toml` rather than round-tripping it through a TOML library (Swift has no bundled TOML parser). The helpers (`parseBoolAssignment`, `parseStringAssignment`, `editedTOML`) handle Juggler's known-shape values and tolerate trailing `# comment`s, but are not a general TOML parser. Reset likewise removes only complete `[hooks.state]` sections that match current Juggler registrations or Juggler's trusted hashes; it never rewrites unrelated TOML.
 
 ---
 

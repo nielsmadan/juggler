@@ -1,6 +1,12 @@
 #!/bin/bash
 # Removes Juggler hooks and integrations
 
+SCRIPT_DIR="$(dirname "$0")"
+CODEX_CONFIG_CLEANUP="$SCRIPT_DIR/codex_config_cleanup.py"
+if [ ! -f "$CODEX_CONFIG_CLEANUP" ]; then
+    CODEX_CONFIG_CLEANUP="$SCRIPT_DIR/../codex_config_cleanup.py"
+fi
+CLEANUP_FAILED=0
 JUGGLER_HOOKS_DIR="$HOME/.claude/hooks/juggler"
 SETTINGS_FILE="$HOME/.claude/settings.json"
 KITTY_WATCHER="$HOME/.config/kitty/juggler_watcher.py"
@@ -85,12 +91,17 @@ if [ -d "$CODEX_HOOKS_DIR" ]; then
     echo "  Removed Codex hooks"
 fi
 
-# Restore config.toml from Juggler's backup — removes the [features] hooks flag and the
-# [hooks.state] trust blocks Juggler wrote, parser-free. If no backup exists, Juggler
-# created config.toml from scratch; the leftover flag/blocks are harmless, so leave it.
-if [ -f "$CODEX_CONFIG_TOML.juggler-backup" ]; then
-    mv "$CODEX_CONFIG_TOML.juggler-backup" "$CODEX_CONFIG_TOML"
-    echo "  Restored Codex config.toml"
+# Remove Juggler trust entries without replacing the user's current config.
+if [ -f "$CODEX_CONFIG_TOML" ]; then
+    if python3 "$CODEX_CONFIG_CLEANUP" \
+        "$CODEX_CONFIG_TOML" "$CODEX_HOOKS_JSON" "$CODEX_HOOKS_DIR/notify.sh"; then
+        rm -f "$CODEX_CONFIG_TOML.juggler-backup"
+    else
+        echo "  Failed to clean Codex config.toml; preserved it and its backup" >&2
+        CLEANUP_FAILED=1
+    fi
+else
+    rm -f "$CODEX_CONFIG_TOML.juggler-backup"
 fi
 rm -f "$CODEX_HOOKS_JSON.juggler-backup"
 
@@ -168,3 +179,7 @@ fi
 tccutil reset AppleEvents com.nielsmadan.Juggler 2>/dev/null && echo "  Reset Automation permission"
 
 echo "Done."
+
+if [ "$CLEANUP_FAILED" -ne 0 ]; then
+    exit 1
+fi

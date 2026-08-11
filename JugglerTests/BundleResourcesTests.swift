@@ -16,6 +16,7 @@ struct BundleResourcesTests {
         ("uninstall", "sh"), // SettingsView reset / ScriptInstaller
         ("codex-notify", "sh"), // CodexHooksInstaller.installHooks
         ("antigravity-notify", "sh"), // AntigravityHooksInstaller.installHooks
+        ("codex_config_cleanup", "py"), // uninstall.sh removes only Juggler trust entries
         ("juggler-opencode", "txt"), // OpenCodePluginInstaller.install
         ("juggler-pi", "txt"), // PiExtensionInstaller.install
         ("iterm2_daemon", "py"), // iTerm2Bridge
