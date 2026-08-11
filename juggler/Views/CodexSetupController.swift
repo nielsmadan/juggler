@@ -24,6 +24,17 @@ final class CodexSetupController {
         enabledInCodex = CodexHooksInstaller.isEnabledInCodex()
     }
 
+    func initializePermissionEventPreference(
+        defaults: UserDefaults = .standard,
+        configTOMLPath: String = CodexHooksInstaller.configTOMLPath
+    ) {
+        guard defaults.object(forKey: AppStorageKeys.codexIgnorePermissionEvents) == nil,
+              CodexHooksInstaller.isAutoReviewEnabled(at: configTOMLPath) else {
+            return
+        }
+        defaults.set(true, forKey: AppStorageKeys.codexIgnorePermissionEvents)
+    }
+
     func installHooks() {
         isInstallingHooks = true
         errorMessage = nil

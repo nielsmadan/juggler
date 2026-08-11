@@ -97,7 +97,7 @@ Codex:
 | `SessionStart`, `Stop` | `idle` |
 | `UserPromptSubmit`, `PostToolUse`, `PostCompact`, other `PreToolUse` | `working` |
 | `PreToolUse` with `tool_name: request_user_input` | `idle` |
-| `PermissionRequest` | `permission` |
+| `PermissionRequest` | `permission`, or ignored by user preference |
 | `PreCompact` | `compacting` |
 | `SessionEnd` | *(removed)* |
 
@@ -115,6 +115,10 @@ canonical hook fingerprint) - so the hooks run without manual review. The
 `0` - a user's preexisting hook for the same event pushes Juggler's group to a
 higher index). See [Codex Hooks](codex-hooks.md) for the full mechanism.
 Requires Codex CLI ≥ v0.114; `SessionEnd` additionally requires ≥ v0.145.
+
+Codex hook input does not distinguish an automatic approval review from a manual approval prompt. When
+`AppStorageKeys.codexIgnorePermissionEvents` is true, `HookServer` ignores Codex `PermissionRequest` events and logs the
+suppression as intentional. Other agents keep their immediate permission mapping.
 
 Pi:
 

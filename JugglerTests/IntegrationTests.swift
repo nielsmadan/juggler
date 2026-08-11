@@ -1279,6 +1279,17 @@ struct IntegrationTests {
     }
 
     @Test @MainActor func integration_codex_stateTransitions() async {
+        let autoReviewKey = AppStorageKeys.codexIgnorePermissionEvents
+        let previousAutoReviewValue = UserDefaults.standard.object(forKey: autoReviewKey)
+        UserDefaults.standard.set(false, forKey: autoReviewKey)
+        defer {
+            if let previousAutoReviewValue {
+                UserDefaults.standard.set(previousAutoReviewValue, forKey: autoReviewKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: autoReviewKey)
+            }
+        }
+
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)
 
@@ -1293,6 +1304,13 @@ struct IntegrationTests {
         await simulateHook(server: server, agent: "codex", event: "PermissionRequest",
                            claudeSessionID: "codex-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .permission)
+
+        await simulateHook(server: server, agent: "codex", event: "UserPromptSubmit",
+                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+        UserDefaults.standard.set(true, forKey: autoReviewKey)
+        await simulateHook(server: server, agent: "codex", event: "PermissionRequest",
+                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+        #expect(manager.sessions.first?.state == .working)
 
         await simulateHook(server: server, agent: "codex", event: "PreCompact",
                            claudeSessionID: "codex-1", terminalSessionID: "s1")

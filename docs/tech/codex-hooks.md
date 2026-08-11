@@ -55,7 +55,7 @@ Juggler registers nine events.
 | `PostToolUse` | `working` |
 | `PostCompact` | `working` |
 | `PreCompact` | `compacting` |
-| `PermissionRequest` | `permission` |
+| `PermissionRequest` | `permission` (optionally ignored for Auto Review) |
 | `SessionEnd` | *(removes the session)* |
 
 Codex also fires `SubagentStart` and `SubagentStop`, which Juggler does not register.
@@ -63,6 +63,13 @@ Codex also fires `SubagentStart` and `SubagentStop`, which Juggler does not regi
 Mapping lives in `HookEventMapper.mapCodex`. Event and tool names are matched case-sensitively; an unrecognized event
 maps to `.ignore`. Codex executes `request_user_input` as a tool and waits inside it for the user's answers, so its
 `PreToolUse` event maps to `idle`; the matching `PostToolUse` maps back to `working` after the user responds.
+
+Codex does not identify the active reviewer in `PermissionRequest` hook input. The optional **Ignore Codex permission
+events** preference therefore suppresses every Codex `PermissionRequest` transition and leaves the session in its
+current state. This prevents Auto Review from briefly putting the session in Juggler's permission queue, but also hides
+manual permission prompts. Juggler preselects the preference when the top-level `approvals_reviewer = "auto_review"`
+setting is present in `~/.codex/config.toml`; profile and command-line overrides are not detected. `request_user_input`
+and `Stop` still move the session to `idle` when Codex actually waits for the user.
 
 ## hooks.json Registration
 

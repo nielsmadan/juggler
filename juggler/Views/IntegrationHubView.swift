@@ -193,7 +193,7 @@ struct IntegrationHubView: View {
         }
         .sheet(isPresented: $showingCodexSetup) {
             CodexSetupView(isConfigured: $codexConfigured, isEnabled: $codexEnabled)
-                .frame(width: 540, height: 560)
+                .frame(width: 540, height: 620)
         }
         .sheet(isPresented: $showingPiSetup) {
             PiSetupView(isConfigured: $piConfigured)
@@ -825,6 +825,7 @@ struct CodexSetupView: View {
     @Binding var isConfigured: Bool
     @Binding var isEnabled: Bool
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(AppStorageKeys.codexIgnorePermissionEvents) private var codexIgnorePermissionEvents = false
     @State private var controller = CodexSetupController()
 
     var body: some View {
@@ -873,6 +874,16 @@ struct CodexSetupView: View {
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
 
+            SettingWithDescription(
+                description: "Codex emits the same permission event before Auto Review and manual approval. "
+                    + "Ignoring it prevents Auto Review from briefly putting the session in Juggler's permission "
+                    + "queue, but also hides manual permission prompts. On first setup, Juggler preselects this from "
+                    + "the global Codex config; profile and command-line overrides are not detected."
+            ) {
+                Toggle("Ignore Codex permission events", isOn: $codexIgnorePermissionEvents)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
             if let error = controller.errorMessage {
                 Text(error)
                     .foregroundStyle(.red)
@@ -917,6 +928,7 @@ struct CodexSetupView: View {
         }
         .padding()
         .onAppear {
+            controller.initializePermissionEventPreference()
             controller.refresh()
         }
     }

@@ -250,12 +250,25 @@ tag-release bump="":
             exit 1
         fi
     fi
-    # Remote hosts fetch install-remote.sh and the hook scripts it pulls at this tag.
-    sed -i '' "s|nielsmadan/juggler/v[0-9]*\.[0-9]*\.[0-9]*/|nielsmadan/juggler/v$VERSION/|g" \
-        scripts/install-remote.sh juggler/Views/SettingsView.swift
-    git add scripts/install-remote.sh juggler/Views/SettingsView.swift
     if ! git diff --cached --quiet; then
         git commit -m "chore: bump version to $VERSION"
+    fi
+    RELEASE_REVISION=$(git rev-parse HEAD)
+    sed -E -i '' \
+        "s|installRevision = \"[0-9a-f]{40}\"|installRevision = \"$RELEASE_REVISION\"|" \
+        juggler/Views/SettingsView.swift
+    sed -E -i '' \
+        "s|JUGGLER_REVISION:-[0-9a-f]{40}|JUGGLER_REVISION:-$RELEASE_REVISION|" \
+        scripts/install-remote.sh
+    if ! grep -Fq "installRevision = \"$RELEASE_REVISION\"" juggler/Views/SettingsView.swift; then
+        echo "Error: failed to update the Settings installer revision."; exit 1
+    fi
+    if ! grep -Fq "JUGGLER_REVISION:-$RELEASE_REVISION" scripts/install-remote.sh; then
+        echo "Error: failed to update the remote installer revision."; exit 1
+    fi
+    git add scripts/install-remote.sh juggler/Views/SettingsView.swift
+    if ! git diff --cached --quiet; then
+        git commit -m "chore: pin remote installer for $VERSION"
     fi
     echo "Tagging v$VERSION..."
     git tag -m "Release v$VERSION" "v$VERSION" && git push origin main "v$VERSION" && \

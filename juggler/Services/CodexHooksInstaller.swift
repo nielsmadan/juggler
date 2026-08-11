@@ -189,7 +189,8 @@ enum CodexHooksInstaller {
         }
         var currentSection = ""
         for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            let line = removingTOMLComment(from: String(rawLine))
+                .trimmingCharacters(in: .whitespaces)
             if line.hasPrefix("["), line.hasSuffix("]") {
                 currentSection = String(line.dropFirst().dropLast())
                 continue
@@ -201,6 +202,26 @@ enum CodexHooksInstaller {
                 if let parsed = parseBoolAssignment(line: line, key: "codex_hooks") {
                     return parsed
                 }
+            }
+        }
+        return false
+    }
+
+    static func isAutoReviewEnabled(at path: String = configTOMLPath) -> Bool {
+        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
+            return false
+        }
+        var currentSection = ""
+        for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: false) {
+            let line = removingTOMLComment(from: String(rawLine))
+                .trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("["), line.hasSuffix("]") {
+                currentSection = String(line.dropFirst().dropLast())
+                continue
+            }
+            if currentSection.isEmpty,
+               let reviewer = parseStringAssignment(line: line, key: "approvals_reviewer") {
+                return reviewer == "auto_review"
             }
         }
         return false
@@ -495,19 +516,51 @@ enum CodexHooksInstaller {
         return preserved + "\n\n" + blocks
     }
 
-    /// Returns the string value if `line` is `<key> = "<value>"`, tolerating a trailing
-    /// `# comment`. Pragmatic parser for Juggler's known-shape values — it extracts the
-    /// first `"..."` quoted substring and does not handle escaped quotes or `#` inside the
-    /// quoted string. Returns nil otherwise.
+    /// Returns the quoted string value from Juggler's known-shape TOML assignments.
     private static func parseStringAssignment(line: String, key: String) -> String? {
         let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
         guard parts.count == 2 else { return nil }
         guard parts[0].trimmingCharacters(in: .whitespaces) == key else { return nil }
-        let rhs = parts[1]
-        guard let open = rhs.firstIndex(of: "\"") else { return nil }
-        let afterOpen = rhs.index(after: open)
-        guard let close = rhs[afterOpen...].firstIndex(of: "\"") else { return nil }
-        return String(rhs[afterOpen ..< close])
+        let rhs = parts[1].trimmingCharacters(in: .whitespaces)
+        guard let quote = rhs.first, quote == "\"" || quote == "'" else { return nil }
+
+        var escaped = false
+        for index in rhs.indices.dropFirst() {
+            let character = rhs[index]
+            if quote == "\"", character == "\\", !escaped {
+                escaped = true
+                continue
+            }
+            if character == quote, !escaped {
+                return String(rhs[rhs.index(after: rhs.startIndex) ..< index])
+            }
+            escaped = false
+        }
+        return nil
+    }
+
+    private static func removingTOMLComment(from line: String) -> String {
+        var quote: Character?
+        var escaped = false
+
+        for index in line.indices {
+            let character = line[index]
+            if let activeQuote = quote {
+                if activeQuote == "\"", character == "\\", !escaped {
+                    escaped = true
+                    continue
+                }
+                if character == activeQuote, !escaped {
+                    quote = nil
+                }
+                escaped = false
+            } else if character == "\"" || character == "'" {
+                quote = character
+            } else if character == "#" {
+                return String(line[..<index])
+            }
+        }
+        return line
     }
 
     // MARK: - TOML helpers

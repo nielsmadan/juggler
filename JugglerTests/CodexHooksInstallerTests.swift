@@ -308,6 +308,33 @@ struct CodexConfigTOMLTests {
         }
     }
 
+    @Test func isAutoReviewEnabled_readsTopLevelReviewer() throws {
+        try withTempFile(contents: "approvals_reviewer = \"auto_review\" # enabled\n") { path in
+            #expect(CodexHooksInstaller.isAutoReviewEnabled(at: path))
+        }
+        try withTempFile(contents: "approvals_reviewer = 'auto_review'\n") { path in
+            #expect(CodexHooksInstaller.isAutoReviewEnabled(at: path))
+        }
+        try withTempFile(contents: "approvals_reviewer = \"user\"\n") { path in
+            #expect(!CodexHooksInstaller.isAutoReviewEnabled(at: path))
+        }
+    }
+
+    @Test func isAutoReviewEnabled_ignoresProfileReviewer() throws {
+        try withTempFile(contents: """
+        [profiles.automatic]
+        approvals_reviewer = "auto_review"
+        """) { path in
+            #expect(!CodexHooksInstaller.isAutoReviewEnabled(at: path))
+        }
+        try withTempFile(contents: """
+        [profiles.automatic] # selected with --profile automatic
+        approvals_reviewer = "auto_review"
+        """) { path in
+            #expect(!CodexHooksInstaller.isAutoReviewEnabled(at: path))
+        }
+    }
+
     @Test func enableFeatureFlag_noOpDoesNotCreateBackup() throws {
         try withTempFile(contents: "[features]\nhooks = true\n") { path in
             try CodexHooksInstaller.enableFeatureFlag(at: path)
@@ -332,6 +359,34 @@ struct CodexConfigTOMLTests {
         try withTempFile(contents: "[features]\nhooks = false") { path in
             try CodexHooksInstaller.enableFeatureFlag(at: path)
             #expect(!readFile(path).hasSuffix("\n"))
+        }
+    }
+}
+
+@Suite("CodexSetupController — permission event preference")
+struct CodexSetupControllerTests {
+    @Test @MainActor func autoReviewDetected_defaultsPreferenceOn() throws {
+        let suiteName = "CodexSetupControllerTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        try withTempFile(contents: "approvals_reviewer = \"auto_review\"\n") { path in
+            let controller = CodexSetupController()
+            controller.initializePermissionEventPreference(defaults: defaults, configTOMLPath: path)
+            #expect(defaults.bool(forKey: AppStorageKeys.codexIgnorePermissionEvents))
+        }
+    }
+
+    @Test @MainActor func explicitPreference_isPreserved() throws {
+        let suiteName = "CodexSetupControllerTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.set(false, forKey: AppStorageKeys.codexIgnorePermissionEvents)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        try withTempFile(contents: "approvals_reviewer = \"auto_review\"\n") { path in
+            let controller = CodexSetupController()
+            controller.initializePermissionEventPreference(defaults: defaults, configTOMLPath: path)
+            #expect(defaults.object(forKey: AppStorageKeys.codexIgnorePermissionEvents) as? Bool == false)
         }
     }
 }

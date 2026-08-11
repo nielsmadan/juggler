@@ -4,18 +4,18 @@
 # OpenCode) and installs Juggler integration for each. Intended to be piped
 # from curl on a machine you ssh to:
 #
-#   ssh user@remote 'curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/v1.7.2/scripts/install-remote.sh | bash'
+#   curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/<revision>/scripts/install-remote.sh |
+#       JUGGLER_BASE_URL=https://raw.githubusercontent.com/nielsmadan/juggler/<revision>/juggler/Resources bash
 #
-# The SettingsView SSH tab pins the curl URL to a release tag; this script's
-# default BASE matches that tag so the two halves stay in sync.
-# `just tag-release` rewrites both.
+# `just tag-release` advances the default to an immutable release-preparation commit.
 
 set -e
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-BASE="${JUGGLER_BASE_URL:-https://raw.githubusercontent.com/nielsmadan/juggler/v1.7.2/juggler/Resources}"
+REVISION="${JUGGLER_REVISION:-8f677fb2be1f4a16987a46a4b48ad851efe7dc43}"
+BASE="${JUGGLER_BASE_URL:-https://raw.githubusercontent.com/nielsmadan/juggler/$REVISION/juggler/Resources}"
 
 installed_any=0
 failed_any=0

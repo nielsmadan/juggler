@@ -17,6 +17,9 @@ actor HookServer {
     private let sessionManager: SessionManager
     private let terminalBridgeRegistry: TerminalBridgeRegistry
     private let willProcessQueuedAction: (@Sendable () async -> Void)?
+    private var codexIgnorePermissionEvents: Bool {
+        UserDefaults.standard.bool(forKey: AppStorageKeys.codexIgnorePermissionEvents)
+    }
 
     init(
         sessionManager: SessionManager? = nil,
@@ -330,10 +333,10 @@ actor HookServer {
             logDebug(.hooks, "Hook received: \(payload.event) from \(payload.agent) (\(terminalType.displayName))")
         }
 
+        if await ignoreCodexPermissionIfNeeded(payload) { return }
+
         let action = HookEventMapper.map(
-            event: payload.event,
-            agent: payload.agent,
-            toolName: payload.hookInput?.toolName
+            event: payload.event, agent: payload.agent, toolName: payload.hookInput?.toolName
         )
 
         switch action {
@@ -383,6 +386,16 @@ actor HookServer {
                 logDebug(.hooks, "Ignoring unknown event: \(payload.event)")
             }
         }
+    }
+
+    private func ignoreCodexPermissionIfNeeded(_ payload: UnifiedHookPayload) async -> Bool {
+        guard payload.agent == "codex", payload.event == "PermissionRequest", codexIgnorePermissionEvents else {
+            return false
+        }
+        await MainActor.run {
+            logDebug(.hooks, "Ignoring Codex permission event by user preference")
+        }
+        return true
     }
 
     private func prepareTerminalAddressing(

@@ -57,6 +57,7 @@ enum AppStorageKeys {
     static let wezTermEnabled = "wezTermEnabled"
 
     static let codexEnabled = "codexEnabled"
+    nonisolated static let codexIgnorePermissionEvents = "codexIgnorePermissionEvents"
     static let antigravityEnabled = "antigravityEnabled"
 
     static let beaconEnabled = "beaconEnabled"

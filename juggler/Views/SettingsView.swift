@@ -242,6 +242,8 @@ struct GeneralSettingsView: View {
 }
 
 struct IntegrationSettingsView: View {
+    @AppStorage(AppStorageKeys.codexIgnorePermissionEvents) private var codexIgnorePermissionEvents = false
+
     @State private var hasAccessibility = false
     @State private var hasAutomation = false
     @State private var hasNotifications = false
@@ -323,6 +325,7 @@ struct IntegrationSettingsView: View {
             checkWezTermStatus()
             checkTmuxConfigured()
             checkOpenCodePluginInstalled()
+            codexController.initializePermissionEventPreference()
             codexController.refresh()
             checkPiExtensionInstalled()
             antigravityController.refresh()
@@ -530,6 +533,15 @@ struct IntegrationSettingsView: View {
             }
 
             Section("Codex") {
+                SettingWithDescription(
+                    description: "Codex emits the same permission event before Auto Review and manual approval. "
+                        + "Ignoring it prevents Auto Review from briefly putting the session in Juggler's permission "
+                        + "queue, but also hides manual permission prompts. On first setup, Juggler preselects this "
+                        + "from the global Codex config; profile and command-line overrides are not detected."
+                ) {
+                    Toggle("Ignore Codex permission events", isOn: $codexIgnorePermissionEvents)
+                }
+
                 HStack {
                     Text("Hook Script")
                     Spacer()
@@ -1258,10 +1270,13 @@ struct SSHSettingsView: View {
             .appendingPathComponent(".ssh/config").path
     }
 
-    // Pinned to a release tag so onboarding new remotes uses a known-good revision
-    // of install-remote.sh + the hook scripts it pulls. `just tag-release` rewrites it.
-    private let installOneLiner =
-        "curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/v1.7.2/scripts/install-remote.sh | bash"
+    // `just tag-release` advances this to an immutable release-preparation commit.
+    private static let installRevision = "8f677fb2be1f4a16987a46a4b48ad851efe7dc43"
+    private var installOneLiner: String {
+        "curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/\(Self.installRevision)"
+            + "/scripts/install-remote.sh | JUGGLER_BASE_URL=https://raw.githubusercontent.com/nielsmadan/juggler/"
+            + "\(Self.installRevision)/juggler/Resources bash"
+    }
 
     var body: some View {
         ScrollView {
