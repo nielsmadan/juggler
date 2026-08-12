@@ -666,14 +666,8 @@ struct SessionMonitorView: View {
         if controller.selectedSessionID != session.id {
             sessionManager.syncColorIndex(toSessionID: session.id)
         }
-        sessionManager.beginActivation(targetSessionID: session.id)
         Task {
-            do {
-                try await TerminalActivation.activate(session: session, trigger: .guiSelect)
-            } catch {
-                BeaconManager.shared.show(sessionName: "Activation Failed", force: true)
-            }
-            sessionManager.endActivation()
+            _ = await SessionActivator.shared.activate(session: session, trigger: .guiSelect)
         }
     }
 

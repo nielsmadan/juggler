@@ -191,11 +191,7 @@ struct MenuBarView: View {
         guard let id = controller.selectedSessionID,
               let session = sessionManager.sessions.first(where: { $0.id == id }) else { return }
         Task {
-            do {
-                try await TerminalActivation.activate(session: session, trigger: .guiSelect)
-            } catch {
-                BeaconManager.shared.show(sessionName: "Activation Failed", force: true)
-            }
+            _ = await SessionActivator.shared.activate(session: session, trigger: .guiSelect)
         }
         dismiss()
     }

@@ -965,16 +965,20 @@ struct IntegrationTests {
         #expect(manager.focusedSessionID == "s1")
 
         // User presses Enter in monitor to activate s2 → beginActivation
-        manager.beginActivation(targetSessionID: "s2")
+        let token = manager.beginActivation(targetSessionID: "s2")
         #expect(manager.activationTarget == "s2")
 
         // Intermediate focus event for s1 (terminal still showing s1) — should be suppressed
         manager.updateFocusedSession(terminalSessionID: "s1")
         #expect(manager.focusedSessionID == "s1") // unchanged from before activation
 
-        // Target focus arrives for s2 → accepted and guard auto-cleared
+        // Target focus arrives for s2 → accepted while the operation retains its guard
         manager.updateFocusedSession(terminalSessionID: "s2")
         #expect(manager.focusedSessionID == "s2")
+        #expect(manager.activationTarget == "s2")
+
+        manager.endActivation(token)
+
         #expect(manager.activationTarget == nil)
     }
 

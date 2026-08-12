@@ -28,7 +28,7 @@ All mutations go through `SessionManager`. No other type writes to `activeColorI
 
 ## Activation guard
 
-`SessionManager.activationTarget` is set via `beginActivation` for the duration of a cycle / click activation. While non-nil, `SessionListController.setSelection` skips `setColorIndex` on focus-resync events. This is what makes activation atomic (rule 6): the color that cycling or a click just set isn't clobbered by a stray focus event during the flight.
+`SessionActivator` serializes requests from every activation surface, sets `SessionManager.activationTarget` when each request starts, and clears it when that terminal operation finishes. While non-nil, `SessionListController.setSelection` skips `setColorIndex` on focus-resync events. This is what makes activation atomic (rule 6): the color that cycling or a click just set isn't clobbered by a stray focus event during the flight.
 
 ## Relevant files
 
@@ -38,6 +38,7 @@ All mutations go through `SessionManager`. No other type writes to `activeColorI
 - `Juggler/Views/SessionListController.swift` - arrow / Tab navigation, reorder sync (rule 3), external focus handling.
 - `Juggler/Views/SessionMonitorView.swift` - main-window row highlight and click-to-activate.
 - `Juggler/Views/SessionRowView.swift` - popover row highlight and click-to-activate.
+- `Juggler/Application/SessionActivator.swift` - application-level activation guard and presentation policy.
 - `Juggler/Services/TerminalBridge.swift` - builds `HighlightConfig` from `activeColorIndex`.
 
 ---

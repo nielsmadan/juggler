@@ -289,6 +289,32 @@ struct TerminalActivationTests {
             #expect(paneConfig?.duration == 1.5)
         }
 
+        @Test @MainActor func activate_cyclingHighlightUsesInjectedSessionManagerColor() async throws {
+            resetHighlightDefaults()
+            defer { resetHighlightDefaults() }
+            let bridge = ActivationMockBridge()
+            let registry = TerminalBridgeRegistry()
+            await registry.register(bridge, for: .iterm2)
+            let manager = SessionManager()
+            manager.advanceColorIndex(by: 2)
+
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.highlightOnHotkey)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.tabHighlightEnabled)
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.paneHighlightEnabled)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.useTerminalCyclingColors)
+
+            try await TerminalActivation.activate(
+                session: makeSession("s1"),
+                trigger: .hotkey,
+                sessionManager: manager,
+                registry: registry
+            )
+
+            let highlightCalls = await bridge.recordedHighlightCalls()
+            let (_, tabConfig, _) = try #require(highlightCalls.first)
+            #expect(tabConfig?.color == CyclingColors.paletteRGB[2])
+        }
+
         @Test @MainActor func activate_sessionNotFound_removesSessionAndRemapsError() async {
             resetHighlightDefaults()
             let bridge = ActivationMockBridge()

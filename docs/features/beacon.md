@@ -85,7 +85,7 @@ Window: a single reused `NSPanel` (borderless, transparent, non-activating, floa
 
 Animation: 0.2 s fade-in, 0.3 s fade-out via `alphaValue`.
 
-Triggers: cycling goes through `HotkeyManager.activateWithRetry()`, which resolves metadata and calls `BeaconManager.show(...)` on a successful landing. Go-to-last-notification uses the same metadata resolution after a successful activation. "All At Work," "No Notification," and forced "Activation Failed" calls omit the subtitle.
+Triggers: every activation surface goes through `SessionActivator`, whose presentation policy resolves metadata and calls `BeaconManager.show(...)` on successful cycle and go-to-last-notification landings. "All At Work," "No Notification," and forced "Activation Failed" calls omit the subtitle.
 
 ## Edge Cases
 

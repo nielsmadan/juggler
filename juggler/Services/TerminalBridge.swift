@@ -106,8 +106,8 @@ enum TerminalActivation {
         guard shouldHighlight(for: trigger) else { return }
         try await bridge.highlight(
             sessionID: activationID,
-            tabConfig: tabHighlightConfig(for: session),
-            paneConfig: paneHighlightConfig(for: session)
+            tabConfig: tabHighlightConfig(for: session, sessionManager: sessionManager),
+            paneConfig: paneHighlightConfig(for: session, sessionManager: sessionManager)
         )
     }
 
@@ -134,15 +134,15 @@ enum TerminalActivation {
         }
     }
 
-    private static func sessionColorIndex(for _: Session) -> Int {
-        SessionManager.shared.activeColorIndex
+    private static func sessionColorIndex(for _: Session, sessionManager: SessionManager) -> Int {
+        sessionManager.activeColorIndex
     }
 
-    private static func tabHighlightConfig(for session: Session) -> HighlightConfig? {
+    private static func tabHighlightConfig(for session: Session, sessionManager: SessionManager) -> HighlightConfig? {
         buildTabHighlightConfig(
             enabled: UserDefaults.standard.bool(forKey: AppStorageKeys.tabHighlightEnabled),
             useCycling: UserDefaults.standard.bool(forKey: AppStorageKeys.useTerminalCyclingColors),
-            colorIndex: sessionColorIndex(for: session),
+            colorIndex: sessionColorIndex(for: session, sessionManager: sessionManager),
             customColor: [
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorRed)),
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.tabHighlightColorGreen)),
@@ -152,11 +152,11 @@ enum TerminalActivation {
         )
     }
 
-    private static func paneHighlightConfig(for session: Session) -> HighlightConfig? {
+    private static func paneHighlightConfig(for session: Session, sessionManager: SessionManager) -> HighlightConfig? {
         buildPaneHighlightConfig(
             enabled: UserDefaults.standard.bool(forKey: AppStorageKeys.paneHighlightEnabled),
             useCycling: UserDefaults.standard.bool(forKey: AppStorageKeys.useTerminalCyclingColors),
-            colorIndex: sessionColorIndex(for: session),
+            colorIndex: sessionColorIndex(for: session, sessionManager: sessionManager),
             customColor: [
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorRed)),
                 Int(UserDefaults.standard.double(forKey: AppStorageKeys.paneHighlightColorGreen)),

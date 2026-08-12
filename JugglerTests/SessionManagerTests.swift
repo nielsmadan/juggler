@@ -1612,14 +1612,19 @@ struct SessionManagerTests {
     }
 
     @MainActor
-    @Test func updateFocusedSession_activationGuard_acceptsTarget() {
+    @Test func updateFocusedSession_activationGuard_acceptsTargetAndRetainsGuard() {
         let manager = SessionManager()
         manager.testSetSessions([makeSession("s1"), makeSession("s2")])
 
-        manager.beginActivation(targetSessionID: "s2")
+        let token = manager.beginActivation(targetSessionID: "s2")
         manager.updateFocusedSession(terminalSessionID: "s2")
 
         #expect(manager.focusedSessionID == "s2")
+        #expect(manager.activationTarget == "s2")
+
+        manager.endActivation(token)
+
+        #expect(manager.activationTarget == nil)
     }
 
     @MainActor
@@ -1838,7 +1843,7 @@ struct SessionManagerTests {
     }
 
     @MainActor
-    @Test func updateFocusedSession_remoteTmux_clearsActivationGuardViaLiveHostPane() {
+    @Test func updateFocusedSession_remoteTmux_acceptsActivationTargetViaLiveHostPane() {
         let manager = SessionManager()
         var session = Session(
             claudeSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
@@ -1850,7 +1855,7 @@ struct SessionManagerTests {
         manager.testSetSessions([session])
 
         // Activation targets the composite id; iTerm2 then reports the bare live pane
-        // UUID, which must resolve through liveHostPaneID and clear the guard.
+        // UUID, which must resolve through liveHostPaneID and match the target.
         manager.beginActivation(targetSessionID: "w4t1p0:STALE:%11")
         manager.updateFocusedSession(terminalSessionID: "LIVE-UUID", focusTerminalType: .iterm2)
 

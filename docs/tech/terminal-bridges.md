@@ -26,9 +26,17 @@ protocol TerminalBridge: Sendable {
 | `highlight` | Flash tab/pane with an RGB color for N seconds |
 | `getSessionInfo` | Return `TerminalSessionInfo` (present), `nil` (confirmed gone), or throw (couldn't determine) - see [TerminalActivation](#detecting-a-gone-session-from-an-opaque-error) |
 
-## TerminalActivation
+## Activation Layers
 
-A static orchestrator (`TerminalBridge.swift:39-168`) that drives activation end-to-end:
+`SessionActivator` is the application-level activation entry point used by views, hotkeys, and notifications. It owns:
+
+- the focus-suppression guard and cancellation-safe cleanup;
+- request-order serialization across activation surfaces;
+- stale-target retry for cycling-style workflows;
+- typed `activated` / `unavailable` / `failed` outcomes;
+- success, unavailable, and forced-failure beacon policy.
+
+`TerminalActivation` is the bridge-facing primitive. It:
 
 1. Look up the bridge for the session's `TerminalType` via `TerminalBridgeRegistry`.
 2. Call `bridge.activate(sessionID:)`.
@@ -36,9 +44,11 @@ A static orchestrator (`TerminalBridge.swift:39-168`) that drives activation end
 4. Trigger `highlight()` based on `ActivationTrigger` (`.hotkey`, `.guiSelect`, `.notification`) and user highlight preferences.
 5. On `.sessionNotFound` from the bridge, remove the stale session from `SessionManager`.
 
+The notification-click focus-yield workaround remains around `SessionActivator` in `NotificationManager` and `AppDelegate`, because it coordinates with macOS's notification activation lifecycle rather than the terminal operation itself.
+
 ### Detecting a gone session from an opaque error
 
-A terminal whose session has vanished does not always report it cleanly. The iTerm2 daemon, in particular, can surface an empty-string error (`commandFailed("")`) when activating a session whose tab is already gone. Matching on the literal `"session not found"` substring alone therefore misses cases, leaving a dead session stuck in the cycle - every cycle attempt re-targets it, fails, and the generic `catch` in `HotkeyManager.activateWithRetry` just logs and returns without removing it.
+A terminal whose session has vanished does not always report it cleanly. The iTerm2 daemon, in particular, can surface an empty-string error (`commandFailed("")`) when activating a session whose tab is already gone. Matching on the literal `"session not found"` substring alone therefore misses cases: `SessionActivator` would classify the opaque error as `failed`, stop stale-target retry, and leave the dead session in the cycle.
 
 `TerminalActivation.isSessionGone` closes this gap: on any `commandFailed`, if the message does not already say "session not found", it calls `bridge.getSessionInfo(sessionID:)` to confirm. This depends on `getSessionInfo` distinguishing **confirmed absence** from **couldn't determine**: otherwise a transient lookup failure would be read as absence and a live session removed. So the method's contract is three-valued:
 

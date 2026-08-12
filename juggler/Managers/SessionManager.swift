@@ -114,9 +114,14 @@ final class SessionManager {
         return nil
     }
 
-    /// Set during hotkey-driven activation to suppress intermediate focus events from terminals.
+    /// Set during session activation to suppress intermediate focus events from terminals.
     /// When non-nil, `updateFocusedSession` ignores focus events that don't match this target.
     private(set) var activationTarget: String?
+    private var activationToken: ActivationToken?
+
+    struct ActivationToken: Equatable {
+        fileprivate let id = UUID()
+    }
 
     private(set) var activeColorIndex: Int = 0
 
@@ -541,16 +546,27 @@ final class SessionManager {
         return cyclable[safeIndex]
     }
 
-    /// Called before hotkey activation to suppress intermediate focus events.
+    /// Called before activation to suppress intermediate focus events.
     @MainActor
-    func beginActivation(targetSessionID: String) {
+    @discardableResult
+    func beginActivation(targetSessionID: String) -> ActivationToken {
+        let token = ActivationToken()
         activationTarget = targetSessionID
+        activationToken = token
+        return token
     }
 
-    /// Called after hotkey activation completes (success or failure) to resume normal focus tracking.
+    /// Called after activation completes (success or failure) to resume normal focus tracking.
     @MainActor
     func endActivation() {
         activationTarget = nil
+        activationToken = nil
+    }
+
+    @MainActor
+    func endActivation(_ token: ActivationToken) {
+        guard activationToken == token else { return }
+        endActivation()
     }
 
     private func matchesTrackedSession(_ terminalSessionID: String) -> Bool {
@@ -661,7 +677,7 @@ final class SessionManager {
             nil
         }
 
-        // During hotkey activation, ignore focus events that don't match the target.
+        // During session activation, ignore focus events that don't match the target.
         // This prevents intermediate events (e.g., iTerm2 briefly focusing the wrong tab
         // as the app comes to foreground) from causing UI flicker.
         if let target = activationTarget, let newID = resolved {
@@ -670,8 +686,8 @@ final class SessionManager {
                     && ($0.terminalSessionID == newID || newID == $0.id)
             })
             if matchesTarget {
-                // Focus arrived at our target — accept it and clear the guard
-                activationTarget = nil
+                // Focus arrived at our target — accept it while retaining the guard
+                // until the terminal operation completes.
             } else {
                 logDebug(.hotkey, "Suppressed intermediate focus event for \(newID) during activation of \(target)")
                 return

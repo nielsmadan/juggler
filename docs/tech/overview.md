@@ -50,6 +50,8 @@ orientation and entry points, not a per-file inventory (that would drift):
   working / idle / permission / backburner / compacting), `CyclingEngine` (cycle order),
   `HookEventMapper` (hook event to state). Also holds the beacon-geometry, stats, and
   config-validation value types.
+- **`Application/`**: application workflows that coordinate state and I/O. `SessionActivator`
+  is the single activation entry point for views, hotkeys, and notifications.
 - **`Managers/`**: `@Observable` app-state controllers, one concern each. `SessionManager`
   is the hub (session list, cycling, actions); the rest own hotkeys, the status-bar popover,
   notifications, the beacon, logging, and Sparkle updates.

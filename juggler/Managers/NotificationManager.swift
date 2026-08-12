@@ -3,18 +3,40 @@ import UserNotifications
 
 @MainActor
 final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
+    struct ClickHandoff: Equatable {
+        fileprivate let id = UUID()
+        let terminalBundleID: String
+    }
+
     static let shared = NotificationManager()
+
+    private var clickHandoff: ClickHandoff?
 
     /// True while handling a notification click, so the app delegate can
     /// activate the terminal once macOS finishes its notification activation.
-    private(set) var isHandlingNotificationClick = false
+    var isHandlingNotificationClick: Bool {
+        clickHandoff != nil
+    }
 
     /// The terminal bundle ID to activate after notification click.
-    private(set) var pendingTerminalBundleID: String?
+    var pendingTerminalBundleID: String? {
+        clickHandoff?.terminalBundleID
+    }
 
     override private init() {
         super.init()
         UNUserNotificationCenter.current().delegate = self
+    }
+
+    func beginClickHandoff(terminalBundleID: String) -> ClickHandoff {
+        let handoff = ClickHandoff(terminalBundleID: terminalBundleID)
+        clickHandoff = handoff
+        return handoff
+    }
+
+    func endClickHandoff(_ handoff: ClickHandoff) {
+        guard clickHandoff == handoff else { return }
+        clickHandoff = nil
     }
 
     func requestPermission() {
@@ -88,18 +110,10 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             Task { @MainActor in
                 guard let session = SessionManager.shared.sessions.first(where: { $0.id == sessionID }) else { return }
 
-                isHandlingNotificationClick = true
-                pendingTerminalBundleID = session.terminalType.bundleIdentifier
+                let handoff = beginClickHandoff(terminalBundleID: session.terminalType.bundleIdentifier)
+                defer { endClickHandoff(handoff) }
 
-                SessionManager.shared.beginActivation(targetSessionID: session.id)
-                do {
-                    try await TerminalActivation.activate(session: session, trigger: .notification)
-                } catch {
-                    BeaconManager.shared.show(sessionName: "Activation Failed", force: true)
-                }
-                SessionManager.shared.endActivation()
-                isHandlingNotificationClick = false
-                pendingTerminalBundleID = nil
+                _ = await SessionActivator.shared.activate(session: session, trigger: .notification)
             }
         }
 

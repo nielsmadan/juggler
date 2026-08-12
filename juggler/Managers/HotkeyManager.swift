@@ -112,35 +112,19 @@ final class HotkeyManager {
         cycle: () -> Session?
     ) async {
         logDebug(.hotkey, "Cycle \(direction) triggered")
-        // Each stale session is removed automatically on .sessionNotFound,
-        // so cycle() will eventually return nil when no cyclable sessions remain.
-        while let target = cycle() {
-            // Guard against intermediate focus events during activation
-            SessionManager.shared.beginActivation(targetSessionID: target.id)
-            do {
-                try await TerminalActivation.activate(session: target, trigger: .hotkey)
-                SessionManager.shared.endActivation()
-                let titleMode = SessionTitleMode(
-                    rawValue: UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
-                ) ?? .default
-                let displayName = SessionManager.shared.disambiguatedDisplayName(
-                    for: target, titleMode: titleMode
-                )
-                let metadata = BeaconMetadata.resolve(for: target, among: SessionManager.shared.sessions)
-                BeaconManager.shared.show(sessionName: displayName, subtitle: metadata.subtitle)
-                return
-            } catch TerminalBridgeError.sessionNotFound {
-                SessionManager.shared.endActivation()
-                logDebug(.hotkey, "Stale session skipped, retrying cycle \(direction)")
-            } catch {
-                SessionManager.shared.endActivation()
-                logError(.hotkey, "Cycle \(direction) failed: \(error)")
-                BeaconManager.shared.show(sessionName: "Activation Failed", force: true)
-                return
-            }
+        let outcome = await SessionActivator.shared.activateFirstAvailable(
+            trigger: .hotkey,
+            presentation: .cycle,
+            nextSession: cycle
+        )
+        switch outcome {
+        case .activated:
+            return
+        case .unavailable:
+            logDebug(.hotkey, "No session to cycle to")
+        case let .failed(error):
+            logError(.hotkey, "Cycle \(direction) failed: \(error)")
         }
-        logDebug(.hotkey, "No session to cycle to")
-        BeaconManager.shared.show(sessionName: "All At Work")
     }
 
     private func handleAutoAdvance() async {
@@ -166,25 +150,13 @@ final class HotkeyManager {
             BeaconManager.shared.show(sessionName: "No Notification")
             return
         }
-        SessionManager.shared.beginActivation(targetSessionID: target.id)
-        do {
-            try await TerminalActivation.activate(session: target, trigger: .hotkey)
-            SessionManager.shared.endActivation()
-            let titleMode = SessionTitleMode(
-                rawValue: UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
-            ) ?? .default
-            let displayName = SessionManager.shared.disambiguatedDisplayName(
-                for: target, titleMode: titleMode
-            )
-            let metadata = BeaconMetadata.resolve(for: target, among: SessionManager.shared.sessions)
-            BeaconManager.shared.show(sessionName: displayName, subtitle: metadata.subtitle)
-        } catch TerminalBridgeError.sessionNotFound {
-            SessionManager.shared.endActivation()
-            BeaconManager.shared.show(sessionName: "No Notification")
-        } catch {
-            SessionManager.shared.endActivation()
+        let outcome = await SessionActivator.shared.activate(
+            session: target,
+            trigger: .hotkey,
+            presentation: .notificationJump
+        )
+        if case let .failed(error) = outcome {
             logError(.hotkey, "Go to last notification failed: \(error)")
-            BeaconManager.shared.show(sessionName: "Activation Failed", force: true)
         }
     }
 
@@ -200,23 +172,13 @@ final class HotkeyManager {
         guard goToNext else { return }
         guard SessionManager.shared.currentSession != nil else { return }
         SessionManager.shared.advanceColorIndex(by: 1)
-        // Each stale session is removed on .sessionNotFound, so currentSession
-        // advances until we find a live one or run out.
-        while let nextSession = SessionManager.shared.currentSession {
-            SessionManager.shared.beginActivation(targetSessionID: nextSession.id)
-            do {
-                try await TerminalActivation.activate(session: nextSession, trigger: .hotkey)
-                SessionManager.shared.endActivation()
-                return
-            } catch TerminalBridgeError.sessionNotFound {
-                SessionManager.shared.endActivation()
-                logDebug(.hotkey, "Backburner next session gone, retrying")
-            } catch {
-                SessionManager.shared.endActivation()
-                logError(.hotkey, "Backburner go-to-next failed: \(error)")
-                BeaconManager.shared.show(sessionName: "Activation Failed", force: true)
-                return
-            }
+        let outcome = await SessionActivator.shared.activateFirstAvailable(
+            trigger: .hotkey,
+            presentation: .failureOnly,
+            nextSession: { SessionManager.shared.currentSession }
+        )
+        if case let .failed(error) = outcome {
+            logError(.hotkey, "Backburner go-to-next failed: \(error)")
         }
     }
 

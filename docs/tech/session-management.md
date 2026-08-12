@@ -128,7 +128,7 @@ Static and Grouped ignore this preference.
 
 The jump-to-latest shortcut activates `SessionManager.lastNotifiedSessionID` (recorded by `NotificationManager` via `recordLastNotification`), independent of cycle order, and shows "No Notification" in the beacon if there's no recorded session or it's gone.
 
-Cycle and jump activation both go through `beginActivation` / `endActivation` to guard against intermediate focus events, and remove stale sessions on `.sessionNotFound` (see Stale Session Cleanup).
+Every activation surface delegates to `SessionActivator`. It processes activation requests in request order, holds the `beginActivation` / `endActivation` guard for each full terminal operation, and returns a typed outcome. Cycling-style workflows use `activateFirstAvailable`, which silently skips stale sessions until a live target activates or no candidate remains.
 
 ## Reorder Animations
 
@@ -159,7 +159,7 @@ Only `UserPromptSubmit` or explicit reactivation (via `updateSessionState`, not 
 Sessions are removed reactively (no polling timer):
 
 1. iTerm2 daemon and Kitty watcher push `session_terminated` events when tabs close, routed through `SessionManager.removeSessionsByTerminalID`.
-2. Activation that fails because the session is gone (`TerminalActivation.activate` detecting a missing session) calls `removeSession` and throws `.sessionNotFound`. `HotkeyManager.activateWithRetry` loops on that error, skipping the now-removed stale session and re-cycling until a live session activates or none remain. This backstops Kitty in particular: its watcher delivers `session_terminated` over fire-and-forget HTTP with no retry, so a dropped event would otherwise leak the session until the next activation attempt prunes it.
+2. Activation that fails because the session is gone (`TerminalActivation.activate` detecting a missing session) calls `removeSession` and throws `.sessionNotFound`. `SessionActivator.activateFirstAvailable` maps that to an unavailable target and asks its candidate provider for the next session until a live session activates or none remain. This backstops Kitty in particular: its watcher delivers `session_terminated` over fire-and-forget HTTP with no retry, so a dropped event would otherwise leak the session until the next activation attempt prunes it.
 
 ---
 
