@@ -20,6 +20,9 @@ build xcconfig="":
     @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build
 
+resolve-deps:
+    @xcodebuild -resolvePackageDependencies -scheme {{scheme}} -derivedDataPath {{build_dir}}
+
 build-strict xcconfig="":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -84,7 +87,7 @@ format *files:
     @swiftformat {{ if files == "" { "." } else { files } }}
 
 unused-check:
-    @periphery scan
+    @periphery scan --strict --retain-equatable-properties
 
 reset-data:
     @echo "Resetting Juggler app data..."

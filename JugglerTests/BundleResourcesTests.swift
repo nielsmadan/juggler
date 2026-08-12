@@ -1,5 +1,4 @@
 import Foundation
-@testable import Juggler
 import Testing
 
 /// Probes `Bundle.main` for every resource the app ships. Catches Xcode-bundling

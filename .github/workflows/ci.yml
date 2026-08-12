@@ -44,7 +44,7 @@ jobs:
       - name: Install Just and Periphery
         run: |
           brew install just
-          brew install --cask peripheryapp/periphery/periphery
+          brew install periphery
 
       - name: Check for unused code
         run: just unused-check

@@ -1,5 +1,3 @@
 project: Juggler.xcodeproj
 schemes:
   - Juggler
-targets:
-  - Juggler

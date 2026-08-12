@@ -14,6 +14,7 @@ Use `just` targets for routine work:
 
 ```bash
 just build        # Build the Juggler Debug scheme into build/
+just resolve-deps # Resolve/fetch Swift package dependencies without building
 just run          # Build and run (usually the user does this, not the agent)
 just test         # Run unit tests only (fast, no UI)
 just clean        # Remove the build directory
