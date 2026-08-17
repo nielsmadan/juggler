@@ -512,7 +512,7 @@
 			repositoryURL = "https://github.com/nielsmadan/ShortcutField";
 			requirement = {
 				kind = exactVersion;
-				version = 2.2.4;
+				version = 2.3.0;
 			};
 		};
 		19F658622F22BA5700CB4D71 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
