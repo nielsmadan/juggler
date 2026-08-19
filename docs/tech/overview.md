@@ -11,8 +11,8 @@ Juggler is a SwiftUI menu bar app that tracks Claude Code, OpenCode, Codex, Pi, 
 │  Swift/SwiftUI - macOS 14+ (Sonoma)                             │
 │                                                                 │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │ HookServer  │  │ SessionMgr  │  │ HotkeyManager           │  │
-│  │ :7483       │→ │ @Observable │→ │ KeyboardShortcuts       │  │
+│  │ HookServer  │  │ SessionMgr  │  │ ShortcutCenter          │  │
+│  │ :7483       │→ │ @Observable │  │ ShortcutKit + Carbon    │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
 │         ↑                │                      │               │
 │         │                ↓                      ↓               │
@@ -68,7 +68,7 @@ file list.
 ## Dependencies
 
 **Swift Package Manager:**
-- [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) - Global hotkeys
+- [ShortcutKit](https://github.com/nielsmadan/ShortcutKit) - Shortcut registry, global activation, and UI
 - [Sparkle](https://github.com/sparkle-project/Sparkle) - Auto-updates
 
 **Built-in Frameworks:**
@@ -91,7 +91,7 @@ file list.
 | UI Framework | SwiftUI | Declarative, modern, less code |
 | App Lifecycle | NSStatusItem + NSPopover | Managed by StatusBarManager; SwiftUI Window scenes for settings/monitor |
 | macOS Target | 14+ | @Observable, modern SwiftUI features |
-| Global Hotkeys | KeyboardShortcuts | Built-in recorder UI, SwiftUI integration |
+| Shortcuts | ShortcutKit | Shared global/local registry, Carbon activation, recorder UI, and conflict handling |
 | Auto-Updates | Sparkle | Industry standard for non-App Store apps |
 | Hook Server | HTTP localhost:7483 | Debuggable with curl, future remote support |
 | iTerm2 Integration | Persistent Python daemon | Fast (~50ms vs ~1000ms per-command) |

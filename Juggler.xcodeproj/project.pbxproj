@@ -514,7 +514,7 @@
 			repositoryURL = "https://github.com/nielsmadan/ShortcutKit";
 			requirement = {
 				kind = exactVersion;
-				version = 0.5.1;
+				version = 0.6.5;
 			};
 		};
 		19F658652F22BA7600CB4D71 /* XCRemoteSwiftPackageReference "Sparkle" */ = {

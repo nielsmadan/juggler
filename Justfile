@@ -1,5 +1,6 @@
 bundle_id := "com.nielsmadan.Juggler"
 scheme := "Juggler"
+stats_key := "dailyBusyStats"
 build_dir := "./build"
 app_path := build_dir / "Build/Products/Debug/Juggler.app"
 
@@ -115,6 +116,32 @@ reset-integration:
 
 reset-all: reset-data reset-permissions reset-integration
     @echo "All resets complete."
+
+# Reset everything (like reset-all) but preserve the daily busy statistics
+reset-keep-stats:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Snapshot the stats blob (a Data value) as hex before wiping the domain.
+    hex=""
+    backup="$(mktemp)"
+    if defaults export {{bundle_id}} "$backup" 2>/dev/null; then
+        b64="$(plutil -extract {{stats_key}} raw -o - "$backup" 2>/dev/null || true)"
+        if [ -n "$b64" ]; then
+            hex="$(printf '%s' "$b64" | base64 -D | xxd -p | tr -d '\n')"
+            echo "Preserving statistics ({{stats_key}})..."
+        fi
+    fi
+    rm -f "$backup"
+
+    just reset-data reset-permissions reset-integration
+
+    if [ -n "$hex" ]; then
+        defaults write {{bundle_id}} {{stats_key}} -data "$hex"
+        echo "Statistics restored."
+    else
+        echo "No statistics found to preserve."
+    fi
+    echo "All resets complete (statistics kept)."
 
 setup:
     @lefthook install

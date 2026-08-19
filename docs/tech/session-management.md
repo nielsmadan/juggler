@@ -116,7 +116,8 @@ Static and Grouped ignore this preference.
 
 ## Hotkeys
 
-`HotkeyManager` (`Managers/HotkeyManager.swift`) registers the global shortcuts and drives activation:
+`ShortcutCenter` (`Managers/ShortcutCenter.swift`) registers global bindings through ShortcutKitGlobal and
+delegates fired actions to `HotkeyManager` (`Managers/HotkeyManager.swift`), which drives activation:
 
 | Shortcut (default) | Action |
 |---|---|

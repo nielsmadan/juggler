@@ -30,7 +30,7 @@ final class ShortcutCenter {
     /// at activation by `keyWindowShortcutContext`.
     let sessionListContext = ShortcutContext<SessionListAction>(
         "sessionList",
-        displayName: "Session List Shortcuts"
+        displayName: "Shortcuts"
     )
 
     let registry: ShortcutRegistry

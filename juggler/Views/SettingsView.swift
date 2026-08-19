@@ -62,7 +62,7 @@ struct GeneralSettingsView: View {
         .default.rawValue
     @AppStorage(AppStorageKeys.notifyOnIdle) private var notifyOnIdle = true
     @AppStorage(AppStorageKeys.notifyOnPermission) private var notifyOnPermission = true
-    @AppStorage(AppStorageKeys.playSound) private var playSound = true
+    @AppStorage(AppStorageKeys.playSound) private var playSound = false
     @AppStorage(AppStorageKeys.enableStats) private var enableStats = true
     @AppStorage(AppStorageKeys.statsUseCyclingColors) private var statsUseCyclingColors = true
     @AppStorage(AppStorageKeys.statsBarColorRed) private var statsBarColorRed = 255.0
@@ -922,31 +922,24 @@ private struct PermissionRow: View {
 
 struct ShortcutsSettingsView: View {
     @AppStorage(AppStorageKeys.showShortcutHelper) private var showShortcutHelper = true
-    @ObservedObject private var registry = ShortcutCenter.shared.registry
 
     var body: some View {
-        // Hybrid: Juggler's "Display" section is pinned above ShortcutKit's
-        // KeyBindingsView, which renders the Global and Session List contexts
-        // (with a context picker, search, and built-in conflict warnings).
-        KeyBindingsView(registry: registry, style: .native, contextLayout: .picker)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                displaySection
-            }
-            .padding()
-    }
-
-    private var displaySection: some View {
+        // Juggler's "Display" section sits above the per-context shortcut lists in
+        // one native grouped Form. `.embedded` emits one Section per context
+        // (Global, Session List) with no scroll/card of its own, so it reads as a
+        // native macOS settings pane — matching the pre-ShortcutKit layout.
         Form {
             Section("Display") {
                 Toggle("Show Shortcut Helper", isOn: $showShortcutHelper)
-                Toggle("Show Shortcut Hints", isOn: Binding(
-                    get: { registry.hintsEnabled },
-                    set: { registry.setHintsEnabled($0) }
-                ))
             }
+            KeyBindingsView(
+                registry: ShortcutCenter.shared.registry,
+                style: .regular,
+                presentation: .embedded,
+                showsDescriptions: true
+            )
         }
         .formStyle(.grouped)
-        .frame(height: 130)
     }
 }
 

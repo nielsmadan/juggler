@@ -35,7 +35,7 @@ Or use Xcode: `⌘B` to build, `⌘R` to run.
 **Data flow:**
 1. Claude Code / OpenCode / Codex / Pi / Antigravity hooks → HTTP POST to `HookServer` (port 7483)
 2. `HookServer` → updates `SessionManager` (in-memory `@Observable`)
-3. Global hotkeys → `HotkeyManager` → `SessionManager.cycleForward/Backward()`
+3. Global hotkeys → `ShortcutCenter` (ShortcutKitGlobal) → `HotkeyManager` → `SessionManager`
 4. Activation → `TerminalBridge` (iTerm2Bridge/KittyBridge/WezTermBridge) → terminal
 
 **Bridges & session identity:**
@@ -50,7 +50,8 @@ Juggler/
 │   └── SectionAnimationController.swift  # Section transition animations
 ├── Managers/
 │   ├── BeaconManager.swift       # Beacon overlay for session cycling
-│   ├── HotkeyManager.swift       # Global keyboard shortcuts (KeyboardShortcuts library)
+│   ├── HotkeyManager.swift       # Dispatches global shortcut actions and automatic transitions
+│   ├── ShortcutCenter.swift      # ShortcutKit registry, contexts, and global activation
 │   ├── LogManager.swift          # In-app logging system
 │   ├── NotificationManager.swift # macOS notifications for idle/permission states
 │   ├── SessionManager.swift      # Session list, cycling logic (no persistence)
@@ -59,7 +60,7 @@ Juggler/
 ├── Models/
 │   ├── CyclingEngine.swift       # Session cycling protocol and implementation
 │   ├── HookEventMapper.swift     # Hook event → state mapping (Claude Code + OpenCode + Codex + Pi + Antigravity)
-│   ├── Shortcut+Persistence.swift # Save/load shortcuts via UserDefaults (extends ShortcutField's Shortcut)
+│   ├── ShortcutActions.swift     # Global and session-list ShortcutKit action definitions
 │   ├── QueueOrderMode.swift      # Fair, Prio, Static, Grouped modes
 │   ├── Session.swift             # Session data model
 │   ├── SessionState.swift        # idle, working, permission, backburner, compacting

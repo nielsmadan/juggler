@@ -207,7 +207,7 @@ struct JugglerApp: App {
             "paneHighlightColorBlue": 0.0,
             "notifyOnIdle": true,
             "notifyOnPermission": true,
-            "playSound": true,
+            "playSound": false,
             "goToNextOnBackburner": true,
             AppStorageKeys.autoAdvanceOnBusy: false,
             AppStorageKeys.autoRestartOnIdle: false,

@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/nielsmadan/ShortcutField",
       "state" : {
-        "revision" : "ac11e58b3fed599ad9b03398864dc05fb5ac52c4",
-        "version" : "2.2.4"
+        "revision" : "08f64dd8bd7b015eed0a55f9b5f6a5b93d9d4eab",
+        "version" : "2.3.0"
       }
     },
     {
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/nielsmadan/ShortcutKit",
       "state" : {
-        "revision" : "fd1bd67efd3b589d59539e445127640d7d85288c",
-        "version" : "0.5.1"
+        "revision" : "a01457d68839d5fd1a83f7b3315023eb94f9d971",
+        "version" : "0.6.5"
       }
     },
     {

@@ -86,4 +86,24 @@ enum SessionListAction: String, ShortcutAction {
         case .togglePermissionFirst: .init("Permission First", Shortcut("p"))
         }
     }
+
+    var legendLabel: String? {
+        switch self {
+        case .reactivateSelected: "Reactivate"
+        case .cycleModeForward: "Mode →"
+        case .cycleModeBackward: "Mode ←"
+        default: nil
+        }
+    }
+
+    var showsInMenuLegend: Bool {
+        switch self {
+        case .activate, .moveDown, .moveUp, .backburner, .sendToBack,
+             .reactivateSelected, .reactivateAll, .rename,
+             .cycleModeForward, .cycleModeBackward:
+            true
+        case .toggleBeacon, .toggleAutoNext, .toggleAutoRestart, .togglePermissionFirst:
+            false
+        }
+    }
 }

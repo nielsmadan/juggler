@@ -74,9 +74,20 @@ struct MenuBarView: View {
 
                 KeyBindingsLegendView(
                     registry: ShortcutCenter.shared.registry,
-                    style: .panel,
+                    style: .embedded,
                     contextIDs: ["sessionList"],
-                    options: LegendOptions(compact: true)
+                    options: LegendOptions(
+                        columns: .fixed(2),
+                        size: .small,
+                        showsHeaderDivider: false,
+                        labelWidth: .fixed(74)
+                    ),
+                    isIncluded: { entry in
+                        SessionListAction(rawValue: entry.actionID)?.showsInMenuLegend ?? true
+                    },
+                    label: { entry in
+                        SessionListAction(rawValue: entry.actionID)?.legendLabel
+                    }
                 )
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)

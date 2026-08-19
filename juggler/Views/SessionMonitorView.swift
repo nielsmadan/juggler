@@ -636,9 +636,18 @@ struct SessionMonitorView: View {
     private var shortcutsReference: some View {
         KeyBindingsLegendView(
             registry: ShortcutCenter.shared.registry,
-            style: .panel,
+            style: .embedded,
             contextIDs: ["sessionList"],
-            options: LegendOptions(compact: true)
+            options: LegendOptions(
+                columns: .fixed(3),
+                size: .medium,
+                showsHeaderDivider: false,
+                labelWidth: .fixed(79),
+                appearance: LegendAppearance(headerFont: LegendFont(size: 12))
+            ),
+            label: { entry in
+                SessionListAction(rawValue: entry.actionID)?.legendLabel
+            }
         )
         .padding(.horizontal)
         .padding(.vertical, 8)

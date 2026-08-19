@@ -46,108 +46,115 @@ struct IntegrationHubView: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "puzzlepiece.extension.fill")
-                .font(.system(size: 50))
-                .foregroundStyle(.tint)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 16) {
+                    Image(systemName: "puzzlepiece.extension.fill")
+                        .font(.system(size: 50))
+                        .foregroundStyle(.tint)
 
-            Text("Set Up Integrations")
-                .font(.title)
-                .fontWeight(.bold)
+                    Text("Set Up Integrations")
+                        .font(.title)
+                        .fontWeight(.bold)
 
-            Text("Select the terminals you use. You can configure multiple.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
+                    Text("Select the terminals you use. You can configure multiple.")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
 
-            VStack(spacing: 8) {
-                Text("Terminals")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(spacing: 8) {
+                        Text("Terminals")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                IntegrationCard(
-                    icon: "terminal.fill",
-                    title: "iTerm2",
-                    description: "macOS terminal with Python API",
-                    isConfigured: iterm2Configured,
-                    action: { showingITerm2Setup = true }
-                )
+                        IntegrationCard(
+                            icon: "terminal.fill",
+                            title: "iTerm2",
+                            description: "macOS terminal with Python API",
+                            isConfigured: iterm2Configured,
+                            action: { showingITerm2Setup = true }
+                        )
 
-                IntegrationCard(
-                    icon: "cat.fill",
-                    title: "Kitty",
-                    description: "GPU-accelerated terminal with remote control",
-                    isConfigured: kittyConfigured,
-                    action: { showingKittySetup = true }
-                )
+                        IntegrationCard(
+                            icon: "cat.fill",
+                            title: "Kitty",
+                            description: "GPU-accelerated terminal with remote control",
+                            isConfigured: kittyConfigured,
+                            action: { showingKittySetup = true }
+                        )
 
-                IntegrationCard(
-                    icon: "w.square.fill",
-                    title: "WezTerm",
-                    description: "GPU-accelerated terminal, controlled via wezterm cli",
-                    isConfigured: wezTermConfigured,
-                    action: { showingWezTermSetup = true }
-                )
+                        IntegrationCard(
+                            icon: "w.square.fill",
+                            title: "WezTerm",
+                            description: "GPU-accelerated terminal, controlled via wezterm cli",
+                            isConfigured: wezTermConfigured,
+                            action: { showingWezTermSetup = true }
+                        )
+                    }
+
+                    VStack(spacing: 8) {
+                        Text("Multiplexer (Optional)")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        IntegrationCard(
+                            icon: "rectangle.split.3x1",
+                            title: "tmux",
+                            description: "Env forwarding for terminal session tracking",
+                            isConfigured: tmuxConfigured,
+                            action: { showingTmuxSetup = true }
+                        )
+                    }
+
+                    VStack(spacing: 8) {
+                        Text("Agents")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        IntegrationCard(
+                            icon: "brain",
+                            title: "Claude Code",
+                            description: "Install hooks for session tracking",
+                            isConfigured: claudeCodeConfigured,
+                            action: { showingClaudeCodeSetup = true }
+                        )
+
+                        IntegrationCard(
+                            icon: "hammer",
+                            title: "OpenCode",
+                            description: "Install plugin for session tracking",
+                            isConfigured: openCodeConfigured,
+                            action: { showingOpenCodeSetup = true }
+                        )
+
+                        IntegrationCard(
+                            icon: "barcode",
+                            title: "Codex",
+                            description: "Install hooks for session tracking",
+                            isConfigured: codexConfigured,
+                            action: { showingCodexSetup = true }
+                        )
+
+                        IntegrationCard(
+                            icon: "circle.hexagongrid",
+                            title: "Pi",
+                            description: "Install extension for session tracking",
+                            isConfigured: piConfigured,
+                            action: { showingPiSetup = true }
+                        )
+
+                        IntegrationCard(
+                            icon: "arrow.up.circle",
+                            title: "Antigravity",
+                            description: "Install hooks for session tracking (experimental)",
+                            isConfigured: antigravityConfigured,
+                            action: { showingAntigravitySetup = true }
+                        )
+                    }
+                }
+                .padding()
             }
 
-            VStack(spacing: 8) {
-                Text("Multiplexer (Optional)")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                IntegrationCard(
-                    icon: "rectangle.split.3x1",
-                    title: "tmux",
-                    description: "Env forwarding for terminal session tracking",
-                    isConfigured: tmuxConfigured,
-                    action: { showingTmuxSetup = true }
-                )
-            }
-
-            VStack(spacing: 8) {
-                Text("Agents")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                IntegrationCard(
-                    icon: "brain",
-                    title: "Claude Code",
-                    description: "Install hooks for session tracking",
-                    isConfigured: claudeCodeConfigured,
-                    action: { showingClaudeCodeSetup = true }
-                )
-
-                IntegrationCard(
-                    icon: "hammer",
-                    title: "OpenCode",
-                    description: "Install plugin for session tracking",
-                    isConfigured: openCodeConfigured,
-                    action: { showingOpenCodeSetup = true }
-                )
-
-                IntegrationCard(
-                    icon: "barcode",
-                    title: "Codex",
-                    description: "Install hooks for session tracking",
-                    isConfigured: codexConfigured,
-                    action: { showingCodexSetup = true }
-                )
-
-                IntegrationCard(
-                    icon: "circle.hexagongrid",
-                    title: "Pi",
-                    description: "Install extension for session tracking",
-                    isConfigured: piConfigured,
-                    action: { showingPiSetup = true }
-                )
-
-                IntegrationCard(
-                    icon: "arrow.up.circle",
-                    title: "Antigravity",
-                    description: "Install hooks for session tracking (experimental)",
-                    isConfigured: antigravityConfigured,
-                    action: { showingAntigravitySetup = true }
-                )
-            }
+            Divider()
 
             Button("Continue") {
                 if hasAnyTerminal, hasAnyAgent {
@@ -157,8 +164,8 @@ struct IntegrationHubView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
+            .padding()
         }
-        .padding()
         .alert("Incomplete Setup", isPresented: $showingIncompleteAlert) {
             Button("Go Back", role: .cancel) {}
             Button("Continue Anyway", role: .destructive) {
