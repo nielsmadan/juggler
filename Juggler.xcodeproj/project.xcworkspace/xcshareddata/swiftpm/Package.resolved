@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/nielsmadan/ShortcutKit",
       "state" : {
-        "revision" : "a01457d68839d5fd1a83f7b3315023eb94f9d971",
-        "version" : "0.6.5"
+        "revision" : "e56d00e2729d9c7702f057df958fbcf61954463f",
+        "version" : "0.6.6"
       }
     },
     {

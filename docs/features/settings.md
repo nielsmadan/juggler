@@ -20,7 +20,7 @@ via Session List shortcuts), not from this tab.
 
 The Integration tab is organized into **Permissions**, **Terminals**, **Agents**, and **Tools** groups.
 
-- **Permissions**: Accessibility and Notifications status with links to System Settings (Automation lives under the iTerm2 terminal section).
+- **Permissions**: Notifications status with a link to System Settings (Automation lives under the iTerm2 terminal section).
 - **Terminals**: Kitty (remote control, listen socket, watcher script), iTerm2 (Automation permission), and WezTerm (wezterm CLI status — no configuration needed).
 - **Agents**: Install or verify Claude Code hooks, the OpenCode plugin, Codex hooks (including the Codex feature flag
   and trust step), and the Pi extension. The Codex section can ignore permission events so Auto Review does not briefly

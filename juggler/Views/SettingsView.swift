@@ -152,7 +152,7 @@ struct GeneralSettingsView: View {
 
             Section("Uninstall") {
                 Text(
-                    "Removes all integrations (Claude Code hooks, Kitty watcher, OpenCode plugin, Pi extension, Antigravity hooks), resets Automation permission, clears settings, and quits the app. Accessibility permission must be removed manually in System Settings."
+                    "Removes all integrations (Claude Code hooks, Kitty watcher, OpenCode plugin, Pi extension, Antigravity hooks), resets Automation permission, clears settings, and quits the app."
                 )
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -218,10 +218,6 @@ struct GeneralSettingsView: View {
                 actions.append("Reset Automation permission")
             }
         }
-        actions
-            .append(
-                "Note: Remove Accessibility permission manually in System Settings > Privacy & Security > Accessibility"
-            )
         return actions
     }
 
@@ -244,7 +240,6 @@ struct GeneralSettingsView: View {
 struct IntegrationSettingsView: View {
     @AppStorage(AppStorageKeys.codexIgnorePermissionEvents) private var codexIgnorePermissionEvents = false
 
-    @State private var hasAccessibility = false
     @State private var hasAutomation = false
     @State private var hasNotifications = false
 
@@ -343,11 +338,6 @@ struct IntegrationSettingsView: View {
     private var permissionsForm: some View {
         Form {
             Section("Permissions") {
-                PermissionRow(label: "Accessibility", granted: hasAccessibility) {
-                    NSWorkspace.shared.open(
-                        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-                    )
-                }
                 PermissionRow(label: "Notifications", granted: hasNotifications) {
                     NSWorkspace.shared.open(
                         URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Notifications")!
@@ -730,7 +720,6 @@ struct IntegrationSettingsView: View {
     // MARK: - Permissions
 
     private func checkPermissions() {
-        hasAccessibility = AXIsProcessTrusted()
         checkAutomation()
         checkNotifications()
     }

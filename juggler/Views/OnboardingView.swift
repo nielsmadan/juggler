@@ -22,12 +22,10 @@ struct OnboardingView: View {
                 case 0:
                     WelcomeStep()
                 case 1:
-                    AccessibilityStep()
-                case 2:
                     IntegrationHubView(onContinue: { currentStep += 1 })
-                case 3:
+                case 2:
                     ShortcutsStep()
-                case 4:
+                case 3:
                     FinishStep(dismiss: dismiss)
                 default:
                     EmptyView()
@@ -47,7 +45,7 @@ struct OnboardingView: View {
                 Spacer()
 
                 HStack(spacing: 8) {
-                    ForEach(0 ..< 5) { index in
+                    ForEach(0 ..< 4) { index in
                         Circle()
                             .fill(index == currentStep ? Color.accentColor : Color.secondary.opacity(0.3))
                             .frame(width: 8, height: 8)
@@ -56,7 +54,7 @@ struct OnboardingView: View {
 
                 Spacer()
 
-                if currentStep < 4, currentStep != 2 {
+                if currentStep < 3, currentStep != 1 {
                     Button("Continue") {
                         currentStep += 1
                     }
@@ -81,61 +79,6 @@ struct WelcomeStep: View {
                 .fontWeight(.bold)
         }
         .padding()
-    }
-}
-
-struct AccessibilityStep: View {
-    @State private var hasPermission = false
-    @State private var pollTimer: Timer?
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "hand.raised.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(.orange)
-
-            Text("Accessibility Permission")
-                .font(.title)
-                .fontWeight(.bold)
-
-            Text(
-                "Juggler needs Accessibility access to listen for global keyboard shortcuts, even when other apps are focused."
-            )
-            .multilineTextAlignment(.center)
-            .foregroundStyle(.secondary)
-
-            if hasPermission {
-                Label("Permission Granted", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else {
-                Button("Open System Settings") {
-                    NSWorkspace.shared
-                        .open(
-                            URL(
-                                string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-                            )!
-                        )
-                }
-                .buttonStyle(.borderedProminent)
-            }
-        }
-        .padding()
-        .onAppear {
-            checkPermission()
-            pollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
-                Task { @MainActor in
-                    checkPermission()
-                }
-            }
-        }
-        .onDisappear {
-            pollTimer?.invalidate()
-            pollTimer = nil
-        }
-    }
-
-    private func checkPermission() {
-        hasPermission = AXIsProcessTrusted()
     }
 }
 

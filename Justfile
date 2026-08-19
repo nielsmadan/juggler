@@ -104,8 +104,7 @@ reset-onboarding:
 reset-permissions:
     @echo "Resetting Juggler permissions..."
     @tccutil reset AppleEvents {{bundle_id}} 2>/dev/null || true
-    @# Note: Accessibility permission must be removed manually in System Settings
-    @echo "Done. Remove Accessibility permission manually in System Settings > Privacy & Security > Accessibility."
+    @echo "Done."
 
 reset-integration:
     @echo "Resetting Juggler integrations..."
