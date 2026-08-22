@@ -52,3 +52,10 @@ Juggler solves the "context switching" problem when running multiple Claude Code
   - [Codex Hooks](tech/codex-hooks.md) - Codex hook integration and trust mechanism
   - [Pi Extension](tech/pi-extension.md) - Pi TypeScript extension integration
 
+### External Reference (how the things we build against behave)
+
+- [**Reference Overview**](reference/overview.md) - Externally anchored facts, verified and stamped
+  - [Coding Agent Hook & Plugin APIs](reference/coding-agent-hooks.md) - Event coverage, contracts, and quirks across the five agents
+  - [Terminal Control APIs](reference/terminal-control-apis.md) - What iTerm2, Kitty, WezTerm, and Ghostty expose
+  - [macOS Build Toolchain](reference/macos-build-toolchain.md) - xcodebuild, Swift Testing, SwiftLint, Periphery, Sparkle, AppKit
+

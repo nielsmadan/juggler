@@ -6,7 +6,7 @@ A native macOS app that tracks your running coding agent sessions and cycles you
 
 Currently works with iTerm2 / Kitty / WezTerm (tmux optional) and Claude Code, OpenCode, Codex, and Pi. More integrations coming soon.
 
-![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![Codex](https://img.shields.io/badge/Codex-supported-brightgreen) ![Pi](https://img.shields.io/badge/Pi-supported-brightgreen) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen) ![WezTerm](https://img.shields.io/badge/WezTerm-supported-brightgreen)
+![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![Codex](https://img.shields.io/badge/Codex-supported-brightgreen) ![Pi](https://img.shields.io/badge/Pi-supported-brightgreen) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen) ![WezTerm](https://img.shields.io/badge/WezTerm-supported-brightgreen)
 
 <p align="center">
   <img src="site/video.gif" alt="Juggler demo" width="720">
@@ -78,7 +78,7 @@ All shortcuts are customizable in Settings.
 
 **Coding agents:** Claude Code, OpenCode, Codex *(requires Codex CLI ≥ v0.114, or ≥ v0.145 for session-end tracking)*, Pi
 
-**Requires:** macOS 14.0+ (Sonoma)
+**Requires:** macOS 15.0+ (Sequoia)
 
 ## How It Works
 
@@ -135,7 +135,7 @@ Juggler tracks agent sessions through lifecycle hooks that fire on events like s
 
 ### Linux & Windows
 
-Juggler is currently macOS-only. [WezTerm](https://wezfurlong.org/wezterm/), [Wave](https://github.com/wavetermdev/waveterm), and [Tabby](https://github.com/Eugeny/tabby) run on macOS, Linux, and Windows. [Kitty](https://sw.kovidgoyal.net/kitty/) and [Konsole](https://konsole.kde.org/) (D-Bus API) already run on Linux. If there's popular demand, I'm happy to port it.
+Juggler is currently macOS-only. [WezTerm](https://wezterm.org/), [Wave](https://github.com/wavetermdev/waveterm), and [Tabby](https://github.com/Eugeny/tabby) run on macOS, Linux, and Windows. [Kitty](https://sw.kovidgoyal.net/kitty/) and [Konsole](https://konsole.kde.org/) (D-Bus API) already run on Linux. If there's popular demand, I'm happy to port it.
 
 ## License
 

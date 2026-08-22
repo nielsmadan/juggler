@@ -2,7 +2,7 @@
 
 macOS menu bar app for navigating multiple Claude Code, OpenCode, Codex, Pi, and Antigravity sessions in iTerm2, Kitty, and WezTerm via global hotkeys.
 
-**Target platform:** macOS 14.0+ (Sonoma), iTerm2, Kitty, WezTerm. **License:** MIT.
+**Target platform:** macOS 15.0+ (Sequoia), iTerm2, Kitty, WezTerm. **License:** MIT.
 
 ## What is Juggler?
 

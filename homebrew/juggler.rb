@@ -7,7 +7,7 @@ cask "juggler" do
   desc "Global hotkey navigation for Claude Code sessions"
   homepage "https://github.com/nielsmadan/juggler"
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: ">= :sequoia"
 
   livecheck do
     url :url

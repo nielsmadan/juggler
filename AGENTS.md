@@ -2,7 +2,7 @@
 
 This is the single source of truth for agent/contributor guidance in this repo. `CLAUDE.md` imports this file, so every coding agent shares it.
 
-Juggler is a SwiftUI menu bar app (macOS 14+) that tracks Claude Code, OpenCode, Codex, Pi, and Antigravity sessions via hooks and provides global hotkeys to navigate between them.
+Juggler is a SwiftUI menu bar app (macOS 15+) that tracks Claude Code, OpenCode, Codex, Pi, and Antigravity sessions via hooks and provides global hotkeys to navigate between them.
 
 ## Project Structure & Module Organization
 
@@ -160,6 +160,7 @@ Related documentation:
 - [README.md](README.md): User-facing documentation
 - [docs/tech/overview.md](docs/tech/overview.md): Technical architecture
 - [docs/features/overview.md](docs/features/overview.md): What each feature does
+- [docs/reference/overview.md](docs/reference/overview.md): How the external agents, terminals, and toolchain behave
 
 ## Commit & Pull Request Guidelines
 

@@ -8,7 +8,7 @@ Juggler is a SwiftUI menu bar app that tracks Claude Code, OpenCode, Codex, Pi, 
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Juggler.app                              │
 ├─────────────────────────────────────────────────────────────────┤
-│  Swift/SwiftUI - macOS 14+ (Sonoma)                             │
+│  Swift/SwiftUI - macOS 15+ (Sequoia)                            │
 │                                                                 │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
 │  │ HookServer  │  │ SessionMgr  │  │ ShortcutCenter          │  │
@@ -90,7 +90,7 @@ file list.
 |----------|--------|-----------|
 | UI Framework | SwiftUI | Declarative, modern, less code |
 | App Lifecycle | NSStatusItem + NSPopover | Managed by StatusBarManager; SwiftUI Window scenes for settings/monitor |
-| macOS Target | 14+ | @Observable, modern SwiftUI features |
+| macOS Target | 15+ | `@Observable` (14), `defaultLaunchBehavior` (15) |
 | Shortcuts | ShortcutKit | Shared global/local registry, Carbon activation, recorder UI, and conflict handling |
 | Auto-Updates | Sparkle | Industry standard for non-App Store apps |
 | Hook Server | HTTP localhost:7483 | Debuggable with curl, future remote support |
@@ -147,6 +147,9 @@ are the reusable lessons for anyone working in the affected area.
 - [Session Management](session-management.md) - Cycling and state logic
 - [Busy-Time Stats](stats.md) - Per-session accrual, DailyStatsStore persistence, chart + corner-tab layout
 - [Session Highlight Color](highlight-color.md) - Where the highlight-color rules are implemented
+
+For how the external agents, terminals, and build tools themselves behave — as opposed to how
+Juggler handles them — see [External Reference](../reference/overview.md).
 
 ---
 
