@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/nielsmadan/ShortcutField",
       "state" : {
-        "revision" : "08f64dd8bd7b015eed0a55f9b5f6a5b93d9d4eab",
-        "version" : "2.3.0"
+        "revision" : "31c887884f6b21c493c8460dba8b779ca6f7d68b",
+        "version" : "2.3.1"
       }
     },
     {
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
       "state" : {
-        "revision" : "79bc9e872948e47877e76f194cb0c8e0412b0b90",
-        "version" : "2.9.5"
+        "revision" : "ac2def288cbff5cfc7df3ffef6abdf45b72bcb0a",
+        "version" : "2.9.6"
       }
     },
     {
