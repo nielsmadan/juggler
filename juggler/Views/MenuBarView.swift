@@ -98,6 +98,10 @@ struct MenuBarView: View {
         .keyWindowShortcutContext(ShortcutCenter.shared.sessionListContext, isActive: isPopoverKey) { action, _ in
             handleSessionListAction(action)
         }
+        .shortcutHintHUD(
+            presenter: ShortcutCenter.shared.hintPresenter,
+            options: ShortcutCenter.shared.hintOptions
+        )
         .focusable()
         .focusEffectDisabled()
         .onKeyPress(.downArrow) {

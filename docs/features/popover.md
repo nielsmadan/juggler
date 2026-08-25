@@ -95,6 +95,8 @@ Bottom section shows commonly used shortcuts:
 
 Can be hidden via Settings > Shortcuts > Show Shortcut Helper.
 
+Using a shortcut-backed action by mouse shows its keyboard equivalent at the top center of the popover's screen.
+
 ## Empty State
 
 When no sessions are tracked:

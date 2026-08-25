@@ -10,6 +10,7 @@
 
 import ShortcutKit
 import ShortcutKitGlobal
+import ShortcutKitUI
 import SwiftUI
 
 @MainActor
@@ -34,12 +35,16 @@ final class ShortcutCenter {
     )
 
     let registry: ShortcutRegistry
+    let hintPresenter: ShortcutHintPresenter
+    let hintOptions = HintHUDOptions(placement: .top, presentation: .screen)
 
     private let globalActivator = CarbonGlobalActivator()
     private var didStart = false
 
     private init() {
-        registry = ShortcutRegistry(contexts: [globalContext, sessionListContext])
+        let registry = ShortcutRegistry(contexts: [globalContext, sessionListContext])
+        self.registry = registry
+        hintPresenter = ShortcutHintPresenter(registry: registry)
     }
 
     /// Start system-wide hotkey registration. Idempotent.

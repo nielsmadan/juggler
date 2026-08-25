@@ -115,7 +115,10 @@ struct SessionMonitorView: View {
                                       isActive: isMonitorWindowKey) { action, _ in
                 handleSessionListAction(action)
             }
-            .shortcutHintHUD(registry: ShortcutCenter.shared.registry)
+            .shortcutHintHUD(
+                presenter: ShortcutCenter.shared.hintPresenter,
+                options: ShortcutCenter.shared.hintOptions
+            )
             .focusable()
             .focusEffectDisabled()
             .onKeyPress(.downArrow) {
