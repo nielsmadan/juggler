@@ -1020,8 +1020,8 @@ struct HookServerTests {
 
     @Test @MainActor func processRequest_postHook_missingTerminalSessionID_isDropped() async {
         // A missing terminal.sessionId has no activation address, so the event is dropped
-        // and no session is created. (Creating one minted a phantom row that could never
-        // be activated or removed — the iTerm2 daemon asserts on an empty id.) Still 200.
+        // and no session is created — creating one minted a phantom row that could never
+        // be activated or removed. Still 200.
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)
         let body = """
@@ -1033,6 +1033,62 @@ struct HookServerTests {
 
         #expect(response.status == 200)
         #expect(manager.sessions.isEmpty)
+    }
+
+    @Test @MainActor func processRequest_postHook_emptyTerminalSessionID_warnsOncePerSource() async {
+        LogManager.shared.clear()
+        defer { LogManager.shared.clear() }
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let cwd = "/test/dedupe-\(UUID().uuidString)"
+        let otherCwd = "/test/dedupe-\(UUID().uuidString)"
+        func body(agent: String, event: String, cwd: String) -> String {
+            """
+            {"agent":"\(agent)","event":"\(event)","hookInput":{"session_id":"s-1"},\
+            "terminal":{"cwd":"\(cwd)","terminalType":"iterm2"}}
+            """
+        }
+        func post(agent: String = "claude-code", event: String, cwd: String) async -> Int {
+            await server.processRequest(
+                HTTPRequest(method: "POST", path: "/hook", body: body(agent: agent, event: event, cwd: cwd))
+            ).status
+        }
+        func warnings(for cwd: String) -> [LogEntry] {
+            LogManager.shared.entries.filter {
+                $0.level == .warning && $0.category == .hooks && $0.message.contains(cwd)
+            }
+        }
+
+        // Four different event types, so suppression is proven to span events, not just repeats.
+        for event in ["SessionStart", "PreToolUse", "PostToolUse", "Stop"] {
+            #expect(await post(event: event, cwd: cwd) == 200)
+        }
+        #expect(await post(event: "SessionStart", cwd: otherCwd) == 200)
+        // Same cwd, different agent: the agent half of the dedupe key must split these.
+        #expect(await post(agent: "codex", event: "SessionStart", cwd: cwd) == 200)
+
+        #expect(warnings(for: cwd).count == 2)
+        #expect(warnings(for: otherCwd).count == 1)
+        #expect(warnings(for: otherCwd).first?.message.contains("remote=none") == true)
+        #expect(manager.sessions.isEmpty)
+    }
+
+    @Test @MainActor func processRequest_postHook_emptySessionIDWithControlCharacters_isSanitized() async {
+        LogManager.shared.clear()
+        defer { LogManager.shared.clear() }
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let marker = UUID().uuidString
+        let body = """
+        {"agent":"claude-code","event":"SessionStart",\
+        "terminal":{"cwd":"/test/\(marker)\\n[FORGED] [ERROR] [hooks] fake","terminalType":"iterm2"}}
+        """
+
+        #expect(await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body)).status == 200)
+
+        let entry = LogManager.shared.entries.first { $0.message.contains(marker) }
+        #expect(entry != nil)
+        #expect(entry?.message.contains("\n") == false)
     }
 
     @Test @MainActor func processRequest_postHook_missingAgent_returns400() async {

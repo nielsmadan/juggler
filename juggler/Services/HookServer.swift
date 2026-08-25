@@ -9,11 +9,13 @@ actor HookServer {
     private var pendingActions: [HookServerRequestAction] = []
     private var terminalRefreshTasks: [String: Task<Void, Never>] = [:]
     private var pendingTerminalRefreshes: [String: TerminalRefreshRequest] = [:]
+    private var warnedEmptySessionSources: Set<String> = []
     private var workGeneration = 0
     private var port: UInt16 = 7483
     private let maxRequestSize = 1_048_576
     private let maxPendingActions = 256
     private let maxRetainedInvalidBodySize = 200
+    private let maxLoggedFieldLength = 120
     private let sessionManager: SessionManager
     private let terminalBridgeRegistry: TerminalBridgeRegistry
     private let willProcessQueuedAction: (@Sendable () async -> Void)?
@@ -297,6 +299,30 @@ actor HookServer {
         }
     }
 
+    /// Exported logs are newline-joined, so an unescaped newline here forges log entries.
+    private func logSafe(_ value: String) -> String {
+        let stripped = String(value.unicodeScalars
+            .map { CharacterSet.controlCharacters.contains($0) ? "?" : Character($0) })
+        return stripped.count > maxLoggedFieldLength ? stripped.prefix(maxLoggedFieldLength) + "…" : stripped
+    }
+
+    /// Headless runs (cron, `claude -p`) re-emit this per event and would flush the 500-entry log buffer.
+    private func warnOnceAboutEmptySessionID(agent: String, cwd: String, remoteHost: String?) async {
+        guard warnedEmptySessionSources.insert("\(agent)|\(cwd)").inserted else { return }
+        let remote = remoteHost.flatMap { $0.isEmpty ? nil : $0 } ?? "none"
+        let agent = logSafe(agent)
+        let cwd = logSafe(cwd)
+        let safeRemote = logSafe(remote)
+        await MainActor.run {
+            logWarning(
+                .hooks,
+                "Dropping hook events with empty terminal session ID "
+                    + "(agent=\(agent), cwd=\(cwd), remote=\(safeRemote)) "
+                    + "— further occurrences from this source suppressed"
+            )
+        }
+    }
+
     private func handleUnifiedHookEvent(_ payload: UnifiedHookPayload) async {
         let terminalSessionID = payload.terminal?.sessionId ?? ""
         let claudeSessionID = payload.hookInput?.sessionId ?? ""
@@ -310,15 +336,9 @@ actor HookServer {
         let compositeID = tmuxPane.map { "\(terminalSessionID):\($0)" } ?? terminalSessionID
 
         // No terminal session ID means no activation address: the row could never be
-        // activated or auto-removed (the iTerm2 daemon asserts on an empty id).
+        // activated or auto-removed.
         guard !terminalSessionID.isEmpty else {
-            await MainActor.run {
-                logWarning(
-                    .hooks,
-                    "Dropping hook event with empty terminal session ID "
-                        + "(agent=\(payload.agent), event=\(payload.event), cwd=\(cwd))"
-                )
-            }
+            await warnOnceAboutEmptySessionID(agent: payload.agent, cwd: cwd, remoteHost: remoteHost)
             return
         }
 

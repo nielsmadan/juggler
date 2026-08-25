@@ -59,6 +59,11 @@ ordered queue, while terminal addressing and metadata lookups run in coalesced t
 terminal I/O cannot hold up an agent hook or delay later state changes. The queue retains at most 256 actions and drops
 the oldest pending action if saturated; normal bursts reach `SessionManager` in enqueue order.
 
+An event whose `terminal.sessionId` is empty has no activation address and is dropped without creating a session.
+Headless runs (cron jobs, `claude -p`, agent-spawned one-shots) hit this on every event, so the warning is emitted
+once per `agent`+`cwd` source per app run and includes `remote=` to distinguish an ssh session Juggler could not map
+to a pane from a job with no terminal at all.
+
 ## Event Types
 
 | Event | Mapped State | Description |
