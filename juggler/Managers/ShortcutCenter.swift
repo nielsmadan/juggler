@@ -36,7 +36,7 @@ final class ShortcutCenter {
 
     let registry: ShortcutRegistry
     let hintPresenter: ShortcutHintPresenter
-    let hintOptions = HintHUDOptions(placement: .top, presentation: .screen)
+    let hintOptions = HintHUDOptions(placement: .top, presentation: .window)
 
     private let globalActivator = CarbonGlobalActivator()
     private var didStart = false
