@@ -373,19 +373,20 @@ struct SessionMonitorView: View {
 
             toggleButton(
                 isOn: $prioritizePermissionSessions,
+                action: .permissionFirst,
                 icon: "hand.raised.fill",
                 activeColor: CyclingColors.palette[2],
                 help: "Permission first: keep sessions waiting for permission above idle sessions",
                 isEnabled: permissionFirstAvailable,
                 disabledHelp: "Permission First is disabled in Static and Grouped modes because those modes preserve fixed session ordering"
             )
-            toggleButton(isOn: $autoAdvanceOnBusy, icon: "forward.fill",
+            toggleButton(isOn: $autoAdvanceOnBusy, action: .autoNext, icon: "forward.fill",
                          activeColor: CyclingColors.palette[0],
                          help: "Auto-advance: go to next session when current goes busy")
-            toggleButton(isOn: $autoRestartOnIdle, icon: "autostartstop",
+            toggleButton(isOn: $autoRestartOnIdle, action: .autoRestart, icon: "autostartstop",
                          activeColor: CyclingColors.palette[3],
                          help: "Auto-restart: when all sessions are busy and one becomes idle, jump to it")
-            toggleButton(isOn: $beaconEnabled, icon: "light.panel",
+            toggleButton(isOn: $beaconEnabled, action: .beacon, icon: "light.panel",
                          activeColor: CyclingColors.palette[4],
                          help: "Beacon: show session name when cycling")
         }
@@ -395,6 +396,7 @@ struct SessionMonitorView: View {
 
     private func toggleButton(
         isOn: Binding<Bool>,
+        action: MonitorControlAction,
         icon: String,
         activeColor: Color,
         help: String,
@@ -403,6 +405,7 @@ struct SessionMonitorView: View {
     ) -> some View {
         Button {
             isOn.wrappedValue.toggle()
+            ShortcutCenter.shared.sessionListContext.notifyHint(for: action.shortcutAction)
         } label: {
             Image(systemName: icon)
                 .font(.callout)
@@ -555,6 +558,7 @@ struct SessionMonitorView: View {
                         .font(.headline)
                     Button {
                         controller.sessionToRename = session
+                        ShortcutCenter.shared.sessionListContext.notifyHint(for: .rename)
                     } label: {
                         Image(systemName: "pencil")
                     }
@@ -628,6 +632,7 @@ struct SessionMonitorView: View {
         if controller.selectedSessionID != session.id {
             sessionManager.syncColorIndex(toSessionID: session.id)
         }
+        ShortcutCenter.shared.sessionListContext.notifyHint(for: .activate)
         Task {
             _ = await SessionActivator.shared.activate(session: session, trigger: .guiSelect)
         }

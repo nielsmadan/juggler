@@ -50,8 +50,8 @@ A single bar at the top combines the queue mode picker with four toggle buttons:
 - **Beacon** (`light.panel`) - Show the session-name beacon when cycling.
 
 A dismissible hint ("Hover over buttons to show help.") appears below the bar until dismissed.
-Using a shortcut-backed control shows a transient hint for its keyboard equivalent. Directly selecting a queue mode
-suggests the shortest cycling direction (`Tab` or `Shift+Tab`).
+Using a control-bar toggle, queue-mode choice, or rename button shows a transient hint for its keyboard equivalent.
+Directly selecting a queue mode suggests the shortest cycling direction (`Tab` or `Shift+Tab`).
 Hints appear at the top center of the monitor window and remain above an open rename sheet.
 
 ## Sections

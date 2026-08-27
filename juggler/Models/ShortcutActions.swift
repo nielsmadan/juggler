@@ -107,3 +107,40 @@ enum SessionListAction: String, ShortcutAction {
         }
     }
 }
+
+enum SessionRowContextAction: CaseIterable {
+    case rename
+    case backburner
+    case reactivate
+
+    var shortcutAction: SessionListAction {
+        switch self {
+        case .rename: .rename
+        case .backburner: .backburner
+        case .reactivate: .reactivateSelected
+        }
+    }
+}
+
+enum MonitorControlAction: CaseIterable {
+    case permissionFirst
+    case autoNext
+    case autoRestart
+    case beacon
+
+    var shortcutAction: SessionListAction {
+        switch self {
+        case .permissionFirst: .togglePermissionFirst
+        case .autoNext: .toggleAutoNext
+        case .autoRestart: .toggleAutoRestart
+        case .beacon: .toggleBeacon
+        }
+    }
+}
+
+extension ShortcutContext where Action == SessionListAction {
+    func notifyHint(for action: SessionListAction) {
+        guard action != .activate else { return }
+        notify(action)
+    }
+}

@@ -45,7 +45,8 @@ The beacon is enabled/disabled from the Session Monitor control bar and the "Tog
 
 ## Shortcuts
 
-- **Show Shortcut Helper**: Toggle the shortcut hint bar in the popover and monitor.
+- **Show Shortcut Helper**: Toggle the persistent shortcut reference in the popover and monitor.
+- **Show shortcut hints / Hint frequency**: Control transient shortcut hints shown after using shortcut-backed UI.
 - **Global hotkeys**: Recorders for all six global shortcuts (see [Cycle Sessions](cycle-sessions.md#global-shortcuts) and [Notifications](notification.md)).
 - **Session List shortcuts**: Configurable local shortcuts for the popover and monitor window: Move Down, Move Up, Backburner, Reactivate Selected, Reactivate All, Rename, Cycle Mode Forward, Cycle Mode Backward, Toggle Beacon, Permission First, Auto Next, Auto Restart.
 

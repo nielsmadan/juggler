@@ -95,7 +95,8 @@ Bottom section shows commonly used shortcuts:
 
 Can be hidden via Settings > Shortcuts > Show Shortcut Helper.
 
-Using a shortcut-backed action by mouse shows its keyboard equivalent at the top center of the popover.
+Using Rename, Backburner, or Reactivate from a row's context menu shows its keyboard equivalent at the top center of
+the popover.
 
 ## Empty State
 

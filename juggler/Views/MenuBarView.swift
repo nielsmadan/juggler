@@ -62,6 +62,7 @@ struct MenuBarView: View {
                 ForEach(sessionManager.sessions) { session in
                     SessionRowView(
                         session: session,
+                        controller: controller,
                         isKeyboardSelected: controller.selectedSessionID == session.id,
                         onActivate: { dismiss() }
                     )
@@ -227,7 +228,12 @@ struct QueueModePicker: View {
         HStack(spacing: 0) {
             ForEach(QueueOrderMode.allCases, id: \.rawValue) { mode in
                 Button {
+                    let previous = QueueOrderMode(rawValue: selection)
+                    guard previous != mode else { return }
                     selection = mode.rawValue
+                    if let previous, let action = Self.shortcutAction(from: previous, to: mode) {
+                        ShortcutCenter.shared.sessionListContext.notifyHint(for: action)
+                    }
                 } label: {
                     Text(mode.displayName)
                         .font(.callout)
@@ -247,6 +253,18 @@ struct QueueModePicker: View {
             }
         }
         .background(Color.gray.opacity(0.2))
+    }
+
+    static func shortcutAction(from current: QueueOrderMode, to target: QueueOrderMode) -> SessionListAction? {
+        guard current != target,
+              let currentIndex = QueueOrderMode.allCases.firstIndex(of: current),
+              let targetIndex = QueueOrderMode.allCases.firstIndex(of: target)
+        else { return nil }
+
+        let count = QueueOrderMode.allCases.count
+        let forwardDistance = (targetIndex - currentIndex + count) % count
+        let backwardDistance = (currentIndex - targetIndex + count) % count
+        return forwardDistance <= backwardDistance ? .cycleModeForward : .cycleModeBackward
     }
 }
 

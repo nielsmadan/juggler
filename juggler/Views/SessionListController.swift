@@ -127,6 +127,24 @@ final class SessionListController {
         sessionToRename = session
     }
 
+    @discardableResult
+    func performContextAction(
+        _ action: SessionRowContextAction,
+        on session: Session,
+        sessionManager: SessionManager
+    ) -> SessionListAction {
+        setSelection(toSessionID: session.id, syncColor: false)
+        switch action {
+        case .rename:
+            sessionToRename = session
+        case .backburner:
+            sessionManager.backburnerSession(terminalSessionID: session.id)
+        case .reactivate:
+            sessionManager.reactivateSession(terminalSessionID: session.id)
+        }
+        return action.shortcutAction
+    }
+
     func cycleMode(forward: Bool, currentMode: String) -> String {
         let modes = QueueOrderMode.allCases
         guard let current = QueueOrderMode(rawValue: currentMode),

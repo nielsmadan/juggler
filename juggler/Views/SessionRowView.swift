@@ -5,14 +5,15 @@
 //  Created by Niels Madan on 22.01.26.
 //
 
+import ShortcutKit
 import SwiftUI
 
 struct SessionRowView: View {
     let session: Session
+    let controller: SessionListController
     var isKeyboardSelected: Bool = false
     var onActivate: (() -> Void)?
     @Environment(SessionManager.self) private var sessionManager
-    @State private var showRenameSheet = false
     @AppStorage(AppStorageKeys.useCyclingColors) private var useCyclingColors = true
     @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode
         .default.rawValue
@@ -80,16 +81,16 @@ struct SessionRowView: View {
         }
         .contextMenu {
             Button("Rename...") {
-                showRenameSheet = true
+                performContextAction(.rename)
             }
 
             if session.state == .backburner {
                 Button("Reactivate") {
-                    sessionManager.reactivateSession(terminalSessionID: session.id)
+                    performContextAction(.reactivate)
                 }
             } else {
                 Button("Backburner") {
-                    sessionManager.backburnerSession(terminalSessionID: session.id)
+                    performContextAction(.backburner)
                 }
             }
 
@@ -99,17 +100,19 @@ struct SessionRowView: View {
                 sessionManager.removeSession(sessionID: session.id)
             }
         }
-        .sheet(isPresented: $showRenameSheet) {
-            RenameSessionView(session: session)
-                .environment(sessionManager)
-        }
     }
 
     private func activateSession() {
         sessionManager.syncColorIndex(toSessionID: session.id)
+        ShortcutCenter.shared.sessionListContext.notifyHint(for: .activate)
         Task {
             _ = await SessionActivator.shared.activate(session: session, trigger: .guiSelect)
         }
         onActivate?()
+    }
+
+    private func performContextAction(_ action: SessionRowContextAction) {
+        let shortcutAction = controller.performContextAction(action, on: session, sessionManager: sessionManager)
+        ShortcutCenter.shared.sessionListContext.notifyHint(for: shortcutAction)
     }
 }

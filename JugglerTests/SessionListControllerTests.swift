@@ -305,6 +305,49 @@ struct SessionListControllerTests {
         #expect(controller.sessionToRename == nil)
     }
 
+    @Test @MainActor func contextRename_selectsAndRenamesClickedSession() {
+        let controller = SessionListController()
+        let manager = SessionManager()
+        let sessions = [makeSession("selected"), makeSession("clicked")]
+        manager.testSetSessions(sessions)
+        controller.setSelection(toSessionID: "selected")
+
+        let shortcutAction = controller.performContextAction(.rename, on: sessions[1], sessionManager: manager)
+
+        #expect(controller.selectedSessionID == "clicked")
+        #expect(controller.sessionToRename?.id == "clicked")
+        #expect(shortcutAction == .rename)
+    }
+
+    @Test @MainActor func contextBackburner_selectsAndChangesOnlyClickedSession() {
+        let controller = SessionListController()
+        let manager = SessionManager()
+        let sessions = [makeSession("selected"), makeSession("clicked")]
+        manager.testSetSessions(sessions)
+        controller.setSelection(toSessionID: "selected")
+
+        let shortcutAction = controller.performContextAction(.backburner, on: sessions[1], sessionManager: manager)
+
+        #expect(controller.selectedSessionID == "clicked")
+        #expect(manager.sessions.first { $0.id == "selected" }?.state == .idle)
+        #expect(manager.sessions.first { $0.id == "clicked" }?.state == .backburner)
+        #expect(shortcutAction == .backburner)
+    }
+
+    @Test @MainActor func contextReactivate_selectsAndChangesClickedSession() {
+        let controller = SessionListController()
+        let manager = SessionManager()
+        let sessions = [makeSession("selected"), makeSession("clicked", state: .backburner)]
+        manager.testSetSessions(sessions)
+        controller.setSelection(toSessionID: "selected")
+
+        let shortcutAction = controller.performContextAction(.reactivate, on: sessions[1], sessionManager: manager)
+
+        #expect(controller.selectedSessionID == "clicked")
+        #expect(manager.sessions.first { $0.id == "clicked" }?.state == .idle)
+        #expect(shortcutAction == .reactivateSelected)
+    }
+
     // MARK: - reactivateAll Tests
 
     @Test @MainActor func reactivateAll_reactivatesBackburneredSessions() {

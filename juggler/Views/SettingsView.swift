@@ -920,6 +920,7 @@ struct ShortcutsSettingsView: View {
         Form {
             Section("Display") {
                 Toggle("Show Shortcut Helper", isOn: $showShortcutHelper)
+                HintPreferencesView(registry: ShortcutCenter.shared.registry)
             }
             KeyBindingsView(
                 registry: ShortcutCenter.shared.registry,
