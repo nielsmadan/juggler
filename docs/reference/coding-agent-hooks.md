@@ -173,8 +173,7 @@ without importing it. If the package is absent the channels never fire.
 a session event bus and is not tied to the prompt it resolves, so with multiple gates or a
 subagent-forwarded prompt, a session can sit in `permission` until some later parent event or
 `agent_settled` arrives. A paired `permissions:ui_prompt_resolved` event carrying a `requestId` has
-been *proposed* upstream ([plan](../superpowers/plans/2026-07-31-pi-permission-prompt-resolution.md))
-but as of 2026-08-22 does not exist — the shipped extension still listens only on the two channels
+been proposed upstream but as of 2026-08-22 does not exist — the shipped extension still listens only on the two channels
 above.
 
 **Gotcha — the event bus survives `/reload`.** Listeners must be explicitly unregistered on

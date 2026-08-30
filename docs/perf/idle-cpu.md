@@ -1,7 +1,6 @@
 # Idle-CPU Regression Tests
 
 Guards for the "app burns CPU while idle" class (leaked spinners, re-render loops).
-See the design at `docs/superpowers/specs/2026-07-23-idle-cpu-regression-testing-design.md`.
 
 ## Layers
 

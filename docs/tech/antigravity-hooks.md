@@ -98,7 +98,7 @@ There is no event for "agent blocked waiting for user approval" and none for con
 
 ### Backburner auto-reactivation is idle-origin only
 
-Antigravity has no `UserPromptSubmit` (the user-action event other agents use to exit backburner). Its only "user re-engaged" proxy is a `working` event, which fires on every model call within a turn. So a backburnered Antigravity session is auto-reactivated on its next `working` event **only if it was idle when backburnered** (a resume); one shelved while working stays put until it goes idle and is explicitly reactivated. This is driven by `Session.wasAwaitingUserBeforeBackburner`, set in `SessionManager.applyStateChange`. See [the design spec](../superpowers/specs/antigravity-integration.md).
+Antigravity has no `UserPromptSubmit` (the user-action event other agents use to exit backburner). Its only "user re-engaged" proxy is a `working` event, which fires on every model call within a turn. So a backburnered Antigravity session is auto-reactivated on its next `working` event **only if it was idle when backburnered** (a resume); one shelved while working stays put until it goes idle and is explicitly reactivated. This is driven by `Session.wasAwaitingUserBeforeBackburner`, set in `SessionManager.applyStateChange`.
 
 ---
 
