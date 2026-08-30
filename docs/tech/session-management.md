@@ -131,6 +131,16 @@ The jump-to-latest shortcut activates `SessionManager.lastNotifiedSessionID` (re
 
 Every activation surface delegates to `SessionActivator`. It processes activation requests in request order, holds the `beginActivation` / `endActivation` guard for each full terminal operation, and returns a typed outcome. Cycling-style workflows use `activateFirstAvailable`, which silently skips stale sessions until a live target activates or no candidate remains.
 
+A local `ShortcutContext` holds one active dispatch handler. The popover and the monitor share
+that context, so they must never mount `.activeShortcutContext` at the same time —
+`keyWindowShortcutContext` gates it to the key window.
+
+Capture whether a terminal is frontmost **synchronously** in `HotkeyManager.dispatch`, before any
+asynchronous work starts; the answer changes as soon as activation begins.
+
+`ShortcutAction` raw values are persistence identifiers. Renaming a case requires migrating saved
+bindings.
+
 ## Reorder Animations
 
 **File:** `Animation/SectionAnimationController.swift`
@@ -146,6 +156,21 @@ Smooth vertical movement via `matchedGeometryEffect` (0.4s)
 1. Slides right and fades out (0.3s)
 2. Off-screen delay (1.2s)
 3. Slides in from right (0.3s)
+
+### Section membership
+
+Busy is `working` or `compacting` only — `permission` belongs to Idle. Treating permission as Busy
+skips the reorder on permission → working and leaves the session stranded at the top of Busy.
+"Bottom of Busy" means immediately before the first Backburner row, or last when there are no
+Backburner rows.
+
+### Why the animation keys off session IDs
+
+SwiftUI does not interpolate rows moving between separate section stacks. Headers and rows render
+in a single `LazyVStack` with stable row IDs, and the container animation is keyed to the ordered
+session-ID array (`sessions.map(\.id)`). The row order, not the session state, is the reliable
+signal for cross-section movement: animating the state change, the reorder, or
+`matchedGeometryEffect` alone was not enough.
 
 ## Backburner Handling
 

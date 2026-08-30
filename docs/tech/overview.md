@@ -147,6 +147,7 @@ are the reusable lessons for anyone working in the affected area.
 - [Session Management](session-management.md) - Cycling and state logic
 - [Busy-Time Stats](stats.md) - Per-session accrual, DailyStatsStore persistence, chart + corner-tab layout
 - [Session Highlight Color](highlight-color.md) - Where the highlight-color rules are implemented
+- [macOS Permissions](permissions.md) - Which system permissions are required, and why the rest are not
 
 For how the external agents, terminals, and build tools themselves behave — as opposed to how
 Juggler handles them — see [External Reference](../reference/overview.md).

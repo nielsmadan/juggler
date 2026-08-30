@@ -119,6 +119,16 @@ distinguishes an automatic Auto Review approval from a real prompt to the user. 
 `approvals_reviewer = "auto_review"` setting in `config.toml` is the only signal, and it is not
 visible if the user set it via a profile or a command-line override.
 
+**Verified — headless `codex exec` runs are distinguishable, but only through the rollout
+file.** The hook payload carries no interactive/headless marker. The discriminator lives in the
+rollout metadata reached through `hookInput.transcript_path`: an interactive TUI session records
+`originator: codex-tui` with `source: cli`, while `codex exec` records `originator: codex_exec`
+with `source: exec`. Verify that `transcript_path` exists and the metadata is readable at
+`SessionStart`. A headless run otherwise inherits the parent pane's terminal ID and cwd, so it
+both re-notifies and replaces the interactive session's row. Once a session is classified
+headless, every later event for that agent-session ID must also be ignored, or `Stop` recreates
+it. *Verified 2026-08-30.*
+
 **Gotcha — `config.toml` has no Swift TOML parser.** Edits are targeted string surgery, which is
 why uninstall prefers restoring a backup over unpicking the file.
 
@@ -240,6 +250,11 @@ environment, which is the only thing that keeps them out of a terminal-keyed tra
 - **A green install is not a working install.** Codex's trust-hash clamp is the worst case, but the
   general pattern — registration succeeds, the agent silently declines to run the hook — applies to
   every gated agent.
+
+**Only Codex has a verified headless marker.** Claude Code `-p`, `opencode run`, Pi and
+Antigravity have not been verified. TTY checks are not a substitute: hook stdout is captured
+through a pipe, process-ancestry checks are unavailable under the sandbox, and inherited
+environment markers do not cover every nesting combination.
 
 ## Upstream
 

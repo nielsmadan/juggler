@@ -100,6 +100,20 @@ peripheryapp/periphery/periphery` does.
 **Documented — deliberately-unused symbols get an inline annotation.** `// periphery:ignore -
 <reason>` rather than deletion, used for reserved test tags that nothing references yet.
 
+**Verified — the managed cache mixes same-named parallel checkouts.** A scan started from the
+right checkout can report absolute paths from a sibling checkout that shares its directory name,
+warning about symbols that are only unused over there. `periphery clear-cache` recovers once, but
+it clears the cache for every checkout and does not stop the collision recurring. Scan the
+checkout-local Xcode index store instead — `--index-store-path build/Index.noindex/DataStore`.
+That flag implies `--skip-build`, so the index has to exist already: the pre-push order builds
+first, but the standalone CI Periphery job does not. `--clean-build` on its own is not isolation.
+`Justfile:91` still runs with the default global cache. *Verified 2026-08-30 against Periphery
+3.8.0.*
+
+**Gotcha — `posix_spawn error: Resource temporarily unavailable (35)` is process exhaustion**, not
+a compilation or package-resolution defect. Running simulators caused it here; the build succeeded
+once the process pressure cleared.
+
 ## Sparkle
 
 **Documented — the update feed is configured entirely in `Info.plist`.** `SUFeedURL` points at the
