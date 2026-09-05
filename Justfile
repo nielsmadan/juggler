@@ -87,8 +87,9 @@ lint-fix *files:
 format *files:
     @swiftformat {{ if files == "" { "." } else { files } }}
 
-unused-check:
-    @periphery scan --strict --retain-equatable-properties
+unused-check: build
+    @periphery scan --skip-build --index-store-path {{build_dir}}/Index.noindex/DataStore \
+        --strict --retain-equatable-properties
 
 reset-data:
     @echo "Resetting Juggler app data..."
