@@ -1137,7 +1137,7 @@ struct SSHSettingsView: View {
     }
 
     // `just tag-release` advances this to an immutable release-preparation commit.
-    private static let installRevision = "8f677fb2be1f4a16987a46a4b48ad851efe7dc43"
+    private static let installRevision = "d8b864f579e10fe0680a27b4b05324ebdc4e9b76"
     private var installOneLiner: String {
         "curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/\(Self.installRevision)"
             + "/scripts/install-remote.sh | JUGGLER_BASE_URL=https://raw.githubusercontent.com/nielsmadan/juggler/"

@@ -14,7 +14,7 @@ set -e
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-REVISION="${JUGGLER_REVISION:-8f677fb2be1f4a16987a46a4b48ad851efe7dc43}"
+REVISION="${JUGGLER_REVISION:-d8b864f579e10fe0680a27b4b05324ebdc4e9b76}"
 BASE="${JUGGLER_BASE_URL:-https://raw.githubusercontent.com/nielsmadan/juggler/$REVISION/juggler/Resources}"
 
 installed_any=0
