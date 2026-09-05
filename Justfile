@@ -31,11 +31,15 @@ build-strict xcconfig="":
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build 2>&1 | tee /tmp/build-output.log
     ! grep -qE "warning:.*Juggler/" /tmp/build-output.log
 
-# Fast unit tests only (no UI, no app launch)
+# Unit tests run in a Juggler host process.
 test xcconfig="":
     @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} -enableCodeCoverage YES \
         -parallel-testing-enabled NO -only-testing:JugglerTests test
+
+test-packaging:
+    @python3 -m unittest discover -s scripts/tests -v
+    @brew ruby scripts/tests/homebrew_lifecycle.rb
 
 coverage xcconfig="":
     @rm -rf {{xcresult}}
@@ -110,8 +114,6 @@ reset-permissions:
 reset-integration:
     @echo "Resetting Juggler integrations..."
     @bash juggler/Resources/hooks/uninstall.sh
-    @sed -i '' '/juggler_watcher\.py/d; /^allow_remote_control/d; /^listen_on/d' ~/.config/kitty/kitty.conf 2>/dev/null || true
-    @sed -i '' '/update-environment.*ITERM_SESSION_ID/d' ~/.tmux.conf 2>/dev/null || true
     @echo "Done. Integration configs removed."
 
 reset-all: reset-data reset-permissions reset-integration

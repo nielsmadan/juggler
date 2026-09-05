@@ -18,6 +18,11 @@ jobs:
       - name: Extract version from tag
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
+      - name: Test packaging and integration cleanup
+        run: |
+          python3 -m unittest discover -s scripts/tests -v
+          brew ruby scripts/tests/homebrew_lifecycle.rb
+
       - name: Import Developer ID certificate
         env:
           DEVELOPER_ID_CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
@@ -126,6 +131,12 @@ jobs:
           echo "DMG_SHA256=$DMG_SHA256" >> "$GITHUB_ENV"
           echo "SHA256 (DMG): $DMG_SHA256"
 
+      - name: Validate app and generate Homebrew cask
+        run: |
+          python3 scripts/render-homebrew-cask.py "$VERSION" \
+            release/export/Juggler.app release/Juggler.dmg "$RUNNER_TEMP/juggler.rb"
+          ruby -c "$RUNNER_TEMP/juggler.rb"
+
       - name: Download Sparkle tools
         run: |
           SPARKLE_VERSION="2.8.1"
@@ -175,11 +186,7 @@ jobs:
           git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/nielsmadan/homebrew-tap.git" \
             "$RUNNER_TEMP/homebrew-tap"
 
-          CASK_FILE="$RUNNER_TEMP/homebrew-tap/Casks/juggler.rb"
-
-          sed -i '' "s/version \".*\"/version \"$VERSION\"/" "$CASK_FILE"
-          sed -i '' "s/sha256 \".*\"/sha256 \"$DMG_SHA256\"/" "$CASK_FILE"
-          sed -i '' "s/Juggler\.zip/Juggler.dmg/" "$CASK_FILE"
+          cp "$RUNNER_TEMP/juggler.rb" "$RUNNER_TEMP/homebrew-tap/Casks/juggler.rb"
 
           cd "$RUNNER_TEMP/homebrew-tap"
           git config user.name "github-actions[bot]"

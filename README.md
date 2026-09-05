@@ -31,12 +31,34 @@ I like software that does one thing and does it well. Juggler has a few bells an
 ### Homebrew (recommended)
 
 ```bash
-brew install --cask nielsmadan/juggler/juggler
+brew install --cask nielsmadan/tap/juggler
 ```
+
+Use Homebrew 6 or newer. The fully qualified command trusts the Juggler cask automatically.
+
+If you installed from the old `nielsmadan/juggler` tap, refresh the installation and its cleanup rules:
+
+```bash
+brew update
+brew reinstall --cask nielsmadan/tap/juggler
+```
+
+If `brew tap` still lists `nielsmadan/juggler`, remove it afterward with `brew untap nielsmadan/juggler`.
 
 ### Manual download
 
 [Download the latest DMG](https://github.com/nielsmadan/juggler/releases/latest/download/Juggler.dmg), open it, and drag Juggler to Applications.
+
+### Uninstall
+
+`brew uninstall --cask juggler` removes the app and keeps your settings and integrations for a later reinstall.
+To also remove Juggler's agent hooks, plugins, terminal watcher, settings, and statistics:
+
+```bash
+brew uninstall --cask --zap juggler
+```
+
+Upgrades and ordinary reinstalls preserve integrations. Other tools' hooks and shared terminal settings are preserved during cleanup.
 
 ## Getting Started
 

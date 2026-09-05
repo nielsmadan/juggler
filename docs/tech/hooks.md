@@ -190,14 +190,19 @@ curl http://localhost:7483/hook -X POST -d '{"agent":"test","event":"ping"}'
 
 ## Uninstall / Reset
 
-`Resources/hooks/uninstall.sh` is the single source of truth for removing **all** Juggler integrations, not just Claude Code hooks. It is run by `just reset-integration` (and `just reset-all`). In one pass it:
+`Resources/hooks/uninstall.sh` runs `integration_cleanup.py` to remove **all** Juggler integrations. Settings → Uninstall, `just reset-integration` (and `just reset-all`), and Homebrew's `--zap` use this entry point. In one pass it:
 
-- Removes `~/.claude/hooks/juggler/` and surgically strips Juggler's hook entries from `~/.claude/settings.json` (parser-based, leaving other hooks intact).
-- Removes the Kitty watcher (`~/.config/kitty/juggler_watcher.py`).
-- Removes the OpenCode plugin (`~/.config/opencode/plugins/juggler-opencode.ts`).
+- Removes `~/.claude/hooks/juggler/` and only Juggler's command handlers from `~/.claude/settings.json`, preserving other handlers in the same group.
+- Removes the Kitty watcher and its `watcher` directive, honoring `KITTY_CONFIG_DIRECTORY` and `XDG_CONFIG_HOME`. Shared remote-control and socket settings remain.
+- Removes the OpenCode plugin, honoring `OPENCODE_CONFIG_DIR` and `XDG_CONFIG_HOME`.
 - Removes the Pi extension (`${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/juggler-pi.ts`). See [Pi Extension](pi-extension.md).
 - Removes Codex hooks (`~/.codex/hooks/juggler/`), strips Juggler entries from `~/.codex/hooks.json`, and surgically removes Juggler-owned trust blocks from the current `~/.codex/config.toml`. Later user changes and the harmless global `features.hooks` flag are preserved. See [Codex Hooks](codex-hooks.md) for the install side this reverses.
+- Removes Antigravity's `juggler` registration and notify script.
 - Resets the Automation (Apple Events) permission via `tccutil`.
+
+Shared configuration writes preserve symlinks and file permissions. Invalid JSON reports a failure and preserves that integration's files and recovery backup; cleanup continues for the other integrations and exits nonzero. Successful cleanup deletes stale Juggler recovery backups. Shared tmux settings remain.
+
+See [Homebrew distribution](homebrew.md) for install, upgrade, and zap behavior. `just test-packaging` exercises cleanup against temporary directories without launching Juggler or resetting system permissions.
 
 ---
 

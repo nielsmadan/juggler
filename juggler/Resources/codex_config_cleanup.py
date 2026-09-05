@@ -2,9 +2,11 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import stat
 import sys
 import tempfile
+from io import StringIO
 
 
 EVENTS = {
@@ -19,7 +21,7 @@ EVENTS = {
     "session_end": ("SessionEnd", 3),
 }
 
-HOOK_STATE_HEADER = re.compile(r'^\[hooks\.state\."(.*)"\]$')
+HOOK_STATE_HEADER = re.compile(r'^\[hooks\.state\."((?:[^"\\]|\\.)*)"\]\s*(?:#.*)?$')
 TRUSTED_HASH = re.compile(r'^trusted_hash\s*=\s*"([^"]+)"')
 
 
@@ -69,7 +71,13 @@ def current_juggler_keys(hooks_json_path, notify_script_path):
                 continue
             for handler_index, handler in enumerate(handlers):
                 command = handler.get("command") if isinstance(handler, dict) else None
-                if isinstance(command, str) and notify_script_path in command:
+                if not isinstance(command, str) or handler.get("type", "command") != "command":
+                    continue
+                try:
+                    words = shlex.split(command)
+                except ValueError:
+                    continue
+                if words and words[0] in (notify_script_path, "~/.codex/hooks/juggler/notify.sh"):
                     keys.add(f"{hooks_json_path}:{snake_case_event(event)}:{group_index}:{handler_index}")
     return keys
 
@@ -82,8 +90,8 @@ def section_key(section):
 
 
 def section_hash(section):
-    for line in section[1:]:
-        match = TRUSTED_HASH.match(line.strip())
+    for _, code in toml_lines("".join(section)):
+        match = TRUSTED_HASH.match(code)
         if match:
             return match.group(1)
     return None
@@ -107,11 +115,54 @@ def is_juggler_section(section, hooks_json_path, notify_script_path, current_key
     return section_hash(section) == expected_hash(event_name, notify_script_path)
 
 
+def toml_lines(contents):
+    delimiter = None
+    brackets = []
+    for line in StringIO(contents):
+        starts_statement = delimiter is None and not brackets
+        position = 0
+        while position < len(line):
+            character = line[position]
+            if delimiter:
+                if delimiter[0] == '"' and character == "\\":
+                    position += 2
+                    continue
+                if line.startswith(delimiter, position):
+                    end = position + len(delimiter)
+                    if len(delimiter) == 3:
+                        while end < len(line) and line[end] == delimiter[0]:
+                            end += 1
+                        if end - position > 5:
+                            raise ValueError("Invalid TOML string delimiter")
+                    delimiter = None
+                    position = end
+                    continue
+            elif character == "#":
+                break
+            elif character in ('"', "'"):
+                delimiter = character * (3 if line.startswith(character * 3, position) else 1)
+                position += len(delimiter)
+                continue
+            elif character in "[{":
+                brackets.append(character)
+            elif character in "]}":
+                if not brackets or brackets.pop() != {"]": "[", "}": "{"}[character]:
+                    raise ValueError("Unbalanced TOML brackets")
+            position += 1
+        if delimiter and len(delimiter) == 1:
+            raise ValueError("Unterminated TOML string")
+        code = line[:position].strip() if starts_statement else ""
+        if code.startswith("[") and (delimiter or brackets or not code.endswith("]")):
+            raise ValueError("Invalid TOML table header")
+        yield line, code
+    if delimiter or brackets:
+        raise ValueError("Unterminated TOML value")
+
+
 def split_sections(contents):
     sections = [[]]
-    for line in contents.splitlines(keepends=True):
-        stripped = line.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
+    for line, code in toml_lines(contents):
+        if code.startswith("["):
             sections.append([])
         sections[-1].append(line)
     return sections
@@ -121,7 +172,7 @@ def atomic_write(path, contents):
     directory = os.path.dirname(path)
     descriptor, temporary_path = tempfile.mkstemp(prefix=".config.toml.juggler-", dir=directory)
     try:
-        with os.fdopen(descriptor, "w") as file:
+        with os.fdopen(descriptor, "w", newline="") as file:
             file.write(contents)
             file.flush()
             os.fsync(file.fileno())
@@ -135,10 +186,9 @@ def atomic_write(path, contents):
         raise
 
 
-def main():
-    config_path, hooks_json_path, notify_script_path = sys.argv[1:]
+def cleanup(config_path, hooks_json_path, notify_script_path):
     try:
-        with open(config_path) as file:
+        with open(config_path, newline="") as file:
             contents = file.read()
     except FileNotFoundError:
         return
@@ -157,4 +207,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    cleanup(*sys.argv[1:])
