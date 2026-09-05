@@ -91,7 +91,7 @@ lint-fix *files:
 format *files:
     @swiftformat {{ if files == "" { "." } else { files } }}
 
-unused-check: build
+unused-check xcconfig="": (build xcconfig)
     @periphery scan --skip-build --index-store-path {{build_dir}}/Index.noindex/DataStore \
         --strict --retain-equatable-properties
 

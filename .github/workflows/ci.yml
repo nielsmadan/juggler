@@ -50,7 +50,7 @@ jobs:
           brew install periphery
 
       - name: Check for unused code
-        run: just unused-check
+        run: just unused-check ci.xcconfig
 
   idle-cpu:
     runs-on: macos-26
