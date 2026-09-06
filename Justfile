@@ -91,7 +91,12 @@ lint-fix *files:
 format *files:
     @swiftformat {{ if files == "" { "." } else { files } }}
 
-unused-check xcconfig="": (build xcconfig)
+# Indexes JugglerTests too; without it Periphery reports every test-only hook as unused.
+build-for-testing xcconfig="":
+    @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
+        {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build-for-testing
+
+unused-check xcconfig="": (build-for-testing xcconfig)
     @periphery scan --skip-build --index-store-path {{build_dir}}/Index.noindex/DataStore \
         --strict --retain-equatable-properties
 
