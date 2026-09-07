@@ -17,6 +17,38 @@ xcresult := build_dir / "Logs/Test/coverage.xcresult"
 default:
     @just --list
 
+# Prepare this checkout for work: dependencies, hooks, then verify.
+setup:
+    @just resolve-deps
+    @lefthook install
+    @just doctor
+
+# Verify the tools and checkout state this repo needs.
+doctor:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    fail=0
+    need() {
+        if command -v "$1" >/dev/null 2>&1; then
+            printf '  ok       %s\n' "$1"
+        else
+            printf '  MISSING  %-12s install: %s\n' "$1" "$2"; fail=1
+        fi
+    }
+    need swiftformat "brew install swiftformat"
+    need swiftlint "brew install swiftlint"
+    need python3 "brew install python"
+    need xcodebuild "install Xcode from the App Store"
+    need periphery "brew install --cask peripheryapp/periphery/periphery"
+    need lefthook "brew install lefthook"
+    if [ -f "$(git rev-parse --git-path hooks/pre-commit)" ]; then
+        printf '  ok       git hooks\n'
+    else
+        printf '  MISSING  %-12s run: just setup\n' 'git hooks'; fail=1
+    fi
+    [ "$fail" -eq 0 ] && printf 'Everything in place.\n'
+    exit $fail
+
 build xcconfig="":
     @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build
@@ -30,6 +62,15 @@ build-strict xcconfig="":
     xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build 2>&1 | tee /tmp/build-output.log
     ! grep -qE "warning:.*Juggler/" /tmp/build-output.log
+
+# Format check, lint, strict build and tests. The pre-push gate.
+check xcconfig="":
+    @python3 -B -m unittest discover -s scripts -p 'test_release*.py'
+    @swiftformat --lint .
+    @swiftlint --strict .
+    @just build-strict {{xcconfig}}
+    @just test {{xcconfig}}
+    @just unused-check {{xcconfig}}
 
 # Unit tests run in a Juggler host process.
 test xcconfig="":
@@ -150,21 +191,7 @@ reset-keep-stats:
     fi
     echo "All resets complete (statistics kept)."
 
-setup:
-    @lefthook install
-    @echo "Git hooks installed."
-
 # --- Release targets ---
-
-release: release-clean archive export
-    #!/usr/bin/env bash
-    echo "Creating ZIP..."
-    cd {{export_path}} && zip -r -y ../../{{zip_path}} Juggler.app
-    echo ""
-    echo "=== Release build complete ==="
-    echo "ZIP: {{zip_path}}"
-    echo "SHA256: $(shasum -a 256 {{zip_path}} | cut -d' ' -f1)"
-    echo ""
 
 archive:
     @echo "Archiving Release build..."
@@ -238,78 +265,9 @@ dmg:
     echo "SHA256: $(shasum -a 256 {{dmg_path}} | cut -d' ' -f1)"
     echo ""
 
-# Usage: just tag-release-patch, just tag-release-minor, just tag-release-major
-#   Bumps MARKETING_VERSION in the Xcode project, commits, tags, and pushes.
-#   Plain tag-release requires MARKETING_VERSION to already be ahead of the latest tag.
-tag-release-patch:
-    @just tag-release patch
-
-tag-release-minor:
-    @just tag-release minor
-
-tag-release-major:
-    @just tag-release major
-
-tag-release bump="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    LATEST_TAG=$(git tag --sort=-v:refname | head -1 | sed 's/^v//')
-    if [ -z "$LATEST_TAG" ]; then
-        echo "Error: no existing tags found."; exit 1
-    fi
-    # These get rewritten below, so uncommitted edits would be swept into the release commit.
-    for f in Juggler.xcodeproj/project.pbxproj scripts/install-remote.sh juggler/Views/SettingsView.swift; do
-        if ! git diff --quiet -- "$f"; then
-            echo "Error: $f has uncommitted changes. Commit or stash them first."; exit 1
-        fi
-    done
-    if [ -n "{{bump}}" ]; then
-        MAJOR=$(echo "$LATEST_TAG" | cut -d. -f1)
-        MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
-        PATCH=$(echo "$LATEST_TAG" | cut -d. -f3)
-        case "{{bump}}" in
-            patch) PATCH=$((PATCH + 1)) ;;
-            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
-            *) echo "Error: bump must be patch, minor, or major"; exit 1 ;;
-        esac
-        VERSION="$MAJOR.$MINOR.$PATCH"
-        echo "Bumping version: v$LATEST_TAG -> v$VERSION"
-        sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = $VERSION/" \
-            Juggler.xcodeproj/project.pbxproj
-        git add Juggler.xcodeproj/project.pbxproj
-    else
-        VERSION=$(xcodebuild -scheme {{scheme}} -configuration Release -showBuildSettings 2>/dev/null \
-            | grep MARKETING_VERSION | head -1 | tr -d ' ' | cut -d= -f2)
-        if [ "$VERSION" = "$LATEST_TAG" ] || [ "$(printf '%s\n' "$LATEST_TAG" "$VERSION" | sort -V | tail -1)" = "$LATEST_TAG" ]; then
-            echo "Error: MARKETING_VERSION ($VERSION) is not newer than latest tag (v$LATEST_TAG)."
-            echo "Run: just tag-release-patch, tag-release-minor, or tag-release-major"
-            exit 1
-        fi
-    fi
-    if ! git diff --cached --quiet; then
-        git commit -m "chore: bump version to $VERSION"
-    fi
-    RELEASE_REVISION=$(git rev-parse HEAD)
-    sed -E -i '' \
-        "s|installRevision = \"[0-9a-f]{40}\"|installRevision = \"$RELEASE_REVISION\"|" \
-        juggler/Views/SettingsView.swift
-    sed -E -i '' \
-        "s|JUGGLER_REVISION:-[0-9a-f]{40}|JUGGLER_REVISION:-$RELEASE_REVISION|" \
-        scripts/install-remote.sh
-    if ! grep -Fq "installRevision = \"$RELEASE_REVISION\"" juggler/Views/SettingsView.swift; then
-        echo "Error: failed to update the Settings installer revision."; exit 1
-    fi
-    if ! grep -Fq "JUGGLER_REVISION:-$RELEASE_REVISION" scripts/install-remote.sh; then
-        echo "Error: failed to update the remote installer revision."; exit 1
-    fi
-    git add scripts/install-remote.sh juggler/Views/SettingsView.swift
-    if ! git diff --cached --quiet; then
-        git commit -m "chore: pin remote installer for $VERSION"
-    fi
-    echo "Tagging v$VERSION..."
-    git tag -m "Release v$VERSION" "v$VERSION" && git push origin main "v$VERSION" && \
-    echo "Tagged and pushed v$VERSION — release workflow triggered."
-
 release-clean:
     @rm -rf {{release_dir}}
+
+[positional-arguments]
+release *args:
+    python3 scripts/release.py "$@"

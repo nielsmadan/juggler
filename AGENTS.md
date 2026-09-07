@@ -23,10 +23,15 @@ just format       # Run SwiftFormat
 just unused-check # Check for unused code (Periphery)
 just coverage     # Run unit tests and print the coverage summary
 just reset-all    # Clear all app preferences/permissions/integrations (fresh-state testing)
-just setup        # Install the repo's lefthook Git hooks
+just setup        # Resolve dependencies, install Git hooks, and verify tools
+just doctor       # Verify tools and hook installation
+just check        # Format check, lint, strict build, tests, and unused-code check
+just release      # Propose, check, confirm or override, and publish a version
 ```
 
 Or use Xcode: `⌘B` to build, `⌘R` to run.
+
+Release commands and installer pinning are documented in [docs/tech/release.md](docs/tech/release.md).
 
 **Testing workflow:** Don't run `just run` - the user runs and tests the app themselves. Just run `just build` and tell the user when it's ready for testing.
 

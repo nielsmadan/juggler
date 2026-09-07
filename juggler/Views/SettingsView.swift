@@ -1136,7 +1136,7 @@ struct SSHSettingsView: View {
             .appendingPathComponent(".ssh/config").path
     }
 
-    // `just tag-release` advances this to an immutable release-preparation commit.
+    // `just release` advances this to an immutable release-preparation commit.
     private static let installRevision = "d8b864f579e10fe0680a27b4b05324ebdc4e9b76"
     private var installOneLiner: String {
         "curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/\(Self.installRevision)"

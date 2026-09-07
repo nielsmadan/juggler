@@ -7,7 +7,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/<revision>/scripts/install-remote.sh |
 #       JUGGLER_BASE_URL=https://raw.githubusercontent.com/nielsmadan/juggler/<revision>/juggler/Resources bash
 #
-# `just tag-release` advances the default to an immutable release-preparation commit.
+# `just release` advances the default to an immutable release-preparation commit.
 
 set -e
 
