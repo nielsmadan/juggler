@@ -33,7 +33,7 @@ A closed pane is still cleaned up: on the next activation attempt `TerminalActiv
 
 ## Addressing
 
-The hook script (`Resources/hooks/notify.sh` and the per-agent equivalents) detects WezTerm by
+hooklinesinker (and Juggler's own Antigravity script) detects WezTerm by
 the `$WEZTERM_PANE` environment variable — an **integer** pane id set inside every WezTerm
 pane — and reports it as the terminal session id with `terminalType = "wezterm"`. The same
 integer id is used by `activate-pane`, appears in `$WEZTERM_PANE`, and is the `pane_id` field

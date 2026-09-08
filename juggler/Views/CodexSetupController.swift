@@ -15,13 +15,42 @@ final class CodexSetupController {
     var isEnablingInCodex = false
     var errorMessage: String?
 
+    /// The canonical hooks.json path and per-event group indexes the CLI reports. Trust keys
+    /// and hashes are derived from these rather than re-parsing hooks.json here, so the two
+    /// implementations cannot disagree about what is registered.
+    private var hooksJSONPath = CodexHooksInstaller.hooksJSONPath
+    private var hookEntries: [HooklinesinkerHookEntry] = []
+
+    private let client: HooklinesinkerClient
+
+    init(client: HooklinesinkerClient = .shared) {
+        self.client = client
+    }
+
     var allComplete: Bool { hooksInstalled && featureFlagEnabled && enabledInCodex }
 
     func refresh() {
-        hooksInstalled = FileManager.default.fileExists(atPath: CodexHooksInstaller.notifyScriptPath)
-            && !CodexHooksInstaller.hasUnregisteredEvents()
+        Task { await refreshAsync() }
+    }
+
+    func refreshAsync() async {
+        do {
+            let status = try await client.hookStatus(agent: .codex)
+            if !status.path.isEmpty { hooksJSONPath = status.path }
+            hookEntries = status.entries
+            hooksInstalled = status.state == .installed
+            if status.state == .unsupported {
+                errorMessage = CodexHooksError.hooksUnsupported(hooksJSONPath).errorDescription
+            }
+        } catch {
+            hookEntries = []
+            hooksInstalled = false
+            errorMessage = error.localizedDescription
+        }
         featureFlagEnabled = CodexHooksInstaller.isFeatureFlagEnabled()
-        enabledInCodex = CodexHooksInstaller.isEnabledInCodex()
+        enabledInCodex = CodexHooksInstaller.isEnabledInCodex(
+            hooksJSONPath: hooksJSONPath, entries: hookEntries
+        )
     }
 
     func initializePermissionEventPreference(
@@ -39,11 +68,10 @@ final class CodexSetupController {
         isInstallingHooks = true
         errorMessage = nil
         Task {
-            let result = CodexHooksInstaller.installHooks()
-            if let result {
-                errorMessage = result
+            if let failure = await CodexHooksInstaller.installHooks(client: client) {
+                errorMessage = failure
             }
-            refresh()
+            await refreshAsync()
             isInstallingHooks = false
         }
     }
@@ -51,24 +79,33 @@ final class CodexSetupController {
     func enableFlag() {
         isEnablingFlag = true
         errorMessage = nil
-        do {
-            try CodexHooksInstaller.enableFeatureFlag()
-        } catch {
-            errorMessage = error.localizedDescription
+        Task {
+            do {
+                try CodexHooksInstaller.enableFeatureFlag()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            await refreshAsync()
+            isEnablingFlag = false
         }
-        refresh()
-        isEnablingFlag = false
     }
 
     func enableInCodex() {
         isEnablingInCodex = true
         errorMessage = nil
-        do {
-            try CodexHooksInstaller.enableInCodex()
-        } catch {
-            errorMessage = error.localizedDescription
+        Task {
+            // Re-read the registration first: an install that ran since the last refresh can
+            // have moved the group index the trust key is built from.
+            await refreshAsync()
+            do {
+                try CodexHooksInstaller.enableInCodex(
+                    hooksJSONPath: hooksJSONPath, entries: hookEntries
+                )
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            await refreshAsync()
+            isEnablingInCodex = false
         }
-        refresh()
-        isEnablingInCodex = false
     }
 }

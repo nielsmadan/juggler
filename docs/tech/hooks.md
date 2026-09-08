@@ -1,119 +1,104 @@
 # Claude Code Hooks
 
-Juggler integrates with Claude Code via shell hooks, receiving notifications when session state changes. The other agents use their own mechanisms — see [OpenCode Plugin](opencode-plugin.md), [Codex Hooks](codex-hooks.md), [Pi Extension](pi-extension.md), and [Antigravity Hooks](antigravity-hooks.md).
+Juggler learns what Claude Code is doing from **hooklinesinker**, a small shared binary that
+owns the status hooks for Claude Code, Codex, OpenCode, Pi, Factory Droid, Qwen Code and Kimi Code. Juggler ships it inside the app
+bundle — there is **no separate Brew (or npm, or pip) dependency to install**. Antigravity is
+the one agent still on Juggler's own hooks; see [Antigravity Hooks](antigravity-hooks.md).
+
+Per-agent specifics: [OpenCode Plugin](opencode-plugin.md), [Codex Hooks](codex-hooks.md),
+[Pi Extension](pi-extension.md).
 
 ## Installation
 
-The installer copies the notification script to `~/.claude/hooks/juggler/` and registers it in `~/.claude/settings.json`:
+`HooklinesinkerClient` (`Services/HooklinesinkerClient.swift`) runs the bundled binary:
 
-**Files:**
-- `~/.claude/hooks/juggler/notify.sh` - Main notification script (the only file written to this path)
-- `install.sh` - Installation script, run from the app bundle; never copied into `~/.claude/hooks/juggler/`
+1. At launch, `install --consumer juggler --sink http://127.0.0.1:<hookPort>/hook` registers
+   Juggler as a consumer and promotes the binary to
+   `~/.local/share/hooklinesinker/bin/hooklinesinker` (`$XDG_DATA_HOME` honored).
+2. The Integration Hub's per-agent buttons run `hooks install --agent claude`, which writes
+   the hook entries into `~/.claude/settings.json`.
+3. `hooks status --agent claude --json` is what the UI's Installed/Not Installed indicator
+   and `IntegrationSync`'s drift check read.
 
-## Hook Script
+Everything after step 1 runs the **promoted** binary, because that is the path the installed
+hook commands point at. The bundle copy lives at `Juggler.app/Contents/MacOS/hooklinesinker`
+(`just build` stages it there after `xcodebuild`, verifying the release manifest first).
 
-**File:** `Resources/hooks/notify.sh`
+The hooks call `hooklinesinker ingest --agent claude --event <Event>`. No script is copied into
+`~/.claude/hooks/juggler/` any more, and the app ships no `notify.sh`.
 
-The script:
+## Payload contract
 
-1. Receives event name as `$1` (command-line argument)
-2. Reads JSON from stdin (hook payload from Claude Code)
-3. Detects terminal type (`$ITERM_SESSION_ID` for iTerm2, `$KITTY_WINDOW_ID` for Kitty, `$WEZTERM_PANE` for WezTerm)
-4. Detects tmux pane/session if running inside tmux
-5. Enriches with git info (branch, repo name)
-6. Detects an SSH session (`$SSH_CONNECTION`) and tags the payload with `remoteHost` (`user@host`)
-7. Builds unified payload via Python (avoids shell injection) and posts to Juggler
-
-The script uses `python3` with a quoted heredoc to build JSON safely from environment variables, piping directly into `curl --connect-timeout 1 --max-time 2`. This avoids shell interpolation of user-controlled fields.
-
-## Payload Contract
-
-### Input (from Claude Code, via stdin)
-
-Claude Code invokes the hook with the event name as `$1` and a JSON blob on stdin. The blob may be very large (e.g., `PostToolUse` includes full `tool_input` and `tool_result`). `notify.sh` extracts only three fields to keep Juggler's payload small:
-
-| Input field | Kept |
-|-------------|------|
-| `session_id` | yes |
-| `transcript_path` | yes |
-| `tool_name` | yes |
-| everything else | dropped |
-
-Source: `Resources/hooks/notify.sh:74-85`.
-
-### Environment variables consumed
-
-| Variable | Source | Use |
-|----------|--------|-----|
-| `ITERM_SESSION_ID` | iTerm2 | Terminal session ID (iTerm2) |
-| `KITTY_WINDOW_ID` | Kitty | Terminal session ID (Kitty) |
-| `KITTY_LISTEN_ON` | Kitty | Socket path (Kitty) |
-| `KITTY_PID` | Kitty | Kitty process ID |
-| `WEZTERM_PANE` | WezTerm | Terminal session ID (WezTerm integer pane id) |
-| `TMUX_PANE` | tmux | Current pane ID (e.g., `%0`) |
-| `PWD` | shell | Working directory; also used for git detection |
-| `SSH_CONNECTION` | sshd | Presence flags an SSH session; payload gets `remoteHost` (`$USER@$HOSTNAME`, host FQDN stripped) |
-| `JUGGLER_PORT` | optional | Override port (default `7483`) |
-
-Terminal type is detected by presence, in order: `KITTY_WINDOW_ID`, then `ITERM_SESSION_ID`, then `WEZTERM_PANE`. Tmux session name is queried via `tmux display-message -p -t "$TMUX_PANE" '#{session_name}'`.
-
-### Output (POST body to `/hook`)
+The hook writes a protocol-1 status record; hooklinesinker POSTs it to Juggler's sink as it
+happens. `Models/HooklinesinkerStatus.swift` decodes it, and `HookServer.routeRequest` tries
+that decode **first** for `/hook` bodies, falling back to the legacy `UnifiedHookPayload`
+(which is what Antigravity still sends).
 
 ```json
 {
-  "agent": "claude-code",
-  "event": "PreToolUse",
-  "terminal": {
-    "sessionId": "w0t0p0:UUID",
-    "cwd": "/path/to/cwd",
-    "terminalType": "iterm2",
-    "kittyListenOn": "unix:/tmp/kitty-12345",
-    "kittyPid": "12345"
-  },
-  "hookInput": {
-    "session_id": "...",
-    "transcript_path": "...",
-    "tool_name": "Bash"
-  },
-  "git": { "branch": "main", "repo": "app" },
+  "protocol": 1,
+  "bindingId": "…",
+  "agent": "claude",
+  "event": "UserPromptSubmit",
+  "phase": "working",
+  "running": true,
+  "observedAt": "2026-09-04T00:00:00Z",
+  "session": { "id": "…", "cwd": "/path", "transcriptPath": "…" },
+  "process": { "pid": 42, "startedAt": "…", "host": "…" },
+  "terminal": { "sessionId": "w0t0p0:UUID", "terminalType": "iterm2", "kittyListenOn": null, "kittyPid": null },
   "tmux": { "pane": "%0", "sessionName": "work" },
-  "remoteHost": "user@host"
+  "git": { "branch": "main", "repo": "app" },
+  "remoteHost": null
 }
 ```
 
-Optional blocks are omitted when empty:
-- `terminal.terminalType` / `kittyListenOn` / `kittyPid` - only present if the corresponding env var is set.
-- `tmux` - only present if `$TMUX_PANE` is set; `sessionName` only if `tmux display-message` succeeded.
-- `remoteHost` - only present if `$SSH_CONNECTION` is set.
-- `hookInput` - always present; may be empty `{}` if stdin is empty or unparseable.
+Notes that matter when reading Juggler's code:
 
-### Delivery
+- `cwd` sits on `session`, not on `terminal` — the opposite of the legacy payload.
+- The wire agent is `claude`; `HooklinesinkerStatus.jugglerAgent` maps it to Juggler's
+  long-standing `claude-code`, so stats keys and display names are unchanged.
+- `phase` is the state directly (`idle`/`working`/`permission`/`compacting`), so the v1 path
+  never touches `HookEventMapper`. An unrecognized phase decodes as `unknown` and is logged and
+  ignored rather than failing the record.
+- Sessions are keyed by `compositeSessionID` = `terminalSessionID[:tmuxPane]`, rebuilt from
+  `terminal`/`tmux`. `bindingId` is hooklinesinker's own key and is what startup hydration
+  dedupes on.
+- `running: false` removes the session, guarded by the stale-thread check below.
 
-`curl -s -X POST http://localhost:${JUGGLER_PORT}/hook -d @- --connect-timeout 1 --max-time 2 >/dev/null 2>&1 || true`. Delivery is best-effort and synchronous for at most two seconds; failures are ignored so the hook still succeeds.
+Terminal, tmux, git and SSH detection all happen inside hooklinesinker now; Juggler no longer
+has a shell script reading `$ITERM_SESSION_ID` and friends for these agents.
+
+### Hydration at launch
+
+`JugglerApp` starts the hook server, then calls `sessions --json` once and replays every
+`running` record through the same `handleStatus` path HTTP uses. That is what makes sessions
+which started before Juggler launched appear. Records whose binding already arrived live in
+that startup window are skipped, so nothing is doubled and a session that ended between the
+snapshot and the replay is not resurrected.
 
 ### HookServer constraints
 
-- Port: `7483` (overridable via `$JUGGLER_PORT`).
-- Max request size: **1 MB**. Bigger payloads are rejected without a visible error. The selective field extraction above is what keeps payloads under this limit.
+- Port: `7483` (overridable via `$JUGGLER_PORT`). The sink Juggler registers uses the same
+  source `HookServer` binds to, so a test instance on another port points at itself.
+- Max request size: **1 MB**.
 
 ## Hook Events
 
-Claude Code fires these events:
+Claude Code fires these events; hooklinesinker registers all of them except `SubagentStop`.
 
-| Event | When | Juggler Action |
-|-------|------|----------------|
-| `SessionStart` | Session begins | Create session (idle) |
-| `UserPromptSubmit` | User sends prompt | Set working |
-| `PreToolUse` | Before tool execution | Set working |
-| `PostToolUse` | After tool execution | Set working |
-| `PostToolUseFailure` | Tool failed | Set working |
-| `SubagentStart` | Task agent spawned | Set working |
-| `SubagentStop` | Task agent finished | (ignored) |
-| `PermissionRequest` | Needs permission | Set permission |
-| `PreCompact` | Context compaction | Set compacting |
-| `Stop` | Agent finished normally | Set idle |
-| `StopFailure` | Turn ended with an API error (overload, rate limit, server error, etc.) | Set idle |
-| `SessionEnd` | Session terminated | Remove session |
+| Event | When | Resulting phase |
+|-------|------|-----------------|
+| `SessionStart` | Session begins | `idle` |
+| `UserPromptSubmit` | User sends prompt | `working` |
+| `PreToolUse` | Before tool execution | `working` |
+| `PostToolUse` | After tool execution | `working` |
+| `PostToolUseFailure` | Tool failed | `working` |
+| `SubagentStart` | Task agent spawned | `working` |
+| `PermissionRequest` | Needs permission | `permission` |
+| `PreCompact` | Context compaction | `compacting` |
+| `Stop` | Agent finished normally | `idle` |
+| `StopFailure` | Turn ended with an API error | `idle` |
+| `SessionEnd` | Session terminated | *(removes the session)* |
 
 ## Known Quirks
 
@@ -131,73 +116,90 @@ SubagentStart → [work] → SubagentStop → Stop
 SubagentStart → [work] → Stop → SubagentStop (5-10 seconds later)
 ```
 
-The `SubagentStop` event fires **asynchronously after** the main `Stop` event. This is because subagent cleanup happens in a background process.
+The `SubagentStop` event fires **asynchronously after** the main `Stop` event, because subagent
+cleanup happens in a background process.
 
-**Impact:** If `SubagentStop` mapped to working state, it would overwrite the idle state from `Stop`, making sessions appear stuck.
+**Impact:** If `SubagentStop` mapped to working state, it would overwrite the idle state from
+`Stop`, making sessions appear stuck.
 
-**Solution:** We ignore `SubagentStop` entirely. The `Stop` event correctly indicates when the session becomes idle.
+**Solution:** `SubagentStop` is not registered at all. The `Stop` event correctly indicates when
+the session becomes idle.
 
 ### Stop Does Not Fire on API Errors
 
-Claude Code fires `Stop` only on normal turn completion. On API errors (overloaded, rate limit, authentication, billing, server, invalid request) it fires a separate `StopFailure` event instead. User interrupts (ESC) and CLI crashes fire neither.
+Claude Code fires `Stop` only on normal turn completion. On API errors (overloaded, rate limit,
+authentication, billing, server, invalid request) it fires a separate `StopFailure` event
+instead. User interrupts (ESC) and CLI crashes fire neither.
 
-**Impact:** Without hooking `StopFailure`, sessions hit by API errors would stay stuck in `working` forever.
+**Impact:** Without hooking `StopFailure`, sessions hit by API errors would stay stuck in
+`working` forever.
 
-**Solution:** Both `Stop` and `StopFailure` are hooked and mapped to `idle`. ESC interrupts and crashes are still unrecoverable from the hook layer.
+**Solution:** Both `Stop` and `StopFailure` are registered and map to `idle`. ESC interrupts and
+crashes are still unrecoverable from the hook layer.
+
+### A stale SessionEnd must not remove the live session
+
+Sessions are keyed by terminal pane, so `HookServer` compares the record's `session.id` against
+the row's before removing it; a mismatch is ignored. This is what keeps an abandoned thread's
+late `SessionEnd` from killing the session that replaced it in the same pane.
 
 ### Backburner State Persistence
 
 When a session is backburnered:
-- Most hook events are ignored (state preserved)
-- Only `UserPromptSubmit` exits backburner
+
+- Most events are ignored (state preserved)
+- Only a prompt submission exits backburner
 - This prevents working sessions from being unintentionally un-backburnered
 
 ## Configuration
 
-Hooks are configured in Claude Code's settings at `~/.claude/settings.json`. The install script (`install.sh`) writes hooks in the nested format with `type`, `command`, `timeout`, and optional `matcher`:
+The entries hooklinesinker writes into `~/.claude/settings.json` look like this:
 
 ```json
 {
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "~/.claude/hooks/juggler/notify.sh SessionStart", "timeout": 5}]}],
-    "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "~/.claude/hooks/juggler/notify.sh PreToolUse", "timeout": 5}]}],
-    "Stop": [{"hooks": [{"type": "command", "command": "~/.claude/hooks/juggler/notify.sh Stop", "timeout": 5}]}]
+    "SessionStart": [{"hooks": [{"type": "command", "command": "~/.local/share/hooklinesinker/bin/hooklinesinker ingest --agent claude --event SessionStart", "timeout": 5}]}],
+    "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "… ingest --agent claude --event PreToolUse", "timeout": 5}]}]
   }
 }
 ```
 
-The installer refuses to change an unreadable, invalid, or structurally incompatible
-`settings.json`. For a valid existing file it preserves a one-time recovery copy at
-`settings.json.juggler-backup`, retains unrelated settings and hooks, and replaces the
-merged file atomically.
-
-**Note:** `SubagentStop` is intentionally **not** hooked - it fires asynchronously after `Stop` and would overwrite the idle state. The install script removes any existing `SubagentStop` hooks.
+The installer reconciles **its own** generated group and preserves unrelated settings and hooks;
+a structurally unfamiliar `settings.json` is reported as `unsupported` and left alone rather than
+rewritten. Read the current state with `hooklinesinker hooks status --agent claude --json`.
 
 ## Debugging
 
-Check if hooks are working:
-
 ```bash
-# Watch for hook requests
-# Use the in-app log viewer (Settings > Logs) to monitor hook events
+hls=~/.local/share/hooklinesinker/bin/hooklinesinker
 
-# Test hook manually
-echo '{"session_id":"test"}' | ~/.claude/hooks/juggler/notify.sh SessionStart
+$hls doctor                                  # version, hook drift, ledger faults
+$hls sessions --json                         # what Juggler hydrates from
+$hls hooks status --agent claude --json      # registration + the exact commands
+$hls consumers --json                        # who else shares these hooks
 
-# Check if server is running
+# Test the sink directly (the legacy shape Antigravity still uses)
 curl http://localhost:7483/hook -X POST -d '{"agent":"test","event":"ping"}'
 ```
 
+The in-app log viewer (Settings → Logs) shows what the hook server received.
+
 ## Uninstall / Reset
 
-`Resources/hooks/uninstall.sh` is the single source of truth for removing **all** Juggler integrations, not just Claude Code hooks. It is run by `just reset-integration` (and `just reset-all`). In one pass it:
+Settings → Reset integrations runs, in this order:
 
-- Removes `~/.claude/hooks/juggler/` and surgically strips Juggler's hook entries from `~/.claude/settings.json` (parser-based, leaving other hooks intact).
-- Removes the Kitty watcher (`~/.config/kitty/juggler_watcher.py`).
-- Removes the OpenCode plugin (`~/.config/opencode/plugins/juggler-opencode.ts`).
-- Removes the Pi extension (`${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/juggler-pi.ts`). See [Pi Extension](pi-extension.md).
-- Removes Codex hooks (`~/.codex/hooks/juggler/`), strips Juggler entries from `~/.codex/hooks.json`, and surgically removes Juggler-owned trust blocks from the current `~/.codex/config.toml`. Later user changes and the harmless global `features.hooks` flag are preserved. See [Codex Hooks](codex-hooks.md) for the install side this reverses.
-- Resets the Automation (Apple Events) permission via `tccutil`.
+1. `hooks status --agent codex --json`, to capture the trust keys **before** anything removes
+   hooks (the keys are built from the group indexes hooks.json currently holds).
+2. Swift removal of Juggler's `[hooks.state]` trust blocks from `~/.codex/config.toml`.
+3. `hooklinesinker uninstall --consumer juggler` — this removes Juggler's registration, and
+   removes the shared hooks and the promoted binary only if Juggler was the **last** consumer.
+   Another tool (e.g. ringleader) still using them keeps them installed.
+4. `Resources/hooks/uninstall.sh`, which clears everything hooklinesinker does not own: the
+   Kitty watcher, Antigravity hooks, the Automation (Apple Events) permission via `tccutil`,
+   and — through `codex_config_cleanup.py` — pre-migration trust entries written over the old
+   `notify.sh` command.
+
+`just reset-integration` (and `just reset-all`) runs step 4 only.
 
 ---
 

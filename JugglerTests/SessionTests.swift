@@ -427,12 +427,54 @@ struct SessionTests {
         #expect(session.agentShortName == "CX")
     }
 
+    @Test func agentShortName_droid() {
+        let session = Session(
+            claudeSessionID: "test",
+            terminalSessionID: "w0t0p0:abc",
+            terminalType: .iterm2,
+            agent: "droid",
+            projectPath: "/test",
+            state: .idle,
+            startedAt: Date()
+        )
+        #expect(session.agentShortName == "DR")
+    }
+
+    @Test func agentShortName_qwen() {
+        let session = Session(
+            claudeSessionID: "test",
+            terminalSessionID: "w0t0p0:abc",
+            terminalType: .iterm2,
+            agent: "qwen",
+            projectPath: "/test",
+            state: .idle,
+            startedAt: Date()
+        )
+        #expect(session.agentShortName == "QW")
+    }
+
+    @Test func agentShortName_kimi() {
+        let session = Session(
+            claudeSessionID: "test",
+            terminalSessionID: "w0t0p0:abc",
+            terminalType: .iterm2,
+            agent: "kimi",
+            projectPath: "/test",
+            state: .idle,
+            startedAt: Date()
+        )
+        #expect(session.agentShortName == "KM")
+    }
+
     @Test func agentDisplayName_supportedHarnesses() {
         #expect(makeSession(agent: "claude-code").agentDisplayName == "Claude Code")
         #expect(makeSession(agent: "opencode").agentDisplayName == "OpenCode")
         #expect(makeSession(agent: "codex").agentDisplayName == "Codex")
         #expect(makeSession(agent: "pi").agentDisplayName == "Pi")
         #expect(makeSession(agent: "antigravity").agentDisplayName == "Antigravity")
+        #expect(makeSession(agent: "droid").agentDisplayName == "Factory Droid")
+        #expect(makeSession(agent: "qwen").agentDisplayName == "Qwen Code")
+        #expect(makeSession(agent: "kimi").agentDisplayName == "Kimi Code")
     }
 
     @Test func agentDisplayName_unknownHarnessPreservesIdentifier() {

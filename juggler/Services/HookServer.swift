@@ -10,6 +10,10 @@ actor HookServer {
     private var terminalRefreshTasks: [String: Task<Void, Never>] = [:]
     private var pendingTerminalRefreshes: [String: TerminalRefreshRequest] = [:]
     private var warnedEmptySessionSources: Set<String> = []
+    /// Hooklinesinker binding IDs already handled live before hydration ran, so a live event
+    /// racing hydration can't have a stale stored record replayed over it. Cleared once hydrated.
+    private var bindingsHandledLive: Set<String> = []
+    private var hasHydrated = false
     private var workGeneration = 0
     private var port: UInt16 = 7483
     private let maxRequestSize = 1_048_576
@@ -221,6 +225,15 @@ actor HookServer {
         try? JSONDecoder().decode(UnifiedHookPayload.self, from: Data(body.utf8))
     }
 
+    /// A protocol-v1 body also satisfies `UnifiedHookPayload` (both carry `agent` and `event`),
+    /// so this must be tried first — the `protocol` field is the discriminator.
+    func decodeStatusPayload(_ body: String) -> HooklinesinkerStatus? {
+        guard let status = try? JSONDecoder().decode(HooklinesinkerStatus.self, from: Data(body.utf8)),
+              status.protocol == HooklinesinkerStatus.supportedProtocol
+        else { return nil }
+        return status
+    }
+
     func processRequest(_ request: HTTPRequest) async -> HTTPResponse {
         let routedRequest = routeRequest(request)
         await processRequestAction(routedRequest.action)
@@ -240,6 +253,13 @@ actor HookServer {
 
         switch request.path {
         case "/hook":
+            if let status = decodeStatusPayload(request.body) {
+                return RoutedHTTPRequest(
+                    response: HTTPResponse(status: 200, body: #"{"status":"ok"}"#),
+                    action: .status(status)
+                )
+            }
+
             guard let payload = decodeUnifiedPayload(request.body) else {
                 return RoutedHTTPRequest(
                     response: HTTPResponse(
@@ -282,6 +302,8 @@ actor HookServer {
 
     private func processRequestAction(_ action: HookServerRequestAction) async {
         switch action {
+        case let .status(status):
+            await handleStatus(status)
         case let .hook(payload):
             await handleUnifiedHookEvent(payload)
         case let .kittyEvent(payload):
@@ -321,6 +343,135 @@ actor HookServer {
                     + "— further occurrences from this source suppressed"
             )
         }
+    }
+
+    // MARK: - Protocol-v1 status ingress
+
+    /// Replays the running records `hooklinesinker sessions --json` returned through the same
+    /// path live events take. Records whose binding already arrived live are skipped, so a
+    /// stored snapshot can never overwrite a fresher event or duplicate its row.
+    func hydrate(_ statuses: [HooklinesinkerStatus]) async {
+        for status in statuses where status.running {
+            guard !bindingsHandledLive.contains(status.bindingId) else {
+                let event = logSafe(status.event)
+                await MainActor.run {
+                    logDebug(.hooks, "Skipping hydration for binding already seen live: \(event)")
+                }
+                continue
+            }
+            await handleStatus(status, isHydration: true)
+        }
+        hasHydrated = true
+        bindingsHandledLive.removeAll()
+    }
+
+    /// Only matters until hydration has run, so the set is dropped afterwards rather than
+    /// growing for the life of the process.
+    private func recordHandledLive(_ bindingID: String) {
+        guard !hasHydrated else { return }
+        bindingsHandledLive.insert(bindingID)
+    }
+
+    func handleStatusForTesting(_ body: String) async {
+        guard let status = decodeStatusPayload(body) else { return }
+        await handleStatus(status)
+    }
+
+    func handleStatus(_ status: HooklinesinkerStatus, isHydration: Bool = false) async {
+        let terminalSessionID = status.terminalSessionID
+
+        // No terminal session ID means no activation address: the row could never be
+        // activated or auto-removed.
+        guard !terminalSessionID.isEmpty else {
+            await warnOnceAboutEmptySessionID(
+                agent: status.jugglerAgent, cwd: status.session.cwd, remoteHost: status.remoteHost
+            )
+            return
+        }
+
+        let compositeID = status.compositeSessionID
+
+        guard status.running else {
+            // An end that arrives after the hydration snapshot was taken must also suppress the
+            // replay, or the stored record would resurrect a session that just went away.
+            recordHandledLive(status.bindingId)
+            await removeSessionIfCurrent(
+                compositeID: compositeID,
+                agentSessionID: status.session.id,
+                event: status.event
+            )
+            return
+        }
+
+        if await ignoreCodexPermissionIfNeeded(status) { return }
+
+        guard let state = status.phase.sessionState else {
+            let event = logSafe(status.event)
+            let agent = logSafe(status.jugglerAgent)
+            await MainActor.run {
+                logDebug(.hooks, "Ignoring \(event) with unknown phase from \(agent)")
+            }
+            return
+        }
+
+        // Claimed before any suspension point, so hydration interleaving with a live event can
+        // never see an unclaimed binding.
+        recordHandledLive(status.bindingId)
+
+        let terminalType = status.resolvedTerminalType
+        await MainActor.run {
+            logDebug(
+                .hooks,
+                "Status received: \(status.event) from \(status.jugglerAgent) (\(terminalType.displayName))"
+            )
+        }
+
+        await MainActor.run {
+            self.sessionManager.addOrUpdateSession(
+                claudeSessionID: status.session.id,
+                terminalSessionID: terminalSessionID,
+                tmuxPane: status.tmux?.pane,
+                tmuxSessionName: status.tmux?.sessionName,
+                terminalType: terminalType,
+                agent: status.jugglerAgent,
+                projectPath: status.session.cwd,
+                state: state,
+                event: status.event,
+                gitBranch: status.git?.branch,
+                gitRepoName: status.git?.repo,
+                transcriptPath: status.session.transcriptPath,
+                remoteHost: status.remoteHost
+            )
+        }
+
+        // Restoring a snapshot is not a state change the user needs to hear about.
+        if !isHydration {
+            switch state {
+            case .idle:
+                await sendNotificationIfEnabled(title: "Session Idle", sessionID: compositeID)
+            case .permission:
+                await sendNotificationIfEnabled(title: "Permission Required", sessionID: compositeID)
+            default:
+                break
+            }
+        }
+
+        scheduleTerminalRefresh(
+            terminalSessionID: terminalSessionID,
+            terminalType: terminalType,
+            remoteHost: status.remoteHost,
+            listenSocket: status.terminal?.kittyListenOn
+        )
+    }
+
+    private func ignoreCodexPermissionIfNeeded(_ status: HooklinesinkerStatus) async -> Bool {
+        guard status.agent == "codex", status.phase == .permission, codexIgnorePermissionEvents else {
+            return false
+        }
+        await MainActor.run {
+            logDebug(.hooks, "Ignoring Codex permission event by user preference")
+        }
+        return true
     }
 
     private func handleUnifiedHookEvent(_ payload: UnifiedHookPayload) async {
@@ -665,6 +816,7 @@ struct RoutedHTTPRequest: Sendable {
 }
 
 enum HookServerRequestAction: Sendable {
+    case status(HooklinesinkerStatus)
     case hook(UnifiedHookPayload)
     case kittyEvent(KittyEventPayload)
     case invalidHook(String)

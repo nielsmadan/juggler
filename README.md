@@ -4,9 +4,9 @@
 
 A native macOS app that tracks your running coding agent sessions and cycles you to the next one that needs attention. No workflow changes. No new terminal. Just less time wasted.
 
-Currently works with iTerm2 / Kitty / WezTerm (tmux optional) and Claude Code, OpenCode, Codex, and Pi. More integrations coming soon.
+Currently works with iTerm2 / Kitty / WezTerm (tmux optional) and Claude Code, OpenCode, Codex, Pi, Factory Droid, Qwen Code, and Kimi Code. More integrations coming soon.
 
-![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![Codex](https://img.shields.io/badge/Codex-supported-brightgreen) ![Pi](https://img.shields.io/badge/Pi-supported-brightgreen) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen) ![WezTerm](https://img.shields.io/badge/WezTerm-supported-brightgreen)
+![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![Codex](https://img.shields.io/badge/Codex-supported-brightgreen) ![Pi](https://img.shields.io/badge/Pi-supported-brightgreen) ![Factory Droid](https://img.shields.io/badge/Factory_Droid-supported-brightgreen) ![Qwen Code](https://img.shields.io/badge/Qwen_Code-supported-brightgreen) ![Kimi Code](https://img.shields.io/badge/Kimi_Code-supported-brightgreen) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen) ![WezTerm](https://img.shields.io/badge/WezTerm-supported-brightgreen)
 
 <p align="center">
   <img src="site/video.gif" alt="Juggler demo" width="720">
@@ -42,7 +42,7 @@ brew install --cask nielsmadan/juggler/juggler
 
 1. **Download and open** - Launch Juggler from Applications
 2. **Walk through onboarding** - Set up terminal integration(s), install hooks, and configure global shortcuts
-3. **Open your sessions** - Start Claude Code, OpenCode, Codex, Pi, or Antigravity as you normally would. Juggler detects them automatically
+3. **Open your sessions** - Start Claude Code, OpenCode, Codex, Pi, Factory Droid, Qwen Code, Kimi Code, or Antigravity as you normally would. Juggler detects them automatically
 4. **Hit the hotkey** - Press `⇧⌘K` and you're at the next idle session
 
 ## Features
@@ -76,7 +76,7 @@ All shortcuts are customizable in Settings.
 
 **Terminals:** iTerm2, Kitty, WezTerm, tmux (optional multiplexer), Zellij (planned)
 
-**Coding agents:** Claude Code, OpenCode, Codex *(requires Codex CLI ≥ v0.114, or ≥ v0.145 for session-end tracking)*, Pi
+**Coding agents:** Claude Code, OpenCode, Codex *(requires Codex CLI ≥ v0.114, or ≥ v0.145 for session-end tracking)*, Pi, Factory Droid *(restart a running `droid` after installing hooks)*, Qwen Code, Kimi Code *(requires Kimi Code CLI ≥ 0.32.0)*
 
 **Requires:** macOS 15.0+ (Sequoia)
 
@@ -90,16 +90,25 @@ Juggler runs a lightweight HTTP server on port 7483 that receives state-change e
 
 ## Agent Integration
 
-Juggler's onboarding flow sets up agent integration automatically. You can also configure it manually:
+Juggler's onboarding flow sets up agent integration automatically, and Settings → Integrations
+has a button per agent.
 
-- **Claude Code** - Shell hooks installed to `~/.claude/hooks/juggler/`. Alternatively, run `/Applications/Juggler.app/Contents/Resources/install.sh`
-- **OpenCode** - TypeScript plugin installed to `~/.config/opencode/plugins/juggler-opencode.ts`. Configure via Settings → Integrations
-- **Codex** *(requires Codex CLI ≥ v0.114, or ≥ v0.145 for session-end tracking)* - Codex keeps hooks behind an opt-in flag, so all three setup steps in Settings → Integrations are required: **Install Hooks** (adds `notify.sh` + `hooks.json` to `~/.codex/hooks/juggler/`), **Enable Feature Flag** (`features.hooks = true` in `~/.codex/config.toml`), and **Enable in Codex** (writes `[hooks.state]` trust entries so Codex runs the hooks - this bypasses Codex's own hook review; alternatively run `/hooks` in Codex and trust them manually)
-- **Pi** - TypeScript extension installed to `~/.pi/agent/extensions/juggler-pi.ts`. Configure via Settings → Integrations. Restart Pi or run `/reload` for it to take effect
+Status hooks come from **hooklinesinker**, a small shared binary Juggler ships inside the app.
+There is **nothing extra to install** — no Brew formula, no npm package. Other tools can register
+as consumers of the same binary and the same hooks; uninstalling Juggler's integration removes
+only Juggler's registration, and leaves the hooks in place if anything else is still using them.
+
+- **Claude Code** - hook entries in `~/.claude/settings.json`
+- **OpenCode** - plugin at `~/.config/opencode/plugins/hooklinesinker-opencode.ts`
+- **Codex** *(requires Codex CLI ≥ v0.114, or ≥ v0.145 for session-end tracking)* - Codex keeps hooks behind an opt-in flag, so all three setup steps in Settings → Integrations are required: **Install Hooks** (registers the events in `~/.codex/hooks.json`), **Enable Feature Flag** (`features.hooks = true` in `~/.codex/config.toml`), and **Enable in Codex** (writes `[hooks.state]` trust entries so Codex runs the hooks - this bypasses Codex's own hook review; alternatively run `/hooks` in Codex and trust them manually)
+- **Pi** - extension at `~/.pi/agent/extensions/hooklinesinker-pi.ts`. Restart Pi or run `/reload` for it to take effect
 
 ### Running over SSH
 
-Juggler can track agent sessions running on remote hosts. Open the **SSH** tab in Settings for a step-by-step setup guide.
+Juggler can track agent sessions running on remote hosts. Open the **SSH** tab in Settings for a
+step-by-step setup guide. `scripts/install-remote.sh` does the remote side: it detects the host's
+architecture, downloads and checksum-verifies a hooklinesinker release, registers Juggler's sink,
+and installs hooks for whichever agents live there.
 
 ## Future
 

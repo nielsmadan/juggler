@@ -1,10 +1,10 @@
 # Juggler Documentation
 
-macOS menu bar app for navigating multiple Claude Code, OpenCode, Codex, Pi, and Antigravity sessions in iTerm2, Kitty, and WezTerm via global hotkeys.
+macOS menu bar app for navigating multiple Claude Code, OpenCode, Codex, Pi, Factory Droid, Qwen Code, Kimi Code, and Antigravity sessions in iTerm2, Kitty, and WezTerm via global hotkeys.
 
 ## What is Juggler?
 
-Juggler solves the "context switching" problem when running multiple Claude Code, OpenCode, Codex, Pi, and Antigravity sessions. Instead of manually hunting through terminal tabs, Juggler tracks all your sessions and lets you cycle through the ones that need attention with a single hotkey.
+Juggler solves the "context switching" problem when running multiple Claude Code, OpenCode, Codex, Pi, Factory Droid, Qwen Code, Kimi Code, and Antigravity sessions. Instead of manually hunting through terminal tabs, Juggler tracks all your sessions and lets you cycle through the ones that need attention with a single hotkey.
 
 ## Key Features
 
@@ -16,7 +16,7 @@ Juggler solves the "context switching" problem when running multiple Claude Code
 
 ## How It Works
 
-1. Install hooks for Claude Code (`~/.claude/hooks/`), OpenCode (a plugin), Codex (`~/.codex/hooks/`), or Pi (an extension in `~/.pi/agent/extensions/`)
+1. Install hooks for your agents from the Integration Hub — one bundled binary (hooklinesinker) writes them into each agent's own config
 2. Hooks notify Juggler when sessions change state
 3. Use global hotkeys to jump between sessions
 4. Juggler activates the correct terminal tab and pane

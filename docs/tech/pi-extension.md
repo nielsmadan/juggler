@@ -1,28 +1,43 @@
 # Pi Extension
 
-Juggler integrates with [Pi](https://pi.dev) (`@earendil-works/pi-coding-agent`) via a TypeScript **extension** rather than shell hooks — the same in-process model as the OpenCode plugin. The extension runs inside the Pi process, subscribes to Pi's lifecycle events, and posts session events to Juggler's HTTP server.
+Juggler learns what [Pi](https://pi.dev) (`@earendil-works/pi-coding-agent`) is doing through
+**hooklinesinker**, the shared status binary the app bundles — no separate Brew dependency. Pi
+has no shell hooks, so hooklinesinker ships a TypeScript **extension** that runs inside the Pi
+process, subscribes to Pi's lifecycle events, and shells out to the binary — the same in-process
+model as the OpenCode plugin.
 
 ## Installation
 
-The extension is installed to `${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/juggler-pi.ts`. Source: `Resources/pi-extension/juggler-pi.txt` (bundled as `.txt` so Xcode 16's filesystem-synchronized group doesn't treat it as TypeScript source and try to compile it; the installer copies it to disk with the `.ts` extension Pi expects).
+`hooklinesinker hooks install --agent pi` writes the extension to
+`${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/hooklinesinker-pi.ts`, substituting the promoted
+binary's absolute path into the template, and removes the pre-migration `juggler-pi.ts` in the
+same pass.
 
-`PiExtensionInstaller` (`Services/PiExtensionInstaller.swift`) resolves the directory (honoring `PI_CODING_AGENT_DIR`) and copies the file. Juggler's onboarding flow and `IntegrationHubView` install it automatically. Pi auto-discovers global extensions from that directory — **no trust step and no feature flag** (unlike Codex). The user must restart Pi or run `/reload` for a freshly installed extension to load.
+The extension source lives in hooklinesinker (`assets/pi-hooklinesinker.ts`) and is compiled into
+the binary with `include_str!`, so Juggler no longer ships a `.txt` copy in its resources — the
+Xcode filesystem-synchronized group can no longer misroute it into Compile Sources.
+
+`PiExtensionInstaller` (`Services/PiExtensionInstaller.swift`) is now a thin delegation to
+`HooklinesinkerClient`. Juggler's onboarding flow and `IntegrationHubView` run it automatically.
+Pi auto-discovers global extensions from that directory — **no trust step and no feature flag**
+(unlike Codex). The user must restart Pi or run `/reload` for a freshly installed extension to
+load.
 
 ## Lifecycle
 
 Like the OpenCode plugin (and unlike Claude Code's stateless per-event scripts), the extension is a long-lived module. Its default-exported factory runs once when Pi loads it and:
 
-1. Captures terminal info from `process.env` (once per Pi process).
-2. Captures git info via `git rev-parse` (once, best effort).
-3. Captures tmux pane ID and SSH remote host (once).
-4. Subscribes to Pi lifecycle events via `pi.on(...)`.
-5. Observes optional permission-system broadcasts via `pi.events.on(...)`.
+1. Subscribes to Pi lifecycle events via `pi.on(...)`.
+2. Observes optional permission-system broadcasts via `pi.events.on(...)`.
+
+Terminal, tmux, git and SSH detection are the binary's job and happen per event, so nothing goes
+stale if Pi is re-parented at runtime.
 
 It never intercepts `tool_call` or any `before_*` event, so it cannot influence Pi's behavior. The permission listeners are observational and use literal channel names, with no import or dependency on the permission package.
 
 ## Tracked Events
 
-| Pi event | Posted as | Notes |
+| Pi event | Ingested as | Notes |
 |----------|-----------|-------|
 | `session_start` | `session_start` | Fires at launch (`reason: "startup"`), before the first prompt — the session appears immediately as `idle`. Also fires on new/resume/reload/fork; re-posting `idle` is correct. |
 | `agent_start` | `agent_start` | The agent run begins after a prompt. |
@@ -31,31 +46,20 @@ It never intercepts `tool_call` or any `before_*` event, so it cannot influence 
 | `permissions:decision` | `permission_resolved` | A user-facing permission gate reached a decision. Silent policy and session decisions are ignored. |
 | `session_before_compact` | `session_before_compact` | Compaction starting. |
 | `session_compact` | `session_compact_idle` / `session_compact_working` | The extension reads `event.reason`: a manual `/compact` leaves the session idle; a `threshold`/`overflow` compaction is mid-turn and resumes work. |
-| `session_shutdown` | `session_shutdown` | Posted **only** for a UI-owning session when `event.reason === "quit"`. Child sessions and new/resume/reload/fork do not remove the terminal session. |
+| `session_shutdown` | `session_shutdown` | Ingested **only** for a UI-owning session when `event.reason === "quit"`. Child sessions and new/resume/reload/fork do not remove the terminal session. |
 
 ## Payload
 
-Each event posts to `http://localhost:${JUGGLER_PORT:-7483}/hook` with the same unified shape the OpenCode plugin uses:
+The extension does not talk to Juggler's HTTP server. It runs
+`hooklinesinker ingest --agent pi --event <event>` and writes `{"session_id": "..."}` to its
+stdin; the binary enriches that into a protocol-1 status record and POSTs it to Juggler's sink.
+See [Claude Code Hooks](hooks.md#payload-contract) for the record shape — it is shared by all
+four agents.
 
-```json
-{
-  "agent": "pi",
-  "event": "agent_start",
-  "terminal": {
-    "cwd": "/path/to/cwd",
-    "sessionId": "<ITERM_SESSION_ID or KITTY_WINDOW_ID>",
-    "terminalType": "iterm2" | "kitty",
-    "kittyListenOn": "unix:/tmp/kitty-12345",
-    "kittyPid": "12345"
-  },
-  "hookInput": { "session_id": "<pi session id>" },
-  "git": { "branch": "main", "repo": "app" },
-  "tmux": { "pane": "%0" },
-  "remoteHost": "user@host"
-}
-```
-
-`hookInput.session_id` is Pi's session id (`ctx.sessionManager.getSessionId()`), included as secondary metadata — Juggler keys sessions by the terminal session id. Kitty fields, `git`, `tmux`, and `remoteHost` are only included when available (`remoteHost` only when `$SSH_CONNECTION` indicates SSH). Permission-system payload details such as commands, paths, and prompt messages are not forwarded; only the synthesized event name is posted.
+`session_id` is Pi's session id (`ctx.sessionManager.getSessionId()`), carried as secondary
+metadata — Juggler keys sessions by the terminal session id. Permission-system payload details
+such as commands, paths, and prompt messages are never forwarded; only the synthesized event
+name is.
 
 ## Permission-System Integration
 
@@ -72,16 +76,20 @@ Permission resolution maps to `working`, not `idle`, because one tool call can e
 
 ## Failure Handling
 
-Every post uses `fetch` with `AbortSignal.timeout(2000)` and a `try/catch` that silently swallows errors. Posts share a promise queue so rapid prompt/decision sequences reach Juggler in event order. If Juggler isn't running, the extension drops events without disturbing Pi. `session_shutdown` is awaited so prior state changes and the removal land before Pi exits.
+Every ingest is spawned with a kill timer and its failures are swallowed, so a missing, hanging or
+erroring binary cannot block Pi. Ingests share a promise queue so rapid prompt/decision sequences
+reach Juggler in event order. `session_shutdown` is awaited so prior state changes and the removal
+land before Pi exits.
 
-The executable extension contract tests require Node.js 22.6 or newer for native TypeScript type stripping.
+The extension's contract tests live in hooklinesinker (`tests/ts_adapters.rs`, driving
+`tests/assets_harness.mjs`) and require Node.js 22.6 or newer for native TypeScript type
+stripping.
 
 ## Gotchas
 
 - **Restart / `/reload` required**: a newly installed extension only loads on the next Pi start or `/reload`.
-- **`.ts` must ship as `.txt`**: bundling the source as `.ts` makes Xcode 16 route it to Compile Sources instead of the resources bundle; `BundleResourcesTests` pins `juggler-pi.txt`.
-- **Terminal info is captured once** at load — if Pi is re-parented to a different terminal at runtime, the cached `terminal` block goes stale. Restart Pi to refresh.
-- **`JUGGLER_PORT` override**: the extension respects `$JUGGLER_PORT`. Keep it in sync with `HookServer` if the port is customized.
+- **The extension embeds an absolute binary path**: it is generated at install time from the promoted binary. Moving `~/.local/share/hooklinesinker` breaks it; reinstall rather than editing the file.
+- **The sink URL is registered, not embedded**: Juggler's port comes from `install --consumer juggler --sink ...`, so a test instance on another port re-registers rather than editing the extension.
 
 ---
 

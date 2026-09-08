@@ -1197,3 +1197,319 @@ struct HookServerTests {
         #expect(manager.sessions[0].id == "s1:%7")
     }
 }
+
+/// Protocol-v1 status ingress. `/hook` is shared with the legacy `UnifiedHookPayload` route,
+/// discriminated by the JSON `protocol` field, and never consults `HookEventMapper`.
+@Suite("HookServer — protocol-v1 status")
+struct HookServerStatusTests {
+    @Test func statusPayloadDecodesProtocolOne() throws {
+        let payload = try JSONDecoder().decode(
+            HooklinesinkerStatus.self,
+            from: Data(TestFixtures.workingStatus.utf8)
+        )
+        #expect(payload.protocol == 1)
+        #expect(payload.phase == .working)
+        #expect(payload.session.id == "native-session")
+        #expect(payload.terminal?.sessionId == "terminal-session")
+    }
+
+    /// Pins every field of the wire contract this build reads, including the identity fields
+    /// only diagnostics consume today — a rename on either side must fail here, not silently
+    /// decode to nil.
+    @Test func statusPayloadDecodesTheFullWireContract() throws {
+        let body = """
+        {"protocol":1,"bindingId":"b-1","agent":"codex","event":"PreToolUse","phase":"permission",\
+        "running":true,"observedAt":"2026-09-04T12:00:00Z",\
+        "session":{"id":"thread-1","cwd":"/work/repo","transcriptPath":"/tmp/t.jsonl"},\
+        "process":{"pid":4242,"startedAt":"2026-09-04T11:00:00Z","host":"test-host"},\
+        "terminal":{"sessionId":"s1","terminalType":"kitty","kittyListenOn":"unix:/tmp/kitty-1",\
+        "kittyPid":"12345"},"tmux":{"pane":"%1","sessionName":"dev"},\
+        "git":{"branch":"main","repo":"juggler"},"remoteHost":"build-box"}
+        """
+        let payload = try JSONDecoder().decode(HooklinesinkerStatus.self, from: Data(body.utf8))
+
+        #expect(payload.bindingId == "b-1")
+        #expect(payload.agent == "codex")
+        #expect(payload.event == "PreToolUse")
+        #expect(payload.phase == .permission)
+        #expect(payload.running)
+        #expect(payload.observedAt == "2026-09-04T12:00:00Z")
+        #expect(payload.session.transcriptPath == "/tmp/t.jsonl")
+        #expect(payload.process?.pid == 4242)
+        #expect(payload.process?.startedAt == "2026-09-04T11:00:00Z")
+        #expect(payload.process?.host == "test-host")
+        #expect(payload.terminal?.kittyListenOn == "unix:/tmp/kitty-1")
+        #expect(payload.terminal?.kittyPid == "12345")
+        #expect(payload.tmux?.sessionName == "dev")
+        #expect(payload.git?.branch == "main")
+        #expect(payload.git?.repo == "juggler")
+        #expect(payload.remoteHost == "build-box")
+        #expect(payload.compositeSessionID == "s1:%1")
+        #expect(payload.resolvedTerminalType == .kitty)
+    }
+
+    @Test func statusPayloadCarriesCwdOnSessionNotTerminal() throws {
+        let payload = try JSONDecoder().decode(
+            HooklinesinkerStatus.self,
+            from: Data(TestFixtures.statusJSON(cwd: "/work/repo").utf8)
+        )
+        #expect(payload.session.cwd == "/work/repo")
+    }
+
+    @Test func unknownPhaseSpellingDecodesAsUnknown() throws {
+        let payload = try JSONDecoder().decode(
+            HooklinesinkerStatus.self,
+            from: Data(TestFixtures.statusJSON(phase: "hibernating").utf8)
+        )
+        #expect(payload.phase == .unknown)
+        #expect(payload.phase.sessionState == nil)
+    }
+
+    @Test func legacyPayloadIsNotMistakenForStatus() async {
+        let server = HookServer(sessionManager: SessionManager())
+        let legacy = """
+        {"agent":"claude-code","event":"SessionStart","hookInput":{"session_id":"claude-1"},\
+        "terminal":{"sessionId":"s1","cwd":"/test/project","terminalType":"iterm2"}}
+        """
+        #expect(await server.decodeStatusPayload(legacy) == nil)
+        #expect(await server.decodeUnifiedPayload(legacy) != nil)
+    }
+
+    @Test func statusPayloadRoutesToStatusActionNotLegacyHook() async {
+        let server = HookServer(sessionManager: SessionManager())
+        let routed = await server.routeRequest(
+            HTTPRequest(method: "POST", path: "/hook", body: TestFixtures.workingStatus)
+        )
+
+        #expect(routed.response.status == 200)
+        if case .status = routed.action {
+            // Reached the v1 handler.
+        } else {
+            Issue.record("protocol-v1 body routed to \(routed.action) instead of .status")
+        }
+    }
+
+    @Test @MainActor func statusCreatesSessionWithCompositeIdentity() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let body = TestFixtures.statusJSON(
+            phase: "working",
+            terminalSessionID: "s1",
+            tmuxPane: "%1",
+            tmuxSessionName: "dev",
+            gitBranch: "main",
+            gitRepo: "juggler"
+        )
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 200)
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].id == "s1:%1")
+        #expect(manager.sessions[0].terminalSessionID == "s1")
+        #expect(manager.sessions[0].tmuxPane == "%1")
+        #expect(manager.sessions[0].tmuxSessionName == "dev")
+        #expect(manager.sessions[0].claudeSessionID == "native-session")
+        #expect(manager.sessions[0].projectPath == "/test/project")
+        #expect(manager.sessions[0].gitBranch == "main")
+        #expect(manager.sessions[0].gitRepoName == "juggler")
+        #expect(manager.sessions[0].state == .working)
+    }
+
+    @Test @MainActor func claudeAgentKeepsJugglersOwnSpelling() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await server.handleStatusForTesting(TestFixtures.statusJSON(agent: "claude"))
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].agent == "claude-code")
+        #expect(manager.sessions[0].agentShortName == "CC")
+    }
+
+    @Test(arguments: [
+        ("droid", "DR"),
+        ("qwen", "QW"),
+        ("kimi", "KM")
+    ])
+    @MainActor
+    func newAgentsPassThroughUnchanged(wireAgent: String, shortName: String) async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await server.handleStatusForTesting(TestFixtures.statusJSON(agent: wireAgent))
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].agent == wireAgent)
+        #expect(manager.sessions[0].agentShortName == shortName)
+    }
+
+    @Test(arguments: [
+        ("idle", SessionState.idle),
+        ("working", SessionState.working),
+        ("permission", SessionState.permission),
+        ("compacting", SessionState.compacting)
+    ])
+    @MainActor
+    func everyPhaseMapsDirectlyToASessionState(phase: String, expected: SessionState) async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await server.handleStatusForTesting(TestFixtures.statusJSON(phase: phase))
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].state == expected)
+    }
+
+    @Test @MainActor func unknownPhaseDoesNotCycleAnExistingSession() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        await server.handleStatusForTesting(TestFixtures.statusJSON(phase: "working"))
+
+        await server.handleStatusForTesting(TestFixtures.statusJSON(event: "Odd", phase: "hibernating"))
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].state == .working)
+    }
+
+    @Test @MainActor func endedStatusRemovesExistingSession() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        await server.handleStatusForTesting(TestFixtures.workingStatus)
+        #expect(manager.sessions.count == 1)
+
+        await server.handleStatusForTesting(TestFixtures.endedStatus)
+
+        #expect(manager.sessions.isEmpty)
+    }
+
+    @Test @MainActor func endedStatusFromASupersededThreadLeavesTheLiveRow() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        await server.handleStatusForTesting(
+            TestFixtures.statusJSON(bindingId: "b-new", sessionID: "thread-2", terminalSessionID: "s1")
+        )
+
+        await server.handleStatusForTesting(
+            TestFixtures.statusJSON(
+                bindingId: "b-old",
+                event: "SessionEnd",
+                running: false,
+                sessionID: "thread-1",
+                terminalSessionID: "s1"
+            )
+        )
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].claudeSessionID == "thread-2")
+    }
+
+    @Test @MainActor func statusWithoutATerminalSessionIDIsDropped() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await server.handleStatusForTesting(TestFixtures.statusJSON(terminalSessionID: nil))
+
+        #expect(manager.sessions.isEmpty)
+    }
+
+    @Test @MainActor func kittyTerminalTypeSurvivesTheRoundTrip() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await server.handleStatusForTesting(
+            TestFixtures.statusJSON(terminalSessionID: "kitty-window", terminalType: "kitty")
+        )
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].terminalType == .kitty)
+    }
+
+    // MARK: - Hydration
+
+    @Test @MainActor func hydrationRestoresRunningSessions() async throws {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let statuses = try Self.decodeAll([
+            TestFixtures.statusJSON(bindingId: "b1", phase: "idle", terminalSessionID: "s1"),
+            TestFixtures.statusJSON(bindingId: "b2", phase: "working", terminalSessionID: "s2")
+        ])
+
+        await server.hydrate(statuses)
+
+        #expect(manager.sessions.count == 2)
+        #expect(manager.sessions.contains { $0.id == "s1" && $0.state == .idle })
+        #expect(manager.sessions.contains { $0.id == "s2" && $0.state == .working })
+    }
+
+    @Test @MainActor func hydrationKeepsBothTerminalBindingsOfOneNativeSession() async throws {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        // One agent session (`native-session`) attached to two panes: distinct bindings,
+        // distinct composite ids, two rows.
+        let statuses = try Self.decodeAll([
+            TestFixtures.statusJSON(
+                bindingId: "b1", sessionID: "native-session", terminalSessionID: "s1", tmuxPane: "%1"
+            ),
+            TestFixtures.statusJSON(
+                bindingId: "b2", sessionID: "native-session", terminalSessionID: "s1", tmuxPane: "%2"
+            )
+        ])
+
+        await server.hydrate(statuses)
+
+        #expect(manager.sessions.count == 2)
+        #expect(manager.sessions.map(\.id).sorted() == ["s1:%1", "s1:%2"])
+    }
+
+    @Test @MainActor func hydrationSkipsBindingsAlreadySeenLive() async throws {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        // The live event wins the race and reports `working`.
+        await server.handleStatusForTesting(
+            TestFixtures.statusJSON(bindingId: "b1", phase: "working", terminalSessionID: "s1")
+        )
+        // The stored snapshot for the same binding is older and says `idle`.
+        let stale = try Self.decodeAll([
+            TestFixtures.statusJSON(bindingId: "b1", phase: "idle", terminalSessionID: "s1")
+        ])
+
+        await server.hydrate(stale)
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].state == .working)
+    }
+
+    // The snapshot is read once at startup; a session that ends between the read and the replay
+    // must not be resurrected by its own stale record.
+    @Test @MainActor func hydrationSkipsBindingsThatEndedLiveAfterTheSnapshot() async throws {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let snapshot = try Self.decodeAll([
+            TestFixtures.statusJSON(bindingId: "b1", phase: "working", terminalSessionID: "s1")
+        ])
+        await server.handleStatusForTesting(TestFixtures.statusJSON(
+            bindingId: "b1", event: "SessionEnd", running: false, terminalSessionID: "s1"
+        ))
+
+        await server.hydrate(snapshot)
+
+        #expect(manager.sessions.isEmpty)
+    }
+
+    @Test @MainActor func hydrationIgnoresRecordsThatAreNoLongerRunning() async throws {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let statuses = try Self.decodeAll([
+            TestFixtures.statusJSON(bindingId: "b1", running: false, terminalSessionID: "s1")
+        ])
+
+        await server.hydrate(statuses)
+
+        #expect(manager.sessions.isEmpty)
+    }
+
+    private static func decodeAll(_ bodies: [String]) throws -> [HooklinesinkerStatus] {
+        try bodies.map { try JSONDecoder().decode(HooklinesinkerStatus.self, from: Data($0.utf8)) }
+    }
+}

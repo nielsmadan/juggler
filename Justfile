@@ -3,6 +3,7 @@ scheme := "Juggler"
 stats_key := "dailyBusyStats"
 build_dir := "./build"
 app_path := build_dir / "Build/Products/Debug/Juggler.app"
+staged_hls := build_dir / "hooklinesinker/hooklinesinker"
 
 # Release
 release_dir := "./release"
@@ -18,8 +19,58 @@ default:
     @just --list
 
 build xcconfig="":
-    @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just stage-hooklinesinker
+    xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build
+    just embed-hooklinesinker
+
+# Verify the pinned hooklinesinker artifact against its release manifest and stage it.
+# Without a release build next door there is nothing to stage: the app builds, and every
+# hooklinesinker command reports the missing binary instead of crashing.
+stage-hooklinesinker:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dist="${HOOKLINESINKER_DIST:-../hooklinesinker/dist}"
+    artifact="hooklinesinker-macos-universal"
+    if [ ! -f "$dist/$artifact" ] || [ ! -f "$dist/SHA256SUMS" ]; then
+        echo "no verified hooklinesinker artifact in $dist — skipping (set HOOKLINESINKER_DIST)"
+        rm -f "{{staged_hls}}"
+        exit 0
+    fi
+    # Resolve the expected digest first and fail when the manifest does not list this
+    # artifact: `shasum -c` alone passes vacuously on a present-but-unlisted file.
+    expected="$(awk -v a="$artifact" '$2 == a || $2 == "*"a {print $1}' "$dist/SHA256SUMS")"
+    if [ -z "$expected" ]; then
+        echo "$dist/SHA256SUMS has no entry for $artifact — refusing to stage an unverified binary" >&2
+        exit 1
+    fi
+    actual="$(shasum -a 256 "$dist/$artifact" | cut -d' ' -f1)"
+    if [ "$expected" != "$actual" ]; then
+        echo "checksum mismatch for $artifact:" >&2
+        echo "  expected $expected" >&2
+        echo "  got      $actual" >&2
+        exit 1
+    fi
+    mkdir -p "$(dirname "{{staged_hls}}")"
+    cp "$dist/$artifact" "{{staged_hls}}"
+    chmod +x "{{staged_hls}}"
+    echo "Staged $artifact ($(shasum -a 256 "{{staged_hls}}" | cut -d' ' -f1))"
+
+# Copy the staged binary into the built bundle, next to the app executable — the path
+# HooklinesinkerClient resolves via Bundle.main.url(forAuxiliaryExecutable:). A resource
+# would land in Contents/Resources, where that lookup does not reach.
+embed-hooklinesinker:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -f "{{staged_hls}}" ]; then
+        echo "hooklinesinker not staged — the app will report a missing binary"
+        exit 0
+    fi
+    cp "{{staged_hls}}" "{{app_path}}/Contents/MacOS/hooklinesinker"
+    chmod +x "{{app_path}}/Contents/MacOS/hooklinesinker"
+    "{{app_path}}/Contents/MacOS/hooklinesinker" version --json
 
 resolve-deps:
     @xcodebuild -resolvePackageDependencies -scheme {{scheme}} -derivedDataPath {{build_dir}}
@@ -158,14 +209,38 @@ release: release-clean archive export
     echo "SHA256: $(shasum -a 256 {{zip_path}} | cut -d' ' -f1)"
     echo ""
 
-archive:
+# Refuses until someone decides how the nested hooklinesinker binary gets signed. A
+# Release app without it builds and launches fine, then fails every agent-status command
+# at runtime — the one failure mode a release must not ship silently.
+release-blocked-on-hooklinesinker:
+    #!/usr/bin/env bash
+    if [ "${JUGGLER_RELEASE_WITHOUT_HOOKLINESINKER:-}" = "1" ]; then
+        echo "WARNING: releasing without an embedded hooklinesinker — agent status will not work."
+        exit 0
+    fi
+    cat >&2 <<'MSG'
+    Refusing to build a release: hooklinesinker would not be embedded.
+
+    `just build` copies the binary into Contents/MacOS after xcodebuild, but that step does
+    not reach `xcodebuild archive`. Embedding it in a Release build needs a decision that is
+    still open: how the nested Mach-O gets signed and notarized (a Copy Files / Run Script
+    build phase inside the Juggler target, signed with the app, is the expected shape).
+
+    Until that lands:
+      - use `just build` for anything you actually run,
+      - or set JUGGLER_RELEASE_WITHOUT_HOOKLINESINKER=1 to ship a build whose
+        agent-status integration is knowingly dead.
+    MSG
+    exit 1
+
+archive: release-blocked-on-hooklinesinker
     @echo "Archiving Release build..."
     @mkdir -p {{release_dir}}
     @xcodebuild -scheme {{scheme}} -configuration Release \
         -archivePath {{archive_path}} \
         archive
 
-export:
+export: release-blocked-on-hooklinesinker
     @echo "Exporting with Developer ID signing..."
     @xcodebuild -exportArchive \
         -archivePath {{archive_path}} \

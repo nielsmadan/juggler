@@ -1,28 +1,39 @@
 # OpenCode Plugin
 
-Juggler integrates with OpenCode via a TypeScript plugin rather than shell hooks. The plugin runs inside the OpenCode process and posts session events to Juggler's HTTP server.
+Juggler learns what OpenCode is doing through **hooklinesinker**, the shared status binary the
+app bundles — no separate Brew dependency. OpenCode has no shell hooks, so hooklinesinker ships
+a TypeScript plugin that runs inside the OpenCode process and shells out to the binary.
 
 ## Installation
 
-The plugin is installed to `~/.config/opencode/plugins/juggler-opencode.ts`. Source: `Resources/opencode-plugin/juggler-opencode.txt` (bundled as `.txt` so Xcode 16's filesystem-synchronized group doesn't treat it as TypeScript source and try to compile it; the installer copies it to disk with the `.ts` extension OpenCode expects).
+`hooklinesinker hooks install --agent opencode` writes the plugin to
+`$OPENCODE_CONFIG_DIR/plugins/hooklinesinker-opencode.ts` (falling back to
+`${XDG_CONFIG_HOME:-~/.config}/opencode`), substituting the promoted binary's absolute path into
+the template. It removes the pre-migration `juggler-opencode.ts` in the same pass, so an upgraded
+install does not report twice.
 
-Juggler's onboarding flow and `IntegrationHubView` install the plugin automatically. OpenCode loads plugins from that directory at startup.
+The plugin source lives in hooklinesinker (`assets/opencode-hooklinesinker.ts`) and is compiled
+into the binary with `include_str!`, so Juggler no longer ships a `.txt` copy in its resources —
+the Xcode filesystem-synchronized group can no longer misroute it into Compile Sources.
+
+Juggler's onboarding flow and `IntegrationHubView` run the install; the Installed/Not Installed
+indicator reads `hooks status --agent opencode --json`. OpenCode loads plugins from that
+directory at startup.
 
 ## Lifecycle
 
 Unlike Claude Code (stateless hook scripts invoked per event), the OpenCode plugin is a long-lived function. On plugin load it:
 
-1. Captures terminal info from `process.env` (once per OpenCode process).
-2. Captures git info via `git rev-parse` (once).
-3. Captures tmux pane ID (once).
-4. Posts a synthetic `session.created` event immediately.
+1. Captures the OpenCode session id and working directory.
+2. Leaves terminal, tmux, git and SSH detection to the binary, which re-reads them per event.
+4. Ingests a synthetic `session.created` event immediately.
 5. Subscribes to OpenCode events via the returned `event` handler.
 
-The immediate `session.created` post is deliberate: when OpenCode resumes a previous session, the real `session.created` event is not fired, so without this Juggler would not see resumed sessions. See `juggler-opencode.ts:100-102`.
+The immediate `session.created` post is deliberate: when OpenCode resumes a previous session, the real `session.created` event is not fired, so without this the resumed session would never be seen.
 
 ## Tracked Events
 
-Only these events are forwarded (`juggler-opencode.ts:75-84`):
+Only these events are forwarded:
 
 | OpenCode event | Forwarded as |
 |----------------|--------------|
@@ -37,58 +48,45 @@ Only these events are forwarded (`juggler-opencode.ts:75-84`):
 
 All other event types are ignored.
 
-`session.status` is a parent event. The plugin reads `event.properties.status.type` and forwards a synthetic `session.status.<type>` event. If `status.type` is missing, the event is dropped. This is the mapping `HookEventMapper.mapOpenCode` expects.
+`session.status` is a parent event. The plugin reads `event.properties.status.type` and forwards a synthetic `session.status.<type>` event. If `status.type` is missing, the event is dropped.
 
-`session.idle` and `session.error` are distinct upstream events. The mapper treats both as transitions to idle so a session does not stay stuck in working after an API/model error.
+`session.idle` and `session.error` are distinct upstream events. Both map to idle so a session does not stay stuck in working after an API/model error.
 
 ## Payload
 
-Each forwarded event posts to `http://localhost:${JUGGLER_PORT:-7483}/hook` with this body:
+The plugin does not talk to Juggler's HTTP server. It runs
+`hooklinesinker ingest --agent opencode --event <event>` and writes
+`{"session_id": "...", "cwd": "..."}` to its stdin; the binary enriches that into a protocol-1
+status record and POSTs it to Juggler's sink. See
+[Claude Code Hooks](hooks.md#payload-contract) for the record shape — it is shared by all four
+agents, and terminal/tmux/git/SSH detection now happens in one place instead of four.
 
-```json
-{
-  "agent": "opencode",
-  "event": "session.status.idle",
-  "terminal": {
-    "cwd": "/path/to/cwd",
-    "sessionId": "<ITERM_SESSION_ID or KITTY_WINDOW_ID>",
-    "terminalType": "iterm2" | "kitty",
-    "kittyListenOn": "unix:/tmp/kitty-12345",
-    "kittyPid": "12345"
-  },
-  "hookInput": { "session_id": "<opencode session id>" },
-  "git": { "branch": "main", "repo": "app" },
-  "tmux": { "pane": "%0" },
-  "remoteHost": "user@host"
-}
-```
-
-`hookInput.session_id` is extracted from whichever of these is present: `event.properties.sessionID`, `event.properties.info.id`, `event.session_id`, `event.sessionID` (`juggler-opencode.ts:147-151`).
-
-Kitty fields are only included when `KITTY_WINDOW_ID` is set. `git`, `tmux`, and `remoteHost` blocks are only included when available; `remoteHost` (`user@host`) is set only when `$SSH_CONNECTION` indicates an SSH session.
+`session_id` is extracted from whichever of these is present: `event.properties.sessionID`, `event.properties.info.id`, `event.session_id`, `event.sessionID`.
 
 ## Failure Handling
 
-Every post uses `fetch` with an `AbortSignal.timeout(2000)` and a `try/catch` that silently swallows errors (`juggler-opencode.ts:127-136`). If Juggler isn't running, the plugin drops events without disturbing OpenCode.
+Every ingest is spawned with a kill timer and its failures are swallowed, so a missing, hanging or
+erroring binary cannot block OpenCode. hooklinesinker's own delivery to the sink is separately
+bounded, and a failed POST becomes a `problems` entry rather than a hook failure.
 
 ## Differences from Claude Code Hooks
 
 | | Claude Code | OpenCode |
 |---|---|---|
-| Integration type | Shell hook scripts, one invocation per event | In-process TypeScript plugin |
-| Terminal detection | Re-read from env each invocation | Captured once at plugin load |
+| Integration type | Shell hooks calling `hooklinesinker ingest` | In-process TypeScript plugin calling the same |
+| Terminal detection | Re-read from env each invocation | Re-read by the binary each invocation |
 | Session create on resume | Fired by Claude Code | Synthesized by plugin on load |
 | Event namespace | `SessionStart`, `UserPromptSubmit`, `PreToolUse`, ... | `session.created`, `session.status.*`, `permission.asked`, ... |
-| Failure behavior | Best-effort `curl`, bounded to 2 s | `fetch` with 2 s timeout, caught errors |
+| Failure behavior | Hook exits 0 regardless; delivery bounded | Spawn with a kill timer, errors swallowed |
 
 See `docs/tech/hook-server.md` for the event-to-state mapping both agents share.
 
 ## Gotchas
 
 - **Resumed sessions need the synthetic `session.created`**: removing the immediate post on plugin load silently breaks session tracking for any resumed OpenCode session.
-- **Terminal info is captured once**: if OpenCode is somehow re-parented to a different terminal at runtime, the plugin's cached `terminal` block goes stale. Restart OpenCode to refresh.
-- **`session.status` without a `type`** is dropped - if OpenCode changes its event shape, the plugin silently stops posting status updates. Log the payload before dropping if debugging.
-- **`JUGGLER_PORT` override**: the plugin respects `$JUGGLER_PORT`. Keep this in sync with `HookServer` if the port is ever customised.
+- **`session.status` without a `type`** is dropped - if OpenCode changes its event shape, the plugin silently stops reporting status updates. hooklinesinker's node harness (`tests/assets_harness.mjs`) pins this behaviour.
+- **The plugin embeds an absolute binary path**: it is generated at install time from the promoted binary. Moving `~/.local/share/hooklinesinker` breaks it; reinstall rather than editing the file.
+- **The sink URL is registered, not embedded**: Juggler's port comes from `install --consumer juggler --sink ...`, so a test instance on another port re-registers rather than editing the plugin.
 
 ---
 

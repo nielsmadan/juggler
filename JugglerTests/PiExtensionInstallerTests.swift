@@ -33,36 +33,31 @@ struct PiExtensionInstallerTests {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         #expect(PiExtensionInstaller.agentDirectory == home + "/.pi/agent")
         #expect(PiExtensionInstaller.extensionsDirectory == home + "/.pi/agent/extensions")
-        #expect(PiExtensionInstaller.extensionFilePath == home + "/.pi/agent/extensions/juggler-pi.ts")
+        #expect(PiExtensionInstaller.extensionFilePath == home + "/.pi/agent/extensions/hooklinesinker-pi.ts")
     }
 
     @Test func honorsPiCodingAgentDirOverride() {
         withPiAgentDir { dir in
             #expect(PiExtensionInstaller.agentDirectory == dir.path)
-            #expect(PiExtensionInstaller.extensionFilePath == dir.path + "/extensions/juggler-pi.ts")
+            #expect(PiExtensionInstaller.extensionFilePath == dir.path + "/extensions/hooklinesinker-pi.ts")
         }
     }
 
-    @Test func install_writesExtensionMatchingBundle() throws {
-        try withPiAgentDir { _ in
-            try PiExtensionInstaller.install()
+    @Test func install_delegatesToTheSharedInstaller() async throws {
+        let stub = try HooklinesinkerStub.make()
+        defer { stub.remove() }
 
-            let installedPath = PiExtensionInstaller.extensionFilePath
-            #expect(installedPath.hasSuffix("/extensions/juggler-pi.ts"))
-            #expect(FileManager.default.fileExists(atPath: installedPath))
+        try await PiExtensionInstaller.install(client: stub.client)
 
-            let bundled = Bundle.main.url(forResource: "juggler-pi", withExtension: "txt")!
-            let expected = try String(contentsOf: bundled, encoding: .utf8)
-            let actual = try String(contentsOfFile: installedPath, encoding: .utf8)
-            #expect(actual == expected)
-        }
+        #expect(stub.recordedArguments == [["hooks", "install", "--agent", "pi"]])
     }
 
-    @Test func install_isIdempotent() throws {
-        try withPiAgentDir { _ in
-            try PiExtensionInstaller.install()
-            try PiExtensionInstaller.install()
-            #expect(FileManager.default.fileExists(atPath: PiExtensionInstaller.extensionFilePath))
+    @Test func install_surfacesTheCLIsFailure() async throws {
+        let stub = try HooklinesinkerStub.make(stderr: "extensions directory is read-only", status: 1)
+        defer { stub.remove() }
+
+        await #expect(throws: HooklinesinkerClientError.self) {
+            try await PiExtensionInstaller.install(client: stub.client)
         }
     }
 }

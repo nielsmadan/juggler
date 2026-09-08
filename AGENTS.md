@@ -91,20 +91,24 @@ Juggler/
     ├── iterm2_daemon.py          # Python daemon for iTerm2 API
     ├── juggler_watcher.py        # Kitty event watcher
     ├── install_kitty_watcher.sh  # Kitty watcher install script
+    ├── codex_config_cleanup.py   # Removes pre-migration Codex trust entries on reset
     ├── hooks/
-    │   ├── install.sh            # Hook installation script
-    │   ├── notify.sh             # Hook notification script
-    │   └── uninstall.sh          # Integration cleanup (single source of truth)
-    ├── codex-hooks/
-    │   ├── codex-install.sh      # Codex hook install script
-    │   └── codex-notify.sh       # Codex hook notification script
-    ├── antigravity-hooks/
-    │   └── antigravity-notify.sh # Antigravity hook notification script
-    ├── opencode-plugin/
-    │   └── juggler-opencode.txt  # OpenCode plugin (bundled as .txt; installer writes it to disk as .ts)
-    └── pi-extension/
-        └── juggler-pi.txt        # Pi extension (bundled as .txt; installer writes it to disk as .ts)
+    │   └── uninstall.sh          # Integration cleanup for everything hooklinesinker doesn't own
+    └── antigravity-hooks/
+        └── antigravity-notify.sh # Antigravity hook notification script
 ```
+
+Claude Code, Codex, OpenCode and Pi hooks are **not** in this tree: hooklinesinker owns them.
+`just build` stages its universal binary at `Juggler.app/Contents/MacOS/hooklinesinker`, after
+resolving its digest out of the release `SHA256SUMS` and refusing an artifact the manifest does
+not list (set `HOOKLINESINKER_DIST` to a release build; without one the app builds and reports
+the binary as missing).
+
+**Release is deliberately blocked.** `xcodebuild archive` never runs that embedding step, so
+`just archive`/`just export` and the release workflow refuse rather than ship an app whose
+agent-status integration is silently dead. Lifting the block means deciding how the nested
+Mach-O gets signed — until then, `JUGGLER_RELEASE_WITHOUT_HOOKLINESINKER=1` is the explicit
+opt-out.
 
 **Session states:** `idle`, `permission`, `working`, `backburner` (excluded from cycle), `compacting`
 
@@ -119,11 +123,20 @@ Juggler/
 
 ## Hook Installation
 
-Hooks are installed to `~/.claude/hooks/juggler/`. The `notify.sh` script reads session data from stdin (JSON) and posts to Juggler's HTTP server. `notify.sh` detects the terminal type from env vars (`$KITTY_WINDOW_ID` → Kitty, else `$ITERM_SESSION_ID` → iTerm2).
+Claude Code, Codex, OpenCode and Pi hooks all belong to **hooklinesinker**, the shared binary in
+`Contents/MacOS/hooklinesinker`. `HooklinesinkerClient` registers Juggler as a consumer with an
+HTTP sink, then runs `hooks install|status --agent <agent>`; the binary writes into each agent's
+own configuration and reports drift. Juggler does not build hook commands, parse `settings.json`
+or `hooks.json`, or ship notify scripts for those four agents. See
+[docs/tech/hooks.md](docs/tech/hooks.md).
 
-Codex hooks install the bundled `codex-notify.sh` to `~/.codex/hooks/juggler/notify.sh`, register it in `~/.codex/hooks.json`, and trust it via `~/.codex/config.toml`. See [docs/tech/codex-hooks.md](docs/tech/codex-hooks.md).
+The one thing Juggler still owns for Codex is **trust**: `[hooks.state]` in
+`~/.codex/config.toml`, hashed from the command and group index `hooks status --json` reports.
+hooklinesinker must never touch `config.toml`. See
+[docs/tech/codex-hooks.md](docs/tech/codex-hooks.md).
 
-Pi installs the bundled `juggler-pi.txt` as a TypeScript extension to `~/.pi/agent/extensions/juggler-pi.ts` (honoring `PI_CODING_AGENT_DIR`). No trust step or feature flag — Pi auto-discovers global extensions on restart/`/reload`. See [docs/tech/pi-extension.md](docs/tech/pi-extension.md).
+Uninstall is scoped: `uninstall --consumer juggler` removes Juggler's registration, and removes
+the hooks only if Juggler was the last consumer.
 
 Antigravity installs the bundled `antigravity-notify.sh` to `~/.gemini/hooks/juggler/notify.sh` and registers it under a `"juggler"` key in `~/.gemini/config/hooks.json`. No trust step or feature flag. Only `PreInvocation` (working) and `Stop` (idle) are registered; `Stop` requires the hook to return a `decision`, so the script always emits an allow. No permission/compaction/session-end events. See [docs/tech/antigravity-hooks.md](docs/tech/antigravity-hooks.md).
 

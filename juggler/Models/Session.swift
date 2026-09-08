@@ -47,6 +47,9 @@ struct Session: Identifiable, Codable, Equatable {
         case "codex": "CX"
         case "pi": "PI"
         case "antigravity": "AG"
+        case "droid": "DR"
+        case "qwen": "QW"
+        case "kimi": "KM"
         default: "CC"
         }
     }
@@ -58,6 +61,9 @@ struct Session: Identifiable, Codable, Equatable {
         case "codex": "Codex"
         case "pi": "Pi"
         case "antigravity": "Antigravity"
+        case "droid": "Factory Droid"
+        case "qwen": "Qwen Code"
+        case "kimi": "Kimi Code"
         default: agent
         }
     }

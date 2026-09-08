@@ -22,6 +22,9 @@ struct IntegrationHubView: View {
     @State private var showingOpenCodeSetup = false
     @State private var showingCodexSetup = false
     @State private var showingPiSetup = false
+    @State private var showingDroidSetup = false
+    @State private var showingQwenSetup = false
+    @State private var showingKimiSetup = false
     @State private var showingAntigravitySetup = false
 
     @State private var iterm2Configured = false
@@ -32,6 +35,9 @@ struct IntegrationHubView: View {
     @State private var openCodeConfigured = false
     @State private var codexConfigured = false
     @State private var piConfigured = false
+    @State private var droidConfigured = false
+    @State private var qwenConfigured = false
+    @State private var kimiConfigured = false
     @State private var antigravityConfigured = false
 
     @State private var showingIncompleteAlert = false
@@ -42,7 +48,7 @@ struct IntegrationHubView: View {
 
     var hasAnyAgent: Bool {
         claudeCodeConfigured || openCodeConfigured || codexConfigured || piConfigured
-            || antigravityConfigured
+            || droidConfigured || qwenConfigured || kimiConfigured || antigravityConfigured
     }
 
     var body: some View {
@@ -143,6 +149,30 @@ struct IntegrationHubView: View {
                         )
 
                         IntegrationCard(
+                            icon: "cpu",
+                            title: "Factory Droid",
+                            description: "Install hooks for session tracking",
+                            isConfigured: droidConfigured,
+                            action: { showingDroidSetup = true }
+                        )
+
+                        IntegrationCard(
+                            icon: "atom",
+                            title: "Qwen Code",
+                            description: "Install hooks for session tracking",
+                            isConfigured: qwenConfigured,
+                            action: { showingQwenSetup = true }
+                        )
+
+                        IntegrationCard(
+                            icon: "moon.stars",
+                            title: "Kimi Code",
+                            description: "Install hooks for session tracking",
+                            isConfigured: kimiConfigured,
+                            action: { showingKimiSetup = true }
+                        )
+
+                        IntegrationCard(
                             icon: "arrow.up.circle",
                             title: "Antigravity",
                             description: "Install hooks for session tracking (experimental)",
@@ -204,6 +234,18 @@ struct IntegrationHubView: View {
         }
         .sheet(isPresented: $showingPiSetup) {
             PiSetupView(isConfigured: $piConfigured)
+                .frame(width: 540, height: 420)
+        }
+        .sheet(isPresented: $showingDroidSetup) {
+            DroidSetupView(isConfigured: $droidConfigured)
+                .frame(width: 540, height: 420)
+        }
+        .sheet(isPresented: $showingQwenSetup) {
+            QwenSetupView(isConfigured: $qwenConfigured)
+                .frame(width: 540, height: 420)
+        }
+        .sheet(isPresented: $showingKimiSetup) {
+            KimiSetupView(isConfigured: $kimiConfigured)
                 .frame(width: 540, height: 420)
         }
         .sheet(isPresented: $showingAntigravitySetup) {
@@ -560,11 +602,6 @@ struct ClaudeCodeSetupView: View {
     @State private var isInstalled = false
     @State private var errorMessage: String?
 
-    private var hooksPath: String {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/hooks/juggler/notify.sh").path
-    }
-
     var body: some View {
         VStack(spacing: 16) {
             Text("Claude Code Setup")
@@ -572,7 +609,7 @@ struct ClaudeCodeSetupView: View {
                 .fontWeight(.bold)
 
             Text(
-                "Juggler needs to install hooks in ~/.claude/hooks to detect when Claude Code sessions become idle or need input."
+                "Juggler needs to register hooks in ~/.claude/settings.json to detect when Claude Code sessions become idle or need input."
             )
             .font(.callout)
             .foregroundStyle(.secondary)
@@ -583,7 +620,7 @@ struct ClaudeCodeSetupView: View {
                     number: 1,
                     isComplete: isInstalled,
                     title: "Install Hooks",
-                    detail: "Adds notify.sh to ~/.claude/hooks/juggler/"
+                    detail: "Registers Juggler's hook events in ~/.claude/settings.json"
                 )
             }
             .padding()
@@ -622,8 +659,8 @@ struct ClaudeCodeSetupView: View {
             }
         }
         .padding()
-        .onAppear {
-            isInstalled = FileManager.default.fileExists(atPath: hooksPath)
+        .task {
+            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .claude)
         }
     }
 
@@ -632,15 +669,11 @@ struct ClaudeCodeSetupView: View {
         errorMessage = nil
 
         Task {
-            let result = await ScriptInstaller.installHooks()
-            await MainActor.run {
-                if let error = result {
-                    errorMessage = error
-                } else {
-                    isInstalled = true
-                }
-                isInstalling = false
+            if let error = await ScriptInstaller.installHooks() {
+                errorMessage = error
             }
+            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .claude)
+            isInstalling = false
         }
     }
 }
@@ -653,10 +686,6 @@ struct OpenCodeSetupView: View {
     @State private var isInstalling = false
     @State private var isInstalled = false
     @State private var errorMessage: String?
-
-    private var pluginPath: String {
-        OpenCodePluginInstaller.pluginFilePath
-    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -676,7 +705,7 @@ struct OpenCodeSetupView: View {
                     number: 1,
                     isComplete: isInstalled,
                     title: "Install Plugin",
-                    detail: "Adds juggler-opencode.ts to the OpenCode plugins directory"
+                    detail: "Adds hooklinesinker-opencode.ts to the OpenCode plugins directory"
                 )
             }
             .padding()
@@ -715,8 +744,8 @@ struct OpenCodeSetupView: View {
             }
         }
         .padding()
-        .onAppear {
-            isInstalled = FileManager.default.fileExists(atPath: pluginPath)
+        .task {
+            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .opencode)
         }
     }
 
@@ -724,13 +753,15 @@ struct OpenCodeSetupView: View {
         isInstalling = true
         errorMessage = nil
 
-        do {
-            try OpenCodePluginInstaller.install()
-            isInstalled = true
-        } catch {
-            errorMessage = error.localizedDescription
+        Task {
+            do {
+                try await OpenCodePluginInstaller.install()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .opencode)
+            isInstalling = false
         }
-        isInstalling = false
     }
 }
 
@@ -742,10 +773,6 @@ struct PiSetupView: View {
     @State private var isInstalling = false
     @State private var isInstalled = false
     @State private var errorMessage: String?
-
-    private var extensionPath: String {
-        PiExtensionInstaller.extensionFilePath
-    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -765,7 +792,7 @@ struct PiSetupView: View {
                     number: 1,
                     isComplete: isInstalled,
                     title: "Install Extension",
-                    detail: "Adds juggler-pi.ts to Pi's extensions directory (~/.pi/agent/extensions/)"
+                    detail: "Adds hooklinesinker-pi.ts to Pi's extensions directory (~/.pi/agent/extensions/)"
                 )
             }
             .padding()
@@ -807,8 +834,8 @@ struct PiSetupView: View {
             }
         }
         .padding()
-        .onAppear {
-            isInstalled = FileManager.default.fileExists(atPath: extensionPath)
+        .task {
+            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .pi)
         }
     }
 
@@ -816,13 +843,276 @@ struct PiSetupView: View {
         isInstalling = true
         errorMessage = nil
 
-        do {
-            try PiExtensionInstaller.install()
-            isInstalled = true
-        } catch {
-            errorMessage = error.localizedDescription
+        Task {
+            do {
+                try await PiExtensionInstaller.install()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .pi)
+            isInstalling = false
         }
-        isInstalling = false
+    }
+}
+
+// MARK: - Factory Droid Setup
+
+struct DroidSetupView: View {
+    @Binding var isConfigured: Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var isInstalling = false
+    @State private var isInstalled = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Factory Droid Setup")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Text(
+                "Juggler needs to register hooks in ~/.factory/hooks.json to detect when Droid sessions become idle or need input."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+
+            VStack(alignment: .leading, spacing: 16) {
+                SetupStep(
+                    number: 1,
+                    isComplete: isInstalled,
+                    title: "Install Hooks",
+                    detail: "Registers Juggler's hook events in ~/.factory/hooks.json"
+                )
+            }
+            .padding()
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(8)
+
+            if isInstalled {
+                Label("Hooks Installed", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Text("Droid reads hooks at startup — restart a running droid session for it to take effect.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if let error = errorMessage {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            }
+
+            if !isInstalled {
+                Button("Install Hooks") {
+                    installHooks()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isInstalling)
+            }
+
+            Spacer()
+
+            if isInstalled {
+                Button("Done") {
+                    isConfigured = true
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+        }
+        .padding()
+        .task {
+            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .droid)
+        }
+    }
+
+    private func installHooks() {
+        isInstalling = true
+        errorMessage = nil
+
+        Task {
+            let result = await HooklinesinkerClient.shared.installHooks(agent: .droid)
+            if !result.isSuccess {
+                errorMessage = result.failureMessage
+            }
+            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .droid)
+            isInstalling = false
+        }
+    }
+}
+
+// MARK: - Qwen Code Setup
+
+struct QwenSetupView: View {
+    @Binding var isConfigured: Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var isInstalling = false
+    @State private var isInstalled = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Qwen Code Setup")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Text(
+                "Juggler needs to register hooks in ~/.qwen/settings.json to detect when Qwen Code sessions become idle or need input."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+
+            VStack(alignment: .leading, spacing: 16) {
+                SetupStep(
+                    number: 1,
+                    isComplete: isInstalled,
+                    title: "Install Hooks",
+                    detail: "Registers Juggler's hook events in ~/.qwen/settings.json"
+                )
+            }
+            .padding()
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(8)
+
+            if isInstalled {
+                Label("Hooks Installed", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else if let error = errorMessage {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            }
+
+            if !isInstalled {
+                Button("Install Hooks") {
+                    installHooks()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isInstalling)
+            }
+
+            Spacer()
+
+            if isInstalled {
+                Button("Done") {
+                    isConfigured = true
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+        }
+        .padding()
+        .task {
+            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .qwen)
+        }
+    }
+
+    private func installHooks() {
+        isInstalling = true
+        errorMessage = nil
+
+        Task {
+            let result = await HooklinesinkerClient.shared.installHooks(agent: .qwen)
+            if !result.isSuccess {
+                errorMessage = result.failureMessage
+            }
+            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .qwen)
+            isInstalling = false
+        }
+    }
+}
+
+// MARK: - Kimi Code Setup
+
+struct KimiSetupView: View {
+    @Binding var isConfigured: Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var isInstalling = false
+    @State private var isInstalled = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Kimi Code Setup")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Text(
+                "Juggler needs to register hooks in ~/.kimi-code/config.toml to detect when Kimi Code sessions become idle or need input."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+
+            VStack(alignment: .leading, spacing: 16) {
+                SetupStep(
+                    number: 1,
+                    isComplete: isInstalled,
+                    title: "Install Hooks",
+                    detail: "Registers Juggler's hook events in ~/.kimi-code/config.toml"
+                )
+            }
+            .padding()
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(8)
+
+            if isInstalled {
+                Label("Hooks Installed", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else if let error = errorMessage {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            }
+
+            if !isInstalled {
+                Button("Install Hooks") {
+                    installHooks()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isInstalling)
+            }
+
+            Spacer()
+
+            if isInstalled {
+                Button("Done") {
+                    isConfigured = true
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+        }
+        .padding()
+        .task {
+            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .kimi)
+        }
+    }
+
+    private func installHooks() {
+        isInstalling = true
+        errorMessage = nil
+
+        Task {
+            let result = await HooklinesinkerClient.shared.installHooks(agent: .kimi)
+            if !result.isSuccess {
+                errorMessage = result.failureMessage
+            }
+            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .kimi)
+            isInstalling = false
+        }
     }
 }
 
@@ -853,7 +1143,7 @@ struct CodexSetupView: View {
                     number: 1,
                     isComplete: controller.hooksInstalled,
                     title: "Install Hooks",
-                    detail: "Adds notify.sh and hooks.json to ~/.codex/hooks/juggler/"
+                    detail: "Registers Juggler's hook events in ~/.codex/hooks.json"
                 )
 
                 SetupStep(

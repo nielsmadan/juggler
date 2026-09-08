@@ -205,8 +205,22 @@ struct GeneralSettingsView: View {
         return ["Removed login item"]
     }
 
+    /// Order matters. Codex's trust keys are built from the group indexes hooks.json currently
+    /// holds, so they have to be read and cleaned while the hooks are still registered —
+    /// hooklinesinker never touches config.toml, trust stays Juggler's. Removing the consumer
+    /// then takes the shared hooks and the promoted binary with it once no other app is
+    /// registered, and `uninstall.sh` finally clears what hooklinesinker doesn't own: the Kitty
+    /// watcher, Antigravity hooks, Automation permission, and pre-migration leftovers.
     private func runIntegrationCleanup() async -> [String] {
         var actions: [String] = []
+        actions += await removeCodexTrustEntries()
+
+        let removal = await HooklinesinkerClient.shared.uninstallConsumer()
+        if removal.isSuccess {
+            actions.append("Removed shared agent hooks")
+        } else {
+            actions.append("Shared agent hook removal failed: \(removal.failureMessage)")
+        }
         if Bundle.main.path(forResource: "uninstall", ofType: "sh") != nil {
             if let error = await ScriptInstaller.runBundledScript(resource: "uninstall") {
                 actions.append("Integration cleanup failed: \(error)")
@@ -219,6 +233,24 @@ struct GeneralSettingsView: View {
             }
         }
         return actions
+    }
+
+    private func removeCodexTrustEntries() async -> [String] {
+        guard let status = try? await HooklinesinkerClient.shared.hookStatus(agent: .codex) else {
+            return [
+                "Could not read Codex hook registration — any Juggler trust entries in "
+                    + "config.toml were left in place"
+            ]
+        }
+        guard !status.entries.isEmpty else { return [] }
+        do {
+            let removed = try CodexHooksInstaller.removeTrustEntries(
+                hooksJSONPath: status.path, entries: status.entries
+            )
+            return removed ? ["Removed Juggler trust entries from Codex config.toml"] : []
+        } catch {
+            return ["Codex trust cleanup failed: \(error.localizedDescription)"]
+        }
     }
 
     private func clearDefaults() -> [String] {
@@ -270,26 +302,25 @@ struct IntegrationSettingsView: View {
     @State private var isInstallingPiExtension = false
     @State private var piInstallError: String?
 
+    @State private var droidHooksInstalled = false
+    @State private var isInstallingDroidHooks = false
+    @State private var droidInstallError: String?
+
+    @State private var qwenHooksInstalled = false
+    @State private var isInstallingQwenHooks = false
+    @State private var qwenInstallError: String?
+
+    @State private var kimiHooksInstalled = false
+    @State private var isInstallingKimiHooks = false
+    @State private var kimiInstallError: String?
+
     @State private var antigravityController = AntigravitySetupController()
 
     @State private var showingSSHSheet = false
 
-    private var hooksPath: String {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/hooks/juggler/notify.sh").path
-    }
-
     private var tmuxConfPath: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".tmux.conf").path
-    }
-
-    private var openCodePluginPath: String {
-        OpenCodePluginInstaller.pluginFilePath
-    }
-
-    private var piExtensionPath: String {
-        PiExtensionInstaller.extensionFilePath
     }
 
     private let tmuxUpdateEnvironmentLine =
@@ -315,16 +346,25 @@ struct IntegrationSettingsView: View {
         }
         .onAppear {
             checkPermissions()
-            checkHooksInstalled()
             checkKittyStatus()
             checkWezTermStatus()
             checkTmuxConfigured()
-            checkOpenCodePluginInstalled()
             codexController.initializePermissionEventPreference()
             codexController.refresh()
-            checkPiExtensionInstalled()
             antigravityController.refresh()
         }
+        .task {
+            await refreshAgentHookStatus()
+        }
+    }
+
+    private func refreshAgentHookStatus() async {
+        hooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .claude)
+        openCodePluginInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .opencode)
+        piExtensionInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .pi)
+        droidHooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .droid)
+        qwenHooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .qwen)
+        kimiHooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .kimi)
     }
 
     private func categoryHeader(_ title: String) -> some View {
@@ -627,6 +667,87 @@ struct IntegrationSettingsView: View {
                 }
             }
 
+            Section("Factory Droid") {
+                HStack {
+                    Text("Hook Script")
+                    Spacer()
+                    if droidHooksInstalled {
+                        Label("Installed", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Installed", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let error = droidInstallError {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+
+                Button(droidHooksInstalled ? "Reinstall Hooks" : "Install Hooks") {
+                    installDroidHooks()
+                }
+                .disabled(isInstallingDroidHooks)
+
+                if droidHooksInstalled {
+                    Text("Droid reads hooks at startup — restart a running droid session for it to take effect.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Qwen Code") {
+                HStack {
+                    Text("Hook Script")
+                    Spacer()
+                    if qwenHooksInstalled {
+                        Label("Installed", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Installed", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let error = qwenInstallError {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+
+                Button(qwenHooksInstalled ? "Reinstall Hooks" : "Install Hooks") {
+                    installQwenHooks()
+                }
+                .disabled(isInstallingQwenHooks)
+            }
+
+            Section("Kimi Code") {
+                HStack {
+                    Text("Hook Script")
+                    Spacer()
+                    if kimiHooksInstalled {
+                        Label("Installed", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Not Installed", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let error = kimiInstallError {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+
+                Button(kimiHooksInstalled ? "Reinstall Hooks" : "Install Hooks") {
+                    installKimiHooks()
+                }
+                .disabled(isInstallingKimiHooks)
+            }
+
             Section("Antigravity") {
                 HStack {
                     Text("Hook Script")
@@ -754,24 +875,16 @@ struct IntegrationSettingsView: View {
 
     // MARK: - Claude Code Hooks
 
-    private func checkHooksInstalled() {
-        hooksInstalled = FileManager.default.fileExists(atPath: hooksPath)
-    }
-
     private func installHooks() {
         isInstallingHooks = true
         hookInstallError = nil
 
         Task {
-            let result = await ScriptInstaller.installHooks()
-            await MainActor.run {
-                if let error = result {
-                    hookInstallError = error
-                } else {
-                    checkHooksInstalled()
-                }
-                isInstallingHooks = false
+            if let error = await ScriptInstaller.installHooks() {
+                hookInstallError = error
             }
+            hooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .claude)
+            isInstallingHooks = false
         }
     }
 
@@ -851,38 +964,82 @@ struct IntegrationSettingsView: View {
 
     // MARK: - OpenCode Plugin
 
-    private func checkOpenCodePluginInstalled() {
-        openCodePluginInstalled = FileManager.default.fileExists(atPath: openCodePluginPath)
-    }
-
     private func installOpenCodePlugin() {
         isInstallingOpenCodePlugin = true
         openCodeInstallError = nil
 
-        do {
-            try OpenCodePluginInstaller.install()
-            checkOpenCodePluginInstalled()
-        } catch {
-            openCodeInstallError = error.localizedDescription
+        Task {
+            do {
+                try await OpenCodePluginInstaller.install()
+            } catch {
+                openCodeInstallError = error.localizedDescription
+            }
+            openCodePluginInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .opencode)
+            isInstallingOpenCodePlugin = false
         }
-        isInstallingOpenCodePlugin = false
-    }
-
-    private func checkPiExtensionInstalled() {
-        piExtensionInstalled = FileManager.default.fileExists(atPath: piExtensionPath)
     }
 
     private func installPiExtension() {
         isInstallingPiExtension = true
         piInstallError = nil
 
-        do {
-            try PiExtensionInstaller.install()
-            checkPiExtensionInstalled()
-        } catch {
-            piInstallError = error.localizedDescription
+        Task {
+            do {
+                try await PiExtensionInstaller.install()
+            } catch {
+                piInstallError = error.localizedDescription
+            }
+            piExtensionInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .pi)
+            isInstallingPiExtension = false
         }
-        isInstallingPiExtension = false
+    }
+
+    // MARK: - Factory Droid Hooks
+
+    private func installDroidHooks() {
+        isInstallingDroidHooks = true
+        droidInstallError = nil
+
+        Task {
+            let result = await HooklinesinkerClient.shared.installHooks(agent: .droid)
+            if !result.isSuccess {
+                droidInstallError = result.failureMessage
+            }
+            droidHooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .droid)
+            isInstallingDroidHooks = false
+        }
+    }
+
+    // MARK: - Qwen Code Hooks
+
+    private func installQwenHooks() {
+        isInstallingQwenHooks = true
+        qwenInstallError = nil
+
+        Task {
+            let result = await HooklinesinkerClient.shared.installHooks(agent: .qwen)
+            if !result.isSuccess {
+                qwenInstallError = result.failureMessage
+            }
+            qwenHooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .qwen)
+            isInstallingQwenHooks = false
+        }
+    }
+
+    // MARK: - Kimi Code Hooks
+
+    private func installKimiHooks() {
+        isInstallingKimiHooks = true
+        kimiInstallError = nil
+
+        Task {
+            let result = await HooklinesinkerClient.shared.installHooks(agent: .kimi)
+            if !result.isSuccess {
+                kimiInstallError = result.failureMessage
+            }
+            kimiHooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .kimi)
+            isInstallingKimiHooks = false
+        }
     }
 }
 
@@ -1114,19 +1271,37 @@ private struct SSHSettingsSheet: View {
     }
 }
 
+/// The two snippets the SSH tab tells the user to run. Extracted so the env-var interface
+/// they hand to `scripts/install-remote.sh` can be pinned by a test — the one-liner and the
+/// script are edited in different places and have drifted apart before.
+enum RemoteSetupSnippets {
+    static func installOneLiner(revision: String, sink: String) -> String {
+        "curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/\(revision)"
+            + "/scripts/install-remote.sh | JUGGLER_SINK=\(sink) bash"
+    }
+
+    static func sshConfig(marker: String, port: UInt16) -> String {
+        """
+        \(marker)
+        Host *
+            RemoteForward \(port) localhost:\(port)
+            ExitOnForwardFailure no
+            SendEnv KITTY_WINDOW_ID ITERM_SESSION_ID
+            ControlMaster auto
+            ControlPath ~/.ssh/control-%r@%h:%p
+            ControlPersist 10m
+        """
+    }
+}
+
 struct SSHSettingsView: View {
     private static let sshConfigMarker = "# Juggler: reverse-tunnel hook port"
 
-    private let sshConfigSnippet = """
-    \(sshConfigMarker)
-    Host *
-        RemoteForward 7483 localhost:7483
-        ExitOnForwardFailure no
-        SendEnv KITTY_WINDOW_ID ITERM_SESSION_ID
-        ControlMaster auto
-        ControlPath ~/.ssh/control-%r@%h:%p
-        ControlPersist 10m
-    """
+    private var hookPort: UInt16 { TestInstanceConfig.hookPort() }
+
+    private var sshConfigSnippet: String {
+        RemoteSetupSnippets.sshConfig(marker: Self.sshConfigMarker, port: hookPort)
+    }
 
     @State private var sshConfigInstalled = false
     @State private var sshConfigError: String?
@@ -1139,9 +1314,10 @@ struct SSHSettingsView: View {
     // `just tag-release` advances this to an immutable release-preparation commit.
     private static let installRevision = "8f677fb2be1f4a16987a46a4b48ad851efe7dc43"
     private var installOneLiner: String {
-        "curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/\(Self.installRevision)"
-            + "/scripts/install-remote.sh | JUGGLER_BASE_URL=https://raw.githubusercontent.com/nielsmadan/juggler/"
-            + "\(Self.installRevision)/juggler/Resources bash"
+        RemoteSetupSnippets.installOneLiner(
+            revision: Self.installRevision,
+            sink: HooklinesinkerClient.shared.sinkURL
+        )
     }
 
     var body: some View {
@@ -1174,9 +1350,12 @@ struct SSHSettingsView: View {
                     number: 3,
                     title: "Install the Juggler hook on the remote machine",
                     description:
-                    "SSH to the remote and run this once per host. It detects which agents are "
-                        + "installed (Claude Code, Codex, OpenCode) and installs the matching "
-                        + "hooks, then cleans up after itself.",
+                    "SSH to the remote and run this once per host. It downloads a "
+                        + "checksum-verified hooklinesinker release for the remote's "
+                        + "architecture, points it back at this Juggler through the tunnel, and "
+                        + "installs hooks for whichever agents are there (Claude Code, Codex, "
+                        + "OpenCode, Pi). Codex additionally needs its hooks trusted on that "
+                        + "host — the script prints the two steps.",
                     code: installOneLiner
                 )
 
@@ -1214,7 +1393,7 @@ struct SSHSettingsView: View {
 
             Text(
                 "On your Mac, append this to ~/.ssh/config. The tunnel exposes Juggler at "
-                    + "localhost:7483 on every machine you ssh to. ControlMaster makes all "
+                    + "localhost:\(hookPort) on every machine you ssh to. ControlMaster makes all "
                     + "sessions to a host share one connection and one tunnel, so a second "
                     + "session doesn't fight over the port; ExitOnForwardFailure=no keeps ssh "
                     + "working even if a forward can't be set up."

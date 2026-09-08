@@ -324,3 +324,49 @@ struct HookEventMapperTests {
         #expect(action == .ignore)
     }
 }
+
+/// `HookEventMapper` now serves only the legacy `UnifiedHookPayload` route (which Antigravity
+/// still uses). Protocol-v1 events arrive pre-normalized as a phase and are mapped without it.
+/// These pin that the phase mapping agrees with what the mapper produced for the equivalent
+/// events, so migrating an agent to hooklinesinker can't quietly change its states.
+@Suite("HooklinesinkerPhase — state mapping")
+struct HooklinesinkerPhaseTests {
+    @Test(arguments: [
+        (HooklinesinkerPhase.idle, SessionState.idle),
+        (HooklinesinkerPhase.working, SessionState.working),
+        (HooklinesinkerPhase.permission, SessionState.permission),
+        (HooklinesinkerPhase.compacting, SessionState.compacting)
+    ])
+    func phaseMapsToSessionState(phase: HooklinesinkerPhase, expected: SessionState) {
+        #expect(phase.sessionState == expected)
+    }
+
+    // Retained for diagnostics, never cycled — a session in an unrecognized phase keeps the
+    // state it had.
+    @Test func unknownPhaseHasNoSessionState() {
+        #expect(HooklinesinkerPhase.unknown.sessionState == nil)
+    }
+
+    @Test(arguments: [
+        ("SessionStart", HooklinesinkerPhase.idle),
+        ("Stop", HooklinesinkerPhase.idle),
+        ("UserPromptSubmit", HooklinesinkerPhase.working),
+        ("PreToolUse", HooklinesinkerPhase.working),
+        ("PermissionRequest", HooklinesinkerPhase.permission),
+        ("PreCompact", HooklinesinkerPhase.compacting)
+    ])
+    func phaseAgreesWithTheLegacyClaudeMapping(event: String, phase: HooklinesinkerPhase) throws {
+        let state = try #require(phase.sessionState)
+        #expect(HookEventMapper.map(event: event) == .updateState(state))
+    }
+
+    // `backburner` is Juggler-internal: hooklinesinker has no phase for it and must never
+    // produce one.
+    @Test func backburnerIsNotAPhase() {
+        #expect(HooklinesinkerPhase.allPhases.compactMap(\.sessionState).contains(.backburner) == false)
+    }
+}
+
+private extension HooklinesinkerPhase {
+    static let allPhases: [HooklinesinkerPhase] = [.idle, .working, .permission, .compacting, .unknown]
+}

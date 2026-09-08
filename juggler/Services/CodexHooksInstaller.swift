@@ -2,18 +2,15 @@ import CryptoKit
 import Foundation
 
 enum CodexHooksError: LocalizedError, Equatable {
-    case hooksJSONNotFound(String)
-    case hooksJSONUnparseable(String)
-    case jugglerHooksNotRegistered(String)
+    case hooksNotRegistered(String)
+    case hooksUnsupported(String)
 
     var errorDescription: String? {
         switch self {
-        case let .hooksJSONNotFound(path):
-            "Codex hooks.json not found at \(path). Run \"Install Hooks\" first."
-        case let .hooksJSONUnparseable(path):
-            "Codex hooks.json at \(path) isn't valid JSON. Fix or remove it, then retry."
-        case .jugglerHooksNotRegistered:
+        case .hooksNotRegistered:
             "Juggler's hooks aren't registered in hooks.json. Run \"Install Hooks\" first."
+        case let .hooksUnsupported(path):
+            "Codex hooks.json at \(path) has a shape Juggler can't safely edit. Fix or remove it, then retry."
         }
     }
 }
@@ -48,14 +45,6 @@ enum CodexHooksInstaller {
         NSString(string: "~/.codex").expandingTildeInPath
     }
 
-    static var hooksDirectory: String {
-        codexDirectory + "/hooks/juggler"
-    }
-
-    static var notifyScriptPath: String {
-        hooksDirectory + "/notify.sh"
-    }
-
     static var hooksJSONPath: String {
         codexDirectory + "/hooks.json"
     }
@@ -64,103 +53,12 @@ enum CodexHooksInstaller {
         codexDirectory + "/config.toml"
     }
 
-    /// Installs the notify.sh script and registers all events in hooks.json.
-    /// Returns nil on success, or an error message on failure.
-    /// Paths and the bundled-script URL are injectable for testing; production callers omit them.
-    static func installHooks(
-        bundledScriptURL: URL? = Bundle.main.url(forResource: "codex-notify", withExtension: "sh"),
-        hooksDirectory: String = Self.hooksDirectory,
-        notifyScriptPath: String = Self.notifyScriptPath,
-        hooksJSONPath: String = Self.hooksJSONPath
-    ) -> String? {
-        guard let bundledScript = bundledScriptURL else {
-            return "Codex notify.sh not found in app bundle"
-        }
-
-        do {
-            try FileManager.default.createDirectory(
-                atPath: hooksDirectory,
-                withIntermediateDirectories: true
-            )
-
-            let destination = URL(fileURLWithPath: notifyScriptPath)
-            if FileManager.default.fileExists(atPath: notifyScriptPath) {
-                try FileManager.default.removeItem(at: destination)
-            }
-            try FileManager.default.copyItem(at: bundledScript, to: destination)
-            try FileManager.default.setAttributes(
-                [.posixPermissions: 0o755],
-                ofItemAtPath: notifyScriptPath
-            )
-
-            try mergeHooksJSON(at: hooksJSONPath, notifyScriptPath: notifyScriptPath)
-            return nil
-        } catch {
-            return error.localizedDescription
-        }
-    }
-
-    /// Merges Juggler's hook events into the given hooks.json. Removes any pre-existing Juggler
-    /// entries before re-adding. Backs up the pre-existing file before writing (to
-    /// <path>.juggler-backup). Throws if an existing file can't be parsed as JSON — rather than
-    /// silently overwriting it.
-    static func mergeHooksJSON(at path: String, notifyScriptPath: String) throws {
-        let fm = FileManager.default
-        let existed = fm.fileExists(atPath: path)
-
-        var root: [String: Any] = [:]
-        if existed {
-            let data = try Data(contentsOf: URL(fileURLWithPath: path))
-            guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw CodexHooksError.hooksJSONUnparseable(path)
-            }
-            root = parsed
-        }
-
-        var hooks = (root["hooks"] as? [String: Any]) ?? [:]
-
-        for event in agentEvents {
-            var entries = (hooks[event] as? [[String: Any]]) ?? []
-            entries = entries.filter { group in
-                !groupIsJuggler(group, notifyScriptPath: notifyScriptPath)
-            }
-            let jugglerEntry: [String: Any] = [
-                "hooks": [
-                    [
-                        "type": "command",
-                        "command": "\(notifyScriptPath) \(event)",
-                        "timeout": timeoutSeconds(for: event)
-                    ]
-                ]
-            ]
-            entries.append(jugglerEntry)
-            hooks[event] = entries
-        }
-
-        root["hooks"] = hooks
-
-        let jsonData = try JSONSerialization.data(
-            withJSONObject: root,
-            options: [.prettyPrinted, .sortedKeys]
-        )
-
-        if existed {
-            let backupPath = path + ".juggler-backup"
-            if !fm.fileExists(atPath: backupPath) {
-                try fm.copyItem(atPath: path, toPath: backupPath)
-            }
-        }
-        try jsonData.write(to: URL(fileURLWithPath: path), options: .atomic)
-    }
-
-    /// True if a hooks.json matcher group contains a handler invoking Juggler's notify.sh.
-    /// Loose substring match on the command — catches entries from older installs whose
-    /// event argument may have drifted.
-    private static func groupIsJuggler(_ group: [String: Any], notifyScriptPath: String) -> Bool {
-        guard let handlers = group["hooks"] as? [[String: Any]] else { return false }
-        return handlers.contains { handler in
-            (handler["command"] as? String)?.contains(notifyScriptPath) == true
-        }
+    /// Registering hook events in hooks.json is hooklinesinker's job; the feature flag and
+    /// trust steps below stay here because no other agent needs them.
+    /// Returns nil on success, or the CLI's own failure text.
+    static func installHooks(client: HooklinesinkerClient = .shared) async -> String? {
+        let result = await client.installHooks(agent: .codex)
+        return result.isSuccess ? nil : result.failureMessage
     }
 
     /// Ensures `[features] hooks = true` exists in the given config.toml, migrating away from
@@ -252,20 +150,19 @@ enum CodexHooksInstaller {
         return "sha256:\(hex)"
     }
 
-    /// Writes `[hooks.state]` trust entries for every Juggler hook into config.toml, so Codex
-    /// runs them without the manual `/hooks` review step. Idempotent. Preserves all other
-    /// config content. Backs up the pre-existing file on first modification (to
-    /// <path>.juggler-backup). Throws if hooks.json is missing, unparseable, or has no Juggler
-    /// hooks registered — trust entries can only be written for registered hooks.
+    /// Writes `[hooks.state]` trust entries for every hook `hooks status --agent codex --json`
+    /// reported into config.toml, so Codex runs them without the manual `/hooks` review step.
+    /// Idempotent. Preserves all other config content. Backs up the pre-existing file on first
+    /// modification (to <path>.juggler-backup). Throws when the CLI reported no registered
+    /// hooks — trust entries can only be written for registered hooks.
     static func enableInCodex(
         at path: String = configTOMLPath,
-        hooksJSONPath: String = Self.hooksJSONPath,
-        notifyScriptPath: String = Self.notifyScriptPath
+        hooksJSONPath: String,
+        entries: [HooklinesinkerHookEntry]
     ) throws {
-        let indices = try jugglerGroupIndices(
-            hooksJSONPath: hooksJSONPath,
-            notifyScriptPath: notifyScriptPath
-        )
+        guard !entries.isEmpty else {
+            throw CodexHooksError.hooksNotRegistered(hooksJSONPath)
+        }
 
         let fm = FileManager.default
         let existed = fm.fileExists(atPath: path)
@@ -273,9 +170,8 @@ enum CodexHooksInstaller {
 
         let updated = upsertTrustEntries(
             original: original,
-            indices: indices,
-            hooksJSONPath: hooksJSONPath,
-            notifyScriptPath: notifyScriptPath
+            entries: entries,
+            hooksJSONPath: hooksJSONPath
         )
         if updated != original {
             let backupPath = path + ".juggler-backup"
@@ -286,38 +182,101 @@ enum CodexHooksInstaller {
         }
     }
 
-    /// Returns true only when config.toml has a matching `trusted_hash` for every Juggler hook
-    /// registered in hooks.json. Any missing/unparseable hooks.json, unresolvable event, or
-    /// hash mismatch → false.
+    /// Removes the `[hooks.state]` blocks Juggler wrote for the hooks the CLI reported, so a
+    /// reset doesn't leave Codex trusting commands that no longer exist. Must be called while
+    /// the hooks are still registered: the keys are built from the group indexes hooks.json
+    /// currently holds. A block sitting at one of our keys whose stored hash isn't the one we
+    /// would write belongs to someone else and is left alone. Returns true when the file changed.
+    @discardableResult
+    static func removeTrustEntries(
+        at path: String = configTOMLPath,
+        hooksJSONPath: String,
+        entries: [HooklinesinkerHookEntry]
+    ) throws -> Bool {
+        guard !entries.isEmpty, FileManager.default.fileExists(atPath: path) else { return false }
+        let original = try String(contentsOfFile: path, encoding: .utf8)
+        let ours = trustedHashesByKey(entries: entries, hooksJSONPath: hooksJSONPath)
+
+        let retained = splitSections(original).filter { section in
+            guard let key = hookStateKey(section.first), let expected = ours[key] else { return true }
+            return sectionHash(section) != expected
+        }
+        var updated = retained.flatMap(\.self).joined(separator: "\n")
+        guard updated != original else { return false }
+
+        while updated.hasSuffix("\n\n") {
+            updated.removeLast()
+        }
+        if original.hasSuffix("\n"), !updated.isEmpty, !updated.hasSuffix("\n") {
+            updated += "\n"
+        }
+        try updated.write(toFile: path, atomically: true, encoding: .utf8)
+        return true
+    }
+
+    /// Returns true only when config.toml has a matching `trusted_hash` for every event
+    /// hooklinesinker registers. A short entry list, an unreadable config, or any hash
+    /// mismatch → false.
     static func isEnabledInCodex(
         at path: String = configTOMLPath,
-        hooksJSONPath: String = Self.hooksJSONPath,
-        notifyScriptPath: String = Self.notifyScriptPath
+        hooksJSONPath: String,
+        entries: [HooklinesinkerHookEntry]
     ) -> Bool {
         guard let contents = try? String(contentsOfFile: path, encoding: .utf8),
-              let indices = try? jugglerGroupIndices(
-                  hooksJSONPath: hooksJSONPath,
-                  notifyScriptPath: notifyScriptPath
-              ),
-              indices.count == agentEvents.count
+              entries.count == agentEvents.count
         else {
             return false
         }
 
         let foundHashes = parseHookStateHashes(from: contents)
-        for (event, groupIndex) in indices {
-            let key = trustEntryKey(event: event, groupIndex: groupIndex, hooksJSONPath: hooksJSONPath)
-            let expected = computeTrustedHash(
-                event: event,
-                command: hookCommand(for: event, notifyScriptPath: notifyScriptPath)
-            )
-            guard foundHashes[key] == expected else { return false }
-        }
-        return true
+        return trustedHashesByKey(entries: entries, hooksJSONPath: hooksJSONPath)
+            .allSatisfy { key, expected in foundHashes[key] == expected }
     }
 
-    static func hookCommand(for event: String, notifyScriptPath: String = Self.notifyScriptPath) -> String {
-        "\(notifyScriptPath) \(event)"
+    /// The `[hooks.state]` key → `trusted_hash` pair Juggler writes for each reported hook.
+    /// The single place the key shape and the hashed command come together, so writing,
+    /// checking and removing can never disagree about what "Juggler's entry" means.
+    private static func trustedHashesByKey(
+        entries: [HooklinesinkerHookEntry],
+        hooksJSONPath: String
+    ) -> [String: String] {
+        var pairs: [String: String] = [:]
+        for entry in entries {
+            let key = trustEntryKey(
+                event: entry.event, groupIndex: entry.groupIndex, hooksJSONPath: hooksJSONPath
+            )
+            pairs[key] = computeTrustedHash(event: entry.event, command: entry.command)
+        }
+        return pairs
+    }
+
+    private static func splitSections(_ contents: String) -> [[String]] {
+        var sections: [[String]] = [[]]
+        for line in contents.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("["), trimmed.hasSuffix("]") {
+                sections.append([])
+            }
+            sections[sections.count - 1].append(line)
+        }
+        return sections
+    }
+
+    private static func hookStateKey(_ header: String?) -> String? {
+        guard let trimmed = header?.trimmingCharacters(in: .whitespaces),
+              trimmed.hasPrefix("[hooks.state.\""), trimmed.hasSuffix("\"]")
+        else { return nil }
+        return String(trimmed.dropFirst("[hooks.state.\"".count).dropLast("\"]".count))
+    }
+
+    private static func sectionHash(_ section: [String]) -> String? {
+        for line in section.dropFirst() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if let hash = parseStringAssignment(line: trimmed, key: "trusted_hash") {
+                return hash
+            }
+        }
+        return nil
     }
 
     /// True when config.toml already carries a matching trust entry for at least one currently
@@ -327,90 +286,33 @@ enum CodexHooksInstaller {
     /// in the same hooks.json is never mistaken for consent.
     static func hasExistingTrustEntries(
         at path: String = configTOMLPath,
-        hooksJSONPath: String = Self.hooksJSONPath,
-        notifyScriptPath: String = Self.notifyScriptPath
+        hooksJSONPath: String,
+        entries: [HooklinesinkerHookEntry]
     ) -> Bool {
-        guard let contents = try? String(contentsOfFile: path, encoding: .utf8),
-              let indices = try? jugglerGroupIndices(
-                  hooksJSONPath: hooksJSONPath,
-                  notifyScriptPath: notifyScriptPath
-              )
-        else {
+        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
             return false
         }
         let found = parseHookStateHashes(from: contents)
-        return indices.contains { event, groupIndex in
-            let key = trustEntryKey(event: event, groupIndex: groupIndex, hooksJSONPath: hooksJSONPath)
-            return found[key] == computeTrustedHash(
-                event: event,
-                command: hookCommand(for: event, notifyScriptPath: notifyScriptPath)
-            )
-        }
+        return trustedHashesByKey(entries: entries, hooksJSONPath: hooksJSONPath)
+            .contains { key, expected in found[key] == expected }
     }
 
-    /// True when hooks.json lacks a Juggler registration for any event in `agentEvents`.
-    /// An app version that adds an event leaves `codex-notify.sh` byte-identical, so script
-    /// staleness alone would never re-register it on upgrade. An unreadable file means
-    /// "can't tell" and returns false, so a failed read never triggers a reinstall.
-    static func hasUnregisteredEvents(
-        hooksJSONPath: String = Self.hooksJSONPath,
-        notifyScriptPath: String = Self.notifyScriptPath
+    /// True only when *every* current entry resolves to a present trust key+hash. A foreign
+    /// hook appearing on an event we already hook shifts our group index (part of the key), so
+    /// the entry stays installed but silently untrusted; this returns false there while
+    /// `hasExistingTrustEntries` still returns true for the entries that did not move.
+    static func allEntriesTrusted(
+        at path: String = configTOMLPath,
+        hooksJSONPath: String,
+        entries: [HooklinesinkerHookEntry]
     ) -> Bool {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: hooksJSONPath)),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
+        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
             return false
         }
-        return agentEvents.contains { event in
-            jugglerGroupIndex(in: root, event: event, notifyScriptPath: notifyScriptPath) == nil
-        }
-    }
-
-    /// Reads and parses hooks.json, returning the Juggler matcher-group index for each of
-    /// `agentEvents` that has a Juggler hook registered. Throws if the file is missing,
-    /// unparseable, or contains no Juggler hooks at all.
-    private static func jugglerGroupIndices(
-        hooksJSONPath: String,
-        notifyScriptPath: String
-    ) throws -> [(event: String, groupIndex: Int)] {
-        guard FileManager.default.fileExists(atPath: hooksJSONPath) else {
-            throw CodexHooksError.hooksJSONNotFound(hooksJSONPath)
-        }
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: hooksJSONPath)),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
-            throw CodexHooksError.hooksJSONUnparseable(hooksJSONPath)
-        }
-        var result: [(event: String, groupIndex: Int)] = []
-        for event in agentEvents {
-            if let index = jugglerGroupIndex(in: root, event: event, notifyScriptPath: notifyScriptPath) {
-                result.append((event, index))
-            }
-        }
-        guard !result.isEmpty else {
-            throw CodexHooksError.jugglerHooksNotRegistered(hooksJSONPath)
-        }
-        return result
-    }
-
-    /// Finds the matcher-group index in `hooks.json` whose handler command exactly matches
-    /// Juggler's hook command for `event`. Returns the first match (post-dedup there is at
-    /// most one). Returns nil if Juggler's hook isn't registered for the event.
-    private static func jugglerGroupIndex(
-        in hooksJSON: [String: Any],
-        event: String,
-        notifyScriptPath: String
-    ) -> Int? {
-        guard let hooks = hooksJSON["hooks"] as? [String: Any],
-              let groups = hooks[event] as? [[String: Any]]
-        else {
-            return nil
-        }
-        let expectedCommand = hookCommand(for: event, notifyScriptPath: notifyScriptPath)
-        return groups.firstIndex { group in
-            guard let handlers = group["hooks"] as? [[String: Any]] else { return false }
-            return handlers.contains { ($0["command"] as? String) == expectedCommand }
-        }
+        let found = parseHookStateHashes(from: contents)
+        let expected = trustedHashesByKey(entries: entries, hooksJSONPath: hooksJSONPath)
+        guard !expected.isEmpty else { return false }
+        return expected.allSatisfy { key, hash in found[key] == hash }
     }
 
     /// Parses all `[hooks.state."<key>"]` → `trusted_hash` pairs from config.toml contents.
@@ -468,11 +370,10 @@ enum CodexHooksInstaller {
     /// no longer exists in hooks.json. `uninstall.sh` garbage-collects orphans on reset.
     private static func upsertTrustEntries(
         original: String,
-        indices: [(event: String, groupIndex: Int)],
-        hooksJSONPath: String,
-        notifyScriptPath: String
+        entries: [HooklinesinkerHookEntry],
+        hooksJSONPath: String
     ) -> String {
-        let currentKeys = Set(indices.map {
+        let currentKeys = Set(entries.map {
             trustEntryKey(event: $0.event, groupIndex: $0.groupIndex, hooksJSONPath: hooksJSONPath)
         })
         func isJugglerHeader(_ trimmed: String) -> Bool {
@@ -499,12 +400,11 @@ enum CodexHooksInstaller {
         }
 
         var blocks = ""
-        for (event, groupIndex) in indices {
-            let key = trustEntryKey(event: event, groupIndex: groupIndex, hooksJSONPath: hooksJSONPath)
-            let hash = computeTrustedHash(
-                event: event,
-                command: hookCommand(for: event, notifyScriptPath: notifyScriptPath)
+        for entry in entries {
+            let key = trustEntryKey(
+                event: entry.event, groupIndex: entry.groupIndex, hooksJSONPath: hooksJSONPath
             )
+            let hash = computeTrustedHash(event: entry.event, command: entry.command)
             blocks += "[hooks.state.\"\(key)\"]\ntrusted_hash = \"\(hash)\"\n\n"
         }
         if blocks.hasSuffix("\n") { blocks.removeLast() } // collapse to a single trailing newline

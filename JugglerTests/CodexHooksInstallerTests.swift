@@ -26,15 +26,34 @@ private func withTempFile(contents: String? = nil, _ body: (String) throws -> Vo
     }
 }
 
-/// Sets up a realistic Codex fixture in a temp dir: a `hooks.json` with Juggler's hooks
-/// registered (via `mergeHooksJSON`, exactly as `installHooks` would), plus a `config.toml`
-/// path (written with `config` when non-nil). When `preexistingHooksJSON` is supplied, it is
-/// written first so Juggler's entries are appended *after* the user's — exercising group
-/// indices ≥ 1. `body` receives the config path, hooks.json path, and notify-script path.
+/// The `(event, groupIndex, command)` triples `hooks status --agent codex --json` reports,
+/// using the canonical command hooklinesinker installs. `groupIndex` is the index of our
+/// matcher group within that event's array — 1 when the user already hooks the same event.
+private func codexEntries(
+    events: [String] = CodexHooksInstaller.agentEvents,
+    groupIndex: Int = 0,
+    binary: String = "/Users/me/.local/share/hooklinesinker/bin/hooklinesinker"
+) -> [HooklinesinkerHookEntry] {
+    events.map {
+        HooklinesinkerHookEntry(
+            event: $0,
+            groupIndex: groupIndex,
+            command: "\(binary) ingest --agent codex --event \($0)"
+        )
+    }
+}
+
+/// Sets up a Codex fixture in a temp dir: a `config.toml` path (written with `config` when
+/// non-nil), the `hooks.json` path the CLI would report, and the entries it would report for
+/// it. `body` receives the config path, hooks.json path, and those entries.
 private func withCodexFixture(
     config: String? = nil,
-    preexistingHooksJSON: String? = nil,
-    _ body: (_ configPath: String, _ hooksJSONPath: String, _ notifyPath: String) throws -> Void
+    entries: [HooklinesinkerHookEntry]? = nil,
+    _ body: (
+        _ configPath: String,
+        _ hooksJSONPath: String,
+        _ entries: [HooklinesinkerHookEntry]
+    ) throws -> Void
 ) throws {
     try withTempDir { dir in
         let configPath = dir.appendingPathComponent("config.toml").path
@@ -42,146 +61,12 @@ private func withCodexFixture(
             try config.write(toFile: configPath, atomically: true, encoding: .utf8)
         }
         let hooksJSONPath = dir.appendingPathComponent("hooks.json").path
-        let notifyPath = dir.appendingPathComponent("hooks/juggler/notify.sh").path
-        if let preexistingHooksJSON {
-            try preexistingHooksJSON.write(toFile: hooksJSONPath, atomically: true, encoding: .utf8)
-        }
-        try CodexHooksInstaller.mergeHooksJSON(at: hooksJSONPath, notifyScriptPath: notifyPath)
-        try body(configPath, hooksJSONPath, notifyPath)
+        try body(configPath, hooksJSONPath, entries ?? codexEntries())
     }
 }
 
 private func readFile(_ path: String) -> String {
     (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
-}
-
-// MARK: - hooks.json merge
-
-@Suite("CodexHooksInstaller — hooks.json merge")
-struct CodexHooksJSONTests {
-    private let notifyPath = "/Users/me/.codex/hooks/juggler/notify.sh"
-
-    @Test func mergeHooksJSON_intoMissingFile_addsAllEvents() throws {
-        try withTempDir { dir in
-            let hooksJSON = dir.appendingPathComponent("hooks.json").path
-            try CodexHooksInstaller.mergeHooksJSON(at: hooksJSON, notifyScriptPath: notifyPath)
-
-            let obj = try JSONSerialization.jsonObject(
-                with: Data(contentsOf: URL(fileURLWithPath: hooksJSON))
-            ) as? [String: Any]
-            let hooks = obj?["hooks"] as? [String: Any]
-            for event in CodexHooksInstaller.agentEvents {
-                #expect(hooks?[event] != nil, "missing event \(event)")
-            }
-            #expect((hooks?.count ?? 0) == CodexHooksInstaller.agentEvents.count)
-        }
-    }
-
-    @Test func mergeHooksJSON_preservesNonJugglerHooksAndAppendsLast() throws {
-        try withTempDir { dir in
-            let hooksJSON = dir.appendingPathComponent("hooks.json").path
-            try """
-            {"hooks": {"SessionStart": [{"hooks": [{"type":"command","command":"echo other"}]}]}}
-            """.write(toFile: hooksJSON, atomically: true, encoding: .utf8)
-
-            try CodexHooksInstaller.mergeHooksJSON(at: hooksJSON, notifyScriptPath: notifyPath)
-
-            let obj = try JSONSerialization.jsonObject(
-                with: Data(contentsOf: URL(fileURLWithPath: hooksJSON))
-            ) as? [String: Any]
-            let sessionStart = (obj?["hooks"] as? [String: Any])?["SessionStart"] as? [[String: Any]]
-            #expect((sessionStart?.count ?? 0) == 2)
-            #expect(handlerCommand(sessionStart?[0]) == "echo other")
-            #expect(handlerCommand(sessionStart?[1]) == "\(notifyPath) SessionStart")
-        }
-    }
-
-    /// Pulls the first handler's `command` out of a hooks.json matcher group.
-    private func handlerCommand(_ group: [String: Any]?) -> String? {
-        (group?["hooks"] as? [[String: Any]])?.first?["command"] as? String
-    }
-
-    @Test func mergeHooksJSON_deduplicatesPreviousJugglerEntries() throws {
-        try withTempDir { dir in
-            let hooksJSON = dir.appendingPathComponent("hooks.json").path
-            try CodexHooksInstaller.mergeHooksJSON(at: hooksJSON, notifyScriptPath: notifyPath)
-            try CodexHooksInstaller.mergeHooksJSON(at: hooksJSON, notifyScriptPath: notifyPath)
-
-            let obj = try JSONSerialization.jsonObject(
-                with: Data(contentsOf: URL(fileURLWithPath: hooksJSON))
-            ) as? [String: Any]
-            let sessionStart = (obj?["hooks"] as? [String: Any])?["SessionStart"] as? [[String: Any]]
-            #expect((sessionStart?.count ?? 0) == 1)
-        }
-    }
-
-    // A stale Juggler entry whose event argument has drifted is still recognized
-    // structurally (by notify.sh path in the command) and replaced, not duplicated.
-    @Test func mergeHooksJSON_deduplicatesStructurallyDespiteDriftedArg() throws {
-        try withTempDir { dir in
-            let hooksJSON = dir.appendingPathComponent("hooks.json").path
-            try """
-            {"hooks": {"SessionStart": [{"hooks": [{"type":"command",\
-            "command":"\(notifyPath) SomethingOld"}]}]}}
-            """.write(toFile: hooksJSON, atomically: true, encoding: .utf8)
-
-            try CodexHooksInstaller.mergeHooksJSON(at: hooksJSON, notifyScriptPath: notifyPath)
-
-            let obj = try JSONSerialization.jsonObject(
-                with: Data(contentsOf: URL(fileURLWithPath: hooksJSON))
-            ) as? [String: Any]
-            let sessionStart = (obj?["hooks"] as? [String: Any])?["SessionStart"] as? [[String: Any]]
-            #expect((sessionStart?.count ?? 0) == 1)
-        }
-    }
-
-    @Test func mergeHooksJSON_throwsAndPreservesUnparseableExistingFile() throws {
-        try withTempDir { dir in
-            let hooksJSON = dir.appendingPathComponent("hooks.json").path
-            let garbage = "{ this is not json"
-            try garbage.write(toFile: hooksJSON, atomically: true, encoding: .utf8)
-
-            #expect(throws: CodexHooksError.hooksJSONUnparseable(hooksJSON)) {
-                try CodexHooksInstaller.mergeHooksJSON(at: hooksJSON, notifyScriptPath: notifyPath)
-            }
-            #expect(readFile(hooksJSON) == garbage)
-        }
-    }
-
-    @Test func mergeHooksJSON_backsUpPreexistingFileOnceOnly() throws {
-        try withTempDir { dir in
-            let hooksJSON = dir.appendingPathComponent("hooks.json").path
-            let original = """
-            {"hooks": {"SessionStart": [{"hooks": [{"type":"command","command":"echo other"}]}]}}
-            """
-            try original.write(toFile: hooksJSON, atomically: true, encoding: .utf8)
-
-            try CodexHooksInstaller.mergeHooksJSON(at: hooksJSON, notifyScriptPath: notifyPath)
-            #expect(readFile(hooksJSON + ".juggler-backup") == original)
-
-            // A second merge must NOT clobber the backup with the now-Juggler-modified file.
-            try CodexHooksInstaller.mergeHooksJSON(at: hooksJSON, notifyScriptPath: notifyPath)
-            #expect(readFile(hooksJSON + ".juggler-backup") == original)
-        }
-    }
-
-    // The handler Juggler writes must match what `computeTrustedHash` folds into the hash —
-    // `type: "command"` and the event's `timeoutSeconds(for:)`.
-    @Test func mergeHooksJSON_writesExpectedHandlerStructure() throws {
-        try withTempDir { dir in
-            let hooksJSON = dir.appendingPathComponent("hooks.json").path
-            try CodexHooksInstaller.mergeHooksJSON(at: hooksJSON, notifyScriptPath: notifyPath)
-
-            let obj = try JSONSerialization.jsonObject(
-                with: Data(contentsOf: URL(fileURLWithPath: hooksJSON))
-            ) as? [String: Any]
-            let group = (obj?["hooks"] as? [String: Any])?["Stop"] as? [[String: Any]]
-            let handler = (group?.first?["hooks"] as? [[String: Any]])?.first
-            #expect(handler?["type"] as? String == "command")
-            #expect(handler?["command"] as? String == "\(notifyPath) Stop")
-            #expect(handler?["timeout"] as? Int == CodexHooksInstaller.hookTimeoutSeconds)
-        }
-    }
 }
 
 // MARK: - config.toml feature flag
@@ -436,36 +321,101 @@ struct CodexTrustHashTests {
 @Suite("CodexHooksInstaller — enable in Codex")
 struct CodexEnableInCodexTests {
     @Test func enableInCodex_thenIsEnabled_roundTrips() throws {
-        try withCodexFixture { config, hooksJSON, notify in
+        try withCodexFixture { config, hooksJSON, entries in
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             ) == false)
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             ) == true)
+        }
+    }
+
+    // The hash must be built from the command the CLI reports, not one Juggler reconstructs:
+    // a change to hooklinesinker's command line would otherwise silently produce hashes Codex
+    // rejects.
+    @Test func trustHashesUseTheCommandTheCLIReported() throws {
+        let entries = codexEntries(binary: "/opt/custom/hooklinesinker")
+        try withCodexFixture(entries: entries) { config, hooksJSON, _ in
+            try CodexHooksInstaller.enableInCodex(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            )
+            let out = readFile(config)
+            for entry in entries {
+                let expected = CodexHooksInstaller.computeTrustedHash(
+                    event: entry.event, command: entry.command
+                )
+                #expect(out.contains(expected), "missing hash for \(entry.event)")
+            }
+            // A hash built from the old notify.sh command would not appear.
+            let legacy = CodexHooksInstaller.computeTrustedHash(
+                event: "Stop", command: "/Users/me/.codex/hooks/juggler/notify.sh Stop"
+            )
+            #expect(!out.contains(legacy))
         }
     }
 
     // The state that motivated this check: the user enabled the feature flag but chose Codex's
     // own /hooks review over Juggler's button, so no Juggler trust entry exists to refresh.
     @Test func hasExistingTrustEntries_featureFlagOnButNeverTrusted_false() throws {
-        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, notify in
+        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, entries in
             #expect(CodexHooksInstaller.hasExistingTrustEntries(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             ) == false)
         }
     }
 
     @Test func hasExistingTrustEntries_afterEnableInCodex_true() throws {
-        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, notify in
+        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, entries in
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             #expect(CodexHooksInstaller.hasExistingTrustEntries(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            ))
+        }
+    }
+
+    @Test func allEntriesTrusted_afterEnableInCodex_true() throws {
+        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, entries in
+            try CodexHooksInstaller.enableInCodex(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            )
+            #expect(CodexHooksInstaller.allEntriesTrusted(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            ))
+        }
+    }
+
+    @Test func allEntriesTrusted_neverTrusted_false() throws {
+        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, entries in
+            #expect(CodexHooksInstaller.allEntriesTrusted(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            ) == false)
+        }
+    }
+
+    // A foreign hook appearing on one event shifts our group index there: that entry is now
+    // untrusted (its key moved) while the rest still resolve. `allEntriesTrusted` must catch
+    // this exact partial-trust state that `hasExistingTrustEntries` cannot.
+    @Test func allEntriesTrusted_whenOneEntryIndexShifted_false() throws {
+        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, entries in
+            try CodexHooksInstaller.enableInCodex(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            )
+            let shifted = entries.map { entry in
+                entry.event == "SessionEnd"
+                    ? HooklinesinkerHookEntry(event: entry.event, groupIndex: 1, command: entry.command)
+                    : entry
+            }
+            #expect(CodexHooksInstaller.allEntriesTrusted(
+                at: config, hooksJSONPath: hooksJSON, entries: shifted
+            ) == false)
+            #expect(CodexHooksInstaller.hasExistingTrustEntries(
+                at: config, hooksJSONPath: hooksJSON, entries: shifted
             ))
         }
     }
@@ -479,29 +429,29 @@ struct CodexEnableInCodexTests {
         [hooks.state."/some/other/hooks.json:session_start:0:0"]
         trusted_hash = "sha256:deadbeef"
         """
-        try withCodexFixture(config: foreign) { config, hooksJSON, notify in
+        try withCodexFixture(config: foreign) { config, hooksJSON, entries in
             #expect(CodexHooksInstaller.hasExistingTrustEntries(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             ) == false)
         }
     }
 
     @Test func hasExistingTrustEntries_missingConfig_false() throws {
-        try withCodexFixture { _, hooksJSON, notify in
+        try withCodexFixture { _, hooksJSON, entries in
             #expect(CodexHooksInstaller.hasExistingTrustEntries(
-                at: "/nonexistent/config.toml", hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: "/nonexistent/config.toml", hooksJSONPath: hooksJSON, entries: entries
             ) == false)
         }
     }
 
     @Test func enableInCodex_isIdempotent() throws {
-        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, notify in
+        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, entries in
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             let first = readFile(config)
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             #expect(readFile(config) == first)
         }
@@ -517,9 +467,9 @@ struct CodexEnableInCodexTests {
         [hooks.state."/some/other/hooks.json:stop:0:0"]
         trusted_hash = "sha256:deadbeef"
         """
-        try withCodexFixture(config: config) { configPath, hooksJSON, notify in
+        try withCodexFixture(config: config) { configPath, hooksJSON, entries in
             try CodexHooksInstaller.enableInCodex(
-                at: configPath, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: configPath, hooksJSONPath: hooksJSON, entries: entries
             )
             let out = readFile(configPath)
             #expect(out.contains("model = \"gpt-5\""))
@@ -532,36 +482,30 @@ struct CodexEnableInCodexTests {
         }
     }
 
-    // Fix 1, the core bug: when the user already has a hook for an event, Juggler's hook
-    // is appended at group index ≥ 1 and the trust key must reflect that real index.
+    // The core bug this guards: when the user already has a hook for an event, ours is
+    // appended at group index ≥ 1 and the trust key must reflect that real index — which is
+    // now the index the CLI reports rather than one Juggler re-derives.
     @Test func enableInCodex_userHasPreexistingHook_usesRealGroupIndex() throws {
-        let preexisting = """
-        {"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"echo user-hook"}]}]}}
-        """
-        try withCodexFixture(preexistingHooksJSON: preexisting) { config, hooksJSON, notify in
+        let entries = codexEntries(groupIndex: 1)
+        try withCodexFixture(entries: entries) { config, hooksJSON, _ in
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             let out = readFile(config)
             #expect(out.contains("\(hooksJSON):session_start:1:0"))
             #expect(!out.contains("\(hooksJSON):session_start:0:0"))
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             ) == true)
         }
     }
 
-    // Critical #1 regression: when the user has their own hook for one of Juggler's events
-    // in the same hooks.json, Codex stores the user's trust block under `<path>:<event>:0:0`.
-    // That block is the USER's, not Juggler's — it must survive `enableInCodex` untouched.
-    // Juggler's own block is written at its real (appended) group index.
+    // When the user has their own hook for one of our events in the same hooks.json, Codex
+    // stores the user's trust block under `<path>:<event>:0:0`. That block is the USER's, not
+    // Juggler's — it must survive `enableInCodex` untouched.
     @Test func enableInCodex_preservesUserOwnedTrustBlockAtIndexZero() throws {
-        let preexisting = """
-        {"hooks":{\
-        "SessionStart":[{"hooks":[{"type":"command","command":"echo user-ss"}]}],\
-        "Stop":[{"hooks":[{"type":"command","command":"echo user-stop"}]}]}}
-        """
-        try withCodexFixture(preexistingHooksJSON: preexisting) { config, hooksJSON, notify in
+        let entries = codexEntries(groupIndex: 1)
+        try withCodexFixture(entries: entries) { config, hooksJSON, _ in
             // Seed user-owned trust blocks at index 0 (the user's hooks sit at group 0).
             try """
             [hooks.state."\(hooksJSON):session_start:0:0"]
@@ -572,7 +516,7 @@ struct CodexEnableInCodexTests {
             """.write(toFile: config, atomically: true, encoding: .utf8)
 
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             var out = readFile(config)
             // The user's own blocks survive, hash values intact.
@@ -586,7 +530,7 @@ struct CodexEnableInCodexTests {
 
             // Idempotent: a second run still preserves the user's blocks.
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             out = readFile(config)
             #expect(out.contains("sha256:USERHASH_SS"))
@@ -594,42 +538,13 @@ struct CodexEnableInCodexTests {
         }
     }
 
-    @Test func enableInCodex_throwsWhenHooksJSONMissing() throws {
-        try withTempDir { dir in
-            let config = dir.appendingPathComponent("config.toml").path
-            let missing = dir.appendingPathComponent("hooks.json").path
-            #expect(throws: CodexHooksError.hooksJSONNotFound(missing)) {
+    // `hooks status` reports no entries when nothing of ours is registered — there is no hook
+    // to trust, and writing a key for one would be a lie.
+    @Test func enableInCodex_throwsWhenNothingIsRegistered() throws {
+        try withCodexFixture(entries: []) { config, hooksJSON, entries in
+            #expect(throws: CodexHooksError.hooksNotRegistered(hooksJSON)) {
                 try CodexHooksInstaller.enableInCodex(
-                    at: config, hooksJSONPath: missing, notifyScriptPath: "/x/notify.sh"
-                )
-            }
-        }
-    }
-
-    @Test func enableInCodex_throwsWhenHooksJSONUnparseable() throws {
-        try withTempDir { dir in
-            let config = dir.appendingPathComponent("config.toml").path
-            let hooksJSON = dir.appendingPathComponent("hooks.json").path
-            try "{ not json".write(toFile: hooksJSON, atomically: true, encoding: .utf8)
-            #expect(throws: CodexHooksError.hooksJSONUnparseable(hooksJSON)) {
-                try CodexHooksInstaller.enableInCodex(
-                    at: config, hooksJSONPath: hooksJSON, notifyScriptPath: "/x/notify.sh"
-                )
-            }
-        }
-    }
-
-    @Test func enableInCodex_throwsWhenNoJugglerHooksRegistered() throws {
-        try withTempDir { dir in
-            let config = dir.appendingPathComponent("config.toml").path
-            let hooksJSON = dir.appendingPathComponent("hooks.json").path
-            // Valid JSON, but contains only a non-Juggler hook.
-            try """
-            {"hooks": {"SessionStart": [{"hooks": [{"type":"command","command":"echo user"}]}]}}
-            """.write(toFile: hooksJSON, atomically: true, encoding: .utf8)
-            #expect(throws: CodexHooksError.jugglerHooksNotRegistered(hooksJSON)) {
-                try CodexHooksInstaller.enableInCodex(
-                    at: config, hooksJSONPath: hooksJSON, notifyScriptPath: "/x/notify.sh"
+                    at: config, hooksJSONPath: hooksJSON, entries: entries
                 )
             }
         }
@@ -637,47 +552,39 @@ struct CodexEnableInCodexTests {
 
     @Test func enableInCodex_modificationBacksUpOriginalOnceOnly() throws {
         let original = "[features]\nhooks = true\n"
-        try withCodexFixture(config: original) { config, hooksJSON, notify in
+        try withCodexFixture(config: original) { config, hooksJSON, entries in
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             #expect(readFile(config + ".juggler-backup") == original)
             // A second (no-op) run must not overwrite the backup.
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             #expect(readFile(config + ".juggler-backup") == original)
         }
     }
 
     @Test func enableInCodex_noBackupWhenConfigCreatedFromScratch() throws {
-        try withCodexFixture { config, hooksJSON, notify in
+        try withCodexFixture { config, hooksJSON, entries in
             // config.toml didn't pre-exist → Juggler creates it, no backup.
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             #expect(!FileManager.default.fileExists(atPath: config + ".juggler-backup"))
             // A second (no-op) run still makes no backup.
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             #expect(!FileManager.default.fileExists(atPath: config + ".juggler-backup"))
         }
     }
 
     @Test func enableInCodex_partialRegistration_writesOnlyRegisteredEvents() throws {
-        try withTempDir { dir in
-            let config = dir.appendingPathComponent("config.toml").path
-            let hooksJSON = dir.appendingPathComponent("hooks.json").path
-            let notify = "/x/notify.sh"
-            // Only SessionStart has a Juggler hook registered.
-            try """
-            {"hooks": {"SessionStart": [{"hooks": [\
-            {"type":"command","command":"\(notify) SessionStart","timeout":5}]}]}}
-            """.write(toFile: hooksJSON, atomically: true, encoding: .utf8)
-
+        let entries = codexEntries(events: ["SessionStart"])
+        try withCodexFixture(entries: entries) { config, hooksJSON, _ in
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             let out = readFile(config)
             #expect(out.contains("\(hooksJSON):session_start:0:0"))
@@ -688,17 +595,17 @@ struct CodexEnableInCodexTests {
 
     // A genuine orphan (a Juggler key at a group index that no longer exists) is harmless and
     // is deliberately left untouched — exact-key matching never prefix-matches. This pins the
-    // Critical-#1 design decision so it isn't "fixed" by reintroducing prefix cleanup.
+    // design decision so it isn't "fixed" by reintroducing prefix cleanup.
     @Test func enableInCodex_leavesGenuineOrphanUntouched() throws {
-        try withCodexFixture { config, hooksJSON, notify in
-            // No user hook → Juggler resolves to index 0. Seed a stale `:1:0` orphan.
+        try withCodexFixture { config, hooksJSON, entries in
+            // Entries resolve to index 0. Seed a stale `:1:0` orphan.
             try """
             [hooks.state."\(hooksJSON):session_start:1:0"]
             trusted_hash = "sha256:ORPHAN"
             """.write(toFile: config, atomically: true, encoding: .utf8)
 
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             let out = readFile(config)
             #expect(out.contains("\(hooksJSON):session_start:0:0")) // Juggler's real key
@@ -708,67 +615,46 @@ struct CodexEnableInCodexTests {
     }
 
     @Test func isEnabledInCodex_falsePaths() throws {
-        try withTempDir { dir in
-            let hooksJSON = dir.appendingPathComponent("hooks.json").path
-            try CodexHooksInstaller.mergeHooksJSON(at: hooksJSON, notifyScriptPath: "/x/notify.sh")
-            let config = dir.appendingPathComponent("config.toml").path
-
+        try withCodexFixture { config, hooksJSON, entries in
             // Missing config.toml.
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: "/x/notify.sh"
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             ) == false)
 
             // config.toml exists but has no trust blocks.
             try "[features]\nhooks = true\n".write(toFile: config, atomically: true, encoding: .utf8)
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: "/x/notify.sh"
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             ) == false)
 
-            // Missing hooks.json.
+            // The CLI reported nothing registered.
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config,
-                hooksJSONPath: dir.appendingPathComponent("missing.json").path,
-                notifyScriptPath: "/x/notify.sh"
-            ) == false)
-
-            // Unparseable hooks.json.
-            let bad = dir.appendingPathComponent("bad.json").path
-            try "{ not json".write(toFile: bad, atomically: true, encoding: .utf8)
-            #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: bad, notifyScriptPath: "/x/notify.sh"
+                at: config, hooksJSONPath: hooksJSON, entries: []
             ) == false)
         }
     }
 
     @Test func isEnabledInCodex_falseWhenAnEventNotRegistered() throws {
-        try withCodexFixture { config, hooksJSON, notify in
+        try withCodexFixture { config, hooksJSON, entries in
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             ) == true)
 
-            // Drop one event from hooks.json.
-            var root = try JSONSerialization.jsonObject(
-                with: Data(contentsOf: URL(fileURLWithPath: hooksJSON))
-            ) as! [String: Any]
-            var hooks = root["hooks"] as! [String: Any]
-            hooks["Stop"] = nil
-            root["hooks"] = hooks
-            try JSONSerialization.data(withJSONObject: root)
-                .write(to: URL(fileURLWithPath: hooksJSON))
-
+            // The CLI now reports one fewer registered event.
+            let short = entries.filter { $0.event != "Stop" }
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: short
             ) == false)
         }
     }
 
     @Test func isEnabledInCodex_falseWhenStoredHashIsWrong() throws {
-        try withCodexFixture { config, hooksJSON, notify in
+        try withCodexFixture { config, hooksJSON, entries in
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             // Replace the first stored hash with a well-formed but wrong digest.
             var lines = readFile(config).components(separatedBy: "\n")
@@ -778,15 +664,15 @@ struct CodexEnableInCodexTests {
             try lines.joined(separator: "\n").write(toFile: config, atomically: true, encoding: .utf8)
 
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             ) == false)
         }
     }
 
     @Test func isEnabledInCodex_toleratesTrailingCommentOnTrustedHash() throws {
-        try withCodexFixture { config, hooksJSON, notify in
+        try withCodexFixture { config, hooksJSON, entries in
             try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             let commented = readFile(config)
                 .components(separatedBy: "\n")
@@ -795,79 +681,156 @@ struct CodexEnableInCodexTests {
             try commented.write(toFile: config, atomically: true, encoding: .utf8)
 
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, notifyScriptPath: notify
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             ) == true)
         }
     }
 }
 
-// MARK: - install hooks
+// MARK: - uninstall trust
 
-@Suite("CodexHooksInstaller — install hooks")
-struct CodexInstallHooksTests {
-    @Test func installHooks_placesScriptAndMergesHooksJSON() throws {
-        try withTempDir { dir in
-            let bundledScript = dir.appendingPathComponent("codex-notify.sh")
-            try "#!/bin/bash\necho hi\n".write(to: bundledScript, atomically: true, encoding: .utf8)
-            let hooksDir = dir.appendingPathComponent("hooks/juggler").path
-            let notifyPath = hooksDir + "/notify.sh"
-            let hooksJSONPath = dir.appendingPathComponent("hooks.json").path
-
-            let error = CodexHooksInstaller.installHooks(
-                bundledScriptURL: bundledScript,
-                hooksDirectory: hooksDir,
-                notifyScriptPath: notifyPath,
-                hooksJSONPath: hooksJSONPath
+/// The reset flow's half of the trust contract: everything `enableInCodex` wrote must come back
+/// out, and nothing else may. Codex identifies a hook by `<hooks.json>:<event>:<group>:<handler>`,
+/// so these entries are only findable while the hooks are still registered — the reset reads the
+/// registration before removing the hooks.
+@Suite("CodexHooksInstaller — remove trust")
+struct CodexRemoveTrustTests {
+    @Test func removeTrustEntries_removesEverythingEnableInCodexWrote() throws {
+        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, entries in
+            try CodexHooksInstaller.enableInCodex(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
-            #expect(error == nil)
-            #expect(FileManager.default.fileExists(atPath: notifyPath))
-            #expect(FileManager.default.fileExists(atPath: hooksJSONPath))
+            #expect(CodexHooksInstaller.isEnabledInCodex(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            ))
+
+            let removed = try CodexHooksInstaller.removeTrustEntries(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            )
+
+            #expect(removed)
+            let out = readFile(config)
+            for entry in entries {
+                let hash = CodexHooksInstaller.computeTrustedHash(
+                    event: entry.event, command: entry.command
+                )
+                #expect(!out.contains(hash), "trust hash for \(entry.event) survived the reset")
+            }
+            #expect(!out.contains("[hooks.state."))
+            #expect(out.contains("hooks = true"))
+            #expect(CodexHooksInstaller.isEnabledInCodex(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            ) == false)
         }
     }
 
-    @Test func installHooks_returnsErrorWhenBundledScriptMissing() {
-        // Returns early before touching the filesystem.
-        #expect(CodexHooksInstaller.installHooks(bundledScriptURL: nil) != nil)
-    }
-
-    @Test func installHooks_setsExecutablePermissionOnScript() throws {
-        try withTempDir { dir in
-            let bundledScript = dir.appendingPathComponent("codex-notify.sh")
-            try "#!/bin/bash\necho hi\n".write(to: bundledScript, atomically: true, encoding: .utf8)
-            let hooksDir = dir.appendingPathComponent("hooks/juggler").path
-            let notifyPath = hooksDir + "/notify.sh"
-            let hooksJSONPath = dir.appendingPathComponent("hooks.json").path
-
-            _ = CodexHooksInstaller.installHooks(
-                bundledScriptURL: bundledScript,
-                hooksDirectory: hooksDir,
-                notifyScriptPath: notifyPath,
-                hooksJSONPath: hooksJSONPath
+    /// The canonical command is hooklinesinker's `<bin> ingest --agent codex --event X`, not the
+    /// pre-migration `notify.sh X`. A reset that only knew the old shape would leave every entry
+    /// behind.
+    @Test func removeTrustEntries_findsEntriesWrittenOverCanonicalCommands() throws {
+        let entries = codexEntries(binary: "/Users/me/.local/share/hooklinesinker/bin/hooklinesinker")
+        try withCodexFixture(entries: entries) { config, hooksJSON, _ in
+            try CodexHooksInstaller.enableInCodex(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
-            let perms = try FileManager.default.attributesOfItem(atPath: notifyPath)[.posixPermissions]
-            #expect((perms as? NSNumber)?.intValue == 0o755)
+            #expect(readFile(config).contains("ingest --agent codex") == false) // hashes only
+            #expect(readFile(config).contains("[hooks.state."))
+
+            try CodexHooksInstaller.removeTrustEntries(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            )
+
+            #expect(!readFile(config).contains("[hooks.state."))
         }
     }
 
-    @Test func installHooks_reinstallOverwritesStaleScript() throws {
-        try withTempDir { dir in
-            let hooksDir = dir.appendingPathComponent("hooks/juggler").path
-            try FileManager.default.createDirectory(atPath: hooksDir, withIntermediateDirectories: true)
-            let notifyPath = hooksDir + "/notify.sh"
-            try "STALE".write(toFile: notifyPath, atomically: true, encoding: .utf8)
+    @Test func removeTrustEntries_preservesUserTrustAndUnrelatedContent() throws {
+        let entries = codexEntries(groupIndex: 1)
+        try withCodexFixture(entries: entries) { config, hooksJSON, _ in
+            try """
+            model = "gpt-5"
 
-            let bundledScript = dir.appendingPathComponent("codex-notify.sh")
-            try "FRESH".write(to: bundledScript, atomically: true, encoding: .utf8)
-            let hooksJSONPath = dir.appendingPathComponent("hooks.json").path
+            [features]
+            hooks = true
 
-            let error = CodexHooksInstaller.installHooks(
-                bundledScriptURL: bundledScript,
-                hooksDirectory: hooksDir,
-                notifyScriptPath: notifyPath,
-                hooksJSONPath: hooksJSONPath
+            [hooks.state."\(hooksJSON):session_start:0:0"]
+            trusted_hash = "sha256:USERHASH_SS"
+
+            [hooks.state."/other/hooks.json:stop:0:0"]
+            trusted_hash = "sha256:OTHER"
+            """.write(toFile: config, atomically: true, encoding: .utf8)
+            try CodexHooksInstaller.enableInCodex(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
             )
-            #expect(error == nil)
-            #expect(readFile(notifyPath) == "FRESH")
+
+            try CodexHooksInstaller.removeTrustEntries(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            )
+
+            let out = readFile(config)
+            #expect(out.contains("model = \"gpt-5\""))
+            #expect(out.contains("hooks = true"))
+            #expect(out.contains("sha256:USERHASH_SS"))
+            #expect(out.contains("\(hooksJSON):session_start:0:0"))
+            #expect(out.contains("sha256:OTHER"))
+            #expect(!out.contains("\(hooksJSON):session_start:1:0"))
+        }
+    }
+
+    /// A block sitting at one of our keys but carrying a hash we would never write is somebody
+    /// else's trust for that slot — deleting it would silently un-trust their hook.
+    @Test func removeTrustEntries_leavesAForeignHashAtOurKeyAlone() throws {
+        try withCodexFixture { config, hooksJSON, entries in
+            try """
+            [hooks.state."\(hooksJSON):session_start:0:0"]
+            trusted_hash = "sha256:NOTOURS"
+            """.write(toFile: config, atomically: true, encoding: .utf8)
+
+            let removed = try CodexHooksInstaller.removeTrustEntries(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            )
+
+            #expect(removed == false)
+            #expect(readFile(config).contains("sha256:NOTOURS"))
+        }
+    }
+
+    @Test func removeTrustEntries_isANoOpWhenNothingWasTrusted() throws {
+        let original = "[features]\nhooks = true\n"
+        try withCodexFixture(config: original) { config, hooksJSON, entries in
+            let removed = try CodexHooksInstaller.removeTrustEntries(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            )
+            #expect(removed == false)
+            #expect(readFile(config) == original)
+        }
+    }
+
+    @Test func removeTrustEntries_toleratesAMissingConfigAndAnEmptyRegistration() throws {
+        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, entries in
+            let missingConfig = try CodexHooksInstaller.removeTrustEntries(
+                at: "/nonexistent/config.toml", hooksJSONPath: hooksJSON, entries: entries
+            )
+            #expect(missingConfig == false)
+            // Nothing registered means no key we could safely claim.
+            let noEntries = try CodexHooksInstaller.removeTrustEntries(
+                at: config, hooksJSONPath: hooksJSON, entries: []
+            )
+            #expect(noEntries == false)
+        }
+    }
+
+    @Test func removeTrustEntries_keepsTheFileTrailingNewlineConvention() throws {
+        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, entries in
+            try CodexHooksInstaller.enableInCodex(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            )
+            try CodexHooksInstaller.removeTrustEntries(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            )
+            let out = readFile(config)
+            #expect(out.hasSuffix("\n"))
+            #expect(!out.hasSuffix("\n\n"))
         }
     }
 }
@@ -889,25 +852,6 @@ struct CodexSessionEndTimeoutTests {
         }
     }
 
-    /// Codex fingerprints the post-clamp timeout, so a 5s entry would install but never match.
-    @Test func hooksJSONWritesClampedTimeoutForSessionEnd() throws {
-        try withCodexFixture { _, hooksJSONPath, _ in
-            let root = try JSONSerialization.jsonObject(
-                with: Data(contentsOf: URL(fileURLWithPath: hooksJSONPath))
-            ) as? [String: Any]
-            let hooks = root?["hooks"] as? [String: Any]
-
-            for event in CodexHooksInstaller.agentEvents {
-                let groups = hooks?[event] as? [[String: Any]]
-                let handler = (groups?.last?["hooks"] as? [[String: Any]])?.first
-                #expect(
-                    handler?["timeout"] as? Int == CodexHooksInstaller.timeoutSeconds(for: event),
-                    "unexpected timeout in hooks.json for \(event)"
-                )
-            }
-        }
-    }
-
     // Digest of the 3s canonical form, computed independently of this code. Unlike the vectors
     // in CodexTrustHashTests it is not captured from a Codex-written config, so it pins the
     // canonicalization and that the clamp reaches the hash — not that 3 is Codex's real clamp.
@@ -921,65 +865,16 @@ struct CodexSessionEndTimeoutTests {
     }
 }
 
-// MARK: - Event registration drift
-
-@Suite("CodexHooksInstaller — event registration drift")
-struct CodexEventRegistrationDriftTests {
-    @Test func allEventsRegistered_isNotStale() throws {
-        try withCodexFixture { _, hooksJSONPath, notifyPath in
-            #expect(
-                CodexHooksInstaller.hasUnregisteredEvents(
-                    hooksJSONPath: hooksJSONPath,
-                    notifyScriptPath: notifyPath
-                ) == false
-            )
-        }
-    }
-
-    /// An install from an older app version registers a subset of today's `agentEvents`.
-    @Test func eventMissingFromOlderInstall_isStale() throws {
-        try withCodexFixture { _, hooksJSONPath, notifyPath in
-            let url = URL(fileURLWithPath: hooksJSONPath)
-            var root = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as! [String: Any]
-            var hooks = root["hooks"] as! [String: Any]
-            hooks.removeValue(forKey: "SessionEnd")
-            root["hooks"] = hooks
-            try JSONSerialization.data(withJSONObject: root).write(to: url)
-
-            #expect(
-                CodexHooksInstaller.hasUnregisteredEvents(
-                    hooksJSONPath: hooksJSONPath,
-                    notifyScriptPath: notifyPath
-                )
-            )
-        }
-    }
-
-    @Test func missingHooksJSON_isNotStale() {
-        #expect(
-            CodexHooksInstaller.hasUnregisteredEvents(
-                hooksJSONPath: "/nonexistent/hooks.json",
-                notifyScriptPath: "/nonexistent/notify.sh"
-            ) == false
-        )
-    }
-}
-
 // MARK: - CodexHooksError
 
 @Suite("CodexHooksError")
 struct CodexHooksErrorTests {
     // The error messages surface verbatim to the user via CodexSetupController.errorMessage.
-    @Test func errorDescriptionsAreActionableAndIncludeThePath() {
-        let notFound = CodexHooksError.hooksJSONNotFound("/p/hooks.json").errorDescription
-        #expect(notFound?.contains("/p/hooks.json") == true)
-        #expect(notFound?.contains("Install Hooks") == true)
-
-        let unparseable = CodexHooksError.hooksJSONUnparseable("/p/hooks.json").errorDescription
-        #expect(unparseable?.contains("/p/hooks.json") == true)
-        #expect(unparseable?.contains("valid JSON") == true)
-
-        let notRegistered = CodexHooksError.jugglerHooksNotRegistered("/p/hooks.json").errorDescription
+    @Test func errorDescriptionsAreActionable() {
+        let notRegistered = CodexHooksError.hooksNotRegistered("/p/hooks.json").errorDescription
         #expect(notRegistered?.contains("Install Hooks") == true)
+
+        let unsupported = CodexHooksError.hooksUnsupported("/p/hooks.json").errorDescription
+        #expect(unsupported?.contains("/p/hooks.json") == true)
     }
 }

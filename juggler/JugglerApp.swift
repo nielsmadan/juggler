@@ -242,7 +242,9 @@ struct JugglerApp: App {
             await TerminalBridgeRegistry.shared.register(KittyBridge.shared, for: .kitty)
             await TerminalBridgeRegistry.shared.register(WezTermBridge.shared, for: .wezterm)
 
+            await registerStatusConsumer()
             try? await HookServer.shared.start()
+            await hydrateRunningSessions()
             // Only start bridges if onboarding is complete (avoids early permission prompt)
             if UserDefaults.standard.bool(forKey: AppStorageKeys.hasCompletedOnboarding) {
                 // Refresh any installed hook/plugin that a prior app version left stale on disk,
@@ -297,6 +299,43 @@ struct JugglerApp: App {
 
         Settings {
             SettingsView()
+        }
+    }
+}
+
+/// Registers Juggler as a hooklinesinker status consumer so installed hooks fan events out to
+/// this instance's `/hook` port.
+private func registerStatusConsumer() async {
+    let result = await HooklinesinkerClient.shared.installConsumer()
+    let summary = result.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+    await MainActor.run {
+        if result.isSuccess {
+            logInfo(.hooks, "Registered hooklinesinker consumer: \(summary)")
+        } else {
+            logWarning(.hooks, "Failed to register hooklinesinker consumer: \(result.failureMessage)")
+        }
+    }
+}
+
+/// Replays sessions that were already running before launch. Always called — even on failure —
+/// so `HookServer` stops tracking pre-hydration bindings.
+private func hydrateRunningSessions() async {
+    do {
+        let sessions = try await HooklinesinkerClient.shared.sessions()
+        await HookServer.shared.hydrate(sessions.statuses)
+        await MainActor.run {
+            logInfo(.hooks, "Hydrated \(sessions.statuses.count) running session(s) from hooklinesinker")
+            if sessions.skippedRecordCount > 0 {
+                logWarning(.hooks, "Skipped \(sessions.skippedRecordCount) unreadable hooklinesinker record(s)")
+            }
+            for problem in sessions.problems {
+                logWarning(.hooks, problem.logLine)
+            }
+        }
+    } catch {
+        await HookServer.shared.hydrate([])
+        await MainActor.run {
+            logWarning(.hooks, "Session hydration failed: \(error.localizedDescription)")
         }
     }
 }

@@ -1,135 +1,107 @@
 ---
 name: integrate-coding-agent
-description: Methodical workflow for adding a new coding-agent integration (a hooks/plugin bridge) to Juggler. Use when adding support for a new coding agent or CLI — e.g. "integrate the Foo CLI", "add support for a new agent", "build a new agent bridge", "track a new agent's sessions". Runs an up-front capability check so integration gaps surface before any code is written.
+description: Methodical workflow for adding a new coding-agent integration to Juggler. Use when adding support for a new coding agent or CLI — e.g. "integrate the Foo CLI", "add support for a new agent", "track a new agent's sessions". Since the hooklinesinker migration most of the work lives outside Juggler; this skill routes you to the right repo and keeps the Juggler-side checklist honest.
 ---
 
 # Integrate Coding Agent
 
 ## Overview
 
-Juggler tracks coding-agent sessions by receiving hook events and mapping them to session states (`idle`, `working`, `permission`, `compacting`, plus session create/remove). Adding an agent means building a "bridge": a notify script, an installer, an event mapping, UI, and docs.
+Juggler no longer normalizes agent events itself. **hooklinesinker** (bundled binary, separate
+repo at `~/wrksp/hooklinesinker`) owns hook installation, event→phase mapping, and the session
+ledger; Juggler consumes protocol-1 status events over its sink and renders them. Adding an
+agent therefore forks on one question:
 
-**Why this skill exists:** a past integration (Antigravity) was fully built before anyone noticed the agent has *no session-start and no session-end events* — a capability gap that reshaped what the integration could do, discovered at the very end. This skill front-loads a prerequisites check so gaps are surfaced and signed off **before** design and code.
+**Is the agent already supported by hooklinesinker?** (`hooklinesinker hooks install --agent`
+accepts it / it appears in hooklinesinker's README agent table.)
 
-Do the phases in order. **Do not skip Phase 1, and do not start Phase 2 until the user has signed off on the capability matrix.**
+- **Yes** → Path A below. Juggler-side only, a few hours including docs.
+- **No** → Path B: add it to hooklinesinker first, then come back to Path A.
+- An agent that *cannot* go through hooklinesinker (no child-process hooks and no scriptable
+  plugin API) needs a bespoke legacy bridge like Antigravity's — that is a design discussion
+  with the user, not a checklist; read `AntigravityHooksInstaller.swift` and the legacy
+  `UnifiedHookPayload` path in `HookServer.swift` before proposing one.
 
-## Phase 1: Prerequisites & Capability Check (MANDATORY — before any design or code)
+## Path A: agent already in hooklinesinker
 
-Research the agent from its official documentation. Prefer reading the actual docs over assumptions — if the docs are ambiguous or missing, say so explicitly rather than guessing. Produce the capability matrix in 1d and get sign-off in 1e.
+No notify script, no installer, no `HookEventMapper` entry, no `AppStorageKeys` flag (only
+opt-in agents — Codex, Antigravity — have one), no `uninstall.sh` block. The full set:
 
-### 1a. Integration mechanism
-
-- Does the agent expose a hooks / plugin / event system at all? If not → stop; integration is not possible without one.
-- Config file: exact path, format (JSON / TOML / etc.), and schema shape.
-- Is config global, per-project, or both? Juggler installs globally.
-- Minimum agent version that supports the mechanism.
-- Is the mechanism stable or experimental/changing? Note the doc date.
-
-### 1b. Event inventory — the critical part
-
-List **every** event the agent fires: name, when it fires, and the payload fields it carries. Then answer each of these explicitly — a "no" is a finding, not a footnote:
-
-- **Session start.** Is there an event when a conversation/session begins? Critically: does it fire at *launch* of the agent, or only at the *first prompt*? (Claude Code: at start. Codex: at first prompt. Antigravity: no start event at all.)
-- **Session end.** Is there an event when the session closes/terminates? (Claude Code: `SessionEnd`. Codex: `SessionEnd` since v0.145 — check the agent's *current* release, not its docs; this one was absent for months and the gap outlived the docs saying so. Antigravity: none — Juggler falls back to terminal-bridge cleanup on window close.)
-- **Working / idle transitions.** Which events mark the agent starting work and finishing a turn? Beware events that fire per-*model-call* or per-*tool* vs. per-*turn* — a turn can contain many model calls.
-- **Permission.** Is there an event when the agent pauses for user approval? If not, the `permission` state is unavailable for this agent.
-- **Compaction.** Is there a context-compaction event? If not, `compacting` is unused.
-
-### 1c. Hook execution contract
-
-- **stdin** — format (likely JSON); the field name for the session/conversation id; field-name casing (snake_case vs camelCase).
-- **stdout** — does the agent *read* the hook's stdout? Does any event **require** a specific response (a `decision` / control message)? An event whose hook must return a value can **break the agent** if the hook misbehaves — prefer not to register such events unless needed, and document the exact required output.
-- **Timeout** — unit (seconds vs milliseconds — they differ across agents) and default.
-- **Sync/async** — does the hook block the agent loop?
-- **Trust gate / feature flag / approval** — any step the user (or the installer) must perform before hooks run (Codex has both a feature flag and a per-hook trust record; Antigravity has neither).
-
-### 1d. Capability matrix
-
-Map the agent's events onto Juggler's session model. For each row, name the driving event or write **GAP**.
-
-| Juggler need | Agent event | Notes |
-|---|---|---|
-| session create | ? | which event first reveals a new session, and when does it fire |
-| `idle` | ? | |
-| `working` | ? | |
-| `permission` | ? | GAP is common |
-| `compacting` | ? | GAP is common |
-| session remove | ? | GAP → fall back to terminal-bridge cleanup |
-
-Also record: config path, schema, timeout unit, required-response events, trust/flag steps, min version.
-
-### 1e. Go / No-Go checkpoint
-
-Present the capability matrix and **every GAP** to the user. State plainly what Juggler will and will not be able to do for this agent — e.g. "no fresh-`idle` state when a window opens; the session first appears as `working` on the first prompt", or "sessions are removed only when the terminal window closes". Get explicit user sign-off before continuing. This checkpoint is the whole point of the skill — do not skip it.
-
-## Phase 2: Design
-
-After sign-off, write a short design doc at `docs/superpowers/specs/` (or follow the user's preference). Decide:
-
-- Agent string (the `agent` field in the unified payload), `agentShortName`, AppStorage key.
-- **Which events to register** — register only the events you actually map. Every extra registered event is surface area and risk; required-response events especially.
-- The event → `MappedAction` mapping.
-- Installer model: which existing bridge it most resembles.
-
-The existing bridges are the reference — read them before designing:
-- **Codex** (`CodexHooksInstaller.swift`, `codex-notify.sh`, `mapCodex`) — hooks with a feature flag + trust gate.
-- **Antigravity** (`AntigravityHooksInstaller.swift`, `antigravity-notify.sh`, `mapAntigravity`) — hooks, no trust gate, minimal 2-event registration.
-- **OpenCode** (`OpenCodePluginInstaller.swift`) — a plugin rather than shell hooks.
-
-## Phase 3: Implementation
-
-Mirror the closest existing bridge. The full file set for a hooks-based agent:
+### Code
 
 | File | Change |
 |---|---|
-| `juggler/Resources/<agent>-hooks/<agent>-notify.sh` | New bash hook script — clone `codex-notify.sh`/`antigravity-notify.sh`; change the `agent` field, stdin field extraction, and stdout per the contract from 1c. |
-| `juggler/Services/<Agent>HooksInstaller.swift` | New installer — model on `AntigravityHooksInstaller.swift` (simple) or `CodexHooksInstaller.swift` (flag + trust). |
-| `juggler/Views/<Agent>SetupController.swift` | New `@MainActor @Observable` controller. |
-| `juggler/Models/HookEventMapper.swift` | Add `map<Agent>` + a dispatch `case` in `map(event:agent:)`. |
-| `juggler/Models/Session.swift` | Add the `agentShortName` case. |
-| `juggler/Models/AppStorageKeys.swift` | Add `<agent>Enabled`. |
-| `juggler/Views/IntegrationHubView.swift` | Add an `IntegrationCard` and a `<Agent>SetupView`. |
-| `juggler/Views/SettingsView.swift` | Add a `Section`. |
-| `juggler/Managers/SessionManager.swift` | If the agent has a user-reengagement event, add it to the backburner-exit guard. |
-| `juggler/Resources/hooks/uninstall.sh` | Add a cleanup block. |
-| Tests | `HookEventMapperTests`, new `<Agent>HooksInstallerTests`, `HookServerTests`, `IntegrationTests`, `BundleResourcesTests`. |
-| Docs | New `docs/tech/<agent>-hooks.md`; update `docs/tech/hook-server.md`, `docs/tech/overview.md`, `docs/overview.md`, `CLAUDE.md`, `README.md`, `site/index.html`. |
+| `juggler/Services/HooklinesinkerClient.swift` | Add the `HooklinesinkerAgent` case. Raw value **must equal the wire name** (kebab-case, from hooklinesinker's `src/protocol.rs`); the argv test over `allCases` then pins it automatically. |
+| `juggler/Models/Session.swift` | Add `agentShortName` (2 letters, e.g. `DR`) and `agentDisplayName` cases. |
+| `juggler/Views/IntegrationHubView.swift` | Add an `IntegrationCard` + a `<Agent>SetupView` (clone the Droid one), and extend `hasAnyAgent`. |
+| `juggler/Views/SettingsView.swift` | Add a `Section` with the install button calling `HooklinesinkerClient.shared.installHooks(agent:)`. |
 
-Rules: run `just build` and `just test` after each task. Do **not** run `just run` (the user tests the app). Do **not** commit — the user controls git.
+Quirk hints in the UI: if the agent only reads hooks at startup (Droid does), add the restart
+hint under the install button, mirroring the existing Droid/Pi hints.
 
-## Phase 4: Verify
+### Behavior checks
 
-- `just build` clean, `just test` all green, `just lint` clean.
-- `grep -ri <oldname>` to confirm no leftover identifiers (path literals for the agent's config dir are fine).
-- Documented quirks in `docs/tech/<agent>-hooks.md` match the capability matrix from Phase 1.
-- Hand off for a manual smoke test: install via Integration Hub, run the agent, confirm sessions appear and transition; `just reset-integration` removes everything and is idempotent.
+- **Backburner**: `SessionManager` exits backburner only on the literal event name
+  `UserPromptSubmit` (`SessionManager.swift`, "Preserve backburner state" comment). Confirm the
+  agent's turn-start event is named exactly that in hooklinesinker's normalize table; if not,
+  extend the guard.
+- **Trust/consent**: hooklinesinker never touches trust state. If the agent has a Codex-style
+  trust or feature-flag gate, Juggler must own it — stop and design that with the user.
 
-## Examples
+### Tests
 
-### Example: "Let's integrate the Foo CLI"
+Mirror the existing per-agent tests: decode passthrough in `HookServerTests`
+(`newAgentsPassThroughUnchanged` pattern), a removal-path case in `IntegrationTests` if the
+agent's end event differs from the others. The `allCases` argv test covers the wire name for
+free.
 
-1. **Phase 1** — Research Foo's hook docs. Inventory events. Discover Foo has `SessionOpen`, `SessionClose`, `TurnStart`, `TurnEnd`, `ToolCall`. Fill the matrix: session create→`SessionOpen`, idle→`TurnEnd`, working→`TurnStart`, permission→GAP, compacting→GAP, session remove→`SessionClose`. Present to the user: "Foo has full lifecycle but no permission or compaction events — those two states will be unused. OK to proceed?"
-2. After sign-off → **Phase 2** design doc.
-3. **Phase 3** — clone the Antigravity bridge file set, adapt.
-4. **Phase 4** — green build/tests, hand off for smoke test.
+### Docs sweep (easy to forget — grep for an existing agent name to find every list)
 
-### Example: capability gap caught early
+- `README.md`: intro line, badge row, "Open your sessions" step, **Coding agents** line
+  (include a minimum agent version if hooklinesinker documents one).
+- `docs/overview.md` and `docs/tech/overview.md`: agent lists.
+- `docs/tech/hooks.md`: the "owns the status hooks for …" sentence.
+- `site/index.html`: both meta descriptions, the JSON-LD description, the "Open your sessions"
+  copy, the Coding agents compat grid, and the footer platform line.
 
-User: "Add support for Bar CLI." Phase 1 research finds Bar's only hook is `OnToolUse`. The matrix is almost all GAPs: no session create, no idle/working turn boundary, no removal. The Go/No-Go checkpoint surfaces this: "Bar exposes a single tool-use hook — Juggler could only ever show a session flicker to `working` on tool calls, with no reliable `idle`. This integration would be low-value. Recommend not proceeding." The user decides before any code is written.
+No per-agent tech doc is needed — that was for bespoke bridges; hooklinesinker-backed agents
+share `docs/tech/hooks.md`.
+
+### Verify
+
+`just build ci.xcconfig`, `build-for-testing`, `just lint`, `just format`; the user runs
+`just test` (sandboxed sessions cannot). Do **not** run `just run`. Do **not** commit unless
+the user says to — they control git.
+
+## Path B: agent not yet in hooklinesinker
+
+The capability research lives there now, not here. In the hooklinesinker repo:
+
+1. **Capability check first** (the lesson this skill exists for — Antigravity was fully built
+   before anyone noticed it lacks session start/end events). From the agent's official docs,
+   inventory every hook event and map it onto the five phases plus create/remove. Present the
+   matrix — every GAP named — and get user sign-off **before writing code**. Watch for: events
+   that fire per-model-call vs per-turn; events whose hook must return a control response (do
+   not register those unless needed); timeout units (seconds vs milliseconds differ across
+   agents); config formats where a bad write disables everything (Kimi's TOML).
+2. Implement there: protocol `Agent` variant, normalize table, hook installer, process-ancestry
+   matching (mind node-shim process names — verify against a live process, not docs), fixtures
+   and tests. hooklinesinker's own README and `docs/design/` describe the constraints (register
+   only mapped events; raw input never persisted or forwarded).
+3. Ship/bundle the new hooklinesinker version, then run Path A here.
 
 ## Troubleshooting
 
-### The agent's docs don't clearly describe the hook events
+### The agent's docs don't clearly describe its hook events
+Do not guess. Mark unknown rows "unverified" at the sign-off; treat unconfirmed core events
+(session lifecycle, idle/working) as GAPs until proven otherwise.
 
-**Cause:** New or sparsely documented agent.
-**Solution:** Do not guess in the capability matrix. Mark the unknown rows as "unverified" and say so at the Go/No-Go checkpoint. If a core event (session lifecycle, idle/working) can't be confirmed, treat that as a GAP until proven otherwise.
+### A capability gap is found mid-implementation
+Stop, update the matrix, re-run the sign-off. A gap found mid-build is the failure mode this
+skill exists to prevent.
 
-### A capability gap is found mid-implementation despite Phase 1
-
-**Cause:** The event inventory in 1b missed an event, or an event behaves differently than documented.
-**Solution:** Stop. Return to Phase 1, update the capability matrix, and re-run the Go/No-Go checkpoint with the user before continuing. A gap found mid-build is exactly the failure mode this skill prevents — do not paper over it.
-
-### The agent has an event whose hook must return a control response
-
-**Cause:** Some agents (e.g. Antigravity's `PreToolUse`/`Stop`) read hook stdout and act on a required `decision` field — a misbehaving hook can block tool calls or trap the agent.
-**Solution:** Avoid registering such events unless their state is genuinely needed. If you must, document the exact required stdout and make the notify script emit it unconditionally and first. Prefer events with no required response.
+### Sessions never appear for the new agent
+Check `hooklinesinker sessions --json` directly. If records exist there but not in Juggler,
+the bug is Juggler-side (decode/display). If no records exist, it is hooklinesinker-side —
+commonly process-ancestry matching (the agent's OS-level process name differs from its command
+name; Kimi retitles itself `kimi-code`).

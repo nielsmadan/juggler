@@ -1,12 +1,6 @@
 import Foundation
 
 enum ScriptInstaller {
-    /// Installed location of the Claude Code notify hook (written by `install.sh`).
-    static var claudeNotifyScriptPath: String {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/hooks/juggler/notify.sh").path
-    }
-
     /// Installed location of the Kitty event watcher (written by `install_kitty_watcher.sh`).
     static var kittyWatcherPath: String {
         FileManager.default.homeDirectoryForCurrentUser
@@ -55,8 +49,11 @@ enum ScriptInstaller {
         }
     }
 
-    static func installHooks() async -> String? {
-        await runBundledScript(resource: "install")
+    /// Claude Code hooks are owned by hooklinesinker; this only drives its CLI.
+    /// Returns nil on success, or the CLI's own failure text.
+    static func installHooks(client: HooklinesinkerClient = .shared) async -> String? {
+        let result = await client.installHooks(agent: .claude)
+        return result.isSuccess ? nil : result.failureMessage
     }
 
     static func installKittyWatcher() async -> String? {

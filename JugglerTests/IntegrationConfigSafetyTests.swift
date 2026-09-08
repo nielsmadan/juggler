@@ -2,6 +2,9 @@ import Foundation
 @testable import Juggler
 import Testing
 
+/// Guards the configuration surfaces Juggler still writes itself. Claude and Codex hook
+/// registration moved to hooklinesinker, which carries its own safety tests; what stays here
+/// is the Codex trust-entry cleanup Juggler's reset flow runs.
 @Suite("Integration configuration safety")
 struct IntegrationConfigSafetyTests {
     private static var resourcesDirectory: URL {
@@ -9,89 +12,6 @@ struct IntegrationConfigSafetyTests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("juggler/Resources")
-    }
-
-    @Test func claudeInstallRejectsMalformedSettingsWithoutInstalling() throws {
-        let home = try temporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: home) }
-        let settings = home.appendingPathComponent(".claude/settings.json")
-        try FileManager.default.createDirectory(
-            at: settings.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try Data("{broken".utf8).write(to: settings)
-
-        let result = try run(
-            executable: "/bin/bash",
-            arguments: [Self.resourcesDirectory.appendingPathComponent("hooks/install.sh").path],
-            home: home
-        )
-
-        #expect(result.status != 0)
-        #expect(try String(contentsOf: settings, encoding: .utf8) == "{broken")
-        #expect(!FileManager.default.fileExists(
-            atPath: home.appendingPathComponent(".claude/hooks/juggler/notify.sh").path
-        ))
-    }
-
-    @Test func claudeInstallPreservesSettingsAndCreatesRecoveryBackup() throws {
-        let home = try temporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: home) }
-        let settings = home.appendingPathComponent(".claude/settings.json")
-        try FileManager.default.createDirectory(
-            at: settings.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        let original = #"{"theme":"dark","hooks":{"Stop":[{"hooks":[{"command":"user-hook"}]}]}}"#
-        try Data(original.utf8).write(to: settings)
-
-        let result = try run(
-            executable: "/bin/bash",
-            arguments: [Self.resourcesDirectory.appendingPathComponent("hooks/install.sh").path],
-            home: home
-        )
-
-        try #require(result.status == 0, Comment(rawValue: result.output))
-        let data = try Data(contentsOf: settings)
-        let root = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        #expect(root["theme"] as? String == "dark")
-        let hooks = try #require(root["hooks"] as? [String: Any])
-        let stop = try #require(hooks["Stop"] as? [[String: Any]])
-        #expect(stop.contains { String(describing: $0).contains("user-hook") })
-        #expect(stop.contains { String(describing: $0).contains("juggler/notify.sh Stop") })
-        #expect(try String(contentsOf: URL(fileURLWithPath: settings.path + ".juggler-backup"), encoding: .utf8) ==
-            original)
-        #expect(FileManager.default.isExecutableFile(
-            atPath: home.appendingPathComponent(".claude/hooks/juggler/notify.sh").path
-        ))
-    }
-
-    @Test func claudeInstallPreservesSymlinkedSettings() throws {
-        let home = try temporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: home) }
-        let managedDirectory = home.appendingPathComponent("dotfiles")
-        let managedSettings = managedDirectory.appendingPathComponent("claude-settings.json")
-        let settings = home.appendingPathComponent(".claude/settings.json")
-        try FileManager.default.createDirectory(at: managedDirectory, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(
-            at: settings.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try Data(#"{"theme":"dark"}"#.utf8).write(to: managedSettings)
-        try FileManager.default.createSymbolicLink(at: settings, withDestinationURL: managedSettings)
-
-        let result = try run(
-            executable: "/bin/bash",
-            arguments: [Self.resourcesDirectory.appendingPathComponent("hooks/install.sh").path],
-            home: home
-        )
-
-        try #require(result.status == 0, Comment(rawValue: result.output))
-        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: settings.path) == managedSettings.path)
-        let data = try Data(contentsOf: managedSettings)
-        let root = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let hooks = try #require(root["hooks"] as? [String: Any])
-        #expect(hooks["Stop"] != nil)
     }
 
     @Test @MainActor func codexCleanupPreservesLaterChangesAndUnrelatedTrust() throws {

@@ -18,6 +18,25 @@ jobs:
       - name: Extract version from tag
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
+      # `just build` embeds hooklinesinker after xcodebuild; the `xcodebuild archive` step
+      # below never runs that, so this release would ship an app whose every agent-status
+      # command fails at runtime. Refuse loudly until the nested binary has a signed
+      # embedding path — same gate as `just release-blocked-on-hooklinesinker`.
+      - name: Refuse to release without an embedded hooklinesinker
+        env:
+          ALLOW_MISSING: ${{ vars.JUGGLER_RELEASE_WITHOUT_HOOKLINESINKER }}
+        run: |
+          if [ "$ALLOW_MISSING" = "1" ]; then
+            echo "::warning::Releasing without an embedded hooklinesinker — agent status will not work."
+            exit 0
+          fi
+          echo "::error::Release blocked: hooklinesinker would not be embedded in the Release app."
+          echo "Embedding it needs a decision that is still open: how the nested Mach-O gets"
+          echo "signed and notarized (a build phase inside the Juggler target, signed with the"
+          echo "app, is the expected shape). Set the repository variable"
+          echo "JUGGLER_RELEASE_WITHOUT_HOOKLINESINKER=1 to ship a knowingly dead integration."
+          exit 1
+
       - name: Import Developer ID certificate
         env:
           DEVELOPER_ID_CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}

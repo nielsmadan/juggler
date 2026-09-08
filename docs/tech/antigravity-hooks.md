@@ -22,7 +22,7 @@ Antigravity setup is a **single step** (one button in onboarding's Integration H
 
 **File:** `Resources/antigravity-hooks/antigravity-notify.sh` (installed as `notify.sh`)
 
-Structurally identical to the Codex script (`Resources/codex-hooks/codex-notify.sh`): event name as `$1`, hook JSON on stdin, detects terminal type / tmux / git, builds the unified payload via a quoted Python heredoc, and fire-and-forgets it to `curl`. Two differences matter:
+Structurally identical to the per-agent notify scripts Juggler shipped before the hooklinesinker migration: event name as `$1`, hook JSON on stdin, detects terminal type / tmux / git, builds the unified payload via a quoted Python heredoc, and fire-and-forgets it to `curl`. Two differences matter:
 
 1. **camelCase input → snake_case payload.** Antigravity's stdin uses camelCase; the script normalizes `conversationId` → `session_id` and `transcriptPath` → `transcript_path`, so the HookServer's shared decoding path is unchanged.
 1. **cwd comes from `workspacePaths`, not `$PWD`.** Antigravity runs the hook from its own config dir (`~/.gemini/config`), so `$PWD` is wrong. The script reads `workspacePaths[0]` from stdin and uses it for both the reported cwd and git branch/repo detection (falling back to `$PWD` if absent). Without this, sessions show `~/.gemini/config` and never resolve a git branch.

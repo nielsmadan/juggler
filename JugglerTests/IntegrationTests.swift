@@ -1482,8 +1482,8 @@ struct IntegrationTests {
         #expect(manager.sessions.count == 1)
     }
 
-    // Swift maps any session_shutdown to removal; the reason==="quit" gate lives in the
-    // TS extension (juggler-pi.txt) and is not exercised here.
+    // Swift maps any session_shutdown to removal; the reason==="quit" gate lives in
+    // hooklinesinker's pi adapter, covered there by its own node harness.
     @Test @MainActor func integration_pi_shutdown_removesSession() async {
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)
@@ -1526,5 +1526,150 @@ struct IntegrationTests {
                            claudeSessionID: "ag-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .idle)
         #expect(manager.sessions.count == 1)
+    }
+}
+
+/// End-to-end for the protocol-v1 route: HTTP → status decode → SessionManager, over the same
+/// `/hook` path the legacy payload uses.
+@Suite("Status → SessionManager", .serialized, .tags(.integration))
+struct StatusIngressIntegrationTests {
+    @MainActor
+    private func post(_ server: HookServer, _ body: String) async {
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+        #expect(response.status == 200)
+    }
+
+    @Test @MainActor func statusLifecycle_idleToWorkingToRemoved() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "b1", event: "SessionStart", phase: "idle", terminalSessionID: "s1"
+        ))
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].state == .idle)
+
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "b1", event: "UserPromptSubmit", phase: "working", terminalSessionID: "s1"
+        ))
+        #expect(manager.sessions[0].state == .working)
+
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "b1", event: "SessionEnd", running: false, terminalSessionID: "s1"
+        ))
+        #expect(manager.sessions.isEmpty)
+    }
+
+    /// The OpenCode resume path: a `session.status.busy` after an idle turn puts the row back to
+    /// working through the same phase mapping, with no OpenCode-specific arm in Juggler.
+    @Test @MainActor func openCodeResumeReturnsTheSessionToWorking() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "oc", agent: "opencode", event: "session.idle", phase: "idle", terminalSessionID: "s1"
+        ))
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "oc",
+            agent: "opencode",
+            event: "session.status.busy",
+            phase: "working",
+            terminalSessionID: "s1"
+        ))
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].agent == "opencode")
+        #expect(manager.sessions[0].state == .working)
+    }
+
+    /// Pi's shutdown reaches Juggler as `running:false`, which removes the row.
+    @Test @MainActor func piShutdownRemovesTheSession() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "pi", agent: "pi", event: "session_start", terminalSessionID: "s1"
+        ))
+        #expect(manager.sessions.count == 1)
+
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "pi",
+            agent: "pi",
+            event: "session_shutdown",
+            running: false,
+            terminalSessionID: "s1"
+        ))
+
+        #expect(manager.sessions.isEmpty)
+    }
+
+    /// Droid, Qwen and Kimi speak the protocol-v1 route exclusively — their phase mapping lives
+    /// entirely in hooklinesinker, so Juggler only needs to trust the agent and phase fields.
+    @Test @MainActor func droidSessionEndRemovesTheSession() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "dr", agent: "droid", event: "SessionStart", phase: "idle", terminalSessionID: "s1"
+        ))
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].agent == "droid")
+
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "dr", agent: "droid", event: "SessionEnd", running: false, terminalSessionID: "s1"
+        ))
+        #expect(manager.sessions.isEmpty)
+    }
+
+    @Test @MainActor func qwenPermissionRequestEntersPermissionState() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "qw", agent: "qwen", event: "SessionStart", phase: "idle", terminalSessionID: "s1"
+        ))
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "qw",
+            agent: "qwen",
+            event: "PermissionRequest",
+            phase: "permission",
+            terminalSessionID: "s1"
+        ))
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].agent == "qwen")
+        #expect(manager.sessions[0].state == .permission)
+    }
+
+    @Test @MainActor func kimiToolUseEntersWorkingState() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "km", agent: "kimi", event: "SessionStart", phase: "idle", terminalSessionID: "s1"
+        ))
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "km", agent: "kimi", event: "PreToolUse", phase: "working", terminalSessionID: "s1"
+        ))
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].agent == "kimi")
+        #expect(manager.sessions[0].state == .working)
+    }
+
+    /// The legacy route must keep working alongside it — Antigravity has no hooklinesinker
+    /// integration and still posts `UnifiedHookPayload` to the same path.
+    @Test @MainActor func legacyAntigravityPayloadStillFlows() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await post(server, """
+        {"agent":"antigravity","event":"PreInvocation","hookInput":{"session_id":"agy-1"},\
+        "terminal":{"sessionId":"s9","cwd":"/test/project","terminalType":"iterm2"}}
+        """)
+
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].agent == "antigravity")
+        #expect(manager.sessions[0].state == .working)
     }
 }

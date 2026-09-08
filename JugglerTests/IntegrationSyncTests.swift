@@ -36,39 +36,24 @@ struct IntegrationSyncTests {
         #expect(IntegrationSync.isStale(installedPath: missing, bundledResource: "notify", ext: "sh") == false)
     }
 
-    // MARK: - codexNeedsReinstall
+    // MARK: - needsReinstall
 
-    // Without the scriptInstalled guard, a user who has their own ~/.codex/hooks.json but never
-    // installed Juggler's hooks scores as drifted, and we'd install ourselves uninvited.
-    @Test func codexNeedsReinstall_notInstalled_falseEvenWhenEventsUnregistered() {
-        #expect(
-            IntegrationSync.codexNeedsReinstall(
-                scriptInstalled: false, scriptStale: false, hasUnregisteredEvents: true
-            ) == false
-        )
+    @Test func needsReinstall_drifted_true() {
+        #expect(IntegrationSync.needsReinstall(state: .drifted))
     }
 
-    @Test func codexNeedsReinstall_installedAndScriptStale_true() {
-        #expect(
-            IntegrationSync.codexNeedsReinstall(
-                scriptInstalled: true, scriptStale: true, hasUnregisteredEvents: false
-            )
-        )
+    // A user who never installed this agent's hooks must not have them installed uninvited on
+    // the next launch.
+    @Test func needsReinstall_missing_false() {
+        #expect(IntegrationSync.needsReinstall(state: .missing) == false)
     }
 
-    @Test func codexNeedsReinstall_installedAndEventsUnregistered_true() {
-        #expect(
-            IntegrationSync.codexNeedsReinstall(
-                scriptInstalled: true, scriptStale: false, hasUnregisteredEvents: true
-            )
-        )
+    @Test func needsReinstall_installed_false() {
+        #expect(IntegrationSync.needsReinstall(state: .installed) == false)
     }
 
-    @Test func codexNeedsReinstall_installedAndCurrent_false() {
-        #expect(
-            IntegrationSync.codexNeedsReinstall(
-                scriptInstalled: true, scriptStale: false, hasUnregisteredEvents: false
-            ) == false
-        )
+    // A config shape hooklinesinker refuses to edit must not be rewritten behind the user's back.
+    @Test func needsReinstall_unsupported_false() {
+        #expect(IntegrationSync.needsReinstall(state: .unsupported) == false)
     }
 }
