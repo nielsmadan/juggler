@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,27 +16,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract version from tag
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-
-      # `just build` embeds hooklinesinker after xcodebuild; the `xcodebuild archive` step
-      # below never runs that, so this release would ship an app whose every agent-status
-      # command fails at runtime. Refuse loudly until the nested binary has a signed
-      # embedding path — same gate as `just release-blocked-on-hooklinesinker`.
-      - name: Refuse to release without an embedded hooklinesinker
+      - name: Select release or rehearsal version
         env:
-          ALLOW_MISSING: ${{ vars.JUGGLER_RELEASE_WITHOUT_HOOKLINESINKER }}
+          IS_RELEASE: ${{ github.event_name == 'push' }}
         run: |
-          if [ "$ALLOW_MISSING" = "1" ]; then
-            echo "::warning::Releasing without an embedded hooklinesinker — agent status will not work."
-            exit 0
+          if [ "$IS_RELEASE" = "true" ]; then
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            python3 - <<'PYVERSION' >> "$GITHUB_ENV"
+          import re
+          from pathlib import Path
+          versions = set(re.findall(r"MARKETING_VERSION = ([^;]+);", Path("Juggler.xcodeproj/project.pbxproj").read_text()))
+          if len(versions) != 1:
+              raise SystemExit("Expected one app version for the release rehearsal")
+          print("VERSION=" + versions.pop())
+          PYVERSION
           fi
-          echo "::error::Release blocked: hooklinesinker would not be embedded in the Release app."
-          echo "Embedding it needs a decision that is still open: how the nested Mach-O gets"
-          echo "signed and notarized (a build phase inside the Juggler target, signed with the"
-          echo "app, is the expected shape). Set the repository variable"
-          echo "JUGGLER_RELEASE_WITHOUT_HOOKLINESINKER=1 to ship a knowingly dead integration."
-          exit 1
+
+      - name: Test packaging and integration cleanup
+        run: |
+          python3 -m unittest discover -s scripts/tests -v
+          brew ruby scripts/tests/homebrew_lifecycle.rb
+
+      - name: Stage published hooklinesinker
+        run: python3 scripts/hooklinesinker.py stage --published
 
       - name: Import Developer ID certificate
         env:
@@ -82,7 +86,7 @@ jobs:
             -exportOptionsPlist ExportOptions.plist
 
           echo "Verifying code signature..."
-          codesign -dv --verbose=2 release/export/Juggler.app
+          python3 scripts/hooklinesinker.py verify release/export/Juggler.app --distribution
 
       - name: Create ZIP
         run: cd release/export && zip -r -y ../Juggler.zip Juggler.app
@@ -101,6 +105,7 @@ jobs:
 
           echo "Stapling notarization ticket..."
           xcrun stapler staple release/export/Juggler.app
+          spctl --assess --type execute --verbose=2 release/export/Juggler.app
 
           echo "Re-creating ZIP with stapled app..."
           rm -f release/Juggler.zip
@@ -145,6 +150,12 @@ jobs:
           echo "DMG_SHA256=$DMG_SHA256" >> "$GITHUB_ENV"
           echo "SHA256 (DMG): $DMG_SHA256"
 
+      - name: Validate app and generate Homebrew cask
+        run: |
+          python3 scripts/render-homebrew-cask.py "$VERSION" \
+            release/export/Juggler.app release/Juggler.dmg "$RUNNER_TEMP/juggler.rb"
+          ruby -c "$RUNNER_TEMP/juggler.rb"
+
       - name: Download Sparkle tools
         run: |
           SPARKLE_VERSION="2.8.1"
@@ -167,6 +178,7 @@ jobs:
           echo "ZIP length: $ZIP_LENGTH"
 
       - name: Create GitHub Release
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -188,17 +200,14 @@ jobs:
             --notes-file /tmp/release-notes.md
 
       - name: Update Homebrew tap
+        if: github.event_name == 'push'
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/nielsmadan/homebrew-tap.git" \
             "$RUNNER_TEMP/homebrew-tap"
 
-          CASK_FILE="$RUNNER_TEMP/homebrew-tap/Casks/juggler.rb"
-
-          sed -i '' "s/version \".*\"/version \"$VERSION\"/" "$CASK_FILE"
-          sed -i '' "s/sha256 \".*\"/sha256 \"$DMG_SHA256\"/" "$CASK_FILE"
-          sed -i '' "s/Juggler\.zip/Juggler.dmg/" "$CASK_FILE"
+          cp "$RUNNER_TEMP/juggler.rb" "$RUNNER_TEMP/homebrew-tap/Casks/juggler.rb"
 
           cd "$RUNNER_TEMP/homebrew-tap"
           git config user.name "github-actions[bot]"
@@ -208,6 +217,7 @@ jobs:
           git push
 
       - name: Update Sparkle appcast
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -244,6 +254,16 @@ jobs:
           git add appcast.xml
           git commit -m "chore: update appcast for v${VERSION}"
           git push
+
+      - name: Save rehearsal artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v6
+        with:
+          name: juggler-release-rehearsal
+          path: |
+            release/Juggler.zip
+            release/Juggler.dmg
+          if-no-files-found: error
 
       - name: Cleanup keychain
         if: always()

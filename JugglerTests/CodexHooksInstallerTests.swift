@@ -178,6 +178,35 @@ struct CodexConfigTOMLTests {
         }
     }
 
+    @Test func featureFlagEditPreservesMultilineExamplesAndCommentedTables() throws {
+        let prefix = "instructions = '''\napprovals_reviewer = \"auto_review\"\n[features]\nhooks = true\n'''\n\n"
+        let original = prefix + "[features] # user annotation\nhooks = false\n"
+            + "[profiles.review] # personal settings\nmodel = \"keep\"\n"
+        let expected = prefix + "[features] # user annotation\nhooks = true\n"
+            + "[profiles.review] # personal settings\nmodel = \"keep\"\n"
+        try withTempFile(contents: original) { path in
+            #expect(CodexHooksInstaller.isAutoReviewEnabled(at: path) == false)
+            #expect(CodexHooksInstaller.isFeatureFlagEnabled(at: path) == false)
+            for _ in 0 ..< 2 {
+                try CodexHooksInstaller.enableFeatureFlag(at: path)
+                #expect(readFile(path) == expected)
+                #expect(CodexHooksInstaller.isFeatureFlagEnabled(at: path))
+            }
+            #expect(readFile(path + ".juggler-backup") == original)
+        }
+    }
+
+    @Test func featureFlagEditRejectsUnterminatedValuesWithoutWriting() throws {
+        let original = "[features]\nhooks = false\n[profiles.review]\ninstructions = '''unfinished\n"
+        try withTempFile(contents: original) { path in
+            #expect(throws: CodexHooksError.configUnsupported) {
+                try CodexHooksInstaller.enableFeatureFlag(at: path)
+            }
+            #expect(readFile(path) == original)
+            #expect(CodexHooksInstaller.isFeatureFlagEnabled(at: path) == false)
+        }
+    }
+
     @Test func isFeatureFlagEnabled_reflectsState() throws {
         try withTempFile(contents: "[features]\nhooks = false\n") { path in
             #expect(CodexHooksInstaller.isFeatureFlagEnabled(at: path) == false)
@@ -482,6 +511,87 @@ struct CodexEnableInCodexTests {
         }
     }
 
+    @Test func enableInCodex_preservesCommentedTablesAfterOwnedTrust() throws {
+        let entries = codexEntries(events: ["Stop"])
+        try withCodexFixture(entries: entries) { config, hooksJSON, _ in
+            let header = "[hooks.state.\"\(hooksJSON):stop:0:0\"]"
+            let retained = """
+            [mcp_servers."review# ]"] # user annotation
+            command = "keep-server"
+            arguments = [
+                ["one", "two"], # nested array
+            ]
+
+            [[projects]] # personal projects
+            name = "keep-project"
+            """
+            let original = "\(header) # previous trust\ntrusted_hash = \"sha256:OLD\"\n\n" + retained
+            try original.write(toFile: config, atomically: true, encoding: .utf8)
+            let hash = CodexHooksInstaller.computeTrustedHash(event: "Stop", command: entries[0].command)
+            let expected = retained + "\n\n\(header)\ntrusted_hash = \"\(hash)\"\n"
+
+            for _ in 0 ..< 2 {
+                try CodexHooksInstaller.enableInCodex(at: config, hooksJSONPath: hooksJSON, entries: entries)
+                #expect(readFile(config) == expected)
+            }
+            #expect(readFile(config + ".juggler-backup") == original)
+        }
+    }
+
+    @Test(arguments: ["\"\"\"", "'''", "\"\"\"\"", "'''''"])
+    func enableInCodex_preservesTrustHeadersInsideMultilineValues(delimiter: String) throws {
+        let entries = codexEntries(events: ["Stop"])
+        try withCodexFixture(entries: entries) { config, hooksJSON, _ in
+            let header = "[hooks.state.\"\(hooksJSON):stop:0:0\"]"
+            let prefix = "instructions = \(delimiter)\n\(header)\ntrusted_hash = \"example\"\n\(delimiter)\n\n"
+            let suffix = "[features] # user annotation\nhooks = true"
+            let original = prefix + "\(header)\ntrusted_hash = \"sha256:OLD\"\n\n" + suffix
+            try original.write(toFile: config, atomically: true, encoding: .utf8)
+            let hash = CodexHooksInstaller.computeTrustedHash(event: "Stop", command: entries[0].command)
+
+            try CodexHooksInstaller.enableInCodex(at: config, hooksJSONPath: hooksJSON, entries: entries)
+
+            #expect(readFile(config) == prefix + suffix + "\n\n\(header)\ntrusted_hash = \"\(hash)\"\n")
+        }
+    }
+
+    @Test(arguments: ["\"\"\"unfinished", "\"unfinished", "[1, 2", "{name = \"unfinished\"", "\"\"\"bad\"\"\"\"\"\""])
+    func enableInCodex_rejectsUncertainTableBoundariesWithoutWriting(value: String) throws {
+        try withCodexFixture { config, hooksJSON, entries in
+            let original = """
+            [hooks.state."\(hooksJSON):stop:0:0"]
+            trusted_hash = "sha256:OLD"
+            [profiles.review]
+            setting = \(value)
+            """
+            try original.write(toFile: config, atomically: true, encoding: .utf8)
+            try "recovery".write(toFile: config + ".juggler-backup", atomically: true, encoding: .utf8)
+
+            #expect(throws: CodexHooksError.configUnsupported) {
+                try CodexHooksInstaller.enableInCodex(at: config, hooksJSONPath: hooksJSON, entries: entries)
+            }
+            #expect(readFile(config) == original)
+            #expect(readFile(config + ".juggler-backup") == "recovery")
+        }
+    }
+
+    @Test func multilineTrustExampleDoesNotAuthorizeTrustRefresh() throws {
+        let entries = codexEntries(events: ["Stop"])
+        try withCodexFixture(entries: entries) { config, hooksJSON, _ in
+            let hash = CodexHooksInstaller.computeTrustedHash(event: "Stop", command: entries[0].command)
+            let original = "instructions = '''\n[hooks.state.\"\(hooksJSON):stop:0:0\"]\n"
+                + "trusted_hash = \"\(hash)\"\n'''\n"
+            try original.write(toFile: config, atomically: true, encoding: .utf8)
+
+            #expect(CodexHooksInstaller.hasExistingTrustEntries(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            ) == false)
+            #expect(CodexHooksInstaller.allEntriesTrusted(
+                at: config, hooksJSONPath: hooksJSON, entries: entries
+            ) == false)
+        }
+    }
+
     // The core bug this guards: when the user already has a hook for an event, ours is
     // appended at group index ≥ 1 and the trust key must reflect that real index — which is
     // now the index the CLI reports rather than one Juggler re-derives.
@@ -683,154 +793,6 @@ struct CodexEnableInCodexTests {
             #expect(CodexHooksInstaller.isEnabledInCodex(
                 at: config, hooksJSONPath: hooksJSON, entries: entries
             ) == true)
-        }
-    }
-}
-
-// MARK: - uninstall trust
-
-/// The reset flow's half of the trust contract: everything `enableInCodex` wrote must come back
-/// out, and nothing else may. Codex identifies a hook by `<hooks.json>:<event>:<group>:<handler>`,
-/// so these entries are only findable while the hooks are still registered — the reset reads the
-/// registration before removing the hooks.
-@Suite("CodexHooksInstaller — remove trust")
-struct CodexRemoveTrustTests {
-    @Test func removeTrustEntries_removesEverythingEnableInCodexWrote() throws {
-        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, entries in
-            try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
-            )
-            #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
-            ))
-
-            let removed = try CodexHooksInstaller.removeTrustEntries(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
-            )
-
-            #expect(removed)
-            let out = readFile(config)
-            for entry in entries {
-                let hash = CodexHooksInstaller.computeTrustedHash(
-                    event: entry.event, command: entry.command
-                )
-                #expect(!out.contains(hash), "trust hash for \(entry.event) survived the reset")
-            }
-            #expect(!out.contains("[hooks.state."))
-            #expect(out.contains("hooks = true"))
-            #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
-            ) == false)
-        }
-    }
-
-    /// The canonical command is hooklinesinker's `<bin> ingest --agent codex --event X`, not the
-    /// pre-migration `notify.sh X`. A reset that only knew the old shape would leave every entry
-    /// behind.
-    @Test func removeTrustEntries_findsEntriesWrittenOverCanonicalCommands() throws {
-        let entries = codexEntries(binary: "/Users/me/.local/share/hooklinesinker/bin/hooklinesinker")
-        try withCodexFixture(entries: entries) { config, hooksJSON, _ in
-            try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
-            )
-            #expect(readFile(config).contains("ingest --agent codex") == false) // hashes only
-            #expect(readFile(config).contains("[hooks.state."))
-
-            try CodexHooksInstaller.removeTrustEntries(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
-            )
-
-            #expect(!readFile(config).contains("[hooks.state."))
-        }
-    }
-
-    @Test func removeTrustEntries_preservesUserTrustAndUnrelatedContent() throws {
-        let entries = codexEntries(groupIndex: 1)
-        try withCodexFixture(entries: entries) { config, hooksJSON, _ in
-            try """
-            model = "gpt-5"
-
-            [features]
-            hooks = true
-
-            [hooks.state."\(hooksJSON):session_start:0:0"]
-            trusted_hash = "sha256:USERHASH_SS"
-
-            [hooks.state."/other/hooks.json:stop:0:0"]
-            trusted_hash = "sha256:OTHER"
-            """.write(toFile: config, atomically: true, encoding: .utf8)
-            try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
-            )
-
-            try CodexHooksInstaller.removeTrustEntries(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
-            )
-
-            let out = readFile(config)
-            #expect(out.contains("model = \"gpt-5\""))
-            #expect(out.contains("hooks = true"))
-            #expect(out.contains("sha256:USERHASH_SS"))
-            #expect(out.contains("\(hooksJSON):session_start:0:0"))
-            #expect(out.contains("sha256:OTHER"))
-            #expect(!out.contains("\(hooksJSON):session_start:1:0"))
-        }
-    }
-
-    /// A block sitting at one of our keys but carrying a hash we would never write is somebody
-    /// else's trust for that slot — deleting it would silently un-trust their hook.
-    @Test func removeTrustEntries_leavesAForeignHashAtOurKeyAlone() throws {
-        try withCodexFixture { config, hooksJSON, entries in
-            try """
-            [hooks.state."\(hooksJSON):session_start:0:0"]
-            trusted_hash = "sha256:NOTOURS"
-            """.write(toFile: config, atomically: true, encoding: .utf8)
-
-            let removed = try CodexHooksInstaller.removeTrustEntries(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
-            )
-
-            #expect(removed == false)
-            #expect(readFile(config).contains("sha256:NOTOURS"))
-        }
-    }
-
-    @Test func removeTrustEntries_isANoOpWhenNothingWasTrusted() throws {
-        let original = "[features]\nhooks = true\n"
-        try withCodexFixture(config: original) { config, hooksJSON, entries in
-            let removed = try CodexHooksInstaller.removeTrustEntries(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
-            )
-            #expect(removed == false)
-            #expect(readFile(config) == original)
-        }
-    }
-
-    @Test func removeTrustEntries_toleratesAMissingConfigAndAnEmptyRegistration() throws {
-        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, entries in
-            let missingConfig = try CodexHooksInstaller.removeTrustEntries(
-                at: "/nonexistent/config.toml", hooksJSONPath: hooksJSON, entries: entries
-            )
-            #expect(missingConfig == false)
-            // Nothing registered means no key we could safely claim.
-            let noEntries = try CodexHooksInstaller.removeTrustEntries(
-                at: config, hooksJSONPath: hooksJSON, entries: []
-            )
-            #expect(noEntries == false)
-        }
-    }
-
-    @Test func removeTrustEntries_keepsTheFileTrailingNewlineConvention() throws {
-        try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, entries in
-            try CodexHooksInstaller.enableInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
-            )
-            try CodexHooksInstaller.removeTrustEntries(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
-            )
-            let out = readFile(config)
-            #expect(out.hasSuffix("\n"))
-            #expect(!out.hasSuffix("\n\n"))
         }
     }
 }

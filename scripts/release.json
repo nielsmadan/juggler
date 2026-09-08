@@ -1,0 +1,62 @@
+{
+  "branch": "main",
+  "components": 3,
+  "initial_version": "0.1.0",
+  "checks": [
+    [
+      "python3",
+      "scripts/hooklinesinker.py",
+      "stage",
+      "--published"
+    ],
+    [
+      "just",
+      "check"
+    ]
+  ],
+  "tools": [
+    "git",
+    "python3",
+    "just",
+    "gh",
+    "xcodebuild",
+    "swiftformat",
+    "swiftlint",
+    "periphery"
+  ],
+  "stages": [
+    {
+      "files": [
+        "Juggler.xcodeproj/project.pbxproj"
+      ],
+      "commands": [
+        [
+          "python3",
+          "scripts/prepare_release.py",
+          "version",
+          "{version}"
+        ]
+      ],
+      "message": "chore: release {version}"
+    },
+    {
+      "files": [
+        "juggler/Views/SettingsView.swift",
+        "scripts/install-remote.sh"
+      ],
+      "commands": [
+        [
+          "python3",
+          "scripts/prepare_release.py",
+          "revision",
+          "{revision}"
+        ]
+      ],
+      "message": "chore: pin release installer"
+    }
+  ],
+  "name": "Juggler",
+  "repository": "nielsmadan/juggler",
+  "workflow": "release.yml",
+  "publication": "Signed and notarized GitHub release, updater feed and Homebrew cask"
+}

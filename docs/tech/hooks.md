@@ -22,7 +22,9 @@ Per-agent specifics: [OpenCode Plugin](opencode-plugin.md), [Codex Hooks](codex-
 
 Everything after step 1 runs the **promoted** binary, because that is the path the installed
 hook commands point at. The bundle copy lives at `Juggler.app/Contents/MacOS/hooklinesinker`
-(`just build` stages it there after `xcodebuild`, verifying the release manifest first).
+(`just build` verifies and stages the universal binary before Xcode embeds and signs it).
+An already installed, newer protocol-compatible version stays active. App startup needs no
+download; see [release packaging](release.md) for the build-time source and version pins.
 
 The hooks call `hooklinesinker ingest --agent claude --event <Event>`. No script is copied into
 `~/.claude/hooks/juggler/` any more, and the app ships no `notify.sh`.
@@ -186,20 +188,25 @@ The in-app log viewer (Settings → Logs) shows what the hook server received.
 
 ## Uninstall / Reset
 
-Settings → Reset integrations runs, in this order:
+Settings → Reset integrations, `just reset-integration`, `just reset-all`, and Homebrew zap
+all run `Resources/hooks/uninstall.sh`, which delegates to `integration_cleanup.py`:
 
 1. `hooks status --agent codex --json`, to capture the trust keys **before** anything removes
    hooks (the keys are built from the group indexes hooks.json currently holds).
-2. Swift removal of Juggler's `[hooks.state]` trust blocks from `~/.codex/config.toml`.
-3. `hooklinesinker uninstall --consumer juggler` — this removes Juggler's registration, and
+2. `hooklinesinker uninstall --consumer juggler` removes Juggler's registration, and
    removes the shared hooks and the promoted binary only if Juggler was the **last** consumer.
    Another tool (e.g. ringleader) still using them keeps them installed.
-4. `Resources/hooks/uninstall.sh`, which clears everything hooklinesinker does not own: the
+3. A fresh status read confirms whether the Codex hooks were removed. Only then does
+   `codex_config_cleanup.py` remove matching canonical trust entries from `config.toml`.
+   Remaining consumers keep their trust; a failed or ambiguous status read preserves it.
+4. The cleanup script clears everything else Juggler owns: the
    Kitty watcher, Antigravity hooks, the Automation (Apple Events) permission via `tccutil`,
    and — through `codex_config_cleanup.py` — pre-migration trust entries written over the old
    `notify.sh` command.
 
-`just reset-integration` (and `just reset-all`) runs step 4 only.
+Shared configuration writes preserve symlinks and file permissions. Invalid JSON reports a failure and preserves that integration's files and recovery backup; cleanup continues for the other integrations and exits nonzero. Successful cleanup deletes stale Juggler recovery backups. Shared tmux settings remain.
+
+See [Homebrew distribution](homebrew.md) for install, upgrade, and zap behavior. `just test-packaging` exercises cleanup against temporary directories without launching Juggler or resetting system permissions.
 
 ---
 

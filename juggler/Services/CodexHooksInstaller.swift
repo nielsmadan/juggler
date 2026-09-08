@@ -4,6 +4,7 @@ import Foundation
 enum CodexHooksError: LocalizedError, Equatable {
     case hooksNotRegistered(String)
     case hooksUnsupported(String)
+    case configUnsupported
 
     var errorDescription: String? {
         switch self {
@@ -11,6 +12,8 @@ enum CodexHooksError: LocalizedError, Equatable {
             "Juggler's hooks aren't registered in hooks.json. Run \"Install Hooks\" first."
         case let .hooksUnsupported(path):
             "Codex hooks.json at \(path) has a shape Juggler can't safely edit. Fix or remove it, then retry."
+        case .configUnsupported:
+            "Codex config.toml has malformed strings, brackets, or table headers. Fix it before enabling hooks."
         }
     }
 }
@@ -69,7 +72,7 @@ enum CodexHooksInstaller {
         let existed = fm.fileExists(atPath: path)
         let original = try existed ? String(contentsOfFile: path, encoding: .utf8) : ""
 
-        let updated = editedTOML(original: original)
+        let updated = try editedTOML(original: original)
         if updated != original {
             let backupPath = path + ".juggler-backup"
             if existed, !fm.fileExists(atPath: backupPath) {
@@ -82,14 +85,13 @@ enum CodexHooksInstaller {
     /// Returns true if the hooks feature is enabled in the [features] section.
     /// Accepts the current `hooks` key and the deprecated `codex_hooks` alias.
     static func isFeatureFlagEnabled(at path: String = configTOMLPath) -> Bool {
-        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
+        guard let contents = try? String(contentsOfFile: path, encoding: .utf8),
+              let lines = try? scannedTOMLLines(contents) else {
             return false
         }
         var currentSection = ""
-        for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = removingTOMLComment(from: String(rawLine))
-                .trimmingCharacters(in: .whitespaces)
-            if line.hasPrefix("["), line.hasSuffix("]") {
+        for (_, line) in lines {
+            if line.hasPrefix("[") {
                 currentSection = String(line.dropFirst().dropLast())
                 continue
             }
@@ -106,14 +108,13 @@ enum CodexHooksInstaller {
     }
 
     static func isAutoReviewEnabled(at path: String = configTOMLPath) -> Bool {
-        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
+        guard let contents = try? String(contentsOfFile: path, encoding: .utf8),
+              let lines = try? scannedTOMLLines(contents) else {
             return false
         }
         var currentSection = ""
-        for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = removingTOMLComment(from: String(rawLine))
-                .trimmingCharacters(in: .whitespaces)
-            if line.hasPrefix("["), line.hasSuffix("]") {
+        for (_, line) in lines {
+            if line.hasPrefix("[") {
                 currentSection = String(line.dropFirst().dropLast())
                 continue
             }
@@ -168,7 +169,7 @@ enum CodexHooksInstaller {
         let existed = fm.fileExists(atPath: path)
         let original = try existed ? String(contentsOfFile: path, encoding: .utf8) : ""
 
-        let updated = upsertTrustEntries(
+        let updated = try upsertTrustEntries(
             original: original,
             entries: entries,
             hooksJSONPath: hooksJSONPath
@@ -180,38 +181,6 @@ enum CodexHooksInstaller {
             }
             try updated.write(toFile: path, atomically: true, encoding: .utf8)
         }
-    }
-
-    /// Removes the `[hooks.state]` blocks Juggler wrote for the hooks the CLI reported, so a
-    /// reset doesn't leave Codex trusting commands that no longer exist. Must be called while
-    /// the hooks are still registered: the keys are built from the group indexes hooks.json
-    /// currently holds. A block sitting at one of our keys whose stored hash isn't the one we
-    /// would write belongs to someone else and is left alone. Returns true when the file changed.
-    @discardableResult
-    static func removeTrustEntries(
-        at path: String = configTOMLPath,
-        hooksJSONPath: String,
-        entries: [HooklinesinkerHookEntry]
-    ) throws -> Bool {
-        guard !entries.isEmpty, FileManager.default.fileExists(atPath: path) else { return false }
-        let original = try String(contentsOfFile: path, encoding: .utf8)
-        let ours = trustedHashesByKey(entries: entries, hooksJSONPath: hooksJSONPath)
-
-        let retained = splitSections(original).filter { section in
-            guard let key = hookStateKey(section.first), let expected = ours[key] else { return true }
-            return sectionHash(section) != expected
-        }
-        var updated = retained.flatMap(\.self).joined(separator: "\n")
-        guard updated != original else { return false }
-
-        while updated.hasSuffix("\n\n") {
-            updated.removeLast()
-        }
-        if original.hasSuffix("\n"), !updated.isEmpty, !updated.hasSuffix("\n") {
-            updated += "\n"
-        }
-        try updated.write(toFile: path, atomically: true, encoding: .utf8)
-        return true
     }
 
     /// Returns true only when config.toml has a matching `trusted_hash` for every event
@@ -234,8 +203,7 @@ enum CodexHooksInstaller {
     }
 
     /// The `[hooks.state]` key → `trusted_hash` pair Juggler writes for each reported hook.
-    /// The single place the key shape and the hashed command come together, so writing,
-    /// checking and removing can never disagree about what "Juggler's entry" means.
+    /// The single place the key shape and the hashed command come together for trust writing and checks.
     private static func trustedHashesByKey(
         entries: [HooklinesinkerHookEntry],
         hooksJSONPath: String
@@ -248,35 +216,6 @@ enum CodexHooksInstaller {
             pairs[key] = computeTrustedHash(event: entry.event, command: entry.command)
         }
         return pairs
-    }
-
-    private static func splitSections(_ contents: String) -> [[String]] {
-        var sections: [[String]] = [[]]
-        for line in contents.components(separatedBy: "\n") {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("["), trimmed.hasSuffix("]") {
-                sections.append([])
-            }
-            sections[sections.count - 1].append(line)
-        }
-        return sections
-    }
-
-    private static func hookStateKey(_ header: String?) -> String? {
-        guard let trimmed = header?.trimmingCharacters(in: .whitespaces),
-              trimmed.hasPrefix("[hooks.state.\""), trimmed.hasSuffix("\"]")
-        else { return nil }
-        return String(trimmed.dropFirst("[hooks.state.\"".count).dropLast("\"]".count))
-    }
-
-    private static func sectionHash(_ section: [String]) -> String? {
-        for line in section.dropFirst() {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if let hash = parseStringAssignment(line: trimmed, key: "trusted_hash") {
-                return hash
-            }
-        }
-        return nil
     }
 
     /// True when config.toml already carries a matching trust entry for at least one currently
@@ -317,11 +256,11 @@ enum CodexHooksInstaller {
 
     /// Parses all `[hooks.state."<key>"]` → `trusted_hash` pairs from config.toml contents.
     private static func parseHookStateHashes(from contents: String) -> [String: String] {
+        guard let lines = try? scannedTOMLLines(contents) else { return [:] }
         var found: [String: String] = [:]
         var currentKey: String?
-        for rawLine in contents.components(separatedBy: "\n") {
-            let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("["), trimmed.hasSuffix("]") {
+        for (_, trimmed) in lines {
+            if trimmed.hasPrefix("[") {
                 if trimmed.hasPrefix("[hooks.state.\""), trimmed.hasSuffix("\"]") {
                     currentKey = String(trimmed.dropFirst("[hooks.state.\"".count).dropLast("\"]".count))
                 } else {
@@ -372,7 +311,7 @@ enum CodexHooksInstaller {
         original: String,
         entries: [HooklinesinkerHookEntry],
         hooksJSONPath: String
-    ) -> String {
+    ) throws -> String {
         let currentKeys = Set(entries.map {
             trustEntryKey(event: $0.event, groupIndex: $0.groupIndex, hooksJSONPath: hooksJSONPath)
         })
@@ -382,13 +321,12 @@ enum CodexHooksInstaller {
             return currentKeys.contains(key)
         }
 
-        let lines = original.isEmpty ? [] : original.components(separatedBy: "\n")
+        let lines = try scannedTOMLLines(original)
         var preservedLines: [String] = []
         var skipping = false
-        for rawLine in lines {
-            let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("["), trimmed.hasSuffix("]") {
-                skipping = isJugglerHeader(trimmed)
+        for (rawLine, statement) in lines {
+            if statement.hasPrefix("[") {
+                skipping = isJugglerHeader(statement)
             }
             if !skipping {
                 preservedLines.append(rawLine)
@@ -416,6 +354,87 @@ enum CodexHooksInstaller {
         return preserved + "\n\n" + blocks
     }
 
+    private static func scannedTOMLLines(_ contents: String) throws -> [(raw: String, statement: String)] {
+        var scanner = TOMLStatementScanner()
+        let lines = try contents.components(separatedBy: "\n").map { line in
+            try (raw: line, statement: scanner.statement(in: line))
+        }
+        guard scanner.quote == nil, scanner.brackets.isEmpty else {
+            throw CodexHooksError.configUnsupported
+        }
+        return lines
+    }
+
+    private struct TOMLStatementScanner {
+        var quote: Character?
+        var multiline = false
+        var brackets: [Character] = []
+
+        mutating func statement(in line: String) throws -> String {
+            let startsStatement = quote == nil && brackets.isEmpty
+            let characters = Array(line)
+            var position = 0
+            scan: while position < characters.count {
+                let character = characters[position]
+                if let quote {
+                    try consumeQuoted(characters, quote: quote, position: &position)
+                    continue
+                }
+                switch character {
+                case "#":
+                    break scan
+                case "\"", "'":
+                    quote = character
+                    multiline = position + 2 < characters.count
+                        && characters[position + 1] == character && characters[position + 2] == character
+                    position += multiline ? 3 : 1
+                case "[", "{":
+                    brackets.append(character)
+                    position += 1
+                case "]", "}":
+                    guard brackets.popLast() == (character == "]" ? "[" : "{") else {
+                        throw CodexHooksError.configUnsupported
+                    }
+                    position += 1
+                default:
+                    position += 1
+                }
+            }
+            guard quote == nil || multiline else { throw CodexHooksError.configUnsupported }
+            let statement = startsStatement
+                ? String(characters.prefix(position)).trimmingCharacters(in: .whitespacesAndNewlines)
+                : ""
+            if statement.hasPrefix("["), quote != nil || !brackets.isEmpty || !statement.hasSuffix("]") {
+                throw CodexHooksError.configUnsupported
+            }
+            return statement
+        }
+
+        private mutating func consumeQuoted(_ characters: [Character], quote: Character, position: inout Int) throws {
+            if quote == "\"", characters[position] == "\\" {
+                position += 2
+                return
+            }
+            guard characters[position] == quote else {
+                position += 1
+                return
+            }
+            var count = 1
+            if multiline {
+                while position + count < characters.count, characters[position + count] == quote {
+                    count += 1
+                }
+                if count < 3 {
+                    position += count
+                    return
+                }
+                guard count <= 5 else { throw CodexHooksError.configUnsupported }
+            }
+            self.quote = nil
+            position += count
+        }
+    }
+
     /// Returns the quoted string value from Juggler's known-shape TOML assignments.
     private static func parseStringAssignment(line: String, key: String) -> String? {
         let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
@@ -439,46 +458,23 @@ enum CodexHooksInstaller {
         return nil
     }
 
-    private static func removingTOMLComment(from line: String) -> String {
-        var quote: Character?
-        var escaped = false
-
-        for index in line.indices {
-            let character = line[index]
-            if let activeQuote = quote {
-                if activeQuote == "\"", character == "\\", !escaped {
-                    escaped = true
-                    continue
-                }
-                if character == activeQuote, !escaped {
-                    quote = nil
-                }
-                escaped = false
-            } else if character == "\"" || character == "'" {
-                quote = character
-            } else if character == "#" {
-                return String(line[..<index])
-            }
-        }
-        return line
-    }
-
     // MARK: - TOML helpers
 
-    private static func editedTOML(original: String) -> String {
+    private static func editedTOML(original: String) throws -> String {
         if original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return "[features]\nhooks = true\n"
         }
 
-        var lines = original.components(separatedBy: "\n")
+        let scannedLines = try scannedTOMLLines(original)
+        var lines = scannedLines.map(\.raw)
         var currentSection = ""
         var featuresEnd: Int? // index *after* last line of [features] (exclusive)
         var hooksLineIndex: Int?
         var legacyCodexHooksLineIndex: Int?
 
-        for (idx, rawLine) in lines.enumerated() {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
-            if line.hasPrefix("["), line.hasSuffix("]") {
+        for (idx, scannedLine) in scannedLines.enumerated() {
+            let line = scannedLine.statement
+            if line.hasPrefix("[") {
                 if currentSection == "features" {
                     featuresEnd = idx
                 }

@@ -23,6 +23,6 @@ pre-push:
     test:
       run: just test
       priority: 2
-    unused-check:
-      run: just unused-check
+    check-unused:
+      run: just check-unused
       priority: 3

@@ -12,15 +12,23 @@ permissions:
 jobs:
   build-and-test:
     runs-on: macos-26
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Test release tooling
+        run: python3 -B -m unittest discover -s scripts -p 'test_release*.py'
 
       - name: Install Just
         run: brew install just
 
+      - uses: ./.github/actions/build-hooklinesinker
+
       - name: Build (strict, zero warnings)
         run: just build-strict ci.xcconfig
+
+      - name: Test packaging and integration cleanup
+        run: just test-packaging
 
       - name: Test + coverage
         run: just coverage ci.xcconfig
@@ -46,12 +54,14 @@ jobs:
           brew install just
           brew install periphery
 
+      - uses: ./.github/actions/build-hooklinesinker
+
       - name: Check for unused code
-        run: just unused-check
+        run: just check-unused ci.xcconfig
 
   idle-cpu:
     runs-on: macos-26
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       PERF_XCCONFIG: ci.xcconfig
     steps:
@@ -59,6 +69,8 @@ jobs:
 
       - name: Install Just
         run: brew install just
+
+      - uses: ./.github/actions/build-hooklinesinker
 
       - name: Idle-CPU guard
         run: just test-idle-cpu

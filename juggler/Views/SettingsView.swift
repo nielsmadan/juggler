@@ -205,52 +205,17 @@ struct GeneralSettingsView: View {
         return ["Removed login item"]
     }
 
-    /// Order matters. Codex's trust keys are built from the group indexes hooks.json currently
-    /// holds, so they have to be read and cleaned while the hooks are still registered —
-    /// hooklinesinker never touches config.toml, trust stays Juggler's. Removing the consumer
-    /// then takes the shared hooks and the promoted binary with it once no other app is
-    /// registered, and `uninstall.sh` finally clears what hooklinesinker doesn't own: the Kitty
-    /// watcher, Antigravity hooks, Automation permission, and pre-migration leftovers.
     private func runIntegrationCleanup() async -> [String] {
         var actions: [String] = []
-        actions += await removeCodexTrustEntries()
-
-        let removal = await HooklinesinkerClient.shared.uninstallConsumer()
-        if removal.isSuccess {
-            actions.append("Removed shared agent hooks")
-        } else {
-            actions.append("Shared agent hook removal failed: \(removal.failureMessage)")
-        }
         if Bundle.main.path(forResource: "uninstall", ofType: "sh") != nil {
             if let error = await ScriptInstaller.runBundledScript(resource: "uninstall") {
                 actions.append("Integration cleanup failed: \(error)")
             } else {
-                actions
-                    .append(
-                        "Removed integrations (Claude hooks, Kitty watcher, OpenCode plugin, Pi extension, Antigravity hooks)"
-                    )
+                actions.append("Removed Juggler integrations; hooks shared with other apps remain installed")
                 actions.append("Reset Automation permission")
             }
         }
         return actions
-    }
-
-    private func removeCodexTrustEntries() async -> [String] {
-        guard let status = try? await HooklinesinkerClient.shared.hookStatus(agent: .codex) else {
-            return [
-                "Could not read Codex hook registration — any Juggler trust entries in "
-                    + "config.toml were left in place"
-            ]
-        }
-        guard !status.entries.isEmpty else { return [] }
-        do {
-            let removed = try CodexHooksInstaller.removeTrustEntries(
-                hooksJSONPath: status.path, entries: status.entries
-            )
-            return removed ? ["Removed Juggler trust entries from Codex config.toml"] : []
-        } catch {
-            return ["Codex trust cleanup failed: \(error.localizedDescription)"]
-        }
     }
 
     private func clearDefaults() -> [String] {
@@ -1311,8 +1276,8 @@ struct SSHSettingsView: View {
             .appendingPathComponent(".ssh/config").path
     }
 
-    // `just tag-release` advances this to an immutable release-preparation commit.
-    private static let installRevision = "8f677fb2be1f4a16987a46a4b48ad851efe7dc43"
+    // `just release` advances this to an immutable release-preparation commit.
+    private static let installRevision = "d8b864f579e10fe0680a27b4b05324ebdc4e9b76"
     private var installOneLiner: String {
         RemoteSetupSnippets.installOneLiner(
             revision: Self.installRevision,

@@ -7,7 +7,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/<revision>/scripts/install-remote.sh |
 #       JUGGLER_SINK=http://127.0.0.1:7483/hook bash
 #
-# `just tag-release` advances the default revision to an immutable release-preparation commit.
+# `just release` advances the default revision to an immutable release-preparation commit.
 #
 # The remote host reaches Juggler's HTTP sink over your ssh tunnel, so forward the port:
 #   ssh -R 7483:localhost:7483 <host>
@@ -17,7 +17,7 @@ set -e
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-REVISION="${JUGGLER_REVISION:-8f677fb2be1f4a16987a46a4b48ad851efe7dc43}"
+REVISION="${JUGGLER_REVISION:-d8b864f579e10fe0680a27b4b05324ebdc4e9b76}"
 HLS_VERSION="${HOOKLINESINKER_VERSION:-v1.0.0}"
 HLS_BASE="${HOOKLINESINKER_BASE_URL:-https://github.com/nielsmadan/hooklinesinker/releases/download/$HLS_VERSION}"
 SINK="${JUGGLER_SINK:-http://127.0.0.1:7483/hook}"

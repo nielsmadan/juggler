@@ -877,6 +877,13 @@ struct UnifiedHookPayload: Sendable {
 extension UnifiedHookPayload: Decodable {
     nonisolated init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard !container.contains(.protocol) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .protocol,
+                in: container,
+                debugDescription: "Versioned hook payload requires a supported status protocol"
+            )
+        }
         agent = try container.decode(String.self, forKey: .agent)
         event = try container.decode(String.self, forKey: .event)
         hookInput = try container.decodeIfPresent(HookInput.self, forKey: .hookInput)
@@ -887,7 +894,7 @@ extension UnifiedHookPayload: Decodable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case agent, event, hookInput, terminal, git, tmux, remoteHost
+        case `protocol`, agent, event, hookInput, terminal, git, tmux, remoteHost
     }
 }
 

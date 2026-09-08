@@ -1,17 +1,19 @@
 import Foundation
 import Testing
 
-/// Probes `Bundle.main` for every resource the app ships. Catches Xcode-bundling
-/// regressions like the `juggler-opencode.ts` bug, where Xcode 16's filesystem-
-/// synchronized root group routed `.ts` to "Compile Sources" instead of the
-/// resources bundle, so `Bundle.main.url(forResource:withExtension:)` returned
-/// nil at runtime.
 @Suite("Bundle resources")
 struct BundleResourcesTests {
+    @Test
+    func hooklinesinkerIsEmbeddedAsAnExecutable() throws {
+        let executable = try #require(Bundle.main.url(forAuxiliaryExecutable: "hooklinesinker"))
+        #expect(FileManager.default.isExecutableFile(atPath: executable.path))
+    }
+
     @Test(arguments: [
         // Looked up directly via Bundle.main in Swift:
         ("install_kitty_watcher", "sh"), // ScriptInstaller.installKittyWatcher
         ("uninstall", "sh"), // SettingsView reset / ScriptInstaller
+        ("integration_cleanup", "py"),
         ("antigravity-notify", "sh"), // AntigravityHooksInstaller.installHooks
         ("codex_config_cleanup", "py"), // uninstall.sh removes only Juggler trust entries
         ("iterm2_daemon", "py"), // iTerm2Bridge

@@ -20,13 +20,18 @@ just test         # Run unit tests only (fast, no UI)
 just clean        # Remove the build directory
 just lint         # Run SwiftLint (--strict)
 just format       # Run SwiftFormat
-just unused-check # Check for unused code (Periphery)
+just check-unused # Check for unused code (Periphery)
 just coverage     # Run unit tests and print the coverage summary
 just reset-all    # Clear all app preferences/permissions/integrations (fresh-state testing)
-just setup        # Install the repo's lefthook Git hooks
+just setup        # Resolve dependencies, install Git hooks, and verify tools
+just doctor       # Verify tools and hook installation
+just check        # Format check, lint, strict build, tests, and unused-code check
+just release      # Propose, check, confirm or override, and publish a version
 ```
 
 Or use Xcode: `⌘B` to build, `⌘R` to run.
+
+Release commands and installer pinning are documented in [docs/tech/release.md](docs/tech/release.md).
 
 **Testing workflow:** Don't run `just run` - the user runs and tests the app themselves. Just run `just build` and tell the user when it's ready for testing.
 
@@ -91,24 +96,20 @@ Juggler/
     ├── iterm2_daemon.py          # Python daemon for iTerm2 API
     ├── juggler_watcher.py        # Kitty event watcher
     ├── install_kitty_watcher.sh  # Kitty watcher install script
-    ├── codex_config_cleanup.py   # Removes pre-migration Codex trust entries on reset
+    ├── codex_config_cleanup.py   # Removes matching Codex trust entries on reset
+    ├── integration_cleanup.py    # Scoped shared-hook, legacy and terminal cleanup
     ├── hooks/
-    │   └── uninstall.sh          # Integration cleanup for everything hooklinesinker doesn't own
+    │   └── uninstall.sh          # Shared cleanup entrypoint for Settings, just and Homebrew
     └── antigravity-hooks/
         └── antigravity-notify.sh # Antigravity hook notification script
 ```
 
 Claude Code, Codex, OpenCode and Pi hooks are **not** in this tree: hooklinesinker owns them.
-`just build` stages its universal binary at `Juggler.app/Contents/MacOS/hooklinesinker`, after
-resolving its digest out of the release `SHA256SUMS` and refusing an artifact the manifest does
-not list (set `HOOKLINESINKER_DIST` to a release build; without one the app builds and reports
-the binary as missing).
-
-**Release is deliberately blocked.** `xcodebuild archive` never runs that embedding step, so
-`just archive`/`just export` and the release workflow refuse rather than ship an app whose
-agent-status integration is silently dead. Lifting the block means deciding how the nested
-Mach-O gets signed — until then, `JUGGLER_RELEASE_WITHOUT_HOOKLINESINKER=1` is the explicit
-opt-out.
+Build recipes stage its pinned universal binary before Xcode embeds and signs it in
+`Contents/MacOS`. Direct Xcode builds require `just stage-hooklinesinker` first. Set
+`HOOKLINESINKER_DIST` to a local universal release build for development before publication.
+Release checks require the published artifact and verify the exported and promoted signatures.
+See [docs/tech/release.md](docs/tech/release.md) for pins, development builds and release rehearsals.
 
 **Session states:** `idle`, `permission`, `working`, `backburner` (excluded from cycle), `compacting`
 
@@ -123,8 +124,9 @@ opt-out.
 
 ## Hook Installation
 
-Claude Code, Codex, OpenCode and Pi hooks all belong to **hooklinesinker**, the shared binary in
-`Contents/MacOS/hooklinesinker`. `HooklinesinkerClient` registers Juggler as a consumer with an
+Claude Code, Codex, OpenCode and Pi hooks all belong to **hooklinesinker**, bundled at
+`Contents/MacOS/hooklinesinker` and promoted to the shared machine installation.
+`HooklinesinkerClient` registers Juggler as a consumer with an
 HTTP sink, then runs `hooks install|status --agent <agent>`; the binary writes into each agent's
 own configuration and reports drift. Juggler does not build hook commands, parse `settings.json`
 or `hooks.json`, or ship notify scripts for those four agents. See
@@ -136,7 +138,9 @@ hooklinesinker must never touch `config.toml`. See
 [docs/tech/codex-hooks.md](docs/tech/codex-hooks.md).
 
 Uninstall is scoped: `uninstall --consumer juggler` removes Juggler's registration, and removes
-the hooks only if Juggler was the last consumer.
+the hooks only if Juggler was the last consumer. All reset entrypoints use
+`integration_cleanup.py`, which preserves Codex trust until a fresh status read confirms
+the shared hooks were removed.
 
 Antigravity installs the bundled `antigravity-notify.sh` to `~/.gemini/hooks/juggler/notify.sh` and registers it under a `"juggler"` key in `~/.gemini/config/hooks.json`. No trust step or feature flag. Only `PreInvocation` (working) and `Stop` (idle) are registered; `Stop` requires the hook to return a `decision`, so the script always emits an allow. No permission/compaction/session-end events. See [docs/tech/antigravity-hooks.md](docs/tech/antigravity-hooks.md).
 
@@ -177,4 +181,4 @@ Related documentation:
 
 ## Commit & Pull Request Guidelines
 
-Recent history uses short Conventional Commit-style subjects such as `fix: show shortcuts in lowercase` and `chore: improve docs`. Keep commit titles imperative and concise. Before pushing, expect `lefthook` to run formatters, lint, `just build-strict`, `just test`, and `just unused-check`. PRs should include a clear summary, linked issue or plan doc when relevant, and screenshots or recordings for visible UI changes.
+Recent history uses short Conventional Commit-style subjects such as `fix: show shortcuts in lowercase` and `chore: improve docs`. Keep commit titles imperative and concise. Before pushing, expect `lefthook` to run formatters, lint, `just build-strict`, `just test`, and `just check-unused`. PRs should include a clear summary, linked issue or plan doc when relevant, and screenshots or recordings for visible UI changes.

@@ -11,6 +11,7 @@
 		5C0DE5C0DE5C0DE000000021 /* ShortcutKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 5C0DE5C0DE5C0DE000000011 /* ShortcutKitUI */; };
 		5C0DE5C0DE5C0DE000000022 /* ShortcutKitGlobal in Frameworks */ = {isa = PBXBuildFile; productRef = 5C0DE5C0DE5C0DE000000012 /* ShortcutKitGlobal */; };
 		19E7C7C62F2752EC00708D20 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 19E7C7C52F2752EC00708D20 /* Sparkle */; };
+		484C53000000000000000001 /* hooklinesinker in Embed Helpers */ = {isa = PBXBuildFile; fileRef = 484C53000000000000000002 /* hooklinesinker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -23,7 +24,23 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		484C53000000000000000003 /* Embed Helpers */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				484C53000000000000000001 /* hooklinesinker in Embed Helpers */,
+			);
+			name = "Embed Helpers";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		484C53000000000000000002 /* hooklinesinker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = hooklinesinker; path = build/hooklinesinker/hooklinesinker; sourceTree = SOURCE_ROOT; };
+
 		19F6582C2F22B72E00CB4D71 /* Juggler.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Juggler.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		19F658392F22B72F00CB4D71 /* JugglerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JugglerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -90,6 +107,7 @@
 				19F6583C2F22B72F00CB4D71 /* JugglerTests */,
 				19E7C7C42F2752EC00708D20 /* Frameworks */,
 				19F6582D2F22B72E00CB4D71 /* Products */,
+				484C53000000000000000002 /* hooklinesinker */,
 			);
 			sourceTree = "<group>";
 		};
@@ -112,6 +130,7 @@
 				19F658282F22B72E00CB4D71 /* Sources */,
 				19F658292F22B72E00CB4D71 /* Frameworks */,
 				19F6582A2F22B72E00CB4D71 /* Resources */,
+				484C53000000000000000003 /* Embed Helpers */,
 			);
 			buildRules = (
 			);
@@ -382,7 +401,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.7.2;
+				MARKETING_VERSION = 1.8.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nielsmadan.Juggler;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -418,7 +437,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.7.2;
+				MARKETING_VERSION = 1.8.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nielsmadan.Juggler;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -441,7 +460,7 @@
 				DEVELOPMENT_TEAM = U9724RY3FE;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.7.2;
+				MARKETING_VERSION = 1.8.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nielsmadan.JugglerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -463,7 +482,7 @@
 				DEVELOPMENT_TEAM = U9724RY3FE;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.7.2;
+				MARKETING_VERSION = 1.8.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nielsmadan.JugglerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;

@@ -1289,6 +1289,37 @@ struct HookServerStatusTests {
         }
     }
 
+    @Test(arguments: ["2", "null", "true", "\"1\""])
+    @MainActor func unsupportedStatusProtocolLeavesExistingSessionUnchanged(protocolValue: String) async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        _ = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: TestFixtures.workingStatus))
+        let body = TestFixtures.statusJSON(agent: "codex", event: "Stop")
+            .replacingOccurrences(of: "\"protocol\":1", with: "\"protocol\":\(protocolValue)")
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 400)
+        #expect(manager.sessions.count == 1)
+        #expect(manager.sessions[0].state == .working)
+        #expect(manager.sessions[0].claudeSessionID == "native-session")
+        #expect(manager.sessions[0].projectPath == "/test/project")
+    }
+
+    @Test @MainActor func malformedStatusCannotFallBackToLegacyHook() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let body = """
+        {"protocol":1,"agent":"codex","event":"Stop",\
+        "terminal":{"sessionId":"s1","cwd":"/test/project"}}
+        """
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 400)
+        #expect(manager.sessions.isEmpty)
+    }
+
     @Test @MainActor func statusCreatesSessionWithCompositeIdentity() async {
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)

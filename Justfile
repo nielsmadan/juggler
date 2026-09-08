@@ -3,7 +3,6 @@ scheme := "Juggler"
 stats_key := "dailyBusyStats"
 build_dir := "./build"
 app_path := build_dir / "Build/Products/Debug/Juggler.app"
-staged_hls := build_dir / "hooklinesinker/hooklinesinker"
 
 # Release
 release_dir := "./release"
@@ -18,77 +17,79 @@ xcresult := build_dir / "Logs/Test/coverage.xcresult"
 default:
     @just --list
 
-build xcconfig="":
+# Prepare this checkout for work: dependencies, hooks, then verify.
+setup:
+    @just resolve-deps
+    @lefthook install
+    @just doctor
+
+# Verify the tools and checkout state this repo needs.
+doctor:
     #!/usr/bin/env bash
-    set -euo pipefail
-    just stage-hooklinesinker
-    xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
+    set -uo pipefail
+    fail=0
+    need() {
+        if command -v "$1" >/dev/null 2>&1; then
+            printf '  ok       %s\n' "$1"
+        else
+            printf '  MISSING  %-12s install: %s\n' "$1" "$2"; fail=1
+        fi
+    }
+    need swiftformat "brew install swiftformat"
+    need swiftlint "brew install swiftlint"
+    need python3 "brew install python"
+    need xcodebuild "install Xcode from the App Store"
+    need periphery "brew install --cask peripheryapp/periphery/periphery"
+    need lefthook "brew install lefthook"
+    if [ -f "$(git rev-parse --git-path hooks/pre-commit)" ]; then
+        printf '  ok       git hooks\n'
+    else
+        printf '  MISSING  %-12s run: just setup\n' 'git hooks'; fail=1
+    fi
+    [ "$fail" -eq 0 ] && printf 'Everything in place.\n'
+    exit $fail
+
+build xcconfig="": stage-hooklinesinker
+    @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build
-    just embed-hooklinesinker
 
-# Verify the pinned hooklinesinker artifact against its release manifest and stage it.
-# Without a release build next door there is nothing to stage: the app builds, and every
-# hooklinesinker command reports the missing binary instead of crashing.
 stage-hooklinesinker:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    dist="${HOOKLINESINKER_DIST:-../hooklinesinker/dist}"
-    artifact="hooklinesinker-macos-universal"
-    if [ ! -f "$dist/$artifact" ] || [ ! -f "$dist/SHA256SUMS" ]; then
-        echo "no verified hooklinesinker artifact in $dist — skipping (set HOOKLINESINKER_DIST)"
-        rm -f "{{staged_hls}}"
-        exit 0
-    fi
-    # Resolve the expected digest first and fail when the manifest does not list this
-    # artifact: `shasum -c` alone passes vacuously on a present-but-unlisted file.
-    expected="$(awk -v a="$artifact" '$2 == a || $2 == "*"a {print $1}' "$dist/SHA256SUMS")"
-    if [ -z "$expected" ]; then
-        echo "$dist/SHA256SUMS has no entry for $artifact — refusing to stage an unverified binary" >&2
-        exit 1
-    fi
-    actual="$(shasum -a 256 "$dist/$artifact" | cut -d' ' -f1)"
-    if [ "$expected" != "$actual" ]; then
-        echo "checksum mismatch for $artifact:" >&2
-        echo "  expected $expected" >&2
-        echo "  got      $actual" >&2
-        exit 1
-    fi
-    mkdir -p "$(dirname "{{staged_hls}}")"
-    cp "$dist/$artifact" "{{staged_hls}}"
-    chmod +x "{{staged_hls}}"
-    echo "Staged $artifact ($(shasum -a 256 "{{staged_hls}}" | cut -d' ' -f1))"
+    @python3 scripts/hooklinesinker.py stage
 
-# Copy the staged binary into the built bundle, next to the app executable — the path
-# HooklinesinkerClient resolves via Bundle.main.url(forAuxiliaryExecutable:). A resource
-# would land in Contents/Resources, where that lookup does not reach.
-embed-hooklinesinker:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [ ! -f "{{staged_hls}}" ]; then
-        echo "hooklinesinker not staged — the app will report a missing binary"
-        exit 0
-    fi
-    cp "{{staged_hls}}" "{{app_path}}/Contents/MacOS/hooklinesinker"
-    chmod +x "{{app_path}}/Contents/MacOS/hooklinesinker"
-    "{{app_path}}/Contents/MacOS/hooklinesinker" version --json
+verify-hooklinesinker:
+    @python3 scripts/hooklinesinker.py verify {{app_path}}
 
 resolve-deps:
     @xcodebuild -resolvePackageDependencies -scheme {{scheme}} -derivedDataPath {{build_dir}}
 
-build-strict xcconfig="":
+build-strict xcconfig="": stage-hooklinesinker
     #!/usr/bin/env bash
     set -euo pipefail
     xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build 2>&1 | tee /tmp/build-output.log
     ! grep -qE "warning:.*Juggler/" /tmp/build-output.log
 
-# Fast unit tests only (no UI, no app launch)
-test xcconfig="":
+# Format check, lint, strict build and tests. The pre-push gate.
+check xcconfig="":
+    @python3 -B -m unittest discover -s scripts -p 'test_release*.py'
+    @swiftformat --lint .
+    @swiftlint --strict .
+    @python3 -B -m unittest discover -s scripts/tests
+    @just build-strict {{xcconfig}}
+    @just test {{xcconfig}}
+    @just check-unused {{xcconfig}}
+
+# Unit tests run in a Juggler host process.
+test xcconfig="": stage-hooklinesinker
     @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} -enableCodeCoverage YES \
         -parallel-testing-enabled NO -only-testing:JugglerTests test
 
-coverage xcconfig="":
+test-packaging:
+    @python3 -m unittest discover -s scripts/tests -v
+    @brew ruby scripts/tests/homebrew_lifecycle.rb
+
+coverage xcconfig="": stage-hooklinesinker
     @rm -rf {{xcresult}}
     @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} -enableCodeCoverage YES \
@@ -98,7 +99,7 @@ coverage xcconfig="":
 # Performance / resource-hygiene guards (idle-CPU & leak regressions). Deterministic
 # but timing-sensitive, so kept out of the fast loop — intended for a weekly schedule.
 # Marked with the `.performance` tag; run the suites that carry those guards.
-test-perf xcconfig="":
+test-perf xcconfig="": stage-hooklinesinker
     @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} \
         -parallel-testing-enabled NO -only-testing:JugglerTests/ITerm2StderrDrainTests test
@@ -138,8 +139,14 @@ lint-fix *files:
 format *files:
     @swiftformat {{ if files == "" { "." } else { files } }}
 
-unused-check:
-    @periphery scan --strict --retain-equatable-properties
+# Indexes JugglerTests too; without it Periphery reports every test-only hook as unused.
+build-for-testing xcconfig="": stage-hooklinesinker
+    @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
+        {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build-for-testing
+
+check-unused xcconfig="": (build-for-testing xcconfig)
+    @periphery scan --skip-build --index-store-path {{build_dir}}/Index.noindex/DataStore \
+        --strict --retain-equatable-properties
 
 reset-data:
     @echo "Resetting Juggler app data..."
@@ -160,8 +167,6 @@ reset-permissions:
 reset-integration:
     @echo "Resetting Juggler integrations..."
     @bash juggler/Resources/hooks/uninstall.sh
-    @sed -i '' '/juggler_watcher\.py/d; /^allow_remote_control/d; /^listen_on/d' ~/.config/kitty/kitty.conf 2>/dev/null || true
-    @sed -i '' '/update-environment.*ITERM_SESSION_ID/d' ~/.tmux.conf 2>/dev/null || true
     @echo "Done. Integration configs removed."
 
 reset-all: reset-data reset-permissions reset-integration
@@ -193,73 +198,37 @@ reset-keep-stats:
     fi
     echo "All resets complete (statistics kept)."
 
-setup:
-    @lefthook install
-    @echo "Git hooks installed."
-
 # --- Release targets ---
 
-release: release-clean archive export
-    #!/usr/bin/env bash
-    echo "Creating ZIP..."
-    cd {{export_path}} && zip -r -y ../../{{zip_path}} Juggler.app
-    echo ""
-    echo "=== Release build complete ==="
-    echo "ZIP: {{zip_path}}"
-    echo "SHA256: $(shasum -a 256 {{zip_path}} | cut -d' ' -f1)"
-    echo ""
-
-# Refuses until someone decides how the nested hooklinesinker binary gets signed. A
-# Release app without it builds and launches fine, then fails every agent-status command
-# at runtime — the one failure mode a release must not ship silently.
-release-blocked-on-hooklinesinker:
-    #!/usr/bin/env bash
-    if [ "${JUGGLER_RELEASE_WITHOUT_HOOKLINESINKER:-}" = "1" ]; then
-        echo "WARNING: releasing without an embedded hooklinesinker — agent status will not work."
-        exit 0
-    fi
-    cat >&2 <<'MSG'
-    Refusing to build a release: hooklinesinker would not be embedded.
-
-    `just build` copies the binary into Contents/MacOS after xcodebuild, but that step does
-    not reach `xcodebuild archive`. Embedding it in a Release build needs a decision that is
-    still open: how the nested Mach-O gets signed and notarized (a Copy Files / Run Script
-    build phase inside the Juggler target, signed with the app, is the expected shape).
-
-    Until that lands:
-      - use `just build` for anything you actually run,
-      - or set JUGGLER_RELEASE_WITHOUT_HOOKLINESINKER=1 to ship a build whose
-        agent-status integration is knowingly dead.
-    MSG
-    exit 1
-
-archive: release-blocked-on-hooklinesinker
+archive: stage-hooklinesinker
     @echo "Archiving Release build..."
     @mkdir -p {{release_dir}}
     @xcodebuild -scheme {{scheme}} -configuration Release \
         -archivePath {{archive_path}} \
         archive
 
-export: release-blocked-on-hooklinesinker
+export:
     @echo "Exporting with Developer ID signing..."
     @xcodebuild -exportArchive \
         -archivePath {{archive_path}} \
         -exportPath {{export_path}} \
         -exportOptionsPlist ExportOptions.plist
     @echo "Verifying code signature..."
-    @codesign -dv --verbose=2 {{export_path}}/Juggler.app 2>&1 | head -5
+    @python3 scripts/hooklinesinker.py verify {{export_path}}/Juggler.app --distribution
 
 notarize:
     #!/usr/bin/env bash
+    set -euo pipefail
     echo "Submitting for notarization..."
     xcrun notarytool submit {{zip_path}} \
         --keychain-profile "juggler-notarize" \
         --wait
     echo "Stapling notarization ticket..."
-    cd {{export_path}} && xcrun stapler staple Juggler.app
+    xcrun stapler staple {{export_path}}/Juggler.app
+    spctl --assess --type execute --verbose=2 {{export_path}}/Juggler.app
     echo "Re-creating ZIP with stapled app..."
     rm -f {{zip_path}}
-    cd {{export_path}} && zip -r -y ../../{{zip_path}} Juggler.app
+    (cd {{export_path}} && zip -r -y ../../{{zip_path}} Juggler.app)
     echo ""
     echo "=== Notarization complete ==="
     echo "ZIP: {{zip_path}}"
@@ -268,6 +237,7 @@ notarize:
 
 notarize-ci:
     #!/usr/bin/env bash
+    set -euo pipefail
     echo "Submitting for notarization..."
     xcrun notarytool submit {{zip_path}} \
         --apple-id "$NOTARIZATION_APPLE_ID" \
@@ -275,10 +245,11 @@ notarize-ci:
         --team-id "$NOTARIZATION_TEAM_ID" \
         --wait
     echo "Stapling notarization ticket..."
-    cd {{export_path}} && xcrun stapler staple Juggler.app
+    xcrun stapler staple {{export_path}}/Juggler.app
+    spctl --assess --type execute --verbose=2 {{export_path}}/Juggler.app
     echo "Re-creating ZIP with stapled app..."
     rm -f {{zip_path}}
-    cd {{export_path}} && zip -r -y ../../{{zip_path}} Juggler.app
+    (cd {{export_path}} && zip -r -y ../../{{zip_path}} Juggler.app)
     echo ""
     echo "=== Notarization complete ==="
     echo "ZIP: {{zip_path}}"
@@ -305,78 +276,9 @@ dmg:
     echo "SHA256: $(shasum -a 256 {{dmg_path}} | cut -d' ' -f1)"
     echo ""
 
-# Usage: just tag-release-patch, just tag-release-minor, just tag-release-major
-#   Bumps MARKETING_VERSION in the Xcode project, commits, tags, and pushes.
-#   Plain tag-release requires MARKETING_VERSION to already be ahead of the latest tag.
-tag-release-patch:
-    @just tag-release patch
-
-tag-release-minor:
-    @just tag-release minor
-
-tag-release-major:
-    @just tag-release major
-
-tag-release bump="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    LATEST_TAG=$(git tag --sort=-v:refname | head -1 | sed 's/^v//')
-    if [ -z "$LATEST_TAG" ]; then
-        echo "Error: no existing tags found."; exit 1
-    fi
-    # These get rewritten below, so uncommitted edits would be swept into the release commit.
-    for f in Juggler.xcodeproj/project.pbxproj scripts/install-remote.sh juggler/Views/SettingsView.swift; do
-        if ! git diff --quiet -- "$f"; then
-            echo "Error: $f has uncommitted changes. Commit or stash them first."; exit 1
-        fi
-    done
-    if [ -n "{{bump}}" ]; then
-        MAJOR=$(echo "$LATEST_TAG" | cut -d. -f1)
-        MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
-        PATCH=$(echo "$LATEST_TAG" | cut -d. -f3)
-        case "{{bump}}" in
-            patch) PATCH=$((PATCH + 1)) ;;
-            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
-            *) echo "Error: bump must be patch, minor, or major"; exit 1 ;;
-        esac
-        VERSION="$MAJOR.$MINOR.$PATCH"
-        echo "Bumping version: v$LATEST_TAG -> v$VERSION"
-        sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = $VERSION/" \
-            Juggler.xcodeproj/project.pbxproj
-        git add Juggler.xcodeproj/project.pbxproj
-    else
-        VERSION=$(xcodebuild -scheme {{scheme}} -configuration Release -showBuildSettings 2>/dev/null \
-            | grep MARKETING_VERSION | head -1 | tr -d ' ' | cut -d= -f2)
-        if [ "$VERSION" = "$LATEST_TAG" ] || [ "$(printf '%s\n' "$LATEST_TAG" "$VERSION" | sort -V | tail -1)" = "$LATEST_TAG" ]; then
-            echo "Error: MARKETING_VERSION ($VERSION) is not newer than latest tag (v$LATEST_TAG)."
-            echo "Run: just tag-release-patch, tag-release-minor, or tag-release-major"
-            exit 1
-        fi
-    fi
-    if ! git diff --cached --quiet; then
-        git commit -m "chore: bump version to $VERSION"
-    fi
-    RELEASE_REVISION=$(git rev-parse HEAD)
-    sed -E -i '' \
-        "s|installRevision = \"[0-9a-f]{40}\"|installRevision = \"$RELEASE_REVISION\"|" \
-        juggler/Views/SettingsView.swift
-    sed -E -i '' \
-        "s|JUGGLER_REVISION:-[0-9a-f]{40}|JUGGLER_REVISION:-$RELEASE_REVISION|" \
-        scripts/install-remote.sh
-    if ! grep -Fq "installRevision = \"$RELEASE_REVISION\"" juggler/Views/SettingsView.swift; then
-        echo "Error: failed to update the Settings installer revision."; exit 1
-    fi
-    if ! grep -Fq "JUGGLER_REVISION:-$RELEASE_REVISION" scripts/install-remote.sh; then
-        echo "Error: failed to update the remote installer revision."; exit 1
-    fi
-    git add scripts/install-remote.sh juggler/Views/SettingsView.swift
-    if ! git diff --cached --quiet; then
-        git commit -m "chore: pin remote installer for $VERSION"
-    fi
-    echo "Tagging v$VERSION..."
-    git tag -m "Release v$VERSION" "v$VERSION" && git push origin main "v$VERSION" && \
-    echo "Tagged and pushed v$VERSION — release workflow triggered."
-
-release-clean:
+clean-release:
     @rm -rf {{release_dir}}
+
+[positional-arguments]
+release *args:
+    python3 scripts/release.py "$@"

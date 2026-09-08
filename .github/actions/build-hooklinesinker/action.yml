@@ -1,0 +1,30 @@
+name: Build pinned hooklinesinker for tests
+description: Build both macOS architectures from the pinned source revision
+runs:
+  using: composite
+  steps:
+    - id: pin
+      shell: bash
+      run: echo "revision=$(python3 scripts/hooklinesinker.py source-revision)" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        repository: nielsmadan/hooklinesinker
+        ref: ${{ steps.pin.outputs.revision }}
+        path: build/hooklinesinker-source
+        persist-credentials: false
+
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+    - shell: bash
+      working-directory: build/hooklinesinker-source
+      run: |
+        cargo build --locked --release --target aarch64-apple-darwin --target x86_64-apple-darwin
+        mkdir -p dist
+        lipo -create target/aarch64-apple-darwin/release/hooklinesinker \
+          target/x86_64-apple-darwin/release/hooklinesinker \
+          -output dist/hooklinesinker-macos-universal
+        (cd dist && shasum -a 256 hooklinesinker-macos-universal > SHA256SUMS)
+        echo "HOOKLINESINKER_DIST=$PWD/dist" >> "$GITHUB_ENV"

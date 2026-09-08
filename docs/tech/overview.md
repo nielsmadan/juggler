@@ -133,6 +133,8 @@ are the reusable lessons for anyone working in the affected area.
 
 ## Topic Documentation
 
+- [Homebrew Distribution](homebrew.md) - Cask generation, tap migration, and uninstall behavior
+- [Releasing Juggler](release.md) - Version confirmation, installer pins, and publication
 - [Hook Server](hook-server.md) - HTTP API for hooks
 - [Claude Code Hooks](hooks.md) - Shell hook integration and payload contract
 - [OpenCode Plugin](opencode-plugin.md) - TypeScript plugin integration

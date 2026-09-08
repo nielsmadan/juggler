@@ -103,7 +103,7 @@ trusted_hash = "sha256:<hex>"
 - **Key**: `<hooksJSONPath>` is the absolute path to `hooks.json`; `<snake_event>` is the event in snake_case (`session_start`, `user_prompt_submit`, …); `<handlerIndex>` is always `0` (hooklinesinker registers a single-handler group per event); `<groupIndex>` is **resolved at install time** from `hooks.json` - it is *not* always `0`. If the user already has their own hook for an event, theirs sits at group 0 and Juggler's lands at group 1.
 - **`trusted_hash`**: SHA-256 over Codex's canonical hook fingerprint: sorted-key, compact JSON with slashes unescaped, of `{"event_name":"<snake>","hooks":[{"async":false,"command":"<cmd>","timeout":5,"type":"command"}]}`. `computeTrustedHash` mirrors this exactly, hashing **the command string hooklinesinker reported**, never one Juggler reconstructs. The `timeout` (5s) is part of the hashed identity, so `timeoutSeconds(for:)` must stay in sync with the value hooklinesinker writes into `hooks.json`.
 
-`enableInCodex` rewrites **only** the exact `[hooks.state]` keys it is about to produce - it never prefix-matches. Prefix-matching would delete a user's own trust block: once Juggler moves to group index 1, a `<path>:<event>:0:0` block belongs to the *user*, not to a stale Juggler entry. The one genuine orphan case - Juggler moving from index 1 back to 0, leaving a dead `:1:0` block - is harmless (Codex never computes a key for a group index absent from `hooks.json`), and reset garbage-collects it.
+`enableInCodex` rewrites **only** the exact `[hooks.state]` keys it is about to produce - it never prefix-matches. Prefix-matching would delete a user's own trust block: once Juggler moves to group index 1, a `<path>:<event>:0:0` block belongs to the *user*, not to a stale Juggler entry. The one genuine orphan case - Juggler moving from index 1 back to 0, leaving a dead `:1:0` block - is harmless (Codex never computes a key for a group index absent from `hooks.json`).
 
 `enableInCodex` re-reads `hooks status --agent codex --json` first, because an install since the last refresh can have moved the group index the key is built from.
 
@@ -111,19 +111,20 @@ trusted_hash = "sha256:<hex>"
 
 ## Reset
 
-Settings → Reset integrations reverts Codex in a **specific order**, because the trust keys are
-built from the group indexes `hooks.json` currently holds:
+Settings → Reset integrations, the `just` reset recipes, and Homebrew zap use the same
+`integration_cleanup.py` path. Trust keys depend on the current `hooks.json` group indexes:
 
 1. `hooks status --agent codex --json` captures the path and entries **first**.
-2. `CodexHooksInstaller.removeTrustEntries` drops exactly those `[hooks.state]` blocks from the
-   current `~/.codex/config.toml` without replacing the file. A block at one of our keys
-   carrying a *different* hash is somebody else's trust for that slot and is left alone.
-   Unrelated trust blocks and every setting added after installation are preserved. If the
-   status read fails (the binary is already gone) the reset says so rather than guessing.
-3. `hooklinesinker uninstall --consumer juggler` removes Juggler's registration; `hooks.json`
+2. `hooklinesinker uninstall --consumer juggler` removes Juggler's registration; `hooks.json`
    is stripped only if Juggler was the last consumer.
-4. `Resources/hooks/uninstall.sh` clears the rest, including **pre-migration** trust entries
-   written over the old `notify.sh` command (via `codex_config_cleanup.py`).
+3. A second status read through the preserved versioned binary confirms that those hooks
+   are gone. If they remain for another consumer, trust stays intact. Failed or ambiguous
+   reads report an error and preserve trust.
+4. Once removal is confirmed, `codex_config_cleanup.py` drops only `[hooks.state]` blocks
+   matching both a captured key and its canonical hash. A different hash at the same key
+   is preserved, along with unrelated settings, symlinks and file permissions.
+5. The script clears legacy integrations, including pre-migration trust entries written
+   over the old `notify.sh` command.
 
 The global `[features] hooks = true` flag remains. It is harmless without registered/trusted hooks, and Juggler cannot safely distinguish a flag it enabled from one the user now relies on. After successful cleanup, the old recovery snapshot is deleted so a later installation can capture a fresh baseline.
 
@@ -164,7 +165,9 @@ Unlike Claude Code (which fires `StopFailure` on API errors instead of `Stop`) a
 
 ### config.toml is hand-edited, not TOML-parsed
 
-`CodexHooksInstaller` does targeted string edits on `config.toml` rather than round-tripping it through a TOML library (Swift has no bundled TOML parser). The helpers (`parseBoolAssignment`, `parseStringAssignment`, `editedTOML`) handle Juggler's known-shape values and tolerate trailing `# comment`s, but are not a general TOML parser. Reset likewise removes only complete `[hooks.state]` sections that match current Juggler registrations or Juggler's trusted hashes; it never rewrites unrelated TOML.
+`CodexHooksInstaller` does targeted string edits on `config.toml` rather than round-tripping it through a TOML library (Swift has no bundled TOML parser). A lexical scanner finds statements outside strings and arrays before feature-flag and trust edits. The helpers handle Juggler's known-shape values and trailing `# comment`s; malformed string or bracket boundaries stop the write. This is not a general TOML parser.
+
+Reset removes only complete `[hooks.state]` sections that match current Juggler registrations or Juggler's trusted hashes, preserving the remaining source text. Its scanner recognizes table boundaries outside strings and arrays, including trailing comments, following [TOML's string and comment rules](https://toml.io/en/v1.0.0). This keeps annotated profiles and multiline instructions separate from trust entries. Unterminated strings or unbalanced brackets stop Codex cleanup before any of its files or recovery snapshots are changed. The helper also runs with macOS's Python 3.9, which has no standard-library TOML parser.
 
 ---
 
