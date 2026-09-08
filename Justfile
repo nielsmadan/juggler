@@ -70,7 +70,7 @@ check xcconfig="":
     @swiftlint --strict .
     @just build-strict {{xcconfig}}
     @just test {{xcconfig}}
-    @just unused-check {{xcconfig}}
+    @just check-unused {{xcconfig}}
 
 # Unit tests run in a Juggler host process.
 test xcconfig="":
@@ -137,7 +137,7 @@ build-for-testing xcconfig="":
     @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build-for-testing
 
-unused-check xcconfig="": (build-for-testing xcconfig)
+check-unused xcconfig="": (build-for-testing xcconfig)
     @periphery scan --skip-build --index-store-path {{build_dir}}/Index.noindex/DataStore \
         --strict --retain-equatable-properties
 
@@ -265,7 +265,7 @@ dmg:
     echo "SHA256: $(shasum -a 256 {{dmg_path}} | cut -d' ' -f1)"
     echo ""
 
-release-clean:
+clean-release:
     @rm -rf {{release_dir}}
 
 [positional-arguments]

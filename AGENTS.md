@@ -20,7 +20,7 @@ just test         # Run unit tests only (fast, no UI)
 just clean        # Remove the build directory
 just lint         # Run SwiftLint (--strict)
 just format       # Run SwiftFormat
-just unused-check # Check for unused code (Periphery)
+just check-unused # Check for unused code (Periphery)
 just coverage     # Run unit tests and print the coverage summary
 just reset-all    # Clear all app preferences/permissions/integrations (fresh-state testing)
 just setup        # Resolve dependencies, install Git hooks, and verify tools
@@ -169,4 +169,4 @@ Related documentation:
 
 ## Commit & Pull Request Guidelines
 
-Recent history uses short Conventional Commit-style subjects such as `fix: show shortcuts in lowercase` and `chore: improve docs`. Keep commit titles imperative and concise. Before pushing, expect `lefthook` to run formatters, lint, `just build-strict`, `just test`, and `just unused-check`. PRs should include a clear summary, linked issue or plan doc when relevant, and screenshots or recordings for visible UI changes.
+Recent history uses short Conventional Commit-style subjects such as `fix: show shortcuts in lowercase` and `chore: improve docs`. Keep commit titles imperative and concise. Before pushing, expect `lefthook` to run formatters, lint, `just build-strict`, `just test`, and `just check-unused`. PRs should include a clear summary, linked issue or plan doc when relevant, and screenshots or recordings for visible UI changes.
