@@ -28,6 +28,7 @@ enum CodexHooksInstaller {
         "PostCompact",
         "PermissionRequest",
         "Stop",
+        "Interrupt",
         "SessionEnd"
     ]
 
@@ -35,13 +36,14 @@ enum CodexHooksInstaller {
     /// which both the hooks.json writer and the trust hash use — they cannot drift apart.
     static let hookTimeoutSeconds = 5
 
-    /// Codex clamps SessionEnd hooks to 3s and fingerprints the *post-clamp* timeout, so an
-    /// entry written with `hookTimeoutSeconds` installs cleanly but never matches its trust
-    /// record — the hook silently never runs.
-    static let sessionEndTimeoutSeconds = 3
+    // Codex fingerprints Interrupt and SessionEnd with their clamped 3s timeout.
+    static let clampedHookTimeoutSeconds = 3
 
     static func timeoutSeconds(for event: String) -> Int {
-        event == "SessionEnd" ? sessionEndTimeoutSeconds : hookTimeoutSeconds
+        switch event {
+        case "SessionEnd", "Interrupt": clampedHookTimeoutSeconds
+        default: hookTimeoutSeconds
+        }
     }
 
     static var codexDirectory: String {

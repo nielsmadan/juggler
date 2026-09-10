@@ -18,6 +18,7 @@ EVENTS = {
     "post_compact": ("PostCompact", 5),
     "permission_request": ("PermissionRequest", 5),
     "stop": ("Stop", 5),
+    "interrupt": ("Interrupt", 3),
     "session_end": ("SessionEnd", 3),
 }
 

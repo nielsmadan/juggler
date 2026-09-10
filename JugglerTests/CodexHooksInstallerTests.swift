@@ -806,7 +806,7 @@ struct CodexSessionEndTimeoutTests {
     }
 
     @Test func otherEventsUseDefaultTimeout() {
-        for event in CodexHooksInstaller.agentEvents where event != "SessionEnd" {
+        for event in CodexHooksInstaller.agentEvents where event != "SessionEnd" && event != "Interrupt" {
             #expect(
                 CodexHooksInstaller.timeoutSeconds(for: event) == CodexHooksInstaller.hookTimeoutSeconds,
                 "unexpected timeout for \(event)"
@@ -824,6 +824,14 @@ struct CodexSessionEndTimeoutTests {
             event: "SessionEnd", command: "/tmp/notify.sh SessionEnd"
         )
         #expect(hash == "sha256:6235468b2904e507eb76f6ef4c0ee7abffdf69edc69e0efeb4109b301d433088")
+    }
+
+    @Test func interruptUsesCodexClampedTrustHash() {
+        #expect(CodexHooksInstaller.agentEvents.contains("Interrupt"))
+        #expect(CodexHooksInstaller.timeoutSeconds(for: "Interrupt") == 3)
+        #expect(CodexHooksInstaller.computeTrustedHash(
+            event: "Interrupt", command: "/tmp/notify.sh Interrupt"
+        ) == "sha256:279124229886e2e77d7c8c04cd9a862405a22e594d3c8def791a31eda6f57a8a")
     }
 }
 

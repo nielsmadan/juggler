@@ -12,7 +12,7 @@ Requires Codex CLI ≥ v0.114; `SessionEnd` additionally requires ≥ v0.145 (ol
 
 Codex setup is **three separate steps** (three buttons in onboarding's Integration Hub and in Settings → Integration). They are independent and idempotent - run them in order:
 
-1. **Install Hooks**: `hooklinesinker hooks install --agent codex` registers all nine events in
+1. **Install Hooks**: `hooklinesinker hooks install --agent codex` registers all ten events in
    `~/.codex/hooks.json`, each calling `<promoted binary> ingest --agent codex --event <Event>`.
    Nothing is copied into `~/.codex/hooks/juggler/` any more.
 2. **Enable Feature Flag**: sets `[features] hooks = true` in `~/.codex/config.toml`. Codex ignores `hooks.json` entirely unless this flag is on.
@@ -38,12 +38,13 @@ by all four agents.
 
 ## Hook Events
 
-hooklinesinker registers nine events.
+hooklinesinker registers ten events.
 
 | Event | Mapped State |
 |-------|--------------|
 | `SessionStart` | `idle` |
 | `Stop` | `idle` |
+| `Interrupt` | `idle` (session stays live) |
 | `UserPromptSubmit` | `working` |
 | `PreToolUse` | `working` (`idle` for `request_user_input`) |
 | `PostToolUse` | `working` |
@@ -51,6 +52,10 @@ hooklinesinker registers nine events.
 | `PreCompact` | `compacting` |
 | `PermissionRequest` | `permission` (optionally ignored for Auto Review) |
 | `SessionEnd` | *(removes the session)* |
+
+Codex emits `Interrupt` when the user cancels a turn. Registering only `Stop` leaves that
+session working. Existing installations need **Install Hooks** and trust approval for the new
+event through **Enable in Codex** or `/hooks`.
 
 Codex also fires `SubagentStart` and `SubagentStop`, which are not registered.
 
@@ -136,9 +141,17 @@ Codex does not fire `SessionStart` when the TUI opens - only when the user submi
 
 Verified against Codex 0.145.0: a TUI left open for 20s with no prompt submitted fires no hook at all, while the same capture path receives `SessionStart`/`UserPromptSubmit`/`Stop` the moment a prompt is sent. The `source: "startup"` field on `SessionStart` describes why the session was created, not when the process launched - Codex creates the session lazily.
 
-### SessionEnd hooks are clamped to 3s, and the clamp reaches the trust hash
+### Interrupt and SessionEnd hooks are clamped to 3s
 
-Codex caps `SessionEnd` hook timeouts at 3s (`clamping SessionEnd hook timeout to 3s`) and computes the trust fingerprint from the **post-clamp** value. Registering it with Juggler's usual 5s writes a well-formed entry whose `trusted_hash` Codex will never match: the hook installs, `isEnabledInCodex` reports green (it recomputes the same 5s hash), and the hook silently never runs. `CodexHooksInstaller.timeoutSeconds(for:)` returns 3 for `SessionEnd` and `computeTrustedHash` goes through it; hooklinesinker's `CODEX_EVENTS` writes the same 3s into `hooks.json`. The clamp is `SessionEnd`-specific — the other eight events use 5s. The two live in different repositories now, so this pair is the one place a hooklinesinker timeout change silently breaks Codex trust.
+Codex caps `Interrupt` and `SessionEnd` hook timeouts at 3s and computes the trust fingerprint
+from the **post-clamp** value. Hashing the usual 5s produces a trust record Codex rejects.
+`CodexHooksInstaller.timeoutSeconds(for:)`, the cleanup script, and hooklinesinker's
+`CODEX_EVENTS` use 3s for both events; the other eight events use 5s. These values must stay
+aligned across both repositories.
+
+The [`Interrupt` payload](https://github.com/openai/codex/blob/rust-v0.153.4/codex-rs/hooks/src/events/interrupt.rs#L56-L83)
+and [timeout normalization](https://github.com/openai/codex/blob/rust-v0.153.4/codex-rs/hooks/src/engine/discovery.rs#L740-L760)
+were checked against Codex 0.153.4 source.
 
 ### A stale SessionEnd must not remove the live session
 

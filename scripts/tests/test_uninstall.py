@@ -46,7 +46,7 @@ class UninstallTests(unittest.TestCase):
                   ("PreToolUse", "pre_tool_use", 5), ("PostToolUse", "post_tool_use", 5),
                   ("PreCompact", "pre_compact", 5), ("PostCompact", "post_compact", 5),
                   ("PermissionRequest", "permission_request", 5), ("Stop", "stop", 5),
-                  ("SessionEnd", "session_end", 3))
+                  ("SessionEnd", "session_end", 3), ("Interrupt", "interrupt", 3))
         entries, blocks = [], []
         for event, snake, timeout in events:
             command = f"'{active}' ingest --agent codex --event {event}"
