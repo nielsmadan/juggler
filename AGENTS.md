@@ -105,10 +105,11 @@ Juggler/
 ```
 
 Claude Code, Codex, OpenCode and Pi hooks are **not** in this tree: hooklinesinker owns them.
-Build recipes stage its pinned universal binary before Xcode embeds and signs it in
-`Contents/MacOS`. Direct Xcode builds require `just stage-hooklinesinker` first. Set
-`HOOKLINESINKER_DIST` to a local universal release build for development before publication.
-Release checks require the published artifact and verify the exported and promoted signatures.
+Debug build recipes compile its pinned source for the current Mac using Cargo, then Xcode
+embeds and signs it in `Contents/MacOS`. Direct Xcode Debug builds require
+`just stage-hooklinesinker` first. `HOOKLINESINKER_DIST` can supply a local universal artifact.
+Archives and release checks require the published universal artifact; exported and promoted
+signatures are verified before publication.
 See [docs/tech/release.md](docs/tech/release.md) for pins, development builds and release rehearsals.
 
 **Session states:** `idle`, `permission`, `working`, `backburner` (excluded from cycle), `compacting`

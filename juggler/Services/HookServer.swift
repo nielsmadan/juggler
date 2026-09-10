@@ -2,6 +2,7 @@ import Foundation
 import Network
 
 actor HookServer {
+    @MainActor
     static let shared = HookServer()
 
     private var listener: NWListener?
@@ -27,6 +28,7 @@ actor HookServer {
         UserDefaults.standard.bool(forKey: AppStorageKeys.codexIgnorePermissionEvents)
     }
 
+    @MainActor
     init(
         sessionManager: SessionManager? = nil,
         terminalBridgeRegistry: TerminalBridgeRegistry = .shared,

@@ -1,6 +1,6 @@
 import Foundation
 
-enum TerminalType: String, Codable, CaseIterable {
+nonisolated enum TerminalType: String, Codable, CaseIterable {
     case iterm2
     case kitty
     case ghostty

@@ -41,7 +41,7 @@ replace a public tag.
 
 ## Embedded Hooklinesinker
 
-Juggler carries a universal `Contents/MacOS/hooklinesinker` executable. At startup its installer
+Juggler releases carry a universal `Contents/MacOS/hooklinesinker` executable. At startup its installer
 registers Juggler and creates the shared machine installation if needed. It upgrades an existing
 installation only when the bundled version is newer and protocol-compatible; the same or a newer
 compatible version is reused. The app does not download executable code during startup or onboarding.
@@ -51,14 +51,29 @@ compatible version is reused. The app does not download executable code during s
 Publish the pinned Hooklinesinker release, including `hooklinesinker-macos-universal` and
 `SHA256SUMS`, before releasing Juggler. A draft release does not satisfy this prerequisite.
 
-`just build`, `just build-strict`, test builds and `just archive` stage the helper before Xcode
-runs. Staging downloads and caches the pinned release, verifies its checksum, both architectures,
-version and protocol, then applies an ad hoc signature with hardened runtime enabled. Xcode's
-**Embed Helpers** Copy Files phase places it in `Contents/MacOS` with **Code Sign On Copy**,
-replacing that signature's identity with the app's. Direct Xcode builds need
-`just stage-hooklinesinker` before the first build, after deleting `build/`, and after changing the pin.
+`just build`, `just run`, `just build-strict` and test builds compile the pinned source revision
+for the current Mac using Cargo and its locked dependencies. The first build needs Rust and
+network access; the helper is cached under `build/hooklinesinker/development/<revision>/<target>`
+and reused until the pin changes or the build directory is removed. Local development does not
+require a published Hooklinesinker release or the other Mac architecture's Rust target.
 
-For local development before publication, supply a real universal release build:
+`just archive` uses `just stage-release-hooklinesinker`, which downloads the published universal
+release and verifies its checksum, both architectures, version and protocol. All staging paths
+apply an ad hoc signature with hardened runtime enabled before Xcode runs. Xcode's
+**Embed Helpers** Copy Files phase places it in `Contents/MacOS` with **Code Sign On Copy**,
+replacing that signature's identity with the app's. Direct Xcode Debug builds need
+`just stage-hooklinesinker` before the first build, after deleting `build/`, and after changing
+the pin. Stage the published release with `just stage-release-hooklinesinker` before archiving
+directly in Xcode.
+
+Normal local development:
+
+```sh
+just build
+just verify-hooklinesinker
+```
+
+To test a local universal release artifact in a Debug build:
 
 ```sh
 # In the Hooklinesinker checkout:
@@ -70,9 +85,9 @@ HOOKLINESINKER_DIST=/path/to/hooklinesinker/dist just build
 just verify-hooklinesinker
 ```
 
-`HOOKLINESINKER_DIST` accepts a directory containing the artifact and its manifest; a thin
-development binary is rejected. CI test jobs build both architectures from the pinned source
-revision. Release preparation and the release workflow always fetch the published artifact,
+`HOOKLINESINKER_DIST` accepts a directory containing the universal artifact and its manifest;
+a thin binary supplied through that override is rejected. CI test jobs build both architectures
+from the pinned source revision. Archives, release preparation and the release workflow always fetch the published artifact,
 even if a local override is set.
 
 After export, `python3 scripts/hooklinesinker.py verify release/export/Juggler.app --distribution`

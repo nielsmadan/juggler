@@ -1,6 +1,6 @@
 import Foundation
 
-enum AppStorageKeys {
+nonisolated enum AppStorageKeys {
     // General
     static let launchAtLogin = "launchAtLogin"
     static let showInDock = "showInDock"

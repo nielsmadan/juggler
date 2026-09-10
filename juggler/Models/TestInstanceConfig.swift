@@ -1,6 +1,6 @@
 import Foundation
 
-enum TestInstanceConfig {
+nonisolated enum TestInstanceConfig {
     static func hookPortOverride(_ defaults: UserDefaults = .standard) -> UInt16? {
         let raw = defaults.integer(forKey: "hookPort")
         guard raw > 0, raw <= 65535 else { return nil }

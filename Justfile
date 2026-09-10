@@ -38,6 +38,9 @@ doctor:
     need swiftformat "brew install swiftformat"
     need swiftlint "brew install swiftlint"
     need python3 "brew install python"
+    if [ -z "${HOOKLINESINKER_DIST:-}" ]; then
+        need cargo "install Rust with rustup"
+    fi
     need xcodebuild "install Xcode from the App Store"
     need periphery "brew install --cask peripheryapp/periphery/periphery"
     need lefthook "brew install lefthook"
@@ -54,10 +57,13 @@ build xcconfig="": stage-hooklinesinker
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} build
 
 stage-hooklinesinker:
-    @python3 scripts/hooklinesinker.py stage
+    @python3 scripts/hooklinesinker.py stage --development
+
+stage-release-hooklinesinker:
+    @python3 scripts/hooklinesinker.py stage --published
 
 verify-hooklinesinker:
-    @python3 scripts/hooklinesinker.py verify {{app_path}}
+    @python3 scripts/hooklinesinker.py verify {{app_path}} --development
 
 resolve-deps:
     @xcodebuild -resolvePackageDependencies -scheme {{scheme}} -derivedDataPath {{build_dir}}
@@ -200,7 +206,7 @@ reset-keep-stats:
 
 # --- Release targets ---
 
-archive: stage-hooklinesinker
+archive: stage-release-hooklinesinker
     @echo "Archiving Release build..."
     @mkdir -p {{release_dir}}
     @xcodebuild -scheme {{scheme}} -configuration Release \

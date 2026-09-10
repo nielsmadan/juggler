@@ -22,7 +22,7 @@ Per-agent specifics: [OpenCode Plugin](opencode-plugin.md), [Codex Hooks](codex-
 
 Everything after step 1 runs the **promoted** binary, because that is the path the installed
 hook commands point at. The bundle copy lives at `Juggler.app/Contents/MacOS/hooklinesinker`
-(`just build` verifies and stages the universal binary before Xcode embeds and signs it).
+(`just build` compiles and stages the pinned source for this Mac before Xcode embeds and signs it).
 An already installed, newer protocol-compatible version stays active. App startup needs no
 download; see [release packaging](release.md) for the build-time source and version pins.
 

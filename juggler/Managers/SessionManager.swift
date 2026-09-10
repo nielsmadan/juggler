@@ -57,7 +57,7 @@ final class SessionManager {
     private(set) var cyclingState = CyclingState.initial
     // Normalized to the session's composite id by updateFocusedSession.
     private(set) var focusedSessionID: String?
-    internal(set) var isTerminalAppActive = false
+    var isTerminalAppActive = false
 
     /// Live local handle (iTerm2 pane UUID / kitty window id) of the most recently
     /// focused pane per terminal, captured from that terminal's own focus events. Used
@@ -591,16 +591,17 @@ final class SessionManager {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let self else { return }
             guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                   let bundleID = app.bundleIdentifier
             else { return }
-
             let isTerminal = terminalBundleIDs.contains(bundleID)
-            logDebug(.session, "App focus: \(bundleID) activated, isTerminal=\(isTerminal)")
-            isTerminalAppActive = isTerminal
-            if isTerminal {
-                reconcileFocusForTerminal(bundleID: bundleID)
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                logDebug(.session, "App focus: \(bundleID) activated, isTerminal=\(isTerminal)")
+                self.isTerminalAppActive = isTerminal
+                if isTerminal {
+                    self.reconcileFocusForTerminal(bundleID: bundleID)
+                }
             }
         }
 

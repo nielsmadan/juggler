@@ -4,7 +4,7 @@ import Foundation
 /// `hooklinesinker sessions --json` speak this shape; `HookServer` maps it straight to a
 /// `SessionState` without going through `HookEventMapper`, which now only serves the legacy
 /// `UnifiedHookPayload` path.
-struct HooklinesinkerStatus: Sendable {
+nonisolated struct HooklinesinkerStatus: Sendable {
     static let supportedProtocol = 1
 
     let `protocol`: Int
@@ -72,7 +72,7 @@ struct HooklinesinkerStatus: Sendable {
 }
 
 /// `unknown` is carried for diagnostics but never cycles a session — see `sessionState`.
-enum HooklinesinkerPhase: String, Sendable {
+nonisolated enum HooklinesinkerPhase: String, Sendable {
     case idle
     case working
     case permission
@@ -90,7 +90,7 @@ enum HooklinesinkerPhase: String, Sendable {
     }
 }
 
-extension HooklinesinkerPhase: Decodable {
+nonisolated extension HooklinesinkerPhase: Decodable {
     // A phase spelling from a newer producer degrades to `unknown` rather than failing the
     // whole decode, which would drop the event and its identity along with it.
     nonisolated init(from decoder: any Decoder) throws {
@@ -99,7 +99,7 @@ extension HooklinesinkerPhase: Decodable {
     }
 }
 
-extension HooklinesinkerStatus: Decodable {
+nonisolated extension HooklinesinkerStatus: Decodable {
     nonisolated init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         `protocol` = try container.decode(Int.self, forKey: .protocol)
@@ -123,7 +123,7 @@ extension HooklinesinkerStatus: Decodable {
     }
 }
 
-extension HooklinesinkerStatus.SessionIdentity: Decodable {
+nonisolated extension HooklinesinkerStatus.SessionIdentity: Decodable {
     nonisolated init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
@@ -136,7 +136,7 @@ extension HooklinesinkerStatus.SessionIdentity: Decodable {
     }
 }
 
-extension HooklinesinkerStatus.ProcessIdentity: Decodable {
+nonisolated extension HooklinesinkerStatus.ProcessIdentity: Decodable {
     nonisolated init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         pid = try container.decode(Int.self, forKey: .pid)
@@ -149,7 +149,7 @@ extension HooklinesinkerStatus.ProcessIdentity: Decodable {
     }
 }
 
-extension HooklinesinkerStatus.TerminalIdentity: Decodable {
+nonisolated extension HooklinesinkerStatus.TerminalIdentity: Decodable {
     nonisolated init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId)
@@ -163,7 +163,7 @@ extension HooklinesinkerStatus.TerminalIdentity: Decodable {
     }
 }
 
-extension HooklinesinkerStatus.TmuxIdentity: Decodable {
+nonisolated extension HooklinesinkerStatus.TmuxIdentity: Decodable {
     nonisolated init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         pane = try container.decodeIfPresent(String.self, forKey: .pane)
@@ -175,7 +175,7 @@ extension HooklinesinkerStatus.TmuxIdentity: Decodable {
     }
 }
 
-extension HooklinesinkerStatus.GitIdentity: Decodable {
+nonisolated extension HooklinesinkerStatus.GitIdentity: Decodable {
     nonisolated init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         branch = try container.decodeIfPresent(String.self, forKey: .branch)

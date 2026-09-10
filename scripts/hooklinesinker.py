@@ -2,6 +2,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -15,8 +16,8 @@ IDENTIFIER = "com.nielsmadan.hooklinesinker"
 ARCHITECTURES = {"arm64", "x86_64"}
 
 
-def run(*arguments, environment=None):
-    result = subprocess.run(arguments, capture_output=True, text=True, timeout=60, env=environment)
+def run(*arguments, environment=None, timeout=60):
+    result = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout, env=environment)
     if result.returncode:
         raise ValueError(f"{' '.join(map(str, arguments))}: {result.stdout}{result.stderr}")
     return result.stdout + result.stderr
@@ -47,32 +48,67 @@ def verify_checksum(binary, manifest):
         raise ValueError(f"Checksum mismatch for {ARTIFACT}")
 
 
-def verify_binary(binary, pin):
+def native_target():
+    architecture = platform.machine()
+    targets = {"arm64": "aarch64-apple-darwin", "x86_64": "x86_64-apple-darwin"}
+    if platform.system() != "Darwin" or architecture not in targets:
+        raise ValueError("Development helper builds require an Apple Silicon or Intel Mac")
+    return targets[architecture], architecture
+
+
+def binary_architectures(binary, development=False):
     if not binary.is_file() or not os.access(binary, os.X_OK):
         raise ValueError(f"Missing executable hooklinesinker: {binary}")
     architectures = set(run("lipo", "-archs", str(binary)).split())
-    if architectures != ARCHITECTURES:
+    if development:
+        _, native_architecture = native_target()
+        if architectures not in (ARCHITECTURES, {native_architecture}):
+            raise ValueError(f"Expected a helper for {native_architecture}; found {sorted(architectures)}")
+    elif architectures != ARCHITECTURES:
         raise ValueError(f"Expected arm64 and x86_64 hooklinesinker; found {sorted(architectures)}")
+    return architectures
+
+
+def verify_binary(binary, pin, development=False):
+    architectures = binary_architectures(binary, development)
     version = json.loads(run(str(binary), "version", "--json"))
     if version.get("version") != pin["version"] or version.get("protocol") != pin["protocol"]:
         raise ValueError(f"Hooklinesinker version/protocol does not match the pin: {version}")
+    return architectures
 
 
 def stage(dist, output, pin):
     binary = dist / ARTIFACT
     verify_checksum(binary, dist / "SHA256SUMS")
+    stage_binary(binary, output, pin)
+
+
+def stage_development(output, pin):
+    target, _ = native_target()
+    installation = ROOT / "build/hooklinesinker/development" / pin["sourceRevision"] / target
+    binary = installation / "bin/hooklinesinker"
+    if not binary.is_file():
+        print(f"Building hooklinesinker {pin['version']} from {pin['sourceRevision']} for {target}...", flush=True)
+        run("cargo", "install", "--git", "https://github.com/nielsmadan/hooklinesinker.git",
+            "--rev", pin["sourceRevision"], "--locked", "--bin", "hooklinesinker",
+            "--target", target, "--root", str(installation),
+            "--target-dir", str(ROOT / "build/hooklinesinker/cargo"), timeout=600)
+    stage_binary(binary, output, pin, development=True)
+
+
+def stage_binary(binary, output, pin, development=False):
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output.parent) as temporary:
         candidate = Path(temporary) / "hooklinesinker"
         shutil.copyfile(binary, candidate)
         candidate.chmod(0o755)
-        verify_binary(candidate, pin)
+        architectures = verify_binary(candidate, pin, development)
         run("codesign", "--force", "--sign", "-", "--identifier", IDENTIFIER,
             "--options", "runtime", str(candidate))
         run("codesign", "--verify", "--strict", str(candidate))
         if not output.is_file() or output.read_bytes() != candidate.read_bytes():
             candidate.replace(output)
-    print(f"Staged hooklinesinker {pin['version']} ({', '.join(sorted(ARCHITECTURES))})")
+    print(f"Staged hooklinesinker {pin['version']} ({', '.join(sorted(architectures))})")
 
 
 def download(pin, output):
@@ -88,9 +124,9 @@ def signature_metadata(binary, architecture):
     return run("codesign", "--display", "--verbose=4", "--arch", architecture, str(binary))
 
 
-def verify_signature(binary, distribution, team=None):
+def verify_signature(binary, distribution, team=None, architectures=ARCHITECTURES):
     run("codesign", "--verify", "--strict", "--all-architectures", str(binary))
-    for architecture in sorted(ARCHITECTURES):
+    for architecture in sorted(architectures):
         metadata = signature_metadata(binary, architecture)
         if f"Identifier={IDENTIFIER}\n" not in metadata or "runtime)" not in metadata:
             raise ValueError(f"Hooklinesinker {architecture} signature lacks its identifier or hardened runtime")
@@ -100,7 +136,7 @@ def verify_signature(binary, distribution, team=None):
             raise ValueError(f"Hooklinesinker {architecture} lacks the app's timestamped Developer ID signature")
 
 
-def verify_bundle(app, pin, distribution=False):
+def verify_bundle(app, pin, distribution=False, development=False):
     binary = app / "Contents/MacOS/hooklinesinker"
     if binary.is_symlink():
         raise ValueError("The embedded hooklinesinker must be a regular file")
@@ -112,16 +148,17 @@ def verify_bundle(app, pin, distribution=False):
         if not match or "Authority=Developer ID Application:" not in app_signature:
             raise ValueError("Juggler needs a Developer ID Application signature")
         team = match[1]
-    verify_signature(binary, distribution, team)
-    verify_binary(binary, pin)
+    architectures = binary_architectures(binary, development=development and not distribution)
+    verify_signature(binary, distribution, team, architectures)
+    verify_binary(binary, pin, development=development and not distribution)
     with tempfile.TemporaryDirectory(prefix="juggler-hls-verify-") as temporary:
         data = Path(temporary) / "data"
         state = Path(temporary) / "state"
         environment = dict(os.environ, XDG_DATA_HOME=str(data), XDG_STATE_HOME=str(state))
         run(str(binary), "install", "--consumer", "juggler-release-check", environment=environment)
         installed = data / "hooklinesinker/bin/hooklinesinker"
-        verify_signature(installed, distribution, team)
-        verify_binary(installed, pin)
+        verify_signature(installed, distribution, team, architectures)
+        verify_binary(installed, pin, development=development and not distribution)
     print(f"Verified embedded and promoted hooklinesinker {pin['version']}")
 
 
@@ -130,11 +167,15 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     stage_parser = commands.add_parser("stage")
     stage_parser.add_argument("--dist", type=Path, default=os.environ.get("HOOKLINESINKER_DIST"))
-    stage_parser.add_argument("--published", action="store_true")
+    stage_mode = stage_parser.add_mutually_exclusive_group()
+    stage_mode.add_argument("--published", action="store_true")
+    stage_mode.add_argument("--development", action="store_true")
     stage_parser.add_argument("--output", type=Path, default=ROOT / "build/hooklinesinker/hooklinesinker")
     verify_parser = commands.add_parser("verify")
     verify_parser.add_argument("app", type=Path)
-    verify_parser.add_argument("--distribution", action="store_true")
+    verify_mode = verify_parser.add_mutually_exclusive_group()
+    verify_mode.add_argument("--distribution", action="store_true")
+    verify_mode.add_argument("--development", action="store_true")
     commands.add_parser("source-revision")
     args = parser.parse_args()
     try:
@@ -142,9 +183,11 @@ def main():
         if args.command == "source-revision":
             print(pin["sourceRevision"])
         elif args.command == "verify":
-            verify_bundle(args.app, pin, args.distribution)
+            verify_bundle(args.app, pin, args.distribution, args.development)
         elif args.dist and not args.published:
             stage(args.dist, args.output, pin)
+        elif args.development:
+            stage_development(args.output, pin)
         else:
             dist = ROOT / "build/hooklinesinker/downloads" / pin["version"]
             if args.published or not all((dist / name).is_file() for name in (ARTIFACT, "SHA256SUMS")):

@@ -1,5 +1,7 @@
 import hashlib
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import sys
@@ -56,6 +58,54 @@ class HooklinesinkerPackagingTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Expected arm64 and x86_64"):
                 hls.verify_binary(self.artifact, self.pin)
         run.assert_called_once_with("lipo", "-archs", str(self.artifact))
+
+    def test_development_builds_pinned_source_and_reuses_it_until_revision_changes(self):
+        builds = []
+
+        def command(*arguments, **kwargs):
+            if arguments[0] == "cargo":
+                revision = arguments[arguments.index("--rev") + 1]
+                builds.append(revision)
+                self.assertIn("--locked", arguments)
+                self.assertEqual(arguments[arguments.index("--target") + 1], "aarch64-apple-darwin")
+                binary = Path(arguments[arguments.index("--root") + 1]) / "bin/hooklinesinker"
+                binary.parent.mkdir(parents=True)
+                binary.write_bytes(revision.encode())
+            elif arguments[0] == "lipo":
+                return "arm64"
+            elif arguments[1:] == ("version", "--json"):
+                return json.dumps(self.pin)
+            return ""
+
+        with patch.object(hls, "ROOT", self.directory), \
+                patch.object(hls, "native_target", return_value=("aarch64-apple-darwin", "arm64")), \
+                patch.object(hls, "read_pin", return_value=self.pin), \
+                patch.object(hls, "run", side_effect=command), \
+                patch.dict(os.environ, {}, clear=True), \
+                patch.object(sys, "argv", [str(SCRIPT), "stage", "--development", "--output", str(self.output)]):
+            hls.main()
+            hls.main()
+            self.assertEqual(self.output.read_bytes(), self.pin["sourceRevision"].encode())
+            self.pin["sourceRevision"] = "b" * 40
+            hls.main()
+            self.assertEqual(self.output.read_bytes(), b"b" * 40)
+
+        self.assertEqual(builds, ["a" * 40, "b" * 40])
+
+    def test_development_rejects_a_helper_for_another_mac_architecture(self):
+        with patch.object(hls, "native_target", return_value=("aarch64-apple-darwin", "arm64")), \
+                patch.object(hls, "run", return_value="x86_64") as run, \
+                self.assertRaisesRegex(ValueError, "Expected a helper for arm64"):
+            hls.verify_binary(self.artifact, self.pin, development=True)
+        run.assert_called_once_with("lipo", "-archs", str(self.artifact))
+
+    def test_development_cannot_be_selected_with_release_modes(self):
+        for arguments in (["stage", "--published"], ["verify", "Juggler.app", "--distribution"]):
+            with self.subTest(arguments=arguments), contextlib.redirect_stderr(io.StringIO()), \
+                    patch.object(sys, "argv", [str(SCRIPT), *arguments, "--development"]), \
+                    self.assertRaises(SystemExit) as error:
+                hls.main()
+            self.assertEqual(error.exception.code, 2)
 
     def test_published_staging_fetches_release_even_with_local_override_and_cache(self):
         cache = self.directory / "build/hooklinesinker/downloads/1.0.0"

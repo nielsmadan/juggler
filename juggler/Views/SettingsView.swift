@@ -832,8 +832,9 @@ struct IntegrationSettingsView: View {
 
     private func checkNotifications() {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let authorized = settings.authorizationStatus == .authorized
             DispatchQueue.main.async {
-                hasNotifications = settings.authorizationStatus == .authorized
+                hasNotifications = authorized
             }
         }
     }

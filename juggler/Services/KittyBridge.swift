@@ -258,7 +258,7 @@ actor KittyBridge: TerminalBridge {
                 activePaneResetTasks[sessionID] = Task {
                     try? await Task.sleep(nanoseconds: UInt64(paneConfig.duration * 1_000_000_000))
                     guard !Task.isCancelled else { return }
-                    if let original = await self.originalColors.removeValue(forKey: sid) {
+                    if let original = self.originalColors.removeValue(forKey: sid) {
                         _ = try? await self.runKittenCommand(
                             ["@", "set-colors", "--match", "id:\(sid)", "background=\(original)"],
                             socketPath: sock
