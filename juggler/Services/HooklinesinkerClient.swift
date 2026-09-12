@@ -337,6 +337,7 @@ struct HooklinesinkerClient: Sendable {
     }
 
     private static func boundedString(_ data: Data) -> String {
-        String(decoding: data.prefix(maxCapturedBytes), as: UTF8.self)
+        String(bytes: data.prefix(maxCapturedBytes), encoding: .utf8)
+            ?? "hooklinesinker output contains invalid or truncated UTF-8"
     }
 }
