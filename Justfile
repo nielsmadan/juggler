@@ -59,7 +59,15 @@ build xcconfig="": stage-hooklinesinker
 stage-hooklinesinker:
     @python3 scripts/hooklinesinker.py stage --development
 
+[positional-arguments]
+update-hooklinesinker *args:
+    @python3 scripts/update_hooklinesinker.py "$@"
+
+check-hooklinesinker:
+    @python3 scripts/update_hooklinesinker.py --check
+
 stage-release-hooklinesinker:
+    @python3 scripts/update_hooklinesinker.py --check
     @python3 scripts/hooklinesinker.py stage --published
 
 verify-hooklinesinker:

@@ -39,7 +39,9 @@ jobs:
           brew ruby scripts/tests/homebrew_lifecycle.rb
 
       - name: Stage published hooklinesinker
-        run: python3 scripts/hooklinesinker.py stage --published
+        run: |
+          python3 scripts/update_hooklinesinker.py --check
+          python3 scripts/hooklinesinker.py stage --published
 
       - name: Import Developer ID certificate
         env:

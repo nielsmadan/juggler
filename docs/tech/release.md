@@ -25,7 +25,10 @@ host app.
 
 Before confirmation, checks fetch and verify the published Hooklinesinker artifact, then run
 `just check`. A missing or draft Hooklinesinker release stops the command before any version
-commit or tag is created.
+commit or tag is created. Immediately before confirmation, the command checks for a newer
+published HLS release and warns with the update command. The warning also appears during direct
+archives and in the release workflow. It leaves the pins unchanged and allows the release to
+continue; an unavailable update service produces a warning as well.
 
 After confirmation, preparation commits the new Xcode marketing version, then commits both
 installer revision pins pointing to that version commit. This gives the installer an immutable
@@ -50,6 +53,33 @@ compatible version is reused. The app does not download executable code during s
 `HOOKLINESINKER_VERSION` default in `scripts/install-remote.sh` aligned; staging rejects drift.
 Publish the pinned Hooklinesinker release, including `hooklinesinker-macos-universal` and
 `SHA256SUMS`, before releasing Juggler. A draft release does not satisfy this prerequisite.
+
+### Updating HLS
+
+1. Release HLS with its `just release` command, then wait for CI and the release workflow to succeed.
+   The release workflow publishes the binaries and `SHA256SUMS` automatically.
+2. In Juggler, run the updater and verify the build:
+
+   ```sh
+   just update-hooklinesinker       # latest published stable release
+   # Or choose a release: just update-hooklinesinker 1.0.1
+   just build
+   just verify-hooklinesinker
+   ```
+
+3. Review and commit the changes to `scripts/hooklinesinker.json` and `scripts/install-remote.sh`,
+   then follow the Juggler release flow above.
+
+The updater resolves the release tag to its commit and validates the universal binary's checksum,
+version and protocol before changing both pins. A different protocol requires a Juggler compatibility
+change first. Failed validation preserves the pins; the updater also refuses downgrades and preserves
+edits made while it is checking the release.
+
+`just check-hooklinesinker` checks for an update without changing files. These two commands read the
+public release API without a GitHub CLI login. Drafts and prereleases are excluded. The updater only
+changes build inputs; the installed app continues to use its bundled helper.
+
+### Building and verifying the helper
 
 `just build`, `just run`, `just build-strict` and test builds compile the pinned source revision
 for the current Mac using Cargo and its locked dependencies. The first build needs Rust and

@@ -12,6 +12,11 @@
     [
       "just",
       "check"
+    ],
+    [
+      "python3",
+      "scripts/update_hooklinesinker.py",
+      "--check"
     ]
   ],
   "tools": [

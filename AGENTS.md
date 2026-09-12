@@ -27,6 +27,8 @@ just setup        # Resolve dependencies, install Git hooks, and verify tools
 just doctor       # Verify tools and hook installation
 just check        # Format check, lint, strict build, tests, and unused-code check
 just release      # Propose, check, confirm or override, and publish a version
+just update-hooklinesinker  # Validate a published HLS release and update both pins
+just check-hooklinesinker   # Warn about a newer published HLS release
 ```
 
 Or use Xcode: `⌘B` to build, `⌘R` to run.
