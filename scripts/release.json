@@ -23,7 +23,6 @@
     "git",
     "python3",
     "just",
-    "gh",
     "xcodebuild",
     "swiftformat",
     "swiftlint",
