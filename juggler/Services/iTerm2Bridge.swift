@@ -22,18 +22,12 @@ final class ITerm2DaemonStatus {
 
     var state: DaemonState = .stopped
 
-    /// Last bytes from the daemon's stderr (truncated). Populated when the
-    /// daemon dies or when start() gives up so the user-facing message has
-    /// something concrete to show.
     var lastStderrTail: String?
 
     private init() {}
 }
 
-/// Thread-safe bounded ring buffer for capturing daemon stderr. Bytes are
-/// written from a DispatchQueue (off the actor) and read from the actor; the
-/// lock keeps both sides honest. Older bytes are dropped on overflow so the
-/// daemon never blocks on a full pipe.
+// The lock protects stderr writes from the drain queue and reads from the bridge actor.
 final nonisolated class StderrRingBuffer: @unchecked Sendable {
     private let capacity: Int
     private var data = Data()
@@ -60,11 +54,7 @@ final nonisolated class StderrRingBuffer: @unchecked Sendable {
     }
 }
 
-/// On EOF the handler removes itself. This is load-bearing: an empty read means the
-/// write end closed, and the kernel then reports the fd readable-at-EOF *forever*, so
-/// GCD re-fires the handler in a tight loop that pins a CPU core per dead daemon. The
-/// process's `terminationHandler` also clears it, but can lose the race to this EOF
-/// signal — hence the teardown lives here too. Regression-tested in ITerm2BridgeTests.
+// EOF remains readable; detach immediately to prevent a busy loop before the termination handler runs.
 nonisolated func installStderrDrain(
     on fileHandle: FileHandle,
     into buffer: StderrRingBuffer,
@@ -83,6 +73,7 @@ nonisolated func installStderrDrain(
 actor ITerm2Bridge: TerminalBridge {
     static let shared = ITerm2Bridge()
 
+    private let lifecycle = ITerm2DaemonLifecycle()
     private var daemonProcess: Process?
     private var stderrBuffer: StderrRingBuffer?
     private let socketPath: String = {
@@ -95,18 +86,17 @@ actor ITerm2Bridge: TerminalBridge {
     private nonisolated var pidFilePath: String { socketPath + ".pid" }
 
     private var eventReadSource: DispatchSourceRead?
+    private var eventListenerID: UUID?
     private let eventQueue = DispatchQueue(label: "com.juggler.eventlistener")
     private let stderrQueue = DispatchQueue(label: "com.juggler.daemon.stderr")
     private var eventLineBuffer = Data()
 
     private var healthCheckTask: Task<Void, Never>?
     private var startupMonitorTask: Task<Void, Never>?
+    private var reconnectTask: Task<Void, Never>?
+    private var reconnectID: UUID?
 
-    /// Notification dedup. `hasNotifiedWaiting` is set the first time the daemon
-    /// transitions to .waitingForITerm2 and never reset for the lifetime of the app
-    /// — a quiet status-bar indicator handles ongoing waits. `hasNotifiedFailed`
-    /// is reset on restart() so a recovered-then-failed-again cycle does notify
-    /// the user that something needs attention.
+    // Waiting notifies once per app session; failures can notify again after a restart.
     private var hasNotifiedWaiting = false
     private var hasNotifiedFailed = false
 
@@ -122,9 +112,15 @@ actor ITerm2Bridge: TerminalBridge {
     private init() {}
 
     func start() async throws {
+        try await lifecycle.enqueue(.start) { try await self.startDaemon() }.value
+    }
+
+    private func startDaemon() async throws {
         guard daemonProcess == nil else { return }
 
+        try Task.checkCancellation()
         await killOrphanedDaemon()
+        try Task.checkCancellation()
         installLifecycleObservers()
         await setDaemonState(.starting)
 
@@ -135,10 +131,12 @@ actor ITerm2Bridge: TerminalBridge {
         do {
             cookieAndKey = try await requestCookie()
         } catch {
+            try Task.checkCancellation()
             await MainActor.run { logError(.daemon, "Failed to get iTerm2 cookie: \(error)") }
             await setDaemonState(.failed(reason: "Failed to get iTerm2 cookie: \(error)"))
             throw error
         }
+        try Task.checkCancellation()
         let parts = cookieAndKey.split(separator: " ")
         let cookie = String(parts[0])
         let key = parts.count > 1 ? String(parts[1]) : ""
@@ -161,11 +159,7 @@ actor ITerm2Bridge: TerminalBridge {
         env["ITERM2_KEY"] = key
         process.environment = env
 
-        // Capture stderr through a Pipe so we can surface the daemon's own diagnostics
-        // (especially the structured JSON line written before exit on failure). The
-        // readabilityHandler must be installed *before* process.run() to avoid the
-        // pipe's kernel buffer (16-64 KB) filling up if the daemon is chatty under
-        // retry=True — a full pipe blocks the daemon's write and silently hangs us.
+        // Install the drain before launch so retry diagnostics cannot fill the pipe and block the daemon.
         let stderrPipe = Pipe()
         let buffer = StderrRingBuffer()
         stderrBuffer = buffer
@@ -183,7 +177,7 @@ actor ITerm2Bridge: TerminalBridge {
             let status = terminated.terminationStatus
             let stderrTail = buffer.snapshot()
             Task { [weak self] in
-                await self?.handleDaemonExit(status: status, stderrTail: stderrTail)
+                await self?.handleDaemonExit(process: terminated, status: status, stderrTail: stderrTail)
             }
         }
 
@@ -196,21 +190,20 @@ actor ITerm2Bridge: TerminalBridge {
             throw error
         }
         daemonProcess = process
-        writePIDFile(pid: process.processIdentifier)
+        await lifecycle.trackProcess(process)
 
-        // Initial wait: short, on the actor. Common case (iTerm2 ready) returns here.
-        if try await waitForDaemonReady(deadline: Date().addingTimeInterval(initialReadinessWait)) {
+        if try await waitForDaemonReady(process: process, deadline: Date().addingTimeInterval(initialReadinessWait)) {
             await finishStartupReady()
             return
         }
+        try Task.checkCancellation()
+        guard process.isRunning else { return }
 
-        // Not ready within the initial window — daemon is likely waiting on iTerm2 (or
-        // failed). Hand off to a background monitor so the bridge actor isn't held for
-        // up to 60s. start() returns now; state observers see waitingForITerm2.
+        // Continue readiness checks in the background so start() returns after the initial wait.
         await transitionToWaiting()
         startupMonitorTask?.cancel()
         startupMonitorTask = Task { [weak self] in
-            await self?.runStartupMonitor()
+            await self?.runStartupMonitor(process: process)
         }
     }
 
@@ -233,16 +226,15 @@ actor ITerm2Bridge: TerminalBridge {
         return "/usr/bin/python3"
     }
 
-    /// Yields with `Task.sleep` between polls so the actor can service other work.
-    private func waitForDaemonReady(deadline: Date) async throws -> Bool {
+    private func waitForDaemonReady(process: Process, deadline: Date) async throws -> Bool {
         while Date() < deadline {
-            if Task.isCancelled { return false }
-            if let proc = daemonProcess, !proc.isRunning {
-                // Process exited; readiness is impossible. terminationHandler will
-                // record the failure state.
+            try Task.checkCancellation()
+            if !process.isRunning {
                 return false
             }
-            if await daemonPingSucceeds() {
+            let ready = await daemonPingSucceeds()
+            try Task.checkCancellation()
+            if ready, process.isRunning {
                 return true
             }
             try await Task.sleep(nanoseconds: 250_000_000) // 250ms
@@ -250,27 +242,41 @@ actor ITerm2Bridge: TerminalBridge {
         return false
     }
 
-    private func runStartupMonitor() async {
+    private func runStartupMonitor(process: Process) async {
         let deadline = Date().addingTimeInterval(extendedReadinessWait - initialReadinessWait)
         while Date() < deadline {
-            if Task.isCancelled { return }
-            if let proc = daemonProcess, !proc.isRunning {
-                // terminationHandler will surface the failure with stderr.
+            if Task.isCancelled || daemonProcess !== process { return }
+            if !process.isRunning {
                 return
             }
             if await daemonPingSucceeds() {
-                await finishStartupReady()
+                guard !Task.isCancelled else { return }
+                try? await lifecycle.enqueue(.update) {
+                    await self.finishStartupReady(process: process)
+                }.value
                 return
             }
             try? await Task.sleep(nanoseconds: 1_000_000_000) // 1s
         }
         if Task.isCancelled { return }
+        try? await lifecycle.enqueue(.update) {
+            await self.handleStartupTimeout(process: process)
+        }.value
+    }
+
+    private func handleStartupTimeout(process: Process) async {
+        guard daemonProcess === process, process.isRunning else { return }
         let tail = stderrBuffer?.snapshot() ?? ""
         let reason = tail.isEmpty
             ? "iTerm2 didn't respond within \(Int(extendedReadinessWait))s"
             : "iTerm2 didn't respond within \(Int(extendedReadinessWait))s.\n\(tail.suffix(500))"
         await setDaemonState(.failed(reason: reason))
         await postFailedNotification(tail: tail)
+    }
+
+    private func finishStartupReady(process: Process) async {
+        guard daemonProcess === process, process.isRunning else { return }
+        await finishStartupReady()
     }
 
     private func finishStartupReady() async {
@@ -347,12 +353,16 @@ actor ITerm2Bridge: TerminalBridge {
         }
     }
 
-    private func handleDaemonExit(status: Int32, stderrTail: String) async {
+    private func handleDaemonExit(process: Process, status: Int32, stderrTail: String) async {
+        await lifecycle.exited(process) {
+            await self.recordDaemonExit(status: status, stderrTail: stderrTail)
+        }
+    }
+
+    private func recordDaemonExit(status: Int32, stderrTail: String) async {
         await MainActor.run {
             ITerm2DaemonStatus.shared.lastStderrTail = stderrTail
         }
-        // Don't react to deaths we caused via stop().
-        guard daemonProcess != nil else { return }
         await MainActor.run { logWarning(.daemon, "Daemon exited (status \(status)). stderr tail: \(stderrTail)") }
         let currentState = await MainActor.run { ITerm2DaemonStatus.shared.state }
         switch currentState {
@@ -444,17 +454,17 @@ actor ITerm2Bridge: TerminalBridge {
         let currentState = await MainActor.run { ITerm2DaemonStatus.shared.state }
         if currentState == .ready {
             await MainActor.run { logInfo(.daemon, "iTerm2 terminated — entering waitingForITerm2") }
-            // We don't tear down the daemon process; the daemon will exit on its own
-            // (its connection to iTerm2 dies inside the iterm2 library) and our
-            // terminationHandler will record the failure. Marking the state here
-            // gives users an immediate signal in the status bar.
+            // Update the status bar immediately while the daemon handles its lost iTerm2 connection.
             await setDaemonState(.waitingForITerm2)
         }
     }
 
     // MARK: - Event Listener (DispatchSource-based, non-blocking)
 
-    private nonisolated func startEventListener() {
+    private func startEventListener() {
+        guard eventListenerID == nil, daemonProcess != nil else { return }
+        let listenerID = UUID()
+        eventListenerID = listenerID
         eventQueue.async { [self] in
             do {
                 let sock = try connectEventSocket()
@@ -462,7 +472,7 @@ actor ITerm2Bridge: TerminalBridge {
                 let source = DispatchSource.makeReadSource(fileDescriptor: sock, queue: eventQueue)
 
                 source.setEventHandler { [self] in
-                    handleSocketData(socket: sock)
+                    handleSocketData(socket: sock, listenerID: listenerID)
                 }
 
                 source.setCancelHandler {
@@ -472,13 +482,14 @@ actor ITerm2Bridge: TerminalBridge {
                     }
                 }
 
-                Task { await self.setEventReadSource(source) }
+                Task { await self.setEventReadSource(source, listenerID: listenerID) }
                 source.resume()
 
                 Task { @MainActor in
                     logInfo(.daemon, "Focus event listener connected")
                 }
             } catch {
+                Task { await self.cancelEventListener(listenerID: listenerID) }
                 Task { @MainActor in
                     logWarning(.daemon, "Event listener failed to connect: \(error)")
                 }
@@ -486,7 +497,11 @@ actor ITerm2Bridge: TerminalBridge {
         }
     }
 
-    private func setEventReadSource(_ source: DispatchSourceRead) {
+    private func setEventReadSource(_ source: DispatchSourceRead, listenerID: UUID) {
+        guard eventListenerID == listenerID else {
+            source.cancel()
+            return
+        }
         eventReadSource = source
     }
 
@@ -538,25 +553,27 @@ actor ITerm2Bridge: TerminalBridge {
         return sock
     }
 
-    private nonisolated func handleSocketData(socket sock: Int32) {
+    private nonisolated func handleSocketData(socket sock: Int32, listenerID: UUID) {
         var buffer = [UInt8](repeating: 0, count: 4096)
         let bytesRead = recv(sock, &buffer, buffer.count, Int32(MSG_DONTWAIT))
 
         if bytesRead == 0 {
-            Task { await self.cancelEventListener() }
+            Task { await self.cancelEventListener(listenerID: listenerID) }
             return
         }
         if bytesRead < 0 {
             // EAGAIN/EWOULDBLOCK = no data available (normal for non-blocking recv)
             if errno == EAGAIN || errno == EWOULDBLOCK { return }
-            Task { await self.cancelEventListener() }
+            Task { await self.cancelEventListener(listenerID: listenerID) }
             return
         }
 
-        Task { await self.processReceivedData(Data(buffer[0 ..< bytesRead])) }
+        Task { await self.processReceivedData(Data(buffer[0 ..< bytesRead]), listenerID: listenerID) }
     }
 
-    private func cancelEventListener() {
+    private func cancelEventListener(listenerID: UUID) {
+        guard eventListenerID == listenerID else { return }
+        eventListenerID = nil
         eventReadSource?.cancel()
         eventReadSource = nil
         if daemonProcess != nil {
@@ -565,10 +582,21 @@ actor ITerm2Bridge: TerminalBridge {
     }
 
     private func scheduleEventListenerReconnect() {
-        Task {
+        guard reconnectTask == nil else { return }
+        let id = UUID()
+        reconnectID = id
+        reconnectTask = Task {
+            defer {
+                if reconnectID == id {
+                    reconnectTask = nil
+                    reconnectID = nil
+                }
+            }
             await MainActor.run { logWarning(.daemon, "Event listener disconnected, attempting reconnect...") }
             for delay in [2.0, 5.0, 10.0, 15.0] {
-                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                } catch { return }
                 guard daemonProcess != nil else { return }
                 guard eventReadSource == nil else { return } // already reconnected
 
@@ -576,27 +604,34 @@ actor ITerm2Bridge: TerminalBridge {
 
                 await MainActor.run { logInfo(.daemon, "Reconnecting event listener...") }
                 startEventListener()
-                try? await Task.sleep(nanoseconds: 500_000_000)
+                do {
+                    try await Task.sleep(nanoseconds: 500_000_000)
+                } catch { return }
                 if eventReadSource != nil {
                     await MainActor.run { logInfo(.daemon, "Event listener reconnected") }
                     return
                 }
             }
+            guard !Task.isCancelled else { return }
             await MainActor.run { logWarning(.daemon, "Event listener reconnect failed, restarting daemon...") }
             try? await restart()
         }
     }
 
     private func startHealthCheck() {
+        healthCheckTask?.cancel()
         healthCheckTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 30_000_000_000) // 30s
+                do {
+                    try await Task.sleep(nanoseconds: 30_000_000_000) // 30s
+                } catch { return }
                 guard daemonProcess != nil else { continue }
 
                 let request = DaemonRequest(command: "ping")
                 do {
                     _ = try await sendRequest(request)
                 } catch {
+                    guard !Task.isCancelled else { return }
                     await MainActor.run { logWarning(.daemon, "Health check failed: \(error)") }
                     if eventReadSource == nil {
                         scheduleEventListenerReconnect()
@@ -606,7 +641,8 @@ actor ITerm2Bridge: TerminalBridge {
         }
     }
 
-    private func processReceivedData(_ data: Data) async {
+    private func processReceivedData(_ data: Data, listenerID: UUID) async {
+        guard eventListenerID == listenerID else { return }
         eventLineBuffer.append(data)
 
         while let newlineIndex = eventLineBuffer.firstIndex(of: UInt8(ascii: "\n")) {
@@ -620,19 +656,26 @@ actor ITerm2Bridge: TerminalBridge {
     }
 
     func stop() async {
+        try? await lifecycle.enqueue(.stop) { await self.stopDaemon() }.value
+    }
+
+    private func stopDaemon() async {
         // Clear daemon process first so cancelEventListener doesn't trigger reconnect
         let process = daemonProcess
         daemonProcess = nil
+        await lifecycle.trackProcess(nil)
         startupMonitorTask?.cancel()
         startupMonitorTask = nil
         healthCheckTask?.cancel()
         healthCheckTask = nil
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        reconnectID = nil
         eventReadSource?.cancel()
         eventReadSource = nil
+        eventListenerID = nil
         eventLineBuffer.removeAll()
-        // Detach the termination handler before terminating: stop()-induced exits
-        // are expected, not failure events. Without this we'd transition to .failed
-        // every time the user quits Juggler.
+        // Intentional shutdown must not report a daemon failure.
         process?.terminationHandler = nil
         process?.terminate()
         if let process, process.isRunning {
@@ -645,8 +688,6 @@ actor ITerm2Bridge: TerminalBridge {
             }
         }
         stderrBuffer = nil
-        try? FileManager.default.removeItem(atPath: socketPath)
-        removePIDFile()
         removeLifecycleObservers()
         await setDaemonState(.stopped)
         await MainActor.run { logInfo(.daemon, "Daemon stopped") }
@@ -658,18 +699,9 @@ actor ITerm2Bridge: TerminalBridge {
             let pid = Int32(pidString), pid > 0
         else { return }
 
-        // Already gone — just clear the stale PID file.
-        guard kill(pid, 0) == 0 else {
-            try? FileManager.default.removeItem(atPath: pidFilePath)
-            return
-        }
+        guard kill(pid, 0) == 0 else { return }
 
-        // The PID is alive — only reap it if it's actually an ORPHANED iterm2_daemon
-        // (its parent is launchd). The socket/PID file are shared across dev builds,
-        // so a recorded PID can belong to another build's *live* daemon (parent still
-        // alive) or, after PID reuse, to an unrelated process — neither of which we
-        // may kill. If it's not ours, leave it and its files alone; our new daemon
-        // rebinds the socket and the peer's socket-ownership monitor retires cleanly.
+        // The shared PID may belong to another live build or have been reused by an unrelated process.
         guard isOrphanedDaemon(pid: pid) else { return }
 
         kill(pid, SIGTERM)
@@ -680,17 +712,9 @@ actor ITerm2Bridge: TerminalBridge {
         if kill(pid, 0) == 0 {
             kill(pid, SIGKILL)
         }
-
-        try? FileManager.default.removeItem(atPath: pidFilePath)
-        try? FileManager.default.removeItem(atPath: socketPath)
     }
 
-    /// True only if `pid` is an orphaned daemon of *ours*: its parent is launchd
-    /// (pid 1, so the app that spawned it died) AND its arguments reference both our
-    /// daemon script and this exact socket path. The two-part match guards against
-    /// PID reuse — the socket path is unique enough that an unrelated process is
-    /// extremely unlikely to carry it (the `KERN_PROCARGS2` blob includes the
-    /// environment too, so a single needle would be looser than intended).
+    // KERN_PROCARGS2 includes the environment, so match both the script name and socket path.
     private nonisolated func isOrphanedDaemon(pid: Int32) -> Bool {
         var info = kinfo_proc()
         var size = MemoryLayout<kinfo_proc>.stride
@@ -706,14 +730,6 @@ actor ITerm2Bridge: TerminalBridge {
         let args = Data(argsBuf)
         return args.range(of: Data("iterm2_daemon.py".utf8)) != nil
             && args.range(of: Data(socketPath.utf8)) != nil
-    }
-
-    private nonisolated func writePIDFile(pid: Int32) {
-        try? String(pid).write(toFile: pidFilePath, atomically: true, encoding: .utf8)
-    }
-
-    private nonisolated func removePIDFile() {
-        try? FileManager.default.removeItem(atPath: pidFilePath)
     }
 
     // MARK: - Connection Recovery
@@ -736,11 +752,15 @@ actor ITerm2Bridge: TerminalBridge {
     }
 
     func restart() async throws {
+        try await lifecycle.enqueue(.restart) { try await self.restartDaemon() }.value
+    }
+
+    private func restartDaemon() async throws {
         await MainActor.run { logWarning(.daemon, "Restarting daemon...") }
-        await stop()
+        await stopDaemon()
         hasNotifiedFailed = false
         try await Task.sleep(nanoseconds: 500_000_000)
-        try await start()
+        try await startDaemon()
     }
 
     @MainActor

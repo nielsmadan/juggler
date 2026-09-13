@@ -138,9 +138,11 @@ The Swift side (`TerminalActivation.isSessionGone`) is the belt-and-suspenders l
 
 ## Zombie daemon prevention
 
-The daemon is launched from the app bundle and binds `iterm2_daemon.sock`. On startup it `unlink`s any existing socket and rebinds, so the most recently launched daemon owns the path; older daemons keep running on their now-orphaned socket inode and answer nothing - but during development many such zombies accumulate, and a pre-fix zombie that somehow still holds the path would reintroduce the empty-message bug.
+The daemon binds a unique temporary socket beside `iterm2_daemon.sock`, makes it ready to accept connections, then atomically replaces the shared path. Concurrent launches can each bind successfully; the last publication owns the path. A `.lock` sidecar serializes publication with cleanup, and the publishing daemon writes its PID to `.pid` under the same lock. The lock file stays in place so every process locks the same inode.
 
-`_monitor_socket_ownership` polls the socket path's inode every 5s against the inode recorded at bind time. If they differ (a newer daemon rebound the path) or the path is gone, the daemon exits via `stop(unlink=False)` - deliberately **not** unlinking, because by default `stop()` would unlink the path, which now belongs to the new owner.
+`_monitor_socket_ownership` polls the socket path's inode every 5s against the inode recorded at publication. If they differ or the path is gone, the daemon exits via `stop(unlink=False)`. Normal shutdown also checks ownership under the lock before removing the socket and PID, so retiring daemons preserve the replacement's files.
+
+SIGTERM and SIGINT are handled on the asyncio loop after synchronous publication/cleanup completes. They call `stop()` followed by `os._exit(0)`, which bypasses the iTerm2 library's reconnect wrapper.
 
 ## Connection Recovery
 

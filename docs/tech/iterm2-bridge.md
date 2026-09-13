@@ -27,6 +27,8 @@ For the socket wire protocol, command/response shapes, the empty-string exceptio
 
 The actor `ITerm2Bridge` (`Services/iTerm2Bridge.swift:63`) owns the daemon subprocess and supervises its lifecycle. Observable state lives in `ITerm2DaemonStatus.shared` (`iTerm2Bridge.swift:18-31`), a `@MainActor @Observable` holding the current `DaemonState` and the last stderr tail - these are what the UI reacts to.
 
+`Services/ITerm2DaemonLifecycle.swift` serializes launch, shutdown and lifecycle updates across actor suspension points. Overlapping starts/restarts share one task. Stop cancels queued or active launches, waits for them to finish, then tears down the process; a later start waits for that cleanup. Cookie acquisition and readiness polling check cancellation before continuing. Process identity scopes exit callbacks, so a delayed callback from a replaced or stopped daemon cannot change the current status.
+
 ### DaemonState lifecycle
 
 `DaemonState` (`iTerm2Bridge.swift:10-16`) is a five-case enum:
@@ -69,6 +71,8 @@ Two background tasks keep the live connection honest:
 - **Event listener**: `startEventListener` (`iTerm2Bridge.swift:459`) opens a persistent subscriber socket via a `DispatchSource` read source on a dedicated queue. On EOF or a hard recv error, `handleSocketData` (`iTerm2Bridge.swift:543`) calls `cancelEventListener`, which (while the daemon process is still alive) calls `scheduleEventListenerReconnect` (`iTerm2Bridge.swift:569`).
 - **Reconnect with escalation**: `scheduleEventListenerReconnect` retries with a backoff schedule of `[2, 5, 10, 15]` seconds, re-checking that the daemon is alive and the listener hasn't already reconnected each iteration. If all four attempts fail, it escalates to a full `restart()`.
 
+Each listener attempt has an identity; data, EOF and delayed connection results apply only to that listener. Stop invalidates the identity and cancels the reconnect and health-check tasks. Only one reconnect task can run at a time.
+
 **Why:** The event stream (focus changes, terminal_info, session_terminated) is what keeps `SessionManager` in sync. A silently-dropped subscriber socket would freeze the session list, so the listener self-heals first, then nukes-and-restarts as a last resort.
 
 ### stderr ring buffer & failure reasons
@@ -77,7 +81,7 @@ The daemon's stderr is captured into a bounded `StderrRingBuffer` (`iTerm2Bridge
 
 - The pipe's `readabilityHandler` is installed **before** `process.run()` and drains chunks onto a dedicated queue (`iTerm2Bridge.swift:155-159`). If the pipe filled (the daemon is chatty under iterm2 `retry=True`), the daemon's write would block and silently hang the supervisor - hence eager draining and a ring buffer that drops oldest bytes on overflow.
 - The `terminationHandler` (`iTerm2Bridge.swift:164`) drains trailing bytes, snapshots the buffer, and forwards both exit status and the tail to `handleDaemonExit` (`iTerm2Bridge.swift:351`).
-- `handleDaemonExit` always refreshes `ITerm2DaemonStatus.shared.lastStderrTail`, then - only if the death wasn't caused by our own `stop()` (guarded by `daemonProcess != nil`) and the state was `.ready`/`.starting`/`.waitingForITerm2` - sets `.failed`, embedding `stderrTail.suffix(500)` into the reason.
+- `handleDaemonExit` queues the callback through `ITerm2DaemonLifecycle`. Only an exit from the currently tracked process reaches `recordDaemonExit`, which refreshes the stderr tail and sets `.failed` for `.ready`/`.starting`/`.waitingForITerm2`. Shutdown clears the tracked process before termination.
 
 The most useful tail line is the daemon's **structured error**: `_emit_structured_error` (`iterm2_daemon.py:488`) writes a single JSON line `{"phase": ..., "detail": ...}` to stderr before exit (connection timeout, fatal). This lands in the ring buffer and surfaces verbatim in the failure reason / tooltip.
 
@@ -94,6 +98,8 @@ Two one-shot flags (`iTerm2Bridge.swift:90-91`) prevent notification spam:
 - **Socket-level timeouts**: `sendRequest` (`iTerm2Bridge.swift:881`) sets `SO_RCVTIMEO`/`SO_SNDTIMEO` to 1s; the subscribe ack read has a 3s `SO_RCVTIMEO` (`iTerm2Bridge.swift:530`).
 - **Stale-connection recovery**: `shouldAttemptRecovery` (`iTerm2Bridge.swift:689`) classifies errors. `activate` and `getSessionInfo` catch recoverable errors, call `restart()`, and retry once. `highlight` fails silently (cosmetic only). `getSessionInfo` additionally maps a `"session not found"` `commandFailed` to `nil` so `TerminalActivation.isSessionGone` can clean up - see [terminal-bridges.md](terminal-bridges.md#detecting-a-gone-session-from-an-opaque-error).
 - **Orphan cleanup**: `start()` first calls `killOrphanedDaemon` (`iTerm2Bridge.swift:658`), which SIGTERMs (then SIGKILLs) the PID recorded in the `.pid` sidecar file from a previous run - but only if `isOrphanedDaemon` confirms it's actually an orphan of ours (parent is launchd **and** its args reference our daemon script + this socket path). The socket/PID files are shared across dev builds, so this guards against killing another build's *live* daemon or a reused PID. `restart()` is `stop()` + 500ms + `start()`.
+
+The Python daemon publishes and removes its socket/PID files under a shared lock. Swift only signals the process; socket ownership and takeover are described in [iterm2-daemon.md](iterm2-daemon.md#zombie-daemon-prevention).
 
 ## Daemon side (`iterm2_daemon.py`)
 

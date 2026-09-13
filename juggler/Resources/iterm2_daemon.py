@@ -8,11 +8,13 @@ Event-driven architecture: pushes focus and terminal_info events.
 from __future__ import annotations
 
 import asyncio
+import fcntl
 import json
 import os
 import signal
 import socket
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Optional
 
@@ -35,14 +37,7 @@ class iTerm2Daemon:
     async def start(self) -> None:
         self.app = await iterm2.async_get_app(self.connection)
 
-        self.socket_path.unlink(missing_ok=True)
-
-        self.server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.server.bind(str(self.socket_path))
-        os.chmod(str(self.socket_path), 0o600)
-        self.server.listen(5)
-        self.server.setblocking(False)
-        self.socket_inode = os.stat(str(self.socket_path)).st_ino
+        self._bind_socket()
 
         print(f"Daemon listening on {self.socket_path}", file=sys.stderr)
 
@@ -61,6 +56,29 @@ class iTerm2Daemon:
                 if self.running:
                     print(f"Accept error: {e}", file=sys.stderr)
 
+    def _bind_socket(self) -> None:
+        fd, temporary_path = tempfile.mkstemp(prefix=".iterm2-", dir=self.socket_path.parent)
+        os.close(fd)
+        temporary = Path(temporary_path)
+        temporary.unlink()
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            server.bind(temporary_path)
+            os.chmod(temporary_path, 0o600)
+            server.listen(5)
+            server.setblocking(False)
+            with open(str(self.socket_path) + ".lock", "a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                os.replace(temporary, self.socket_path)
+                self.socket_inode = self.socket_path.stat().st_ino
+                self.server = server
+                Path(str(self.socket_path) + ".pid").write_text(str(os.getpid()))
+        except BaseException:
+            server.close()
+            raise
+        finally:
+            temporary.unlink(missing_ok=True)
+
     async def handle_client(self, client: socket.socket) -> None:
         loop = asyncio.get_running_loop()
         try:
@@ -77,7 +95,6 @@ class iTerm2Daemon:
 
             response = await self.process_command(request)
 
-            # Add newline for consistent protocol
             await loop.sock_sendall(client, json.dumps(response).encode("utf-8") + b"\n")
         except Exception as e:
             error_response = {"status": "error", "message": str(e) or type(e).__name__}
@@ -445,13 +462,10 @@ class iTerm2Daemon:
         parent_pid = os.getppid()
         while self.running:
             await asyncio.sleep(5)
-            if os.getppid() != parent_pid:
+            if parent_pid == 1 or os.getppid() != parent_pid:
                 print("Parent process gone, exiting", file=sys.stderr, flush=True)
                 self.stop()
-                # os._exit, not sys.exit: SystemExit raised from inside an asyncio
-                # task is swallowed by `iterm2.run_until_complete(retry=True)`, which
-                # reconnects instead of dying — orphaning the daemon. _exit is
-                # immediate and bypasses the retry wrapper.
+                # Exit directly because the iterm2 retry wrapper can swallow SystemExit and reconnect.
                 os._exit(0)
 
     async def _monitor_socket_ownership(self) -> None:
@@ -488,14 +502,18 @@ class iTerm2Daemon:
         self.running = False
         if self.server:
             self.server.close()
-        if unlink:
-            self.socket_path.unlink(missing_ok=True)
+        if unlink and self.socket_inode:
+            try:
+                with open(str(self.socket_path) + ".lock", "a") as lock:
+                    fcntl.flock(lock, fcntl.LOCK_EX)
+                    if self.socket_path.stat().st_ino == self.socket_inode:
+                        self.socket_path.unlink()
+                        Path(str(self.socket_path) + ".pid").unlink(missing_ok=True)
+            except FileNotFoundError:
+                pass
 
 
-# Hard ceiling for the initial iTerm2 connection. The iterm2 library with
-# retry=True will spin forever on connection refused / 401, so we need our
-# own timeout. Once the daemon is connected and serving, this alarm is
-# cleared — daemon uptime is unbounded after that.
+# Bound the initial handshake because the iterm2 retry loop has no timeout.
 CONNECTION_TIMEOUT_SECONDS = 30
 
 
@@ -524,12 +542,13 @@ async def main(connection: iterm2.Connection) -> None:
     socket_path = sys.argv[1]
     daemon = iTerm2Daemon(socket_path, connection)
 
-    def signal_handler(sig: int, frame: Any) -> None:
+    def signal_handler() -> None:
         daemon.stop()
-        sys.exit(0)
+        os._exit(0)
 
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
+    loop = asyncio.get_running_loop()
+    loop.add_signal_handler(signal.SIGTERM, signal_handler)
+    loop.add_signal_handler(signal.SIGINT, signal_handler)
 
     await daemon.start()
 
