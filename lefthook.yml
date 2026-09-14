@@ -17,12 +17,6 @@ pre-commit:
 
 pre-push:
   commands:
-    build:
-      run: just build-strict
-      priority: 1
-    test:
-      run: just test
-      priority: 2
-    check-unused:
-      run: just check-unused
-      priority: 3
+    check:
+      run: just check
+
