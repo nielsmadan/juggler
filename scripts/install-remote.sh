@@ -17,7 +17,7 @@ set -e
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-REVISION="${JUGGLER_REVISION:-d8b864f579e10fe0680a27b4b05324ebdc4e9b76}"
+REVISION="${JUGGLER_REVISION:-a781f474dd36f8ac15370964f685df0da551521c}"
 HLS_VERSION="${HOOKLINESINKER_VERSION:-v1.0.2}"
 HLS_BASE="${HOOKLINESINKER_BASE_URL:-https://github.com/nielsmadan/hooklinesinker/releases/download/$HLS_VERSION}"
 SINK="${JUGGLER_SINK:-http://127.0.0.1:7483/hook}"

@@ -1278,7 +1278,7 @@ struct SSHSettingsView: View {
     }
 
     // `just release` advances this to an immutable release-preparation commit.
-    private static let installRevision = "d8b864f579e10fe0680a27b4b05324ebdc4e9b76"
+    private static let installRevision = "a781f474dd36f8ac15370964f685df0da551521c"
     private var installOneLiner: String {
         RemoteSetupSnippets.installOneLiner(
             revision: Self.installRevision,
