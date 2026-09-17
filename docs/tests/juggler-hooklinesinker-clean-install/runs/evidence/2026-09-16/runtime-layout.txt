@@ -1,0 +1,21 @@
+Verified 2026-09-17 against iTerm2 3.7.2.
+
+Observed runtime roots:
+  ~/Library/Application Support/iTerm2/iterm2env-3.10
+  ~/Library/Application Support/iTerm2/iterm2env-3.10.19
+  ~/Library/Application Support/iTerm2/iterm2env-3.14
+  ~/Library/Application Support/iTerm2/iterm2env-3.14.0
+  ~/Library/Application Support/iTerm2/iterm2env-3.7
+  ~/Library/Application Support/iTerm2/iterm2env-3.7.17
+  ~/Library/Application Support/iTerm2/iterm2env-3.8
+  ~/Library/Application Support/iTerm2/iterm2env-3.8.19
+  ~/Library/Application Support/iTerm2/iterm2env-79
+
+Each root contained versions/3.7.17, versions/3.8.19, versions/3.10.19, and
+versions/3.14.0 subtrees with bin directories.
+
+Not observed:
+  ~/Library/Application Support/iTerm2/iterm2env/versions
+
+An additional uv-managed Python 3.12 environment existed under the iTerm2 application-support
+directory. It was not located below the unversioned path Juggler searched.

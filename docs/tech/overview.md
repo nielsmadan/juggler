@@ -75,7 +75,8 @@ file list.
 - SwiftUI, Network, UserNotifications, ServiceManagement
 
 **iTerm2:**
-- Uses iTerm2's bundled Python at `~/Library/Application Support/iTerm2/iterm2env/`
+- Uses a completed iTerm2-managed Python from `uv/venvs/`, `iterm2env/versions/`, or
+  `iterm2env-*/versions/`
 
 ## Storage
 

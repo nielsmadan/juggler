@@ -92,14 +92,21 @@ highlight simply does not apply. A retry after 1 s helps; for resetting a pane b
 the OSC sequence `\033]1337;SetColors=bg=default\a` directly into the stream succeeds where the
 profile API does not.
 
-**Verified — the bundled Python is selected lexicographically, so 3.8 can win.** iTerm2 ships its
-own interpreters under `~/Library/Application Support/iTerm2/iterm2env/versions/`. Sorting those
-directory names as strings puts `3.8.x` ahead of `3.10.x` and `3.14.x`. A commit that modernized the
-daemon's type hints to built-in generics (`dict[str, Any]`) therefore crashed at import with
-`TypeError: 'type' object is not subscriptable`, taking down all iTerm2 integration and surfacing
-only as stale-connection recovery loops. See
-[`docs/log/2026-02-07-daemon-crash-python-type-hints.md`](../log/2026-02-07-daemon-crash-python-type-hints.md)
-(2026-02-07). The daemon must stay Python 3.7-compatible.
+**Verified — runtime discovery cannot assume one unversioned root.** The older runtime layout used
+`~/Library/Application Support/iTerm2/iterm2env/versions/`. Sorting those version names as strings
+can put `3.8.x` ahead of `3.10.x` and `3.14.x`, so the daemon must stay Python 3.7-compatible. A
+failure caused by built-in generic type hints is recorded in
+[`docs/log/2026-02-07-daemon-crash-python-type-hints.md`](../log/2026-02-07-daemon-crash-python-type-hints.md).
+
+Verified 2026-09-17 against **iTerm2 3.7.2**: its runtime manager created versioned roots including
+`iterm2env-3.7.17`, `iterm2env-3.8.19`, `iterm2env-3.10.19`, `iterm2env-3.14.0`, aliases without
+patch versions, and `iterm2env-79`. Each had its own `versions/` tree; the unversioned
+`iterm2env/versions` path did not exist. It also created a modern shared environment at
+`uv/venvs/3.12/bin/python`. iTerm2 considers that modern environment usable only when a sibling
+`.provisioned` marker exists after dependency installation. A resolver must handle the modern
+environment plus both legacy layouts and compare Python versions numerically. The clean-machine
+probe and reduced directory listing are in the
+[2026-09-16 integration run](../tests/juggler-hooklinesinker-clean-install/runs/2026-09-16-current-checkout.md).
 
 **Documented — the daemon exists for latency.** Spawning a Python process per command costs
 roughly 1000 ms against roughly 50 ms over a persistent connection. This figure is the stated
@@ -222,9 +229,8 @@ Upstream tracking: [ghostty-org/ghostty#2353](https://github.com/ghostty-org/gho
 | WezTerm | [wezterm.org](https://wezterm.org/), [`wezterm cli`](https://wezterm.org/cli/cli/) | docs moved off `wezfurlong.org` |
 | Ghostty | [ghostty-org/ghostty](https://github.com/ghostty-org/ghostty) | [scripting API discussion](https://github.com/ghostty-org/ghostty/discussions/2353) |
 
-Versions present on the maintainer's machine when this file was last revised (2026-08-22):
-kitty 0.45.0, WezTerm 20240203-110809-5046fc22. iTerm2 and Ghostty were not installed, so nothing
-here carries a fresh verification against them.
+Versions used for the latest probes: iTerm2 3.7.2 (2026-09-17), Kitty 0.45.0 (2026-08-22), and
+WezTerm 20240203-110809-5046fc22 (2026-08-22). Ghostty was not installed.
 
 ---
 

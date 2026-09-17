@@ -1,0 +1,25 @@
+Environment
+  macOS 15.7.7 (24G720)
+  iTerm2 3.6.11
+  Juggler 1.8.0 (ad-hoc Debug)
+  hooklinesinker 1.0.2 (protocol 1)
+
+Selected daemon interpreter
+  ~/Library/Application Support/iTerm2/iterm2env/versions/3.14.0/bin/python3
+
+Compatibility probes
+  import iterm2: ok
+  daemon ping: {"status":"ok"}
+  terminal information: ok
+  cross-tab activation: ok
+  tab highlighting: ok
+  focus synchronization after restart: ok
+  event listener after 40-second recovery window: 3/3 restarts
+
+hooklinesinker doctor
+  active version: v1.0.2
+  consumer parse problems: none
+  Claude hook status: Installed
+  status parse problems: none
+  dead records: 0
+  last sink error: none

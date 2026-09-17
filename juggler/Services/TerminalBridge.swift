@@ -15,7 +15,7 @@ struct HookAddressingContext: Sendable {
     let listenSocket: String?
 }
 
-protocol TerminalBridge: Sendable {
+nonisolated protocol TerminalBridge: Sendable {
     func start() async throws
     func stop() async
     func activate(sessionID: String) async throws

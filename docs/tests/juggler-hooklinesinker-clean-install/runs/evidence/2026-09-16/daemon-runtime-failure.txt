@@ -1,0 +1,17 @@
+2026-09-17 14:36:52
+Daemon exited with status 1:
+
+Traceback (most recent call last):
+  File "/Applications/Juggler.app/Contents/Resources/iterm2_daemon.py", line 21, in <module>
+    import iterm2
+ModuleNotFoundError: No module named 'iterm2'
+
+2026-09-17 14:38:02
+Stale connection in getSessionInfo, attempting recovery...
+Restarting daemon...
+Failed to get terminal info: daemonNotRunning
+
+The same import traceback followed each recorded restart attempt.
+
+Separate ad-hoc build limitation:
+Notifications are not allowed for this application (UNErrorDomain Code 1).

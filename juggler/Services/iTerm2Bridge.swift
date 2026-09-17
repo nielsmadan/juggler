@@ -126,6 +126,18 @@ actor ITerm2Bridge: TerminalBridge {
 
         await MainActor.run { logInfo(.daemon, "Starting iTerm2 daemon...") }
 
+        guard let daemonPath = Bundle.main.path(forResource: "iterm2_daemon", ofType: "py") else {
+            await MainActor.run { logError(.daemon, "iterm2_daemon.py not found in bundle") }
+            await setDaemonState(.failed(reason: "iterm2_daemon.py not found in bundle"))
+            return
+        }
+        guard let python = resolveDaemonPython() else {
+            let reason = "iTerm2 Python runtime not found. Install it from Scripts → Manage → Install Python Runtime."
+            await MainActor.run { logError(.daemon, reason) }
+            await setDaemonState(.failed(reason: reason))
+            return
+        }
+
         // Triggers Automation permission dialog on first run
         let cookieAndKey: String
         do {
@@ -140,15 +152,6 @@ actor ITerm2Bridge: TerminalBridge {
         let parts = cookieAndKey.split(separator: " ")
         let cookie = String(parts[0])
         let key = parts.count > 1 ? String(parts[1]) : ""
-
-        let daemonPath = Bundle.main.path(forResource: "iterm2_daemon", ofType: "py")
-        let python = resolveDaemonPython()
-
-        guard let daemonPath else {
-            await MainActor.run { logError(.daemon, "iterm2_daemon.py not found in bundle") }
-            await setDaemonState(.failed(reason: "iterm2_daemon.py not found in bundle"))
-            return
-        }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: python)
@@ -207,23 +210,11 @@ actor ITerm2Bridge: TerminalBridge {
         }
     }
 
-    /// iTerm2's bundled Python has the `iterm2` module pre-installed; prefer the newest
-    /// such version over the system interpreter.
-    private func resolveDaemonPython() -> String {
-        let iterm2PythonBase = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/iTerm2/iterm2env/versions")
-
-        if let contents = try? FileManager.default.contentsOfDirectory(atPath: iterm2PythonBase.path) {
-            for version in contents.sorted().reversed() {
-                let candidate = iterm2PythonBase
-                    .appendingPathComponent(version)
-                    .appendingPathComponent("bin/python3")
-                if FileManager.default.fileExists(atPath: candidate.path) {
-                    return candidate.path
-                }
-            }
-        }
-        return "/usr/bin/python3"
+    /// Prefer iTerm2-managed Python runtimes because they include the `iterm2` module.
+    private func resolveDaemonPython() -> String? {
+        let applicationSupportDirectory = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/iTerm2")
+        return ITerm2PythonResolver.resolve(applicationSupportDirectory: applicationSupportDirectory)
     }
 
     private func waitForDaemonReady(process: Process, deadline: Date) async throws -> Bool {

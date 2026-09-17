@@ -1,0 +1,45 @@
+Restart hydration, 2026-09-17 14:52 UTC
+
+Processes:
+  Juggler PID 368
+  Claude PID 723
+
+hooklinesinker sessions:
+  count: 1
+  protocol: 1
+  event: Stop
+  phase: idle
+  running: true
+  Claude session: eeb29b1d-b222-41f6-b4cd-690d910a6dee
+  iTerm2 session: w0t0p0:738E5F0B-B011-4595-B38C-6F0B0576AA2D
+
+hooklinesinker doctor:
+  version: 1.0.2 (protocol 1)
+  permissions: 0700
+  active version: 1.0.2 (protocol 1)
+  consumer parse problems: none
+  Claude hooks: installed
+  status parse problems: none
+  dead records: 0
+  last sink error: none
+
+After normal Claude /exit, 2026-09-17 15:03 UTC
+
+Processes:
+  Juggler PID 368
+  Claude: not running
+
+hooklinesinker sessions:
+  count: 0
+  protocol: 1
+  problems: none
+
+hooklinesinker doctor:
+  version: 1.0.2 (protocol 1)
+  permissions: 0700
+  active version: 1.0.2 (protocol 1)
+  consumer parse problems: none
+  Claude hooks: installed
+  status parse problems: none
+  dead records: 0
+  last sink error: none

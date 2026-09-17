@@ -59,3 +59,7 @@ Juggler solves the "context switching" problem when running multiple Claude Code
   - [Terminal Control APIs](reference/terminal-control-apis.md) - What iTerm2, Kitty, WezTerm, and Ghostty expose
   - [macOS Build Toolchain](reference/macos-build-toolchain.md) - xcodebuild, Swift Testing, SwiftLint, Periphery, Sparkle, AppKit
 
+### Occasional Manual Tests
+
+- [Clean Juggler and hooklinesinker integration](tests/juggler-hooklinesinker-clean-install/README.md) - Disposable macOS VM procedure and dated compatibility runs
+

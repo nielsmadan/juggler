@@ -153,12 +153,16 @@ If the socket connection fails, the bridge:
 
 ## Python Environment
 
-Uses iTerm2's bundled Python:
+Uses a completed iTerm2-managed Python runtime:
 ```
+~/Library/Application Support/iTerm2/uv/venvs/*/bin/python
 ~/Library/Application Support/iTerm2/iterm2env/versions/*/bin/python3
+~/Library/Application Support/iTerm2/iterm2env-*/versions/*/bin/python3
 ```
 
-No user Python installation required.
+Modern `uv/venvs/` environments must have iTerm2's sibling `.provisioned` marker. No user Python
+installation is required. If no managed runtime exists, Juggler reports setup instructions instead
+of launching the system Python.
 
 ## Authentication
 
