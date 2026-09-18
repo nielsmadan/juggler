@@ -10,8 +10,8 @@ hooklinesinker sessions:
   event: Stop
   phase: idle
   running: true
-  Claude session: eeb29b1d-b222-41f6-b4cd-690d910a6dee
-  iTerm2 session: w0t0p0:738E5F0B-B011-4595-B38C-6F0B0576AA2D
+  Claude session: <claude-session-id>
+  iTerm2 session: w0t0p0:<iterm-session-id>
 
 hooklinesinker doctor:
   version: 1.0.2 (protocol 1)

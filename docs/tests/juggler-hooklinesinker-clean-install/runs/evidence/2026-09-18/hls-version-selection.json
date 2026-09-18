@@ -1,0 +1,244 @@
+{
+  "fixtureMetadata": {
+    "olderSource": "f40fcfa765760e2a89d249300313e2554d494a82",
+    "newerSource": "67bb4ff6404465f6ae915bf0475dec1943bfeb57",
+    "newerFixtureChanges": [
+      "Cargo.toml package version 1.0.2 -> 1.0.3",
+      "Cargo.lock hooklinesinker package version 1.0.2 -> 1.0.3"
+    ],
+    "newerIsPublishedRelease": false
+  },
+  "isolatedCases": [
+    {
+      "case": "older",
+      "before": {
+        "protocol": 1,
+        "version": "1.0.1"
+      },
+      "after": {
+        "protocol": 1,
+        "version": "1.0.2"
+      },
+      "beforeSha256": "c2ce47d74d215e39b5edc8453edc65645155fcb65538de5b69cd195a6b3ae63b",
+      "afterSha256": "0807bed1badeabef5393e31c13074c1addf8e506047e2e2a9b728120e1be9143",
+      "activeSymlink": "../versions/1.0.2/hooklinesinker",
+      "fileUnchanged": false,
+      "consumers": [
+        {
+          "capabilities": [
+            "status"
+          ],
+          "name": "existing-tool",
+          "protocol": 1,
+          "sink": null
+        },
+        {
+          "capabilities": [
+            "status"
+          ],
+          "name": "juggler",
+          "protocol": 1,
+          "sink": "http://127.0.0.1:7483/hook"
+        }
+      ],
+      "result": "PASS"
+    },
+    {
+      "case": "same",
+      "before": {
+        "protocol": 1,
+        "version": "1.0.2"
+      },
+      "after": {
+        "protocol": 1,
+        "version": "1.0.2"
+      },
+      "beforeSha256": "0807bed1badeabef5393e31c13074c1addf8e506047e2e2a9b728120e1be9143",
+      "afterSha256": "0807bed1badeabef5393e31c13074c1addf8e506047e2e2a9b728120e1be9143",
+      "activeSymlink": "../versions/1.0.2/hooklinesinker",
+      "fileUnchanged": true,
+      "consumers": [
+        {
+          "capabilities": [
+            "status"
+          ],
+          "name": "existing-tool",
+          "protocol": 1,
+          "sink": null
+        },
+        {
+          "capabilities": [
+            "status"
+          ],
+          "name": "juggler",
+          "protocol": 1,
+          "sink": "http://127.0.0.1:7483/hook"
+        }
+      ],
+      "result": "PASS"
+    },
+    {
+      "case": "newer",
+      "before": {
+        "protocol": 1,
+        "version": "1.0.3"
+      },
+      "after": {
+        "protocol": 1,
+        "version": "1.0.3"
+      },
+      "beforeSha256": "fac72d22aada10a1b7bd712c889fc4baceca8c9d0e7a023305d86d3fb6677503",
+      "afterSha256": "fac72d22aada10a1b7bd712c889fc4baceca8c9d0e7a023305d86d3fb6677503",
+      "activeSymlink": "../versions/1.0.3/hooklinesinker",
+      "fileUnchanged": true,
+      "consumers": [
+        {
+          "capabilities": [
+            "status"
+          ],
+          "name": "existing-tool",
+          "protocol": 1,
+          "sink": null
+        },
+        {
+          "capabilities": [
+            "status"
+          ],
+          "name": "juggler",
+          "protocol": 1,
+          "sink": "http://127.0.0.1:7483/hook"
+        }
+      ],
+      "result": "PASS"
+    }
+  ],
+  "vmSmoke": {
+    "observations": [
+      {
+        "event": "SessionStart",
+        "phase": "idle",
+        "ui": "Idle, CC, <test-workspace-label>, <test-workspace>, working, <1m, <1m, Working, No sessions, Backburner, No sessions"
+      },
+      {
+        "event": "UserPromptSubmit",
+        "phase": "working",
+        "ui": "Idle, No sessions, Working, No sessions, Backburner, No sessions"
+      },
+      {
+        "event": "PreToolUse",
+        "phase": "working",
+        "ui": "Idle, No sessions, Working, CC, <test-workspace-label>, <test-workspace>, working, <1m, <1m, Backburner, No sessions"
+      },
+      {
+        "event": "PostToolUse",
+        "phase": "working",
+        "ui": "Idle, No sessions, Working, CC, <test-workspace-label>, <test-workspace>, working, <1m, <1m, Backburner, No sessions"
+      },
+      {
+        "event": "Stop",
+        "phase": "idle",
+        "ui": "Idle, CC, <test-workspace-label>, <test-workspace>, idle, <1m, Working, No sessions, Backburner, No sessions"
+      }
+    ],
+    "reply": "vm-newer-hls-ok",
+    "stableSessionIdentity": true,
+    "result": "PASS"
+  },
+  "vm-before": {
+    "version": {
+      "protocol": 1,
+      "version": "1.0.3"
+    },
+    "sha256": "fac72d22aada10a1b7bd712c889fc4baceca8c9d0e7a023305d86d3fb6677503",
+    "inode": 957773,
+    "mtimeNs": 1789737701028283282,
+    "symlink": "../versions/1.0.3/hooklinesinker",
+    "consumers": {
+      "consumers": [
+        {
+          "capabilities": [
+            "status"
+          ],
+          "name": "preexisting-tool",
+          "protocol": 1,
+          "sink": null
+        }
+      ],
+      "problems": [],
+      "protocol": 1
+    },
+    "settingsSha256": "df014065d884337799bc477061eb10e82d955da0912ae8b127c14e93fc123d79",
+    "hookState": "installed",
+    "hookCount": 11
+  },
+  "vm-after-launch": {
+    "version": {
+      "protocol": 1,
+      "version": "1.0.3"
+    },
+    "sha256": "fac72d22aada10a1b7bd712c889fc4baceca8c9d0e7a023305d86d3fb6677503",
+    "inode": 957773,
+    "mtimeNs": 1789737701028283282,
+    "symlink": "../versions/1.0.3/hooklinesinker",
+    "consumers": {
+      "consumers": [
+        {
+          "capabilities": [
+            "status"
+          ],
+          "name": "juggler",
+          "protocol": 1,
+          "sink": "http://127.0.0.1:7483/hook"
+        },
+        {
+          "capabilities": [
+            "status"
+          ],
+          "name": "preexisting-tool",
+          "protocol": 1,
+          "sink": null
+        }
+      ],
+      "problems": [],
+      "protocol": 1
+    },
+    "settingsSha256": "df014065d884337799bc477061eb10e82d955da0912ae8b127c14e93fc123d79",
+    "hookState": "installed",
+    "hookCount": 11
+  },
+  "vm-after-smoke": {
+    "version": {
+      "protocol": 1,
+      "version": "1.0.3"
+    },
+    "sha256": "fac72d22aada10a1b7bd712c889fc4baceca8c9d0e7a023305d86d3fb6677503",
+    "inode": 957773,
+    "mtimeNs": 1789737701028283282,
+    "symlink": "../versions/1.0.3/hooklinesinker",
+    "consumers": {
+      "consumers": [
+        {
+          "capabilities": [
+            "status"
+          ],
+          "name": "juggler",
+          "protocol": 1,
+          "sink": "http://127.0.0.1:7483/hook"
+        },
+        {
+          "capabilities": [
+            "status"
+          ],
+          "name": "preexisting-tool",
+          "protocol": 1,
+          "sink": null
+        }
+      ],
+      "problems": [],
+      "protocol": 1
+    },
+    "settingsSha256": "df014065d884337799bc477061eb10e82d955da0912ae8b127c14e93fc123d79",
+    "hookState": "installed",
+    "hookCount": 11
+  }
+}

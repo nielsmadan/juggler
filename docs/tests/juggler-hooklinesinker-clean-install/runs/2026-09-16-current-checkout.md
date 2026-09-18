@@ -13,7 +13,6 @@ recorded below.
 |---|---|
 | Juggler revision | `a6cf11cc87f1da6f4d7506fb1a3aa928bcaf558f` |
 | App source changes | None |
-| Other checkout changes | Pre-existing staged loadout and instruction migrations, not part of the app build |
 | Build | arm64 Debug, ad-hoc signed |
 | VM | New disposable macOS 15 Tart guest, 8 GB RAM |
 | iTerm2 | 3.7.2 |
