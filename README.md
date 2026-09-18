@@ -126,6 +126,9 @@ when one is already installed. Local agent setup works offline.
 - **OpenCode** - plugin at `~/.config/opencode/plugins/hooklinesinker-opencode.ts`
 - **Codex** *(requires Codex CLI ≥ v0.114, or ≥ v0.145 for session-end tracking)* - Codex keeps hooks behind an opt-in flag, so all three setup steps in Settings → Integrations are required: **Install Hooks** (registers the events in `~/.codex/hooks.json`), **Enable Feature Flag** (`features.hooks = true` in `~/.codex/config.toml`), and **Enable in Codex** (writes `[hooks.state]` trust entries so Codex runs the hooks - this bypasses Codex's own hook review; alternatively run `/hooks` in Codex and trust them manually)
 - **Pi** - extension at `~/.pi/agent/extensions/hooklinesinker-pi.ts`. Restart Pi or run `/reload` for it to take effect
+- **Factory Droid** - hook entries in `~/.factory/hooks.json`. Restart a running `droid` for it to take effect
+- **Qwen Code** - hook entries in `~/.qwen/settings.json`
+- **Kimi Code** *(requires Kimi Code CLI ≥ 0.32.0)* - hook entries in `~/.kimi-code/config.toml`
 
 ### Running over SSH
 

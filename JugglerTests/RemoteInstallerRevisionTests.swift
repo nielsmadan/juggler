@@ -52,6 +52,20 @@ struct RemoteInstallerRevisionTests {
         }
     }
 
+    /// The SSH tab hands the remote the same agent lineup the local integration UI offers.
+    /// Droid, Qwen and Kimi were added to `HooklinesinkerAgent` long after the installer was
+    /// written, and the installer never learned to detect them.
+    @Test func theInstallerInstallsEveryAgentJugglerSupports() throws {
+        let installer = try Self.installerScript()
+
+        for agent in HooklinesinkerAgent.allCases {
+            #expect(
+                installer.contains("install_agent \(agent.rawValue)\n"),
+                Comment(rawValue: "install-remote.sh never installs \(agent.rawValue)")
+            )
+        }
+    }
+
     @Test func theOneLinerPointsTheRemoteAtThisJugglersSink() {
         let sink = HooklinesinkerClient.shared.sinkURL
         let oneLiner = RemoteSetupSnippets.installOneLiner(revision: "abc", sink: sink)

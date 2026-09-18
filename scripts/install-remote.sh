@@ -2,7 +2,7 @@
 # Juggler remote hook installer.
 # Installs hooklinesinker — the shared status binary Juggler bundles — on a host you ssh
 # to, and registers Juggler's hooks for whichever coding agents live there (Claude Code,
-# Codex, OpenCode, Pi). Intended to be piped from curl:
+# Codex, OpenCode, Pi, Factory Droid, Qwen Code, Kimi Code). Intended to be piped from curl:
 #
 #   curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/<revision>/scripts/install-remote.sh |
 #       JUGGLER_SINK=http://127.0.0.1:7483/hook bash
@@ -79,6 +79,7 @@ HLS="${XDG_DATA_HOME:-$HOME/.local/share}/hooklinesinker/bin/hooklinesinker"
 installed_any=0
 failed_any=0
 codex_seen=0
+droid_seen=0
 
 install_agent() {
     agent="$1"
@@ -110,13 +111,30 @@ if [ -d "$pi_dir" ] || command -v pi >/dev/null 2>&1; then
     install_agent pi
 fi
 
+factory_dir="$HOME/.factory"
+if [ -d "$factory_dir" ] || command -v droid >/dev/null 2>&1; then
+    install_agent droid
+    droid_seen=1
+fi
+
+qwen_dir="${QWEN_HOME:-$HOME/.qwen}"
+if [ -d "$qwen_dir" ] || command -v qwen >/dev/null 2>&1; then
+    install_agent qwen
+fi
+
+kimi_dir="${KIMI_CODE_HOME:-$HOME/.kimi-code}"
+if [ -d "$kimi_dir" ] || command -v kimi >/dev/null 2>&1 || command -v kimi-code >/dev/null 2>&1; then
+    install_agent kimi
+fi
+
 if [ "$installed_any" -eq 0 ]; then
     if [ "$failed_any" -eq 1 ]; then
         echo "All detected agents failed to install." >&2
         exit 1
     fi
     echo "No supported coding agents detected on this host."
-    echo "Looked for: ~/.claude, ~/.codex, $opencode_dir, $pi_dir (or the agent CLIs on \$PATH)."
+    echo "Looked for: ~/.claude, ~/.codex, $opencode_dir, $pi_dir, $factory_dir, $qwen_dir,"
+    echo "            $kimi_dir (or the agent CLIs on \$PATH)."
     echo "Install one of them, then re-run this script."
     exit 1
 fi
@@ -128,6 +146,11 @@ if [ "$codex_seen" -eq 1 ]; then
     echo "  2. run /hooks inside Codex and approve the hooklinesinker entries"
     echo "Neither is written for you here: trust records are the host application's business,"
     echo "and hooklinesinker never edits config.toml."
+fi
+
+if [ "$droid_seen" -eq 1 ]; then
+    echo ""
+    echo "Droid reads hooks at startup — restart any running droid session on this host."
 fi
 
 if [ "$failed_any" -eq 1 ]; then

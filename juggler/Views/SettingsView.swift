@@ -1320,8 +1320,9 @@ struct SSHSettingsView: View {
                         + "checksum-verified hooklinesinker release for the remote's "
                         + "architecture, points it back at this Juggler through the tunnel, and "
                         + "installs hooks for whichever agents are there (Claude Code, Codex, "
-                        + "OpenCode, Pi). Codex additionally needs its hooks trusted on that "
-                        + "host — the script prints the two steps.",
+                        + "OpenCode, Pi, Factory Droid, Qwen Code, Kimi Code). Codex "
+                        + "additionally needs its hooks trusted on that host, and Droid needs a "
+                        + "restart — the script prints those steps.",
                     code: installOneLiner
                 )
 

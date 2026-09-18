@@ -35,6 +35,7 @@ opt-in agents — Codex, Antigravity — have one), no `uninstall.sh` block. The
 | `juggler/Models/Session.swift` | Add `agentShortName` (2 letters, e.g. `DR`) and `agentDisplayName` cases. |
 | `juggler/Views/IntegrationHubView.swift` | Add an `IntegrationCard` + a `<Agent>SetupView` (clone the Droid one), and extend `hasAnyAgent`. |
 | `juggler/Views/SettingsView.swift` | Add a `Section` with the install button calling `HooklinesinkerClient.shared.installHooks(agent:)`. |
+| `scripts/install-remote.sh` | Add a detection block (config dir from hooklinesinker's `src/hooks.rs` roots, plus the CLI on `$PATH`) and extend the "Looked for:" line. Remote hosts get hooks from this script, not from the UI; `theInstallerInstallsEveryAgentJugglerSupports` fails until it is there. |
 
 Quirk hints in the UI: if the agent only reads hooks at startup (Droid does), add the restart
 hint under the install button, mirroring the existing Droid/Pi hints.
@@ -58,7 +59,10 @@ free.
 ### Docs sweep (easy to forget — grep for an existing agent name to find every list)
 
 - `README.md`: intro line, badge row, "Open your sessions" step, **Coding agents** line
-  (include a minimum agent version if hooklinesinker documents one).
+  (include a minimum agent version if hooklinesinker documents one), and the per-agent bullet
+  list under **Agent Integration**.
+- `juggler/Views/SettingsView.swift`: the SSH tab's step 3 names the agents the remote
+  installer covers.
 - `docs/overview.md` and `docs/tech/overview.md`: agent lists.
 - `docs/tech/hooks.md`: the "owns the status hooks for …" sentence.
 - `site/index.html`: both meta descriptions, the JSON-LD description, the "Open your sessions"
