@@ -8,6 +8,11 @@ This file covers the **external** agents. How Juggler consumes them is in
 [`opencode-plugin.md`](../tech/opencode-plugin.md), [`pi-extension.md`](../tech/pi-extension.md),
 and [`antigravity-hooks.md`](../tech/antigravity-hooks.md).
 
+For session IDs, subagents, shared processes, and the limits of OpenCode navigation events,
+use hooklinesinker's [agent identity reference](https://github.com/nielsmadan/hooklinesinker/blob/main/docs/reference/agent-hook-events.md#session-identity-subagents-and-shared-processes).
+It records the upstream evidence and unresolved cases; hooklinesinker owns the corresponding
+session-retirement policy.
+
 - [Registration and contract at a glance](#registration-and-contract-at-a-glance)
 - [Event coverage](#event-coverage)
 - [Claude Code](#claude-code)
