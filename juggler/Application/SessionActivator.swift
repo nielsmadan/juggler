@@ -10,6 +10,7 @@ struct SessionActivationPresentation {
     enum Success {
         case none
         case sessionBeacon
+        case onlySessionBeacon
     }
 
     enum Unavailable {
@@ -23,8 +24,13 @@ struct SessionActivationPresentation {
 
     static let manual = Self(success: .none, unavailable: .activationFailed)
     static let cycle = Self(success: .sessionBeacon, unavailable: .beacon("All At Work"))
+    static let onlySessionCycle = Self(success: .onlySessionBeacon, unavailable: .beacon("All At Work"))
     static let notificationJump = Self(success: .sessionBeacon, unavailable: .beacon("No Notification"))
     static let failureOnly = Self(success: .none, unavailable: .none)
+
+    static func forCyclableCount(_ count: Int) -> SessionActivationPresentation {
+        count == 1 ? .onlySessionCycle : .cycle
+    }
 }
 
 @MainActor
@@ -136,12 +142,16 @@ final class SessionActivator {
     ) {
         switch outcome {
         case let .activated(session):
-            guard case .sessionBeacon = presentation.success else { return }
-            let rawTitleMode = UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
-            let titleMode = SessionTitleMode(rawValue: rawTitleMode) ?? .default
-            let displayName = sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode)
-            let metadata = BeaconMetadata.resolve(for: session, among: sessionManager.sessions)
-            presentBeacon(displayName, metadata.subtitle, false)
+            switch presentation.success {
+            case .none:
+                return
+            case .sessionBeacon:
+                let displayName = displayName(for: session)
+                let metadata = BeaconMetadata.resolve(for: session, among: sessionManager.sessions)
+                presentBeacon(displayName, metadata.subtitle, false)
+            case .onlySessionBeacon:
+                presentBeacon("Only 1 Session", displayName(for: session), false)
+            }
         case .unavailable:
             switch presentation.unavailable {
             case .none:
@@ -154,5 +164,11 @@ final class SessionActivator {
         case .failed:
             presentBeacon("Activation Failed", nil, true)
         }
+    }
+
+    private func displayName(for session: Session) -> String {
+        let rawTitleMode = UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
+        let titleMode = SessionTitleMode(rawValue: rawTitleMode) ?? .default
+        return sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode)
     }
 }

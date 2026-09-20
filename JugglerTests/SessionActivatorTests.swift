@@ -160,6 +160,82 @@ struct SessionActivatorTests {
         #expect(beacons == [.init(title: expectedTitle, subtitle: nil, force: false)])
     }
 
+    @Test func activateFirstAvailable_singleCyclableSession_presentsOnlySessionBeacon() async {
+        let manager = SessionManager()
+        let registry = TerminalBridgeRegistry()
+        let bridge = SessionActivatorMockBridge()
+        await registry.register(bridge, for: .iterm2)
+        let session = makeSession("s1")
+        manager.testSetSessions([session])
+        var candidates = [session]
+        var beacons: [PresentedActivationBeacon] = []
+        let activator = SessionActivator(
+            sessionManager: manager,
+            registry: registry,
+            presentBeacon: { beacons.append(.init(title: $0, subtitle: $1, force: $2)) }
+        )
+
+        let outcome = await activator.activateFirstAvailable(
+            trigger: .hotkey,
+            presentation: .onlySessionCycle,
+            nextSession: { candidates.isEmpty ? nil : candidates.removeFirst() }
+        )
+
+        guard case let .activated(activated) = outcome else {
+            Issue.record("Expected the single cyclable session to activate")
+            return
+        }
+        let rawTitleMode = UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
+        let titleMode = SessionTitleMode(rawValue: rawTitleMode) ?? .default
+        let expectedSubtitle = manager.disambiguatedDisplayName(for: session, titleMode: titleMode)
+        #expect(activated.id == "s1")
+        #expect(await bridge.recordedActivationCalls() == ["s1"])
+        #expect(beacons == [.init(title: "Only 1 Session", subtitle: expectedSubtitle, force: false)])
+    }
+
+    @Test func activate_singleCyclable_usesOnlySessionPresentation() async {
+        let manager = SessionManager()
+        let registry = TerminalBridgeRegistry()
+        let bridge = SessionActivatorMockBridge()
+        await registry.register(bridge, for: .iterm2)
+        let session = makeSession("s1")
+        manager.testSetSessions([session])
+        var beacons: [PresentedActivationBeacon] = []
+        let activator = SessionActivator(
+            sessionManager: manager,
+            registry: registry,
+            presentBeacon: { beacons.append(.init(title: $0, subtitle: $1, force: $2)) }
+        )
+
+        let outcome = await activator.activate(
+            session: session,
+            trigger: .hotkey,
+            presentation: .onlySessionCycle
+        )
+
+        guard case let .activated(activated) = outcome else {
+            Issue.record("Expected the single cyclable session to activate")
+            return
+        }
+        let rawTitleMode = UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
+        let titleMode = SessionTitleMode(rawValue: rawTitleMode) ?? .default
+        let expectedSubtitle = manager.disambiguatedDisplayName(for: session, titleMode: titleMode)
+        #expect(activated.id == "s1")
+        #expect(beacons == [.init(title: "Only 1 Session", subtitle: expectedSubtitle, force: false)])
+    }
+
+    @Test func forCyclableCount_singleSession_usesOnlySessionPresentation() {
+        #expect(SessionActivationPresentation.forCyclableCount(1) == .onlySessionCycle)
+    }
+
+    @Test func forCyclableCount_multipleSessions_usesCyclePresentation() {
+        #expect(SessionActivationPresentation.forCyclableCount(2) == .cycle)
+    }
+
+    @Test func forCyclableCount_noSessions_usesCyclePresentation() {
+        #expect(SessionActivationPresentation.forCyclableCount(0) == .cycle)
+    }
+
     @Test func activate_staleNotificationTarget_presentsNoNotification() async {
         let manager = SessionManager()
         let registry = TerminalBridgeRegistry()

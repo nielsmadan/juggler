@@ -11,6 +11,8 @@ The beacon is a brief HUD overlay that shows the current session name whenever t
 
 Cycling while no cyclable session exists shows the fallback label **"All At Work"**.
 
+Cycling while exactly one session is cyclable shows **"Only 1 Session"** with the session's display name as the subtitle, so rapid cycling doesn't look like a stuck re-highlight of an unnamed session.
+
 On a *successful* activation the beacon does **not** appear for:
 - Manual session clicks in the popover or main window
 - Backburner / reactivate actions
@@ -28,7 +30,7 @@ The session's display name appears as the title. Successful activations add a ce
 - More than one coding harness: the target harness name, such as `Claude Code` or `Codex`.
 - Both vary: terminal first, as in `iTerm2 · Claude Code`.
 
-These conditions are independent and count every tracked session, including backburnered sessions. Fallback beacons such as "All At Work," "No Notification," and "Activation Failed" remain title-only.
+These conditions are independent and count every tracked session, including backburnered sessions. Fallback beacons such as "All At Work," "No Notification," and "Activation Failed" remain title-only. "Only 1 Session" is the exception: it pairs the reason with the session's display name as the subtitle.
 
 The title uses medium white text. The subtitle uses regular white text at half the configured title size, with a 10 pt minimum. Both are single-line, centered, and truncate in the middle on a solid black panel with a 2 px white border.
 

@@ -79,6 +79,7 @@ final class HotkeyManager {
     private func handleCycleForward(wasTerminalFrontmost: Bool) async {
         await activateWithRetry(
             direction: "forward",
+            presentation: cyclePresentation(),
             cycle: { SessionManager.shared.cycleForward(wasTerminalFrontmost: wasTerminalFrontmost) }
         )
     }
@@ -86,18 +87,24 @@ final class HotkeyManager {
     private func handleCycleBackward(wasTerminalFrontmost: Bool) async {
         await activateWithRetry(
             direction: "backward",
+            presentation: cyclePresentation(),
             cycle: { SessionManager.shared.cycleBackward(wasTerminalFrontmost: wasTerminalFrontmost) }
         )
     }
 
+    private func cyclePresentation() -> SessionActivationPresentation {
+        .forCyclableCount(SessionManager.shared.cyclableSessions.count)
+    }
+
     private func activateWithRetry(
         direction: String,
+        presentation: SessionActivationPresentation = .cycle,
         cycle: () -> Session?
     ) async {
         logDebug(.hotkey, "Cycle \(direction) triggered")
         let outcome = await SessionActivator.shared.activateFirstAvailable(
             trigger: .hotkey,
-            presentation: .cycle,
+            presentation: presentation,
             nextSession: cycle
         )
         switch outcome {
