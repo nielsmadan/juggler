@@ -9,6 +9,10 @@ This file covers the **external** terminals. How Juggler's bridge layer consumes
 [`kitty-integration.md`](../tech/kitty-integration.md), and
 [`wezterm-bridge.md`](../tech/wezterm-bridge.md).
 
+The survey of which terminals might come next — Terminal.app, Warp, Otty, Alacritty, Wave, Tabby,
+the editor terminals, and the multiplexers — lives in
+[`terminal-candidates.md`](terminal-candidates.md).
+
 - [Capability matrix](#capability-matrix)
 - [Addressing: how a pane learns its own id](#addressing-how-a-pane-learns-its-own-id)
 - [iTerm2](#iterm2)
@@ -22,14 +26,14 @@ This file covers the **external** terminals. How Juggler's bridge layer consumes
 
 | | iTerm2 | Kitty | WezTerm | Ghostty |
 |---|---|---|---|---|
-| Control mechanism | Python API over websocket | `kitten @` CLI | `wezterm cli` CLI | **none** |
-| Activate a pane | `session.async_activate(...)` | `focus-window --match id:<id>` | `activate-pane --pane-id <id>` | — |
-| Query session info | `tab.async_get_variable(...)` | `ls` (nested JSON) | `list --format json` (flat array) | — |
-| Set tab color | `set_tab_color` on a profile change | `set-tab-color ... active_bg=<hex>` | **impossible** | — |
-| Set pane background | `set_background_color`, OSC fallback | `set-colors ... background=<hex>` | **impossible** | — |
-| Focus-change events | `FocusMonitor` (push) | watcher `on_focus_change` (push) | **none** | — |
-| Pane-close events | `SessionTerminationMonitor` + `LayoutChangeMonitor` | watcher `on_close` (push) | **none** | — |
-| Setup burden | enable Python API, grant Automation | edit `kitty.conf`, install watcher, restart | none | — |
+| Control mechanism | Python API over websocket | `kitten @` CLI | `wezterm cli` CLI | AppleScript (1.3.0+) |
+| Activate a pane | `session.async_activate(...)` | `focus-window --match id:<id>` | `activate-pane` / `activate-tab` | `focus` a terminal (window front + tab + split) |
+| Query session info | `tab.async_get_variable(...)` | `ls` (nested JSON) | `list --format json` (flat array) | `every terminal whose …` |
+| Set tab color | `set_tab_color` on a profile change | `set-tab-color ... active_bg=<hex>` | **impossible** (title: `set-tab-title`) | **impossible** (title only: `set_tab_title` action) |
+| Set pane background | `set_background_color`, OSC fallback | `set-colors ... background=<hex>` | **impossible** | **impossible** |
+| Focus-change events | `FocusMonitor` (push) | watcher `on_focus_change` (push) | `window-focus-changed` Lua — push needs user config | none; poll `front window` / `focused terminal` |
+| Pane-close events | `SessionTerminationMonitor` + `LayoutChangeMonitor` | watcher `on_close` (push) | **none** | **none** |
+| Setup burden | enable Python API, grant Automation | edit `kitty.conf`, install watcher, restart | none | on by default; Automation (TCC) prompt on first use |
 
 Note the shape of the trade: WezTerm is the easiest to reach (no config, no daemon, no permission
 prompt) and the least capable. iTerm2 is the most capable and the most demanding to set up.
@@ -147,23 +151,36 @@ OS window's `"platform_window_id"` is a different number, useful only for displa
 
 **Documented.** Pure CLI. `wezterm cli` locates the running GUI instance itself — no socket
 registration, no config, no watcher, no permission prompt. `wezterm cli list --format json` returns
-a flat array of pane objects (`window_id`, `tab_id`, `pane_id`, `title`). `wezterm cli
-activate-pane --pane-id <id>` focuses a pane, though it may only select within an already-focused
-window, so foregrounding the app still needs AppleScript.
+a flat array of pane objects (`window_id`, `tab_id`, `pane_id`, `workspace`, `size`, `title`,
+`cwd`). `wezterm cli activate-pane --pane-id <id>` focuses a pane, though it may only select within
+an already-focused window, so foregrounding the app still needs AppleScript.
+
+**Verified 2026-09-19 against the installed 20240203-110809-5046fc22 — the CLI also does tabs.**
+`wezterm cli activate-tab --tab-id <id>` ("Activate a tab") and `wezterm cli set-tab-title <TITLE>
+--tab-id <id>` ("Change the title of a tab") both exist on the version we pin, confirmed via
+`--help`. The title command matters beyond WezTerm: the tab-bar-title half of highlighting works
+here today even though the color half does not.
 
 **Verified — ids round-trip exactly.** The same integer appears in `$WEZTERM_PANE`, in `pane_id`,
 and as the argument to `activate-pane`. No prefix or suffix transform, unlike iTerm2.
 
-**Verified — highlighting is impossible from outside.** WezTerm can only color a tab from inside its
+**Verified — coloring is impossible from outside; titling is not.** WezTerm can only color a tab
+from inside its
 Lua config, driven by a user var set by an OSC escape emitted from within the pane. There is no
 `wezterm cli` command to set a user var or a color, and `wezterm cli send-text` writes to the pane's
 **stdin** — as if typed — rather than to its output stream, so an external process cannot trigger a
 color change at all. Recorded in [`docs/tech/wezterm-bridge.md`](../tech/wezterm-bridge.md)
-(2026-07-24).
+(2026-07-24). `set-tab-title` (above) is the external text path.
 
-**Verified — there is no external event stream.** WezTerm's focus and lifecycle events
+**Verified — there is no external subscription, but focus changes are observable with config
+cooperation.** WezTerm's focus and lifecycle events
 (`window-focus-changed`, `user-var-changed`, …) are internal Lua window events with nothing to
-subscribe to from outside. Focus-sync is therefore unavailable, and a closed pane is only noticed
+subscribe to from outside. `window-focus-changed` has existed "Since: Version
+20221119-145034-49b9839f"
+([docs](https://wezterm.org/config/lua/window-events/window-focus-changed.html)), so a user's
+`wezterm.lua` can react to it (the handler gets `window:window_id()` and `window:is_focused()`)
+and shell out to POST Juggler — the same cooperation class as Kitty's watcher, and enough for
+focus-sync. A closed pane without that config is still only noticed
 when a later lookup fails to find it.
 
 **Verified — `list` carries no active-pane flag.** Nothing in the output says which pane is
@@ -178,30 +195,57 @@ instance runs `wezterm-mux-server --daemonize` rather than failing fast. Observe
 **wezterm 20240203-110809-5046fc22** by running `wezterm cli list --format json` headless: it
 attempted the spawn, then failed to connect. The CLI is not a pure read-only query.
 
-**Gotcha — multi-instance targeting is unresolved.** Auto-location assumes a single running GUI
-instance; with several independent instances, activation can target the wrong one. Capturing
-`WEZTERM_UNIX_SOCKET` from the pane (mirroring Kitty's approach) is the known fix and is not
-implemented.
+**Documented — no stable release since 20240203.** Checked 2026-09-19: the newest stable tag is
+still 20240203-110809-5046fc22 (February 2024); newer features ride the nightly channel. Anything
+adopted from the docs site should be `--help`-checked against the installed binary first.
+
+**Gotcha — multi-instance targeting is unresolved in our bridge.** Auto-location assumes a single
+running GUI
+instance; with several independent instances, activation can target the wrong one. The fix is
+documented upstream — `wezterm cli` honors `$WEZTERM_UNIX_SOCKET` for exactly this
+([cli docs](https://wezterm.org/cli/cli/)) — and capturing it from the pane (mirroring Kitty's
+approach) is not yet implemented.
 
 **Gotcha — the docs moved.** WezTerm's documentation is now served from `wezterm.org`; the older
 `wezfurlong.org/wezterm/` deep links 404 (checked 2026-08-22).
 
 ## Ghostty
 
-**No automation surface.** Ghostty exposes no CLI, socket, or scripting API, so none of activation,
-highlighting, session lookup, or events is possible. There is also **no per-pane environment
-variable**, which is the harder blocker: without one, a shell inside a pane cannot report which pane
-it is, so an inbound event could never be routed even if a control API appeared later.
+**Documented — 1.3.0 (tagged 2026-03-09; 1.3.1 current at 2026-09-19) added an AppleScript
+dictionary.** "Ghostty on macOS exposes a native AppleScript dictionary so scripts can query and
+control terminal windows, tabs, and split panes"
+([features/applescript](https://ghostty.org/docs/features/applescript)). The object model is
+`application -> windows -> tabs -> terminals`, where a *terminal* is a split pane: `focus`
+"Focus a terminal and bring its window to front", plus `select tab`, `activate window`,
+`close` / `close tab` / `close window`, and whose-clause queries
+(`every terminal whose working directory contains "ghostty"`). Tab titles are settable via
+`perform action "set_tab_title:<title>"`. It is on by default (`macos-applescript = false`
+disables it) and triggers the usual TCC Automation prompt on first use.
 
-Ghostty is recognized here only by bundle identifier (`com.mitchellh.ghostty`) for display purposes.
-Upstream tracking: [ghostty-org/ghostty#2353](https://github.com/ghostty-org/ghostty/discussions/2353).
+**Documented — the self-discovery gap remains.** Checked against `src/termio/Exec.zig` at tag
+`v1.3.1`: the child environment sets `GHOSTTY_RESOURCES_DIR`, `GHOSTTY_BIN_DIR`,
+`TERM=xterm-ghostty`, `COLORTERM=truecolor`, `TERM_PROGRAM=ghostty`, `TERM_PROGRAM_VERSION`, and
+`GHOSTTY_SHELL_FEATURES` — still no per-surface id. A hook inside a pane cannot name its pane; the
+workarounds (cwd-matching against the AppleScript whose-clauses, or tty addressing) are surveyed in
+[`terminal-candidates.md`](terminal-candidates.md) and are ambiguous when panes share a cwd.
+
+**Documented — no events, no colors.** Nothing pushes focus or close changes (focus state is
+poll-able: `frontmost`, `front window`, `selected tab`, `focused terminal`), and the
+`perform action` surface covers titles and layout, not per-surface colors.
+
+Ghostty is still recognized only by bundle identifier (`com.mitchellh.ghostty`) — but a bridge is
+now plausible where it was previously impossible. Upstream tracking:
+[ghostty-org/ghostty#2353](https://github.com/ghostty-org/ghostty/discussions/2353),
+[AppleScript docs](https://ghostty.org/docs/features/applescript).
 
 ## Cross-terminal gotchas
 
 - **Self-discovery is the fatal capability, not activation.** A terminal with a rich control API but
-  no per-pane env var cannot be integrated at all, because inbound events can never be tied to a
-  pane. This is what rules out Ghostty, and it is the first thing to check for any new terminal —
-  see [`.claude/skills/integrate-terminal`](../../.claude/skills/integrate-terminal/SKILL.md).
+  no per-pane env var cannot be integrated cleanly, because inbound events can never be tied to a
+  pane. This is what still limits Ghostty (AppleScript arrived in 1.3.0; its panes still cannot
+  self-identify), and it is the first thing to check for any new terminal —
+  see [`.claude/skills/integrate-terminal`](../../.claude/skills/integrate-terminal/SKILL.md) and
+  [`terminal-candidates.md`](terminal-candidates.md) for the known workarounds.
 - **"Gone" and "couldn't tell" must stay distinguishable.** Every one of these APIs has a failure
   mode that looks like absence: iTerm2's empty-message exception, Kitty's hang without `--to`,
   WezTerm's exit-zero-but-unparseable output. Collapsing those into "the session is gone" evicts
@@ -227,10 +271,12 @@ Upstream tracking: [ghostty-org/ghostty#2353](https://github.com/ghostty-org/gho
 | iTerm2 | [Python API](https://iterm2.com/python-api/) | requires "Enable Python API" plus macOS Automation permission |
 | Kitty | [remote control](https://sw.kovidgoyal.net/kitty/remote-control/), [watchers](https://sw.kovidgoyal.net/kitty/launch/) | config changes need a restart |
 | WezTerm | [wezterm.org](https://wezterm.org/), [`wezterm cli`](https://wezterm.org/cli/cli/) | docs moved off `wezfurlong.org` |
-| Ghostty | [ghostty-org/ghostty](https://github.com/ghostty-org/ghostty) | [scripting API discussion](https://github.com/ghostty-org/ghostty/discussions/2353) |
+| Ghostty | [AppleScript](https://ghostty.org/docs/features/applescript), [ghostty-org/ghostty](https://github.com/ghostty-org/ghostty) | [scripting API discussion](https://github.com/ghostty-org/ghostty/discussions/2353) |
 
 Versions used for the latest probes: iTerm2 3.7.2 (2026-09-17), Kitty 0.45.0 (2026-08-22), and
-WezTerm 20240203-110809-5046fc22 (2026-08-22). Ghostty was not installed.
+WezTerm 20240203-110809-5046fc22 (2026-08-22; still the newest stable as of 2026-09-19). Ghostty
+was not installed; its facts are Documented against 1.3.1 source and docs. The wider terminal
+landscape is surveyed in [`terminal-candidates.md`](terminal-candidates.md).
 
 ---
 

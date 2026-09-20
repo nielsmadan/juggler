@@ -11,6 +11,9 @@ none of it goes stale when our code changes; it goes stale when the external thi
   from its own documentation.
 - [**Terminal Control APIs**](terminal-control-apis.md) — what iTerm2, Kitty, WezTerm, and Ghostty
   expose for focusing a pane, recoloring it, and detecting that it is gone.
+- [**Terminal Candidates**](terminal-candidates.md) — which other terminals (Terminal.app, Warp,
+  Otty, Alacritty, Wave, Tabby, the editor terminals, tmux/zellij) could carry the feature set,
+  what each cannot give us, and the terminal-independent fallbacks.
 - [**macOS Build Toolchain**](macos-build-toolchain.md) — `xcodebuild`, Swift Testing,
   SwiftLint/SwiftFormat, Periphery, Sparkle, and the AppKit APIs that do not behave as documented.
 
@@ -34,7 +37,7 @@ mention them.
 | How does *our* code handle it? | [`docs/tech/`](../tech/overview.md) |
 | What does the feature do for a user? | [`docs/features/`](../features/overview.md) |
 | Why did we choose this approach? | the tech doc's rationale section |
-| Which terminals/agents *might* we support next? | [`README.md`](../../README.md) |
+| Which terminals/agents *might* we support next? | [`terminal-candidates.md`](terminal-candidates.md) |
 
 The per-integration docs under `docs/tech/` are the counterpart to these: `tech/codex-hooks.md`
 describes our installer and event mapping, while `reference/coding-agent-hooks.md` describes what
