@@ -6,14 +6,14 @@ enum SessionActivationOutcome {
     case failed(any Error)
 }
 
-struct SessionActivationPresentation {
-    enum Success {
+struct SessionActivationPresentation: Equatable {
+    enum Success: Equatable {
         case none
         case sessionBeacon
         case onlySessionBeacon
     }
 
-    enum Unavailable {
+    enum Unavailable: Equatable {
         case none
         case activationFailed
         case beacon(String)
