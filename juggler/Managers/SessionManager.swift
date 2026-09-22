@@ -546,6 +546,19 @@ final class SessionManager {
         return cyclable[safeIndex]
     }
 
+    /// Whether the single cyclable session is the one the cycle's focus signal
+    /// points at — cycling then wraps back to the same session rather than
+    /// arriving at it for the first time.
+    var isFocusedOnOnlyCyclableSession: Bool {
+        guard cyclableSessions.count == 1, let onlySession = cyclableSessions.first,
+              let activeID = lastActiveSessionID ?? focusedSessionID else {
+            return false
+        }
+        return onlySession.id == activeID
+            || onlySession.terminalSessionID == activeID
+            || onlySession.terminalSessionID.hasSuffix(activeID)
+    }
+
     /// Called before activation to suppress intermediate focus events.
     @MainActor
     @discardableResult

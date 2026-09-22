@@ -11,7 +11,7 @@ The beacon is a brief HUD overlay that shows the current session name whenever t
 
 Cycling while no cyclable session exists shows the fallback label **"All At Work"**.
 
-Cycling while exactly one session is cyclable shows **"Only 1 Session"** with the session's display name as the subtitle, so rapid cycling doesn't look like a stuck re-highlight of an unnamed session.
+Cycling while exactly one session is cyclable shows **"Only 1 Session"** with the session's display name as the subtitle, so rapid cycling doesn't look like a stuck re-highlight of an unnamed session. It appears only when the cycle returns to the session you're already on; arriving at it for the first time from another session shows the normal session-name beacon.
 
 On a *successful* activation the beacon does **not** appear for:
 - Manual session clicks in the popover or main window

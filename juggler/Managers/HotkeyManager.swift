@@ -93,7 +93,11 @@ final class HotkeyManager {
     }
 
     private func cyclePresentation() -> SessionActivationPresentation {
-        .forCyclableCount(SessionManager.shared.cyclableSessions.count)
+        let manager = SessionManager.shared
+        return .forCyclableCount(
+            manager.cyclableSessions.count,
+            returnsToFocusedSession: manager.isFocusedOnOnlyCyclableSession
+        )
     }
 
     private func activateWithRetry(

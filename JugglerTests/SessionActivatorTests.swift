@@ -224,16 +224,22 @@ struct SessionActivatorTests {
         #expect(beacons == [.init(title: "Only 1 Session", subtitle: expectedSubtitle, force: false)])
     }
 
-    @Test func forCyclableCount_singleSession_usesOnlySessionPresentation() {
-        #expect(SessionActivationPresentation.forCyclableCount(1) == .onlySessionCycle)
+    @Test func forCyclableCount_singleSessionFocused_usesOnlySessionPresentation() {
+        #expect(SessionActivationPresentation.forCyclableCount(1, returnsToFocusedSession: true) == .onlySessionCycle)
+    }
+
+    @Test func forCyclableCount_singleSessionNotFocused_usesCyclePresentation() {
+        #expect(SessionActivationPresentation.forCyclableCount(1, returnsToFocusedSession: false) == .cycle)
     }
 
     @Test func forCyclableCount_multipleSessions_usesCyclePresentation() {
-        #expect(SessionActivationPresentation.forCyclableCount(2) == .cycle)
+        #expect(SessionActivationPresentation.forCyclableCount(2, returnsToFocusedSession: true) == .cycle)
+        #expect(SessionActivationPresentation.forCyclableCount(2, returnsToFocusedSession: false) == .cycle)
     }
 
     @Test func forCyclableCount_noSessions_usesCyclePresentation() {
-        #expect(SessionActivationPresentation.forCyclableCount(0) == .cycle)
+        #expect(SessionActivationPresentation.forCyclableCount(0, returnsToFocusedSession: true) == .cycle)
+        #expect(SessionActivationPresentation.forCyclableCount(0, returnsToFocusedSession: false) == .cycle)
     }
 
     @Test func activate_staleNotificationTarget_presentsNoNotification() async {

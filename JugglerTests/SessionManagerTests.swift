@@ -1628,6 +1628,41 @@ struct SessionManagerTests {
     }
 
     @MainActor
+    @Test func isFocusedOnOnlyCyclableSession_focusedOnSingleCyclable_isTrue() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1")])
+        manager.updateFocusedSession(terminalSessionID: "s1")
+
+        #expect(manager.isFocusedOnOnlyCyclableSession)
+    }
+
+    @MainActor
+    @Test func isFocusedOnOnlyCyclableSession_nothingFocused_isFalse() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1")])
+
+        #expect(!manager.isFocusedOnOnlyCyclableSession)
+    }
+
+    @MainActor
+    @Test func isFocusedOnOnlyCyclableSession_focusedOnBusySession_isFalse() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1"), makeSession("busy", state: .working)])
+        manager.updateFocusedSession(terminalSessionID: "busy")
+
+        #expect(!manager.isFocusedOnOnlyCyclableSession)
+    }
+
+    @MainActor
+    @Test func isFocusedOnOnlyCyclableSession_multipleCyclable_isFalse() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1"), makeSession("s2")])
+        manager.updateFocusedSession(terminalSessionID: "s1")
+
+        #expect(!manager.isFocusedOnOnlyCyclableSession)
+    }
+
+    @MainActor
     @Test func endActivation_clearsGuard() {
         let manager = SessionManager()
         manager.testSetSessions([makeSession("s1")])
