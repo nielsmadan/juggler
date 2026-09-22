@@ -80,8 +80,10 @@ Each session row shows:
 | **Agent column** | Terminal-type icon, agent initials, and an "SSH" badge for remote sessions (hover shows user@host) |
 | **State icon + label** | Visual state indicator and its text label |
 | **Display name** | Project folder or custom name, with an inline rename (pencil) button |
-| **Project path** | Full path to project directory |
+| **Project path** | Full path to project directory, or `~/...` when "Replace home path with ~" is on |
 | **Git branch** | Branch name (if available) |
+
+The project path, git branch, and rename button lines can each be hidden from Settings > General > Session Monitor; the same section shortens project paths under your home directory to `~/...`.
 
 When stats are enabled, each card shows up to two trapezoid tabs in its corner: a **"Turn"** tab with the live duration of the current working turn (only while the session is working or compacting), and an always-present **"Today"** tab with that session's total busy time for the day.
 

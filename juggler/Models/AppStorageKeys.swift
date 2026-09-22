@@ -26,6 +26,12 @@ nonisolated enum AppStorageKeys {
     static let useCyclingColors = "useCyclingColors"
     static let showShortcutHelper = "showShortcutHelper"
 
+    // Session Monitor rows
+    static let monitorShowFolderPath = "monitorShowFolderPath"
+    static let monitorShowBranch = "monitorShowBranch"
+    static let monitorReplaceHomeWithTilde = "monitorReplaceHomeWithTilde"
+    static let monitorShowRenameButton = "monitorShowRenameButton"
+
     // Terminal highlighting
     static let useTerminalCyclingColors = "useTerminalCyclingColors"
 

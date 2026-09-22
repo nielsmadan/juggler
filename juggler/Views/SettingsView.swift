@@ -69,6 +69,10 @@ struct GeneralSettingsView: View {
     @AppStorage(AppStorageKeys.statsBarColorGreen) private var statsBarColorGreen = 165.0
     @AppStorage(AppStorageKeys.statsBarColorBlue) private var statsBarColorBlue = 0.0
     @AppStorage(AppStorageKeys.goToNextOnBackburner) private var goToNextOnBackburner = true
+    @AppStorage(AppStorageKeys.monitorShowFolderPath) private var monitorShowFolderPath = true
+    @AppStorage(AppStorageKeys.monitorShowBranch) private var monitorShowBranch = true
+    @AppStorage(AppStorageKeys.monitorReplaceHomeWithTilde) private var monitorReplaceHomeWithTilde = false
+    @AppStorage(AppStorageKeys.monitorShowRenameButton) private var monitorShowRenameButton = true
 
     @State private var showingUninstallConfirm = false
     @State private var showingUninstallSummary = false
@@ -125,6 +129,18 @@ struct GeneralSettingsView: View {
                     ForEach(SessionTitleMode.allCases, id: \.rawValue) { mode in
                         Text(mode.displayName).tag(mode.rawValue)
                     }
+                }
+            }
+
+            Section("Session Monitor") {
+                Toggle("Show folder path", isOn: $monitorShowFolderPath)
+                Toggle("Show git branch", isOn: $monitorShowBranch)
+                Toggle("Show rename button", isOn: $monitorShowRenameButton)
+                SettingWithDescription(
+                    description: "Replace the home directory with ~ in project paths, e.g. ~/Projects/app"
+                ) {
+                    Toggle("Replace home path with ~", isOn: $monitorReplaceHomeWithTilde)
+                        .disabled(!monitorShowFolderPath)
                 }
             }
 

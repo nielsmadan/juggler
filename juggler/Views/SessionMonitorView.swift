@@ -24,6 +24,10 @@ struct SessionMonitorView: View {
     @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode
         .default.rawValue
     @AppStorage(AppStorageKeys.controlBarHintDismissed) private var controlBarHintDismissed = false
+    @AppStorage(AppStorageKeys.monitorShowFolderPath) private var monitorShowFolderPath = true
+    @AppStorage(AppStorageKeys.monitorShowBranch) private var monitorShowBranch = true
+    @AppStorage(AppStorageKeys.monitorReplaceHomeWithTilde) private var monitorReplaceHomeWithTilde = false
+    @AppStorage(AppStorageKeys.monitorShowRenameButton) private var monitorShowRenameButton = true
 
     private var titleMode: SessionTitleMode {
         SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .default
@@ -535,6 +539,7 @@ struct SessionMonitorView: View {
             sessionHeader(session, rowHorizontalPadding: rowHorizontalPadding)
             sessionMetadata(session)
         }
+        .frame(minHeight: SessionMonitorRowLayout.contentMinHeight, alignment: .top)
     }
 
     /// `rowHorizontalPadding` must match the row's outer `.padding(.horizontal, X)`
@@ -551,23 +556,31 @@ struct SessionMonitorView: View {
 
     @ViewBuilder
     private func sessionHeader(_ session: Session, rowHorizontalPadding: CGFloat) -> some View {
-        HStack(alignment: .center) {
+        HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode))
                         .font(.headline)
-                    Button {
-                        controller.sessionToRename = session
-                        ShortcutCenter.shared.sessionListContext.notifyHint(for: .rename)
-                    } label: {
-                        Image(systemName: "pencil")
+                    if monitorShowRenameButton {
+                        Button {
+                            controller.sessionToRename = session
+                            ShortcutCenter.shared.sessionListContext.notifyHint(for: .rename)
+                        } label: {
+                            Image(systemName: "pencil")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
                 }
-                Label(session.projectPath, systemImage: "folder")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if monitorShowFolderPath {
+                    Label(displayPath(session.projectPath), systemImage: "folder")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if monitorShowBranch, let branch = session.gitBranch {
+                    Label(branch, systemImage: "arrow.triangle.branch")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             VStack(spacing: 2) {
@@ -582,18 +595,24 @@ struct SessionMonitorView: View {
         }
     }
 
+    private func displayPath(_ path: String) -> String {
+        monitorReplaceHomeWithTilde ? HomePathFormatter.abbreviate(path) : path
+    }
+
     @ViewBuilder
     private func sessionMetadata(_ session: Session) -> some View {
-        HStack {
-            // Always render the branch line (hidden when absent) so a non-git session
-            // reserves the same row height as a git-backed one — otherwise the card
-            // collapses and the row layout differs from its neighbors.
-            Label(session.gitBranch ?? " ", systemImage: "arrow.triangle.branch")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .opacity(session.gitBranch == nil ? 0 : 1)
-                .accessibilityHidden(session.gitBranch == nil)
-            Spacer()
+        if monitorShowBranch, monitorShowFolderPath {
+            HStack {
+                // Always render the branch line (hidden when absent) so a non-git session
+                // reserves the same row height as a git-backed one — otherwise the card
+                // collapses and the row layout differs from its neighbors.
+                Label(session.gitBranch ?? " ", systemImage: "arrow.triangle.branch")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .opacity(session.gitBranch == nil ? 0 : 1)
+                    .accessibilityHidden(session.gitBranch == nil)
+                Spacer()
+            }
         }
     }
 

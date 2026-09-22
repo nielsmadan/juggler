@@ -77,3 +77,10 @@ enum StateBadgeLayout {
     /// excluding the row's outer horizontal padding.
     static var centerXFromRight: CGFloat { trailingPadding + frameWidth / 2 }
 }
+
+/// Geometry constants for session rows in the monitor window.
+enum SessionMonitorRowLayout {
+    /// Floors every row's content height so a row stays aligned with its
+    /// neighbors when the folder path / branch lines are hidden.
+    static let contentMinHeight: CGFloat = 56
+}

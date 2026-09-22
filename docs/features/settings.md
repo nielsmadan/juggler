@@ -8,6 +8,7 @@ The Settings window is organized into tabs, each covering a distinct configurati
 - **Show Juggler in Dock**: Toggle the Dock icon (regular vs. accessory activation policy).
 - **Quit when Session Monitor is closed**: Quit the app when the monitor window closes.
 - **Session Title**: How session names are derived: Tab Title, Window Title, Window / Tab Title, Folder Name, or Parent / Folder Name.
+- **Session Monitor**: Show or hide the folder path, git branch, and rename button in Session Monitor rows, and optionally replace the home directory prefix in shown paths with `~` (for example `~/Projects/app`).
 - **Notifications**: Toggle idle notifications, permission notifications, and sound (see [Notifications](notification.md)).
 - **Stats**: Enable Stats (show the busy-time chart in the Session Monitor), plus the stats-bar color: "Use cycling colors" (per-day palette colors) or a custom bar color when off.
 - **Backburner**: "Go to next session on backburner" option for rapid triage.
