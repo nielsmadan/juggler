@@ -347,6 +347,25 @@ actor HookServer {
         }
     }
 
+    // Once tmux detaches, hooklinesinker withholds the terminal; remove the row it had while attached.
+    @MainActor
+    private func detachedTmuxRowIDs(for status: HooklinesinkerStatus) -> [String] {
+        guard let pane = status.tmux?.pane, !pane.isEmpty, !status.session.id.isEmpty else { return [] }
+        return sessionManager.sessions
+            .filter {
+                $0.tmuxPane == pane && $0.claudeSessionID == status.session.id && $0.agent == status.jugglerAgent
+            }
+            .map(\.id)
+    }
+
+    @MainActor
+    private func removeDetachedTmuxRows(_ rowIDs: [String]) {
+        for rowID in rowIDs {
+            logDebug(.hooks, "Removing \(rowID): its tmux session has no attached client")
+            sessionManager.removeSession(sessionID: rowID)
+        }
+    }
+
     // MARK: - Protocol-v1 status ingress
 
     /// Replays the running records `hooklinesinker sessions --json` returned through the same
@@ -385,9 +404,17 @@ actor HookServer {
         // No terminal session ID means no activation address: the row could never be
         // activated or auto-removed.
         guard !terminalSessionID.isEmpty else {
-            await warnOnceAboutEmptySessionID(
-                agent: status.jugglerAgent, cwd: status.session.cwd, remoteHost: status.remoteHost
-            )
+            if status.tmux?.pane?.isEmpty == false {
+                recordHandledLive(status.bindingId)
+            }
+            let detachedRowIDs = await detachedTmuxRowIDs(for: status)
+            if detachedRowIDs.isEmpty {
+                await warnOnceAboutEmptySessionID(
+                    agent: status.jugglerAgent, cwd: status.session.cwd, remoteHost: status.remoteHost
+                )
+            } else {
+                await removeDetachedTmuxRows(detachedRowIDs)
+            }
             return
         }
 

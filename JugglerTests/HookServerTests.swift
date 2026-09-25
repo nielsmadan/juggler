@@ -1444,6 +1444,48 @@ struct HookServerStatusTests {
         #expect(manager.sessions.isEmpty)
     }
 
+    @Test @MainActor func detachedTmuxStatusRemovesTheRowTheSessionHadWhileAttached() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        await server.handleStatusForTesting(TestFixtures.statusJSON(tmuxPane: "%5"))
+        #expect(manager.sessions.map(\.id) == ["terminal-session:%5"])
+
+        await server.handleStatusForTesting(
+            TestFixtures.statusJSON(phase: "working", terminalSessionID: nil, tmuxPane: "%5")
+        )
+
+        #expect(manager.sessions.isEmpty)
+    }
+
+    @Test @MainActor func detachedTmuxStatusKeepsAnotherSessionInThatPane() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        await server.handleStatusForTesting(TestFixtures.statusJSON(sessionID: "other", tmuxPane: "%5"))
+
+        await server.handleStatusForTesting(
+            TestFixtures.statusJSON(phase: "working", terminalSessionID: nil, tmuxPane: "%5")
+        )
+
+        #expect(manager.sessions.map(\.claudeSessionID) == ["other"])
+    }
+
+    @Test @MainActor func tmuxStatusWithoutATerminalOrMatchingRowWarns() async {
+        LogManager.shared.clear()
+        defer { LogManager.shared.clear() }
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let cwd = "/test/unidentified-\(UUID().uuidString)"
+
+        await server.handleStatusForTesting(
+            TestFixtures.statusJSON(cwd: cwd, terminalSessionID: nil, tmuxPane: "%5")
+        )
+
+        let warnings = LogManager.shared.entries.filter {
+            $0.level == .warning && $0.category == .hooks && $0.message.contains(cwd)
+        }
+        #expect(warnings.count == 1)
+    }
+
     @Test @MainActor func kittyTerminalTypeSurvivesTheRoundTrip() async {
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)
@@ -1521,6 +1563,21 @@ struct HookServerStatusTests {
         ])
         await server.handleStatusForTesting(TestFixtures.statusJSON(
             bindingId: "b1", event: "SessionEnd", running: false, terminalSessionID: "s1"
+        ))
+
+        await server.hydrate(snapshot)
+
+        #expect(manager.sessions.isEmpty)
+    }
+
+    @Test @MainActor func hydrationSkipsBindingsThatDetachedFromTmuxAfterTheSnapshot() async throws {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+        let snapshot = try Self.decodeAll([
+            TestFixtures.statusJSON(bindingId: "b1", phase: "working", terminalSessionID: "s1", tmuxPane: "%5")
+        ])
+        await server.handleStatusForTesting(TestFixtures.statusJSON(
+            bindingId: "b1", phase: "working", terminalSessionID: nil, tmuxPane: "%5"
         ))
 
         await server.hydrate(snapshot)

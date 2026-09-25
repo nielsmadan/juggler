@@ -66,6 +66,11 @@ Notes that matter when reading Juggler's code:
   `terminal`/`tmux`. `bindingId` is hooklinesinker's own key and is what startup hydration
   dedupes on.
 - `running: false` removes the session, guarded by the stale-thread check below.
+- A status with a tmux pane but no `terminal` removes that session's row in that pane:
+  hooklinesinker withholds the terminal once the pane's tmux session has no attached client,
+  because the inherited terminal variables name whichever tab started the tmux server. With no
+  matching row, it falls through to the once-per-source empty-terminal warning, since tmux
+  inside a terminal hooklinesinker cannot identify looks the same.
 
 Terminal, tmux, git and SSH detection all happen inside hooklinesinker now; Juggler no longer
 has a shell script reading `$ITERM_SESSION_ID` and friends for these agents.
