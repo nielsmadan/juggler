@@ -1600,4 +1600,71 @@ struct HookServerStatusTests {
     private static func decodeAll(_ bodies: [String]) throws -> [HooklinesinkerStatus] {
         try bodies.map { try JSONDecoder().decode(HooklinesinkerStatus.self, from: Data($0.utf8)) }
     }
+
+    @Suite(.serialized)
+    struct CodexIgnorePermissionEventsTests {
+        private static func withCodexIgnorePermissionEvents(_ value: Bool, _ body: () async -> Void) async {
+            let key = AppStorageKeys.codexIgnorePermissionEvents
+            let previous = UserDefaults.standard.object(forKey: key)
+            UserDefaults.standard.set(value, forKey: key)
+            await body()
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+
+        @Test @MainActor func codexPermissionRequestIsIgnoredWhenPreferenceIsOn() async {
+            await Self.withCodexIgnorePermissionEvents(true) {
+                let manager = SessionManager()
+                let server = HookServer(sessionManager: manager)
+
+                await server.handleStatusForTesting(TestFixtures.statusJSON(
+                    agent: "codex", event: "PermissionRequest", phase: "permission", terminalSessionID: "s1"
+                ))
+
+                #expect(manager.sessions.isEmpty)
+            }
+        }
+
+        @Test @MainActor func codexChildPermissionRequestIsIgnoredWhenPreferenceIsOn() async {
+            await Self.withCodexIgnorePermissionEvents(true) {
+                let manager = SessionManager()
+                let server = HookServer(sessionManager: manager)
+
+                await server.handleStatusForTesting(TestFixtures.statusJSON(
+                    agent: "codex", event: "child:PermissionRequest", phase: "permission", terminalSessionID: "s1"
+                ))
+
+                #expect(manager.sessions.isEmpty)
+            }
+        }
+
+        @Test @MainActor func codexRootEventWithAggregatedPermissionPhaseIsNotIgnored() async {
+            await Self.withCodexIgnorePermissionEvents(true) {
+                let manager = SessionManager()
+                let server = HookServer(sessionManager: manager)
+
+                await server.handleStatusForTesting(TestFixtures.statusJSON(
+                    agent: "codex", event: "child:PreToolUse", phase: "permission", terminalSessionID: "s1"
+                ))
+
+                #expect(manager.sessions.first?.state == .permission)
+            }
+        }
+
+        @Test @MainActor func codexPermissionRequestIsNotIgnoredWhenPreferenceIsOff() async {
+            await Self.withCodexIgnorePermissionEvents(false) {
+                let manager = SessionManager()
+                let server = HookServer(sessionManager: manager)
+
+                await server.handleStatusForTesting(TestFixtures.statusJSON(
+                    agent: "codex", event: "PermissionRequest", phase: "permission", terminalSessionID: "s1"
+                ))
+
+                #expect(manager.sessions.first?.state == .permission)
+            }
+        }
+    }
 }

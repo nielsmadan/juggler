@@ -12,9 +12,10 @@ Requires Codex CLI ≥ v0.114; `SessionEnd` additionally requires ≥ v0.145 (ol
 
 Codex setup is **three separate steps** (three buttons in onboarding's Integration Hub and in Settings → Integration). They are independent and idempotent - run them in order:
 
-1. **Install Hooks**: `hooklinesinker hooks install --agent codex` registers all ten events in
+1. **Install Hooks**: `hooklinesinker hooks install --agent codex` registers all events in
    `~/.codex/hooks.json`, each calling `<promoted binary> ingest --agent codex --event <Event>`.
-   Nothing is copied into `~/.codex/hooks/juggler/` any more.
+   Ten with the pinned hooklinesinker 1.0.3; twelve once the pin moves to the child-tracking
+   release. Nothing is copied into `~/.codex/hooks/juggler/` any more.
 2. **Enable Feature Flag**: sets `[features] hooks = true` in `~/.codex/config.toml`. Codex ignores `hooks.json` entirely unless this flag is on.
 3. **Enable in Codex**: writes `[hooks.state]` trust records to `config.toml` so the hooks run without the manual `/hooks` review. This bypasses Codex's own trust-enabling flow; the alternative is to skip this step and run `/hooks` inside Codex to approve the hooks manually.
 
@@ -38,7 +39,8 @@ by all four agents.
 
 ## Hook Events
 
-hooklinesinker registers ten events.
+hooklinesinker registers ten events with the pinned 1.0.3; twelve once the pin moves to the
+child-tracking release.
 
 | Event | Mapped State |
 |-------|--------------|
@@ -52,12 +54,12 @@ hooklinesinker registers ten events.
 | `PreCompact` | `compacting` |
 | `PermissionRequest` | `permission` (optionally ignored for Auto Review) |
 | `SessionEnd` | *(removes the session)* |
+| `SubagentStart` | child tracked on the parent; parent stays `working` while a child works |
+| `SubagentStop` | that child's turn finished |
 
 Codex emits `Interrupt` when the user cancels a turn. Registering only `Stop` leaves that
 session working. Existing installations need **Install Hooks** and trust approval for the new
-event through **Enable in Codex** or `/hooks`.
-
-Codex also fires `SubagentStart` and `SubagentStop`, which are not registered.
+events through **Enable in Codex** or `/hooks`.
 
 The mapping now lives in hooklinesinker (`src/normalize.rs`), which puts the resulting `phase`
 straight on the wire — the v1 path never reaches `HookEventMapper`. Event and tool names are
@@ -67,11 +69,14 @@ matched case-sensitively; an unrecognized event produces no state change. Codex 
 responds.
 
 Codex does not identify the active reviewer in `PermissionRequest` hook input. The optional **Ignore Codex permission
-events** preference therefore suppresses every Codex `PermissionRequest` transition and leaves the session in its
-current state. This prevents Auto Review from briefly putting the session in Juggler's permission queue, but also hides
-manual permission prompts. Juggler preselects the preference when the top-level `approvals_reviewer = "auto_review"`
-setting is present in `~/.codex/config.toml`; profile and command-line overrides are not detected. `request_user_input`
-and `Stop` still move the session to `idle` when Codex actually waits for the user.
+events** preference therefore suppresses only `PermissionRequest` and `child:PermissionRequest` transitions and leaves
+the session in its current state - it does not drop every status whose phase is `permission`. This prevents Auto
+Review from briefly putting the session in Juggler's permission queue, but also hides manual permission prompts.
+Juggler preselects the preference when the top-level `approvals_reviewer = "auto_review"` setting is present in
+`~/.codex/config.toml`; profile and command-line overrides are not detected. `request_user_input` and `Stop` still
+move the session to `idle` when Codex actually waits for the user. A tracked child's own `request_user_input` is a
+real question, not an approval review, so it is never suppressed: the root's aggregate phase still becomes
+`permission` through the child's `PreToolUse` event.
 
 ## hooks.json Registration
 
@@ -112,7 +117,7 @@ trusted_hash = "sha256:<hex>"
 
 `enableInCodex` re-reads `hooks status --agent codex --json` first, because an install since the last refresh can have moved the group index the key is built from.
 
-`isEnabledInCodex` returns true only when config.toml has a matching `trusted_hash` for *every* hook hooklinesinker reports. Any missing/unparseable `hooks.json`, unresolved event, or hash mismatch → false, which is what drives the "Enable in Codex" button's status indicator.
+`isEnabledInCodex` returns true only when hooklinesinker reports the Codex hooks `installed`, it reported at least one entry, and config.toml has a matching `trusted_hash` for *every* reported entry. Checking the reported entries rather than a fixed count keeps this correct whether the installed hooklinesinker registers fewer events (an older release) or more (a newer one). Any missing/unparseable `hooks.json`, a non-`installed` status, or a hash mismatch → false, which is what drives the "Enable in Codex" button's status indicator.
 
 ## Reset
 
@@ -157,9 +162,9 @@ were checked against Codex 0.153.4 source.
 
 Codex does not fire `SessionEnd` on `/new`, `/clear`, fork, resume, or compaction — those produce a bare `SessionStart` with the corresponding `source`. The abandoned thread still fires its own `SessionEnd` later (idle-unload, ~30 min, or at quit). Sessions are keyed by terminal pane, so `HookServer` compares the hook's `session_id` against the row's before removing; a mismatch is ignored. Agents that send no session id are unaffected.
 
-### Auto-sync refreshes trust, it never grants it
+### Auto-sync re-trusts newly registered entries only for users who already trusted Juggler's hooks
 
-`IntegrationSync` reinstalls Codex hooks when `hooks status` reports `drifted`, but writing a `[hooks.state]` entry is a different act: it bypasses the `/hooks` review Codex asks the user for. So the re-trust is gated on `CodexHooksInstaller.hasExistingTrustEntries`, sampled *before* the reinstall (the re-merge can shift group indices, which are part of the trust key). With an existing matching entry we are refreshing a grant the user already made; with none we re-register and stop, and the setup UI shows "Enable in Codex" as outstanding. The check matches a full key+hash pair rather than prefix-matching the hooks.json path, so a user's own hook registered in the same file is never read as consent.
+`IntegrationSync` reinstalls Codex hooks when `hooks status` reports `drifted`, but writing a `[hooks.state]` entry is a different act: it bypasses the `/hooks` review Codex asks the user for. So the re-trust is gated on `CodexHooksInstaller.hasExistingTrustEntries`, sampled *before* the reinstall (the re-merge can shift group indices, which are part of the trust key). With an existing matching entry we are refreshing a grant the user already made — and that refresh writes trust for *every* entry hooklinesinker now reports, including one added since the user last trusted, such as the two Codex subagent hooks. With no existing entry we re-register and stop, and the setup UI shows "Enable in Codex" as outstanding: first-time trust always stays with **Enable in Codex** or `/hooks`, never auto-sync. The check matches a full key+hash pair rather than prefix-matching the hooks.json path, so a user's own hook registered in the same file is never read as consent.
 
 The feature-flag gate alone was not enough: `features.hooks = true` is setup step 2, while the trust bypass is step 3, so a user who enabled the flag and then chose Codex's own review would have had entries written for them at launch.
 

@@ -20,6 +20,8 @@ EVENTS = {
     "stop": ("Stop", 5),
     "interrupt": ("Interrupt", 3),
     "session_end": ("SessionEnd", 3),
+    "subagent_start": ("SubagentStart", 5),
+    "subagent_stop": ("SubagentStop", 5),
 }
 
 HOOK_STATE_HEADER = re.compile(r'^\[hooks\.state\."((?:[^"\\]|\\.)*)"\]\s*(?:#.*)?$')

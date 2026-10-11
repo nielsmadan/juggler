@@ -49,7 +49,7 @@ final class CodexSetupController {
         }
         featureFlagEnabled = CodexHooksInstaller.isFeatureFlagEnabled()
         enabledInCodex = CodexHooksInstaller.isEnabledInCodex(
-            hooksJSONPath: hooksJSONPath, entries: hookEntries
+            hooksJSONPath: hooksJSONPath, hooksInstalled: hooksInstalled, entries: hookEntries
         )
     }
 

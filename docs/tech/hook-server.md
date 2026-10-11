@@ -105,12 +105,18 @@ Codex:
 | `PermissionRequest` | `permission`, or ignored by user preference |
 | `PreCompact` | `compacting` |
 | `SessionEnd` | *(removed)* |
+| `Interrupt` | `idle` (session stays live) |
+| `SubagentStart`, `SubagentStop` | child tracked on the parent; parent keeps its own phase while a child works |
 
 Codex hooks register under `~/.codex/hooks.json` and require `features.hooks = true`
-in `~/.codex/config.toml`. Juggler registers nine hook events - `SessionStart`,
-`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `PostCompact`,
-`PermissionRequest`, `Stop`, `SessionEnd`. `SessionEnd` removes the session; before
-it existed, that relied on terminal bridge cleanup at window close.
+in `~/.codex/config.toml`. Juggler registers ten hook events with the pinned
+hooklinesinker 1.0.3 - `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`,
+`PreCompact`, `PostCompact`, `PermissionRequest`, `Stop`, `Interrupt`, `SessionEnd` -
+and twelve once the pin moves to the child-tracking release, which adds
+`SubagentStart` and `SubagentStop`. `SessionEnd` removes the session; before it
+existed, that relied on terminal bridge cleanup at window close. With child
+tracking, a tracked Codex subagent keeps the root's aggregate phase `working` (or
+`permission`) while the child runs, even across the root's own events.
 
 Codex gates user-installed hooks behind a trust review (`/hooks` in its TUI).
 `CodexHooksInstaller` writes `[hooks.state."<hooksJSONPath>:<event>:<groupIndex>:0"]`
@@ -122,8 +128,10 @@ higher index). See [Codex Hooks](codex-hooks.md) for the full mechanism.
 Requires Codex CLI ≥ v0.114; `SessionEnd` additionally requires ≥ v0.145.
 
 Codex hook input does not distinguish an automatic approval review from a manual approval prompt. When
-`AppStorageKeys.codexIgnorePermissionEvents` is true, `HookServer` ignores Codex `PermissionRequest` events and logs the
-suppression as intentional. Other agents keep their immediate permission mapping.
+`AppStorageKeys.codexIgnorePermissionEvents` is true, `HookServer` ignores Codex `PermissionRequest` and
+`child:PermissionRequest` events and logs the suppression as intentional; it does not drop every status whose
+phase is `permission`, so a tracked child's `request_user_input` still surfaces through the root's other events.
+Other agents keep their immediate permission mapping.
 
 Pi:
 

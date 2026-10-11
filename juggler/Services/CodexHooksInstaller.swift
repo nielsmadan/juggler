@@ -19,19 +19,6 @@ enum CodexHooksError: LocalizedError, Equatable {
 }
 
 enum CodexHooksInstaller {
-    static let agentEvents = [
-        "SessionStart",
-        "UserPromptSubmit",
-        "PreToolUse",
-        "PostToolUse",
-        "PreCompact",
-        "PostCompact",
-        "PermissionRequest",
-        "Stop",
-        "Interrupt",
-        "SessionEnd"
-    ]
-
     /// Default hook timeout (seconds). Per-event values go through `timeoutSeconds(for:)`,
     /// which both the hooks.json writer and the trust hash use — they cannot drift apart.
     static let hookTimeoutSeconds = 5
@@ -185,16 +172,16 @@ enum CodexHooksInstaller {
         }
     }
 
-    /// Returns true only when config.toml has a matching `trusted_hash` for every event
-    /// hooklinesinker registers. A short entry list, an unreadable config, or any hash
-    /// mismatch → false.
+    /// Returns true only when hooklinesinker reports the Codex hooks `installed`, it reported
+    /// at least one entry, and config.toml has a matching `trusted_hash` for every reported entry.
     static func isEnabledInCodex(
         at path: String = configTOMLPath,
         hooksJSONPath: String,
+        hooksInstalled: Bool,
         entries: [HooklinesinkerHookEntry]
     ) -> Bool {
         guard let contents = try? String(contentsOfFile: path, encoding: .utf8),
-              entries.count == agentEvents.count
+              hooksInstalled, !entries.isEmpty
         else {
             return false
         }
@@ -289,6 +276,8 @@ enum CodexHooksInstaller {
         case "PermissionRequest": "permission_request"
         case "Stop": "stop"
         case "SessionEnd": "session_end"
+        case "SubagentStart": "subagent_start"
+        case "SubagentStop": "subagent_stop"
         default: event.lowercased()
         }
     }

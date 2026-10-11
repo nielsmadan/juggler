@@ -26,11 +26,26 @@ private func withTempFile(contents: String? = nil, _ body: (String) throws -> Vo
     }
 }
 
+private let codexAgentEvents = [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "PreCompact",
+    "PostCompact",
+    "PermissionRequest",
+    "Stop",
+    "Interrupt",
+    "SessionEnd",
+    "SubagentStart",
+    "SubagentStop"
+]
+
 /// The `(event, groupIndex, command)` triples `hooks status --agent codex --json` reports,
 /// using the canonical command hooklinesinker installs. `groupIndex` is the index of our
 /// matcher group within that event's array — 1 when the user already hooks the same event.
 private func codexEntries(
-    events: [String] = CodexHooksInstaller.agentEvents,
+    events: [String] = codexAgentEvents,
     groupIndex: Int = 0,
     binary: String = "/Users/me/.local/share/hooklinesinker/bin/hooklinesinker"
 ) -> [HooklinesinkerHookEntry] {
@@ -352,13 +367,27 @@ struct CodexEnableInCodexTests {
     @Test func enableInCodex_thenIsEnabled_roundTrips() throws {
         try withCodexFixture { config, hooksJSON, entries in
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
+                at: config, hooksJSONPath: hooksJSON, hooksInstalled: true, entries: entries
             ) == false)
             try CodexHooksInstaller.enableInCodex(
                 at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             #expect(CodexHooksInstaller.isEnabledInCodex(
+                at: config, hooksJSONPath: hooksJSON, hooksInstalled: true, entries: entries
+            ) == true)
+        }
+    }
+
+    @Test func enableInCodex_trustsSubagentHooksUnderSnakeCaseKeys() throws {
+        try withCodexFixture { config, hooksJSON, entries in
+            try CodexHooksInstaller.enableInCodex(
                 at: config, hooksJSONPath: hooksJSON, entries: entries
+            )
+            let out = readFile(config)
+            #expect(out.contains("\(hooksJSON):subagent_start:0:0"))
+            #expect(out.contains("\(hooksJSON):subagent_stop:0:0"))
+            #expect(CodexHooksInstaller.isEnabledInCodex(
+                at: config, hooksJSONPath: hooksJSON, hooksInstalled: true, entries: entries
             ) == true)
         }
     }
@@ -605,7 +634,7 @@ struct CodexEnableInCodexTests {
             #expect(out.contains("\(hooksJSON):session_start:1:0"))
             #expect(!out.contains("\(hooksJSON):session_start:0:0"))
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
+                at: config, hooksJSONPath: hooksJSON, hooksInstalled: true, entries: entries
             ) == true)
         }
     }
@@ -728,35 +757,59 @@ struct CodexEnableInCodexTests {
         try withCodexFixture { config, hooksJSON, entries in
             // Missing config.toml.
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
+                at: config, hooksJSONPath: hooksJSON, hooksInstalled: true, entries: entries
             ) == false)
 
             // config.toml exists but has no trust blocks.
             try "[features]\nhooks = true\n".write(toFile: config, atomically: true, encoding: .utf8)
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
+                at: config, hooksJSONPath: hooksJSON, hooksInstalled: true, entries: entries
             ) == false)
 
             // The CLI reported nothing registered.
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: []
+                at: config, hooksJSONPath: hooksJSON, hooksInstalled: true, entries: []
             ) == false)
         }
     }
 
-    @Test func isEnabledInCodex_falseWhenAnEventNotRegistered() throws {
+    @Test func isEnabledInCodex_trueForTenEntryInstall() throws {
+        let tenEvents = [
+            "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse",
+            "PreCompact", "PostCompact", "PermissionRequest", "Stop", "Interrupt", "SessionEnd"
+        ]
+        let entries = codexEntries(events: tenEvents)
+        try withCodexFixture(entries: entries) { config, hooksJSON, _ in
+            try CodexHooksInstaller.enableInCodex(at: config, hooksJSONPath: hooksJSON, entries: entries)
+            #expect(CodexHooksInstaller.isEnabledInCodex(
+                at: config, hooksJSONPath: hooksJSON, hooksInstalled: true, entries: entries
+            ) == true)
+        }
+    }
+
+    @Test func isEnabledInCodex_falseWhenHooksDrifted() throws {
         try withCodexFixture { config, hooksJSON, entries in
             try CodexHooksInstaller.enableInCodex(
                 at: config, hooksJSONPath: hooksJSON, entries: entries
             )
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
+                at: config, hooksJSONPath: hooksJSON, hooksInstalled: true, entries: entries
             ) == true)
 
-            // The CLI now reports one fewer registered event.
-            let short = entries.filter { $0.event != "Stop" }
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: short
+                at: config, hooksJSONPath: hooksJSON, hooksInstalled: false, entries: entries
+            ) == false)
+        }
+    }
+
+    @Test func isEnabledInCodex_falseWhenANewEntryIsUntrusted() throws {
+        try withCodexFixture { config, hooksJSON, entries in
+            let trustedOnly = entries.filter { $0.event != "SubagentStart" && $0.event != "SubagentStop" }
+            try CodexHooksInstaller.enableInCodex(
+                at: config, hooksJSONPath: hooksJSON, entries: trustedOnly
+            )
+            #expect(CodexHooksInstaller.isEnabledInCodex(
+                at: config, hooksJSONPath: hooksJSON, hooksInstalled: true, entries: entries
             ) == false)
         }
     }
@@ -774,7 +827,7 @@ struct CodexEnableInCodexTests {
             try lines.joined(separator: "\n").write(toFile: config, atomically: true, encoding: .utf8)
 
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
+                at: config, hooksJSONPath: hooksJSON, hooksInstalled: true, entries: entries
             ) == false)
         }
     }
@@ -791,7 +844,7 @@ struct CodexEnableInCodexTests {
             try commented.write(toFile: config, atomically: true, encoding: .utf8)
 
             #expect(CodexHooksInstaller.isEnabledInCodex(
-                at: config, hooksJSONPath: hooksJSON, entries: entries
+                at: config, hooksJSONPath: hooksJSON, hooksInstalled: true, entries: entries
             ) == true)
         }
     }
@@ -806,7 +859,7 @@ struct CodexSessionEndTimeoutTests {
     }
 
     @Test func otherEventsUseDefaultTimeout() {
-        for event in CodexHooksInstaller.agentEvents where event != "SessionEnd" && event != "Interrupt" {
+        for event in codexAgentEvents where event != "SessionEnd" && event != "Interrupt" {
             #expect(
                 CodexHooksInstaller.timeoutSeconds(for: event) == CodexHooksInstaller.hookTimeoutSeconds,
                 "unexpected timeout for \(event)"
@@ -827,7 +880,7 @@ struct CodexSessionEndTimeoutTests {
     }
 
     @Test func interruptUsesCodexClampedTrustHash() {
-        #expect(CodexHooksInstaller.agentEvents.contains("Interrupt"))
+        #expect(codexAgentEvents.contains("Interrupt"))
         #expect(CodexHooksInstaller.timeoutSeconds(for: "Interrupt") == 3)
         #expect(CodexHooksInstaller.computeTrustedHash(
             event: "Interrupt", command: "/tmp/notify.sh Interrupt"

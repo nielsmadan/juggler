@@ -494,7 +494,9 @@ actor HookServer {
     }
 
     private func ignoreCodexPermissionIfNeeded(_ status: HooklinesinkerStatus) async -> Bool {
-        guard status.agent == "codex", status.phase == .permission, codexIgnorePermissionEvents else {
+        guard status.agent == "codex",
+              status.event == "PermissionRequest" || status.event == "child:PermissionRequest",
+              codexIgnorePermissionEvents else {
             return false
         }
         await MainActor.run {

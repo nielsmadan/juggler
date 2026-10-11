@@ -1,4 +1,5 @@
 import hashlib
+import importlib.util
 import json
 import os
 import plistlib
@@ -11,6 +12,10 @@ from pathlib import Path
 
 
 RESOURCES = Path(__file__).resolve().parents[2] / "juggler/Resources"
+SPEC = importlib.util.spec_from_file_location("codex_config_cleanup", RESOURCES / "codex_config_cleanup.py")
+codex_config_cleanup = importlib.util.module_from_spec(SPEC)
+sys.dont_write_bytecode = True
+SPEC.loader.exec_module(codex_config_cleanup)
 
 
 class UninstallTests(unittest.TestCase):
@@ -46,7 +51,8 @@ class UninstallTests(unittest.TestCase):
                   ("PreToolUse", "pre_tool_use", 5), ("PostToolUse", "post_tool_use", 5),
                   ("PreCompact", "pre_compact", 5), ("PostCompact", "post_compact", 5),
                   ("PermissionRequest", "permission_request", 5), ("Stop", "stop", 5),
-                  ("SessionEnd", "session_end", 3), ("Interrupt", "interrupt", 3))
+                  ("SessionEnd", "session_end", 3), ("Interrupt", "interrupt", 3),
+                  ("SubagentStart", "subagent_start", 5), ("SubagentStop", "subagent_stop", 5))
         entries, blocks = [], []
         for event, snake, timeout in events:
             command = f"'{active}' ingest --agent codex --event {event}"
@@ -92,6 +98,10 @@ else:
             for entry in entries
         }}))
         return "".join(blocks), log, active
+
+    def test_snake_case_event_covers_the_subagent_events(self):
+        self.assertEqual(codex_config_cleanup.snake_case_event("SubagentStart"), "subagent_start")
+        self.assertEqual(codex_config_cleanup.snake_case_event("SubagentStop"), "subagent_stop")
 
     def test_last_consumer_removes_canonical_trust_after_shared_hooks(self):
         blocks, log, active = self.shared_hooks()
