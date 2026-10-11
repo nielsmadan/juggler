@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-This is the single source of truth for agent/contributor guidance in this repo. `CLAUDE.md` imports this file, so every coding agent shares it.
+This is the single source of truth for agent/contributor guidance in this repo.
 
 Juggler is a SwiftUI menu bar app (macOS 15+) that tracks Claude Code, OpenCode, Codex, Pi, and Antigravity sessions via hooks and provides global hotkeys to navigate between them.
 
