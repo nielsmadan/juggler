@@ -347,7 +347,7 @@ class ReleaseTests(unittest.TestCase):
                 return "git@github.com:owner/repo.git"
             if args[0] == "gh":
                 raise AssertionError("Local releases must work without GitHub CLI")
-            return original_run(root, *args, capture=capture)
+            return original_run(root, *args, capture=True)
 
         with (
             patch.object(release, "__file__", str(self.root / "scripts/release.py")),
