@@ -61,7 +61,7 @@ Juggler/
 │   ├── ShortcutCenter.swift      # ShortcutKit registry, contexts, and global activation
 │   ├── LogManager.swift          # In-app logging system
 │   ├── NotificationManager.swift # macOS notifications for idle/permission states
-│   ├── SessionManager.swift      # Session list, cycling logic (no persistence)
+│   ├── SessionManager.swift      # Session list, cycling logic; rows are not persisted
 │   ├── StatusBarManager.swift    # Menu bar icon (NSStatusItem + NSPopover)
 │   └── UpdateManager.swift       # Sparkle auto-updates
 ├── Models/
@@ -72,7 +72,7 @@ Juggler/
 │   ├── Session.swift             # Session data model
 │   ├── SessionState.swift        # idle, working, permission, backburner, compacting
 │   ├── TerminalType.swift        # Terminal app abstraction (iTerm2, Kitty, WezTerm, Ghostty - Ghostty recognized but no bridge yet)
-│   └── ...                       # AppConstants, AppStorageKeys, BeaconPosition/PositionCalculator/Size/Anchor, ConfigValidator, DailyStatsStore, SessionStatsCalculator, SessionTitleMode, StatsBarLayout
+│   └── ...                       # AppConstants, AppStorageKeys, BeaconPosition/PositionCalculator/Size/Anchor, ConfigValidator, DailyStatsStore, HiddenBindingStore, SessionStatsCalculator, SessionTitleMode, StatsBarLayout
 ├── Services/
 │   ├── HookServer.swift          # HTTP server receiving hooks (/hook, /kitty-event)
 │   ├── iTerm2Bridge.swift        # Unix socket communication with Python daemon
@@ -80,7 +80,7 @@ Juggler/
 │   ├── WezTermBridge.swift       # WezTerm integration via wezterm cli (activation + gone-cleanup only)
 │   ├── TerminalBridge.swift      # Terminal abstraction protocol + TerminalActivation
 │   ├── TerminalBridgeRegistry.swift  # Bridge registration and lifecycle
-│   └── ...                       # CodexHooksInstaller, AntigravityHooksInstaller, OpenCodePluginInstaller, PiExtensionInstaller, ScriptInstaller, ConfigFileWriter (agent integration installers)
+│   └── ...                       # CodexHooksInstaller, AntigravityHooksInstaller, OpenCodePluginInstaller, PiExtensionInstaller, ScriptInstaller, ConfigFileWriter (agent integration installers), HooklinesinkerClient, SessionReset
 ├── Views/
 │   ├── AboutView.swift           # About window
 │   ├── BeaconContentView.swift   # Beacon overlay content

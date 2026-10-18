@@ -4,11 +4,8 @@ import Testing
 
 @Suite("DailyStatsStore")
 struct DailyStatsStoreTests {
-    /// A throwaway UserDefaults suite so tests never touch real app data.
-    private func freshStore() -> (DailyStatsStore, UserDefaults) {
-        let suiteName = "DailyStatsStoreTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+    private func freshStore(function: String = #function) -> (DailyStatsStore, UserDefaults) {
+        let defaults = TestDefaults.fresh(function: function)
         return (DailyStatsStore(defaults: defaults), defaults)
     }
 
@@ -67,9 +64,7 @@ struct DailyStatsStoreTests {
     }
 
     @Test func persistence_survivesReload() {
-        let suiteName = "DailyStatsStoreTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = TestDefaults.fresh()
         let day = Date()
 
         let store1 = DailyStatsStore(defaults: defaults)
@@ -81,9 +76,7 @@ struct DailyStatsStoreTests {
 
     @Test func init_loadsArbitrarilyOldEntries() {
         // Historical entries are kept indefinitely — no retention/pruning.
-        let suiteName = "DailyStatsStoreTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = TestDefaults.fresh()
 
         let cal = Calendar.current
         let veryOldDay = cal.date(byAdding: .day, value: -400, to: Date())!

@@ -116,6 +116,16 @@ HOOKLINESINKER_DIST=/path/to/hooklinesinker/dist just build
 just verify-hooklinesinker
 ```
 
+To try an unreleased hooklinesinker CLI change against a Debug build, run `just refresh-active`
+in the hooklinesinker checkout. It rebuilds and overwrites the active shared binary, which Juggler
+runs for every CLI call. `HOOKLINESINKER_DIST` alone does not reach it while the version number is
+unchanged, because promotion reuses an equal version. Other consumers, such as ringleader, run the
+refreshed binary too.
+
+A Juggler change that calls a new hooklinesinker command needs that command in a published
+release before Juggler ships: release hooklinesinker, run `just update-hooklinesinker <version>`,
+then release Juggler. Settings → General → Reset Sessions (`sessions reset`) is one such change.
+
 `HOOKLINESINKER_DIST` accepts a directory containing the universal artifact and its manifest;
 a thin binary supplied through that override is rejected. CI test jobs build both architectures
 from the pinned source revision. Archives, release preparation and the release workflow always fetch the published artifact,

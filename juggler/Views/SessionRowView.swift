@@ -97,7 +97,7 @@ struct SessionRowView: View {
             Divider()
 
             Button("Remove", role: .destructive) {
-                sessionManager.removeSession(sessionID: session.id)
+                sessionManager.dismissSession(sessionID: session.id)
             }
         }
     }

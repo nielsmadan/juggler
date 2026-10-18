@@ -372,11 +372,21 @@ actor HookServer {
     /// path live events take. Records whose binding already arrived live are skipped, so a
     /// stored snapshot can never overwrite a fresher event or duplicate its row.
     func hydrate(_ statuses: [HooklinesinkerStatus]) async {
+        let hiddenByUser = await MainActor.run {
+            Set(statuses.filter { sessionManager.isHiddenFromHydration($0) }.map(\.bindingId))
+        }
         for status in statuses where status.running {
-            guard !bindingsHandledLive.contains(status.bindingId) else {
+            let skipReason: String? = if bindingsHandledLive.contains(status.bindingId) {
+                "already seen live"
+            } else if hiddenByUser.contains(status.bindingId) {
+                "the user removed"
+            } else {
+                nil
+            }
+            if let skipReason {
                 let event = logSafe(status.event)
                 await MainActor.run {
-                    logDebug(.hooks, "Skipping hydration for binding already seen live: \(event)")
+                    logDebug(.hooks, "Skipping hydration for binding \(skipReason): \(event)")
                 }
                 continue
             }
@@ -384,6 +394,16 @@ actor HookServer {
         }
         hasHydrated = true
         bindingsHandledLive.removeAll()
+    }
+
+    /// Hydrates from a snapshot, then drops hidden bindings it no longer lists. A snapshot that
+    /// may have missed ledger records keeps them all, since a dropped binding would reappear.
+    func hydrate(from snapshot: HooklinesinkerSessions) async {
+        await hydrate(snapshot.statuses)
+        guard snapshot.listsEveryLedgerRecord else { return }
+        await MainActor.run {
+            sessionManager.pruneHiddenBindings(keeping: Set(snapshot.statuses.map(\.bindingId)))
+        }
     }
 
     /// Only matters until hydration has run, so the set is dropped afterwards rather than
@@ -469,7 +489,8 @@ actor HookServer {
                 gitBranch: status.git?.branch,
                 gitRepoName: status.git?.repo,
                 transcriptPath: status.session.transcriptPath,
-                remoteHost: status.remoteHost
+                remoteHost: status.remoteHost,
+                bindingID: status.bindingId
             )
         }
 

@@ -77,6 +77,9 @@ struct GeneralSettingsView: View {
     @State private var showingUninstallConfirm = false
     @State private var showingUninstallSummary = false
     @State private var uninstallSummary = ""
+    @State private var showingResetSessionsConfirm = false
+    @State private var isResettingSessions = false
+    @State private var resetSessionsError: String?
 
     private var statsBarColor: Binding<Color> {
         Binding(
@@ -166,6 +169,24 @@ struct GeneralSettingsView: View {
                 Toggle("Go to next session on backburner", isOn: $goToNextOnBackburner)
             }
 
+            Section("Sessions") {
+                Text(
+                    "Clears every tracked session and rebuilds the list from live activity. Working sessions reappear within seconds; idle sessions reappear the next time they run."
+                )
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                HStack {
+                    Button("Reset Sessions...") {
+                        showingResetSessionsConfirm = true
+                    }
+                    .disabled(isResettingSessions)
+                    if isResettingSessions {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+            }
+
             Section("Uninstall") {
                 Text(
                     "Removes all integrations (Claude Code hooks, Kitty watcher, OpenCode plugin, Pi extension, Antigravity hooks), resets Automation permission, clears settings, and quits the app."
@@ -194,6 +215,27 @@ struct GeneralSettingsView: View {
         } message: {
             Text("This will remove all integrations, permissions, and settings. You can then delete the app.")
         }
+        .alert("Reset Sessions?", isPresented: $showingResetSessionsConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) {
+                Task { await resetSessions() }
+            }
+        } message: {
+            Text(
+                "This clears the sessions hooklinesinker tracks for Juggler and any other app that uses it. Sessions come back as they report activity."
+            )
+        }
+        .alert(
+            "Couldn't Reset Sessions",
+            isPresented: Binding(
+                get: { resetSessionsError != nil },
+                set: { if !$0 { resetSessionsError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(resetSessionsError ?? "")
+        }
         .alert("Uninstall Complete", isPresented: $showingUninstallSummary) {
             Button("Quit") {
                 NSApp.terminate(nil)
@@ -205,6 +247,16 @@ struct GeneralSettingsView: View {
 
     private var bundleId: String {
         Bundle.main.bundleIdentifier ?? "com.nielsmadan.Juggler"
+    }
+
+    private func resetSessions() async {
+        isResettingSessions = true
+        defer { isResettingSessions = false }
+        do {
+            try await SessionReset.run()
+        } catch {
+            resetSessionsError = error.localizedDescription
+        }
     }
 
     private func performUninstall() async -> String {

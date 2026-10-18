@@ -2908,11 +2908,8 @@ struct SessionManagerTests {
 
     // MARK: - Daily stats: rollover & terminate-commit
 
-    private func freshStatsManager() -> (SessionManager, DailyStatsStore) {
-        let suiteName = "SessionManagerStats-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        let store = DailyStatsStore(defaults: defaults)
+    private func freshStatsManager(function: String = #function) -> (SessionManager, DailyStatsStore) {
+        let store = DailyStatsStore(defaults: TestDefaults.fresh(function: function))
         return (SessionManager(dailyStats: store), store)
     }
 
@@ -3031,9 +3028,7 @@ struct SessionManagerTests {
     }
 
     @Test func restart_persistsDailyStats_butSessionsStartFresh() {
-        let suiteName = "SessionManagerRestart-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = TestDefaults.fresh()
 
         // "Pre-restart": seed the store with today's bucket.
         let store1 = DailyStatsStore(defaults: defaults)
@@ -3052,5 +3047,102 @@ struct SessionManagerTests {
         let session = makeSession("s1", state: .idle)
         manager.testSetSessions([session])
         #expect(manager.sessions[0].busyTimeToday == 0)
+    }
+}
+
+@Suite("SessionManager dismissal")
+struct SessionManagerDismissalTests {
+    private let dismissedAt = TestFixtures.date("2026-09-04T12:00:30Z")
+    private let beforeDismissal = TestFixtures.date("2026-09-04T12:00:00Z")
+
+    @MainActor
+    private func add(
+        _ manager: SessionManager,
+        terminal: String,
+        agentSession: String = "native",
+        state: SessionState = .idle,
+        binding: String
+    ) {
+        manager.addOrUpdateSession(
+            claudeSessionID: agentSession,
+            terminalSessionID: terminal,
+            projectPath: "/test/project",
+            state: state,
+            bindingID: binding
+        )
+    }
+
+    @Test @MainActor func dismissSessionHidesEveryBindingTheRowCarried() {
+        let hidden = HiddenBindingStore(defaults: TestDefaults.fresh())
+        let manager = TestFixtures.isolatedSessionManager(hiddenBindings: hidden)
+        add(manager, terminal: "s1", agentSession: "first", binding: "b1")
+        add(manager, terminal: "s1", agentSession: "second", binding: "b2")
+
+        manager.dismissSession(sessionID: "s1", now: dismissedAt)
+
+        #expect(manager.sessions.isEmpty)
+        #expect(hidden.hides("b1", observedAt: beforeDismissal))
+        #expect(hidden.hides("b2", observedAt: beforeDismissal))
+    }
+
+    @Test @MainActor func aNewEventForADismissedBindingBringsTheRowBackAndRevealsIt() {
+        let hidden = HiddenBindingStore(defaults: TestDefaults.fresh())
+        let manager = TestFixtures.isolatedSessionManager(hiddenBindings: hidden)
+        add(manager, terminal: "s1", binding: "b1")
+        manager.dismissSession(sessionID: "s1", now: dismissedAt)
+
+        add(manager, terminal: "s1", state: .working, binding: "b1")
+
+        #expect(manager.sessions.map(\.id) == ["s1"])
+        #expect(manager.sessions[0].hooklinesinkerBindingIDs == ["b1"])
+        #expect(hidden.hides("b1", observedAt: beforeDismissal) == false)
+    }
+
+    @Test @MainActor func automaticRemovalDoesNotHideTheBinding() {
+        let hidden = HiddenBindingStore(defaults: TestDefaults.fresh())
+        let manager = TestFixtures.isolatedSessionManager(hiddenBindings: hidden)
+        add(manager, terminal: "s1", binding: "b1")
+
+        manager.removeSession(sessionID: "s1")
+
+        #expect(hidden.hides("b1", observedAt: beforeDismissal) == false)
+    }
+
+    @Test @MainActor func clearAllSessionsClearsRowsFocusCyclingAndHiddenBindings() {
+        let hidden = HiddenBindingStore(defaults: TestDefaults.fresh())
+        let manager = TestFixtures.isolatedSessionManager(hiddenBindings: hidden)
+        add(manager, terminal: "s1", binding: "b1")
+        add(manager, terminal: "s2", binding: "b2")
+        add(manager, terminal: "s3", binding: "b3")
+        manager.dismissSession(sessionID: "s3", now: dismissedAt)
+        manager.testSetFocusedSessionID("s1")
+        _ = manager.cycleForward()
+        manager.testSetLastActiveSessionID("s2")
+        manager.recordLastNotification(sessionID: "s2")
+        #expect(manager.cyclingState != .initial)
+        #expect(manager.lastActiveSessionID == "s2")
+
+        manager.clearAllSessions()
+
+        #expect(manager.sessions.isEmpty)
+        #expect(manager.focusedSessionID == nil)
+        #expect(manager.lastActiveSessionID == nil)
+        #expect(manager.lastNotifiedSessionID == nil)
+        #expect(manager.cyclingState == .initial)
+        #expect(hidden.hides("b3", observedAt: beforeDismissal) == false)
+    }
+
+    @Test @MainActor func clearAllSessionsCommitsInProgressBusyTime() {
+        let stats = DailyStatsStore(defaults: TestDefaults.fresh("stats"))
+        let manager = TestFixtures.isolatedSessionManager(dailyStats: stats)
+        let now = Date()
+        add(manager, terminal: "s1", state: .working, binding: "b1")
+        var working = manager.sessions[0]
+        working.lastBecameWorking = now.addingTimeInterval(-60)
+        manager.testSetSessions([working])
+
+        manager.clearAllSessions(now: now)
+
+        #expect(stats.busySeconds(for: now) == 60)
     }
 }

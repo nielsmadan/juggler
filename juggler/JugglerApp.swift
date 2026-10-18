@@ -322,7 +322,7 @@ private func registerStatusConsumer() async {
 private func hydrateRunningSessions() async {
     do {
         let sessions = try await HooklinesinkerClient.shared.sessions()
-        await HookServer.shared.hydrate(sessions.statuses)
+        await HookServer.shared.hydrate(from: sessions)
         await MainActor.run {
             logInfo(.hooks, "Hydrated \(sessions.statuses.count) running session(s) from hooklinesinker")
             if sessions.skippedRecordCount > 0 {

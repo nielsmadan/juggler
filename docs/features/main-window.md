@@ -123,7 +123,7 @@ When window is focused (defaults shown; all configurable in Settings > Shortcuts
 
 ### Context Menu
 
-Row context menus live in the popover (right-click a session row); the monitor window uses the inline pencil button and keyboard shortcuts for rename / backburner / reactivate. Removing a session is available from the popover row context menu (Remove).
+Row context menus live in the popover (right-click a session row); the monitor window uses the inline pencil button and keyboard shortcuts for rename / backburner / reactivate. Removing a session is available from the popover row context menu (Remove); a removed session stays hidden, including after a restart, until it reports new activity.
 
 ## Window Behavior
 

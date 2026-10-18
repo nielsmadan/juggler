@@ -66,11 +66,19 @@ struct HooklinesinkerSessions: Sendable {
     /// Records the CLI returned that this build could not read (wrong protocol or unknown shape).
     let skippedRecordCount: Int
     let problems: [HooklinesinkerProblem]
+
+    /// Sink, ingest and sweep problems come from the health log; any other kind may mean the
+    /// ledger itself was only partly read.
+    var listsEveryLedgerRecord: Bool {
+        skippedRecordCount == 0
+            && problems.allSatisfy { ["sink", "ingest", "sweep"].contains($0.kind) }
+    }
 }
 
 struct HooklinesinkerProblem: Sendable, Equatable {
     let observedAt: String
     let message: String
+    var kind: String?
 
     /// Leads with when the problem was recorded (not when it was read), in compact local
     /// `yyyy-MM-dd HH:mm:ss` — sortable lexicographically and no UTC math — so a stale replay
@@ -188,26 +196,7 @@ struct HooklinesinkerClient: Sendable {
     }
 
     func hookStatus(agent: HooklinesinkerAgent) async throws -> HooklinesinkerHookStatus {
-        let result = await run(
-            executable: stableExecutablePath,
-            arguments: ["hooks", "status", "--agent", agent.rawValue, "--json"]
-        )
-        let command = "hooks status --agent \(agent.rawValue)"
-        guard result.isSuccess else {
-            throw HooklinesinkerClientError.commandFailed(
-                command: command, status: result.exitStatus, standardError: result.standardError
-            )
-        }
-        guard let root = try? JSONSerialization.jsonObject(
-            with: Data(result.standardOutput.utf8)
-        ) as? [String: Any] else {
-            throw HooklinesinkerClientError.malformedOutput(command: command, detail: "not a JSON object")
-        }
-        guard root["protocol"] as? Int == HooklinesinkerStatus.supportedProtocol else {
-            throw HooklinesinkerClientError.malformedOutput(
-                command: command, detail: "unsupported protocol \(root["protocol"] ?? "none")"
-            )
-        }
+        let (command, root) = try await envelope(["hooks", "status", "--agent", agent.rawValue, "--json"])
         guard let rawState = root["state"] as? String, let state = HooklinesinkerState(rawValue: rawState) else {
             throw HooklinesinkerClientError.malformedOutput(
                 command: command, detail: "unknown hook state \(root["state"] ?? "none")"
@@ -236,23 +225,7 @@ struct HooklinesinkerClient: Sendable {
     // MARK: - Session hydration
 
     func sessions() async throws -> HooklinesinkerSessions {
-        let result = await run(executable: stableExecutablePath, arguments: ["sessions", "--json"])
-        let command = "sessions --json"
-        guard result.isSuccess else {
-            throw HooklinesinkerClientError.commandFailed(
-                command: command, status: result.exitStatus, standardError: result.standardError
-            )
-        }
-        guard let root = try? JSONSerialization.jsonObject(
-            with: Data(result.standardOutput.utf8)
-        ) as? [String: Any] else {
-            throw HooklinesinkerClientError.malformedOutput(command: command, detail: "not a JSON object")
-        }
-        guard root["protocol"] as? Int == HooklinesinkerStatus.supportedProtocol else {
-            throw HooklinesinkerClientError.malformedOutput(
-                command: command, detail: "unsupported protocol \(root["protocol"] ?? "none")"
-            )
-        }
+        let (_, root) = try await envelope(["sessions", "--json"])
 
         let raw = root["sessions"] as? [[String: Any]] ?? []
         var statuses: [HooklinesinkerStatus] = []
@@ -269,12 +242,46 @@ struct HooklinesinkerClient: Sendable {
 
         let problems = (root["problems"] as? [[String: Any]] ?? []).compactMap { p -> HooklinesinkerProblem? in
             guard let message = p["message"] as? String else { return nil }
-            return HooklinesinkerProblem(observedAt: p["observedAt"] as? String ?? "", message: message)
+            return HooklinesinkerProblem(
+                observedAt: p["observedAt"] as? String ?? "",
+                message: message,
+                kind: (p["kind"] as? [String: Any])?["type"] as? String
+            )
         }
         return HooklinesinkerSessions(statuses: statuses, skippedRecordCount: skipped, problems: problems)
     }
 
+    func resetSessions() async throws -> Int {
+        let (command, root) = try await envelope(["sessions", "reset", "--json"])
+        guard let removed = root["removed"] as? Int else {
+            throw HooklinesinkerClientError.malformedOutput(command: command, detail: "missing removed count")
+        }
+        return removed
+    }
+
     // MARK: - Process plumbing
+
+    /// Runs a command whose stdout is a versioned JSON envelope, returning its label and root object.
+    private func envelope(_ arguments: [String]) async throws -> (command: String, root: [String: Any]) {
+        let command = arguments.joined(separator: " ")
+        let result = await run(executable: stableExecutablePath, arguments: arguments)
+        guard result.isSuccess else {
+            throw HooklinesinkerClientError.commandFailed(
+                command: command, status: result.exitStatus, standardError: result.standardError
+            )
+        }
+        guard let root = try? JSONSerialization.jsonObject(
+            with: Data(result.standardOutput.utf8)
+        ) as? [String: Any] else {
+            throw HooklinesinkerClientError.malformedOutput(command: command, detail: "not a JSON object")
+        }
+        guard root["protocol"] as? Int == HooklinesinkerStatus.supportedProtocol else {
+            throw HooklinesinkerClientError.malformedOutput(
+                command: command, detail: "unsupported protocol \(root["protocol"] ?? "none")"
+            )
+        }
+        return (command, root)
+    }
 
     /// Prefer the promoted binary; fall back to the bundled one so a first run (or a wiped
     /// data root) still reports a real CLI error instead of "not found".

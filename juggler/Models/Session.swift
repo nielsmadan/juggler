@@ -41,6 +41,8 @@ struct Session: Identifiable, Codable, Equatable {
     // on its next `working` event only if it was shelved while awaiting the user.
     var wasAwaitingUserBeforeBackburner = false
 
+    var hooklinesinkerBindingIDs: Set<String> = []
+
     var agentShortName: String {
         switch agent {
         case "opencode": "OC"

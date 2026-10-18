@@ -95,6 +95,7 @@ enum TestFixtures {
         event: String = "SessionStart",
         phase: String = "idle",
         running: Bool = true,
+        observedAt: String = "2026-09-04T12:00:00Z",
         sessionID: String = "native-session",
         cwd: String = "/test/project",
         transcriptPath: String? = nil,
@@ -113,7 +114,7 @@ enum TestFixtures {
             "\"event\":\(quoted(event))",
             "\"phase\":\(quoted(phase))",
             "\"running\":\(running)",
-            "\"observedAt\":\"2026-09-04T12:00:00Z\"",
+            "\"observedAt\":\(quoted(observedAt))",
             "\"session\":{\"id\":\(quoted(sessionID)),\"cwd\":\(quoted(cwd)),"
                 + "\"transcriptPath\":\(optionalQuoted(transcriptPath))}",
             "\"process\":{\"pid\":4242,\"startedAt\":\"2026-09-04T11:00:00Z\",\"host\":\"test-host\"}"
@@ -175,4 +176,41 @@ func makeSession(_ id: String, state: SessionState = .idle) -> Session {
         state: state,
         startedAt: Date()
     )
+}
+
+enum TestDefaults {
+    /// An empty UserDefaults suite named after the calling test, so tests never touch real app data
+    /// and each test reuses one suite instead of leaving a new preferences file behind every run.
+    static func fresh(
+        _ label: String = "",
+        fileID: String = #fileID,
+        function: String = #function
+    ) -> UserDefaults {
+        let caller = "\(fileID).\(function).\(label)".filter { $0.isLetter || $0.isNumber || $0 == "." }
+        let suiteName = "JugglerTests.\(caller)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        return defaults
+    }
+}
+
+extension TestFixtures {
+    static func date(_ iso8601: String) -> Date {
+        try! Date(iso8601, strategy: .iso8601)
+    }
+
+    @MainActor
+    static func isolatedSessionManager(
+        hiddenBindings: HiddenBindingStore? = nil,
+        dailyStats: DailyStatsStore? = nil,
+        fileID: String = #fileID,
+        function: String = #function
+    ) -> SessionManager {
+        SessionManager(
+            dailyStats: dailyStats
+                ?? DailyStatsStore(defaults: TestDefaults.fresh("stats", fileID: fileID, function: function)),
+            hiddenBindings: hiddenBindings
+                ?? HiddenBindingStore(defaults: TestDefaults.fresh("hidden", fileID: fileID, function: function))
+        )
+    }
 }

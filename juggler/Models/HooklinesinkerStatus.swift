@@ -69,6 +69,10 @@ nonisolated struct HooklinesinkerStatus: Sendable {
     var resolvedTerminalType: TerminalType {
         terminal?.terminalType.flatMap(TerminalType.init(rawValue:)) ?? .iterm2
     }
+
+    var observedDate: Date? {
+        try? Date(observedAt, strategy: .iso8601)
+    }
 }
 
 /// `unknown` is carried for diagnostics but never cycles a session — see `sessionState`.

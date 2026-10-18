@@ -84,7 +84,7 @@ When popover is focused:
 
 - **Rename**: Set custom display name
 - **Backburner** / **Reactivate**: Toggle backburner state
-- **Remove**: Remove session from tracking
+- **Remove**: Remove session from tracking. It stays hidden, including after a restart, until it reports new activity
 
 ## Shortcut Hints
 

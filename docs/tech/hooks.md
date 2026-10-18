@@ -83,6 +83,40 @@ which started before Juggler launched appear. Records whose binding already arri
 that startup window are skipped, so nothing is doubled and a session that ended between the
 snapshot and the replay is not resurrected.
 
+Records the user removed are skipped too. **Remove** in a row's context menu
+(`SessionManager.dismissSession`) hides every hooklinesinker binding the row carried, with the
+removal time, in `HiddenBindingStore` (UserDefaults key `hiddenSessionBindings`). Hydration skips
+such a binding unless its record's `observedAt` is later than the removal, which catches activity
+Juggler missed while it was not running. `observedAt` has whole-second resolution, so activity
+missed in the same second as the removal stays hidden until the next event. Any live `running`
+status for the binding reveals it and brings the row back, whatever its timestamp. Automatic
+removals (terminal closed, session ended, tmux detached) hide nothing.
+
+`HookServer.hydrate(from:)` prunes hidden bindings the snapshot no longer lists, but only when
+the snapshot read the whole ledger: no skipped records and no problems other than sink, ingest
+or sweep entries from the health log. A ledger that could not be read comes back as an empty
+list with a problem, and pruning on it would bring every dismissed row back at the next launch.
+
+Hiding lives in Juggler rather than in hooklinesinker because the ledger is shared: deleting a
+binding's record there would hide the session from every consumer, and the next hook would
+recreate it anyway.
+
+### Reset Sessions
+
+Settings → General → Reset Sessions runs `sessions reset --json` through
+`HooklinesinkerClient.resetSessions()`, then `SessionManager.clearAllSessions()` clears the rows,
+focus, cycling state and hidden bindings after committing in-progress busy time
+(`SessionReset.run`). hooklinesinker sends a `swept` event only for dead sessions and nothing
+for live ones, so clearing the rows is Juggler's job. If the command exits nonzero, Juggler clears nothing and shows its stderr: rows
+cleared while the ledger kept their records would come back at the next launch. A reset that
+removed some records before failing on others leaves the rows of the removed ones until their
+next event. The reset wipes the local ledger shared with every hooklinesinker consumer; sessions
+on SSH hosts keep their remote ledgers and reappear with their next event.
+
+`sessions reset` first ships in a hooklinesinker release after 1.1.0. A Juggler build pinned to
+1.1.0 shows the CLI's usage error instead, so the pin has to be bumped
+(`just update-hooklinesinker`) before a Juggler release that includes Reset Sessions.
+
 ### HookServer constraints
 
 - Port: `7483` (overridable via `$JUGGLER_PORT`). The sink Juggler registers uses the same
@@ -182,6 +216,7 @@ hls=~/.local/share/hooklinesinker/bin/hooklinesinker
 
 $hls doctor                                  # version, hook drift, ledger faults
 $hls sessions --json                         # what Juggler hydrates from
+$hls sessions reset                         # what Reset Sessions runs (clears the ledger)
 $hls hooks status --agent claude --json      # registration + the exact commands
 $hls consumers --json                        # who else shares these hooks
 

@@ -1597,6 +1597,122 @@ struct HookServerStatusTests {
         #expect(manager.sessions.isEmpty)
     }
 
+    private static let hiddenAt = TestFixtures.date("2026-09-04T12:00:30Z")
+    private static let beforeHiding = TestFixtures.date("2026-09-04T12:00:00Z")
+
+    private static func hiding(_ bindingIDs: Set<String>, function: String = #function) -> HiddenBindingStore {
+        let store = HiddenBindingStore(defaults: TestDefaults.fresh("hidden", function: function))
+        store.hide(bindingIDs, at: hiddenAt)
+        return store
+    }
+
+    @Test @MainActor func hydrationSkipsABindingTheUserRemoved() async throws {
+        let hidden = Self.hiding(["b1"])
+        let manager = TestFixtures.isolatedSessionManager(hiddenBindings: hidden)
+        let server = HookServer(sessionManager: manager)
+
+        try await server.hydrate(Self.decodeAll([
+            TestFixtures.statusJSON(bindingId: "b1", observedAt: "2026-09-04T12:00:00Z", terminalSessionID: "s1")
+        ]))
+
+        #expect(manager.sessions.isEmpty)
+        #expect(hidden.hides("b1", observedAt: Self.beforeHiding))
+    }
+
+    @Test @MainActor func hydrationRestoresARemovedBindingThatReportedActivityAfterTheRemoval() async throws {
+        let hidden = Self.hiding(["b1"])
+        let manager = TestFixtures.isolatedSessionManager(hiddenBindings: hidden)
+        let server = HookServer(sessionManager: manager)
+
+        try await server.hydrate(Self.decodeAll([
+            TestFixtures.statusJSON(bindingId: "b1", observedAt: "2026-09-04T12:01:00Z", terminalSessionID: "s1")
+        ]))
+
+        #expect(manager.sessions.map(\.id) == ["s1"])
+        #expect(hidden.hides("b1", observedAt: Self.beforeHiding) == false)
+    }
+
+    @Test @MainActor func liveStatusForARemovedBindingBringsTheRowBack() async {
+        let hidden = Self.hiding(["b1"])
+        let manager = TestFixtures.isolatedSessionManager(hiddenBindings: hidden)
+        let server = HookServer(sessionManager: manager)
+
+        await server.handleStatusForTesting(
+            TestFixtures.statusJSON(
+                bindingId: "b1", phase: "working", observedAt: "2026-09-04T12:00:00Z", terminalSessionID: "s1"
+            )
+        )
+
+        #expect(manager.sessions.map(\.id) == ["s1"])
+        #expect(hidden.hides("b1", observedAt: Self.beforeHiding) == false)
+    }
+
+    @Test @MainActor func hydrationRestoresOtherBindingsWhenOneWasRemoved() async throws {
+        let manager = TestFixtures.isolatedSessionManager(hiddenBindings: Self.hiding(["b1"]))
+        let server = HookServer(sessionManager: manager)
+
+        try await server.hydrate(Self.decodeAll([
+            TestFixtures.statusJSON(bindingId: "b1", terminalSessionID: "s1"),
+            TestFixtures.statusJSON(bindingId: "b2", terminalSessionID: "s2")
+        ]))
+
+        #expect(manager.sessions.map(\.id) == ["s2"])
+    }
+
+    @Test @MainActor func aDismissedRowStaysHiddenAtTheNextHydration() async throws {
+        let hidden = HiddenBindingStore(defaults: TestDefaults.fresh("hidden"))
+        let manager = TestFixtures.isolatedSessionManager(hiddenBindings: hidden)
+        let snapshot = try Self.decodeAll([
+            TestFixtures.statusJSON(bindingId: "ghost", observedAt: "2026-09-04T12:00:00Z", terminalSessionID: "s1")
+        ])
+        await HookServer(sessionManager: manager).hydrate(snapshot)
+        manager.dismissSession(sessionID: "s1", now: Self.hiddenAt)
+
+        await HookServer(sessionManager: manager).hydrate(snapshot)
+
+        #expect(manager.sessions.isEmpty)
+        #expect(hidden.hides("ghost", observedAt: Self.beforeHiding))
+    }
+
+    @Test @MainActor func snapshotHydrationPrunesHiddenBindingsTheLedgerNoLongerLists() async throws {
+        let hidden = Self.hiding(["listed", "gone"])
+        let server = HookServer(sessionManager: TestFixtures.isolatedSessionManager(hiddenBindings: hidden))
+        let snapshot = try HooklinesinkerSessions(
+            statuses: Self.decodeAll([TestFixtures.statusJSON(bindingId: "listed", terminalSessionID: "s1")]),
+            skippedRecordCount: 0,
+            problems: [HooklinesinkerProblem(observedAt: "", message: "sink juggler failed", kind: "sink")]
+        )
+
+        await server.hydrate(from: snapshot)
+
+        #expect(hidden.hides("listed", observedAt: Self.beforeHiding))
+        #expect(hidden.hides("gone", observedAt: Self.beforeHiding) == false)
+    }
+
+    @Test(arguments: [
+        HooklinesinkerSessions(
+            statuses: [],
+            skippedRecordCount: 0,
+            problems: [HooklinesinkerProblem(observedAt: "", message: "failed to read running sessions", kind: "other")]
+        ),
+        HooklinesinkerSessions(
+            statuses: [],
+            skippedRecordCount: 0,
+            problems: [HooklinesinkerProblem(observedAt: "", message: "failed to read running sessions", kind: nil)]
+        ),
+        HooklinesinkerSessions(statuses: [], skippedRecordCount: 1, problems: [])
+    ])
+    @MainActor func snapshotHydrationKeepsHiddenBindingsWhenTheLedgerWasNotFullyRead(
+        _ snapshot: HooklinesinkerSessions
+    ) async {
+        let hidden = Self.hiding(["ghost"])
+        let server = HookServer(sessionManager: TestFixtures.isolatedSessionManager(hiddenBindings: hidden))
+
+        await server.hydrate(from: snapshot)
+
+        #expect(hidden.hides("ghost", observedAt: Self.beforeHiding))
+    }
+
     private static func decodeAll(_ bodies: [String]) throws -> [HooklinesinkerStatus] {
         try bodies.map { try JSONDecoder().decode(HooklinesinkerStatus.self, from: Data($0.utf8)) }
     }

@@ -84,6 +84,7 @@ file list.
 |------|----------|-------------|
 | Sessions | In-memory | None (populated by hooks) |
 | Settings | `~/Library/Preferences/dev.juggler.Juggler.plist` | @AppStorage |
+| Hidden session bindings | Same plist, key `hiddenSessionBindings` | `HiddenBindingStore` (binding → removal time) |
 
 ## Technical Decisions
 

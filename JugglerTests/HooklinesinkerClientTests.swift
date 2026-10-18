@@ -220,6 +220,59 @@ struct HooklinesinkerClientTests {
         }
     }
 
+    @Test func sessionsReadsEachProblemsKind() async throws {
+        let stub = try HooklinesinkerStub.make(stdout: """
+        {"protocol":1,"sessions":[],"problems":[\
+        {"observedAt":"2026-09-04T12:00:00Z","message":"sink juggler failed","kind":{"type":"sink","consumer":"juggler"}},\
+        {"observedAt":"2026-09-04T12:00:00Z","message":"legacy"}]}
+        """)
+        defer { stub.remove() }
+
+        let sessions = try await stub.client.sessions()
+
+        #expect(sessions.problems.map(\.kind) == ["sink", nil])
+    }
+
+    // MARK: - Reset
+
+    @Test func resetSessionsRunsTheResetCommandAndReturnsTheRemovedCount() async throws {
+        let stub = try HooklinesinkerStub.make(stdout: #"{"protocol":1,"removed":3,"problems":[]}"#)
+        defer { stub.remove() }
+
+        let removed = try await stub.client.resetSessions()
+
+        #expect(stub.recordedArguments == [["sessions", "reset", "--json"]])
+        #expect(removed == 3)
+    }
+
+    @Test func resetSessionsSurfacesTheCLIErrorWhenTheCommandIsUnknown() async throws {
+        let stderr = "error: unrecognized subcommand 'reset'"
+        let stub = try HooklinesinkerStub.make(stderr: stderr, status: 2)
+        defer { stub.remove() }
+
+        await #expect(throws: HooklinesinkerClientError.commandFailed(
+            command: "sessions reset --json", status: 2, standardError: stderr
+        )) {
+            try await stub.client.resetSessions()
+        }
+    }
+
+    @Test(arguments: [
+        (#"{"protocol":2,"removed":3,"problems":[]}"#, "unsupported protocol 2"),
+        ("removed 3 session records", "not a JSON object"),
+        (#"{"protocol":1,"problems":[]}"#, "missing removed count")
+    ])
+    func resetSessionsRejectsOutputItCannotRead(stdout: String, detail: String) async throws {
+        let stub = try HooklinesinkerStub.make(stdout: stdout)
+        defer { stub.remove() }
+
+        await #expect(throws: HooklinesinkerClientError.malformedOutput(
+            command: "sessions reset --json", detail: detail
+        )) {
+            try await stub.client.resetSessions()
+        }
+    }
+
     @Test func outputIsCapturedInFullUpToTheCap() async throws {
         let payload = String(repeating: "x", count: 4096)
         let stub = try HooklinesinkerStub.make(stdout: payload)

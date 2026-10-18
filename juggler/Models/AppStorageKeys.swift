@@ -17,6 +17,7 @@ nonisolated enum AppStorageKeys {
 
     static let enableStats = "enableStats"
     static let dailyBusyStats = "dailyBusyStats"
+    static let hiddenSessionBindings = "hiddenSessionBindings"
     static let statsUseCyclingColors = "statsUseCyclingColors"
     static let statsBarColorRed = "statsBarColorRed"
     static let statsBarColorGreen = "statsBarColorGreen"

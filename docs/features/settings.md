@@ -12,6 +12,7 @@ The Settings window is organized into tabs, each covering a distinct configurati
 - **Notifications**: Toggle idle notifications, permission notifications, and sound (see [Notifications](notification.md)).
 - **Stats**: Enable Stats (show the busy-time chart in the Session Monitor), plus the stats-bar color: "Use cycling colors" (per-day palette colors) or a custom bar color when off.
 - **Backburner**: "Go to next session on backburner" option for rapid triage.
+- **Sessions**: "Reset Sessions..." clears every tracked session, in Juggler and in the hooklinesinker ledger it shares with other apps, after a confirmation. The list rebuilds from live activity: working sessions reappear within seconds, idle ones the next time they run. If hooklinesinker cannot reset its ledger, the error is shown and nothing is cleared. Use it when the list shows sessions that are not real, for example two rows for one terminal pane.
 - **Uninstall**: Remove all integrations (Claude Code hooks, Kitty watcher, OpenCode plugin), reset the Automation permission, clear settings, and quit.
 
 Permission-first ordering, auto-advance, and auto-restart are toggled from the Session Monitor control bar (and

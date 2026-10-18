@@ -19,6 +19,8 @@ final class SessionManager {
     /// Persisted per-day busy-time totals. Fed by state transitions and rollover.
     let dailyStats: DailyStatsStore
 
+    private let hiddenBindings: HiddenBindingStore
+
     /// Start-of-day of the last day we observed, for detecting midnight rollover.
     private var lastSeenDay: Date
 
@@ -193,9 +195,13 @@ final class SessionManager {
         }
     }
 
-    init(dailyStats: DailyStatsStore = DailyStatsStore()) {
+    init(
+        dailyStats: DailyStatsStore = DailyStatsStore(),
+        hiddenBindings: HiddenBindingStore = HiddenBindingStore()
+    ) {
         cyclingEngine = DefaultCyclingEngine()
         self.dailyStats = dailyStats
+        self.hiddenBindings = hiddenBindings
         lastSeenDay = Calendar.current.startOfDay(for: Date())
         Self.migrateLegacyQueueOrderModeValues(in: .standard)
     }
@@ -392,8 +398,7 @@ final class SessionManager {
     /// Best-effort commit of in-progress busy time, e.g. on app termination.
     /// For each still-working session, commits the elapsed turn and clears the
     /// working clock so it can't be double-counted.
-    func commitInProgressBusyTime() {
-        let now = Date()
+    func commitInProgressBusyTime(now: Date = Date()) {
         for index in sessions.indices {
             let isBusy = sessions[index].state == .working || sessions[index].state == .compacting
             guard isBusy, let lastBecameWorking = sessions[index].lastBecameWorking else { continue }
@@ -785,6 +790,13 @@ final class SessionManager {
         }
     }
 
+    private func refreshBindingsRevealingHidden(at index: Int, event: String?, bindingID: String?) {
+        applyLiveHostPaneBinding(at: index, event: event)
+        guard let bindingID else { return }
+        hiddenBindings.reveal(bindingID)
+        sessions[index].hooklinesinkerBindingIDs.insert(bindingID)
+    }
+
     @MainActor
     func addOrUpdateSession(
         claudeSessionID: String,
@@ -799,7 +811,8 @@ final class SessionManager {
         gitBranch: String? = nil,
         gitRepoName: String? = nil,
         transcriptPath: String? = nil,
-        remoteHost: String? = nil
+        remoteHost: String? = nil,
+        bindingID: String? = nil
     ) {
         let compositeID: String = if let pane = tmuxPane {
             "\(terminalSessionID):\(pane)"
@@ -810,9 +823,9 @@ final class SessionManager {
         if let index = sessions.firstIndex(where: { $0.id == compositeID }) {
             let oldState = sessions[index].state
 
-            // Keep the live host-pane binding fresh on every hook (before the backburner
+            // Keep the row's bindings fresh on every hook (before the backburner
             // early-return, so backburnered remote sessions stay reachable too).
-            applyLiveHostPaneBinding(at: index, event: event)
+            refreshBindingsRevealingHidden(at: index, event: event, bindingID: bindingID)
 
             // A new agent thread can take over a pane (Codex /new). Track whose thread the row
             // now represents, so a late SessionEnd from the previous one can be told apart.
@@ -887,7 +900,7 @@ final class SessionManager {
             }
             session.remoteHost = remoteHost?.isEmpty == true ? nil : remoteHost
             sessions.append(session)
-            applyLiveHostPaneBinding(at: sessions.count - 1, event: event)
+            refreshBindingsRevealingHidden(at: sessions.count - 1, event: event, bindingID: bindingID)
             // Reconcile against the stored (now-bound) element, not the local copy, so a
             // focus event that arrived before this remote session existed can resolve.
             reconcileFocus(forNewSession: sessions[sessions.count - 1])
@@ -993,6 +1006,38 @@ final class SessionManager {
         if lastNotifiedSessionID == sessionID {
             lastNotifiedSessionID = nil
         }
+    }
+
+    /// Removes the row and hides its bindings from hydration until they report new activity.
+    func dismissSession(sessionID: String, now: Date = Date()) {
+        if let session = sessions.first(where: { $0.id == sessionID }) {
+            hiddenBindings.hide(session.hooklinesinkerBindingIDs, at: now)
+            logInfo(
+                .session,
+                "Session dismissed: \(session.displayName); hiding \(session.hooklinesinkerBindingIDs.count) binding(s) until they report activity"
+            )
+        }
+        removeSession(sessionID: sessionID)
+    }
+
+    func isHiddenFromHydration(_ status: HooklinesinkerStatus) -> Bool {
+        hiddenBindings.hides(status.bindingId, observedAt: status.observedDate)
+    }
+
+    func pruneHiddenBindings(keeping bindingIDs: Set<String>) {
+        hiddenBindings.prune(keeping: bindingIDs)
+    }
+
+    /// Clears Juggler's rows only; `SessionReset` pairs it with clearing the ledger they hydrate from.
+    func clearAllSessions(now: Date = Date()) {
+        commitInProgressBusyTime(now: now)
+        sessions = []
+        focusedSessionID = nil
+        lastActiveSessionID = nil
+        lastNotifiedSessionID = nil
+        cyclingState = .initial
+        hiddenBindings.revealAll()
+        logInfo(.session, "Cleared all sessions")
     }
 
     /// Resolve the effective focus ID for cycling, consuming `lastActiveSessionID` as an anchor.
