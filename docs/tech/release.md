@@ -1,8 +1,10 @@
 # Releasing Juggler
 
-Run `just release` from a clean, current `main` checkout. It proposes a version from commits since
-the latest published tag, runs `just check`, and prompts for confirmation. Enter `y` to publish,
-enter a version or `patch`/`minor`/`major` to revise the proposal, or press Enter to cancel.
+Releases use [`curtains`](https://github.com/nielsmadan/curtaincall); install it first with
+`brew install nielsmadan/tap/curtaincall`. Run `just release` from a clean, current `main`
+checkout. It proposes a version from commits since the latest published tag, runs `just check`,
+and prompts for confirmation. Enter `y` to publish, enter a version or `patch`/`minor`/`major` to
+revise the proposal, or press Enter to cancel.
 
 ```sh
 just release
@@ -14,13 +16,15 @@ just release patch --yes
 
 `feat` proposes a minor bump, `fix`/`perf` a patch, and `!` or a `BREAKING CHANGE:` footer a major
 bump (minor during `0.x`). Maintenance-only changes require an explicit bump. `--dry-run` reads
-local and origin state and previews without running checks or publishing. `--yes` explicitly
-confirms unattended use; other nonterminal invocations fail.
+local and origin state and previews, but skips the tool check and every configured command,
+including checks and preparation. `--yes` explicitly confirms unattended use; other nonterminal
+invocations fail.
 
-Requirements: Python 3.9+, Git with repository push access, Just, and the tools used by `just check`.
-History must be complete, the latest local and origin version tags must agree, and the checkout must
-include origin's current `main`. The preview counts existing local commits that will be pushed.
-The check includes Xcode tests and can launch the test host app.
+Requirements: curtains, Python 3, Git 2.45+ with repository push access, Just, and the tools used by
+`just check`. History must be complete, and every `vMAJOR.MINOR.PATCH` tag must exist both locally
+and on origin and point to the same commit. Curtains never fetches: the fetched `origin/main` must
+be an ancestor of `HEAD`. The preview counts existing local commits that will be pushed. The check
+includes Xcode tests and can launch the test host app.
 
 Before confirmation, checks fetch and verify the published Hooklinesinker artifact, then run
 `just check`. A missing or draft Hooklinesinker release stops the command before any version
@@ -31,7 +35,7 @@ continue; an unavailable update service produces a warning as well.
 
 After confirmation, preparation commits the new Xcode marketing version, then commits both
 installer revision pins pointing to that version commit. This gives the installer an immutable
-source revision containing the new version. The command atomically pushes `main` and its annotated
+source revision containing the new version. Curtains atomically pushes `main` and its annotated
 tag, then prints workflow and release links and finishes. Publication runs asynchronously; local
 success confirms the Git push. GitHub builds, signs, notarizes, publishes the ZIP/DMG, updates the
 Homebrew cask, and updates the Sparkle appcast. CI uses `gh` to create the GitHub release record and
@@ -41,7 +45,7 @@ The appcast update adds a remote commit; incorporate it before the next release.
 `scripts/release.json` declares the checks and two preparation stages. A failed preparation or push
 leaves local changes/commits/tags for inspection. A failed GitHub workflow leaves the published tag
 in place; inspect its URL and resume or rerun the failed workflow after fixing the cause. Never
-replace a public tag.
+replace a public tag. Curtains does not automatically resume.
 
 ## Embedded Hooklinesinker
 

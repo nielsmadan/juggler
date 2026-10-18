@@ -295,4 +295,4 @@ clean-release:
 
 [positional-arguments]
 release *args:
-    python3 scripts/release.py "$@"
+    @curtains "$@"
