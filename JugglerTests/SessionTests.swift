@@ -707,6 +707,18 @@ struct SessionTests {
         #expect(session.displayName == "project")
     }
 
+    @Test func equalityTracksAgentTitleButNotVolatileDetails() {
+        let base = makeSession(agent: "claude-code")
+        var retitled = base
+        retitled.details.agentTitle = "Fix login"
+        var remodelled = base
+        remodelled.details.model = "claude-opus-5-5"
+        remodelled.turnCount = 3
+
+        #expect(base != retitled)
+        #expect(base == remodelled)
+    }
+
     private func makeSession(agent: String) -> Session {
         Session(
             claudeSessionID: "test",

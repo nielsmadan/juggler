@@ -32,6 +32,10 @@ nonisolated enum AppStorageKeys {
     static let monitorShowBranch = "monitorShowBranch"
     static let monitorReplaceHomeWithTilde = "monitorReplaceHomeWithTilde"
     static let monitorShowRenameButton = "monitorShowRenameButton"
+    static let monitorSlotTopLeading = "monitorSlotTopLeading"
+    static let monitorSlotTopTrailing = "monitorSlotTopTrailing"
+    static let monitorSlotBottomLeading = "monitorSlotBottomLeading"
+    static let monitorSlotBottomTrailing = "monitorSlotBottomTrailing"
 
     // Terminal highlighting
     static let useTerminalCyclingColors = "useTerminalCyclingColors"

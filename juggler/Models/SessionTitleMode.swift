@@ -6,6 +6,7 @@ enum SessionTitleMode: String, CaseIterable {
     case windowAndTabTitle
     case folderName
     case parentAndFolderName
+    case agentTitle
 
     static let `default`: SessionTitleMode = .parentAndFolderName
 
@@ -16,6 +17,7 @@ enum SessionTitleMode: String, CaseIterable {
         case .windowAndTabTitle: "Window / Tab Title"
         case .folderName: "Folder Name"
         case .parentAndFolderName: "Parent / Folder Name"
+        case .agentTitle: "Agent Session Title"
         }
     }
 }

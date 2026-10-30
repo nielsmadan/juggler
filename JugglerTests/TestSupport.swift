@@ -105,7 +105,9 @@ enum TestFixtures {
         tmuxSessionName: String? = nil,
         gitBranch: String? = nil,
         gitRepo: String? = nil,
-        remoteHost: String? = nil
+        remoteHost: String? = nil,
+        sessionExtras: String = "",
+        activity: String? = nil
     ) -> String {
         var fields: [String] = [
             "\"protocol\":1",
@@ -116,7 +118,7 @@ enum TestFixtures {
             "\"running\":\(running)",
             "\"observedAt\":\(quoted(observedAt))",
             "\"session\":{\"id\":\(quoted(sessionID)),\"cwd\":\(quoted(cwd)),"
-                + "\"transcriptPath\":\(optionalQuoted(transcriptPath))}",
+                + "\"transcriptPath\":\(optionalQuoted(transcriptPath))\(sessionExtras)}",
             "\"process\":{\"pid\":4242,\"startedAt\":\"2026-09-04T11:00:00Z\",\"host\":\"test-host\"}"
         ]
         if let terminalSessionID {
@@ -137,6 +139,9 @@ enum TestFixtures {
             )
         }
         fields.append("\"remoteHost\":\(optionalQuoted(remoteHost))")
+        if let activity {
+            fields.append("\"activity\":\(activity)")
+        }
         return "{\(fields.joined(separator: ","))}"
     }
 
@@ -196,7 +201,10 @@ enum TestDefaults {
 
 extension TestFixtures {
     static func date(_ iso8601: String) -> Date {
-        try! Date(iso8601, strategy: .iso8601)
+        guard let date = try? Date(iso8601, strategy: .iso8601) else {
+            preconditionFailure("invalid fixture date \(iso8601)")
+        }
+        return date
     }
 
     @MainActor

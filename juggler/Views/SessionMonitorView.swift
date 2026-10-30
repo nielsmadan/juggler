@@ -24,10 +24,9 @@ struct SessionMonitorView: View {
     @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode
         .default.rawValue
     @AppStorage(AppStorageKeys.controlBarHintDismissed) private var controlBarHintDismissed = false
-    @AppStorage(AppStorageKeys.monitorShowFolderPath) private var monitorShowFolderPath = true
-    @AppStorage(AppStorageKeys.monitorShowBranch) private var monitorShowBranch = true
     @AppStorage(AppStorageKeys.monitorReplaceHomeWithTilde) private var monitorReplaceHomeWithTilde = false
     @AppStorage(AppStorageKeys.monitorShowRenameButton) private var monitorShowRenameButton = true
+    private var rowSlotSettings = RowSlotSettings()
 
     private var titleMode: SessionTitleMode {
         SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .default
@@ -42,9 +41,9 @@ struct SessionMonitorView: View {
     @State private var controller = SessionListController()
     @State private var isMonitorWindowKey = false
     @State private var scrollTask: Task<Void, Never>?
-    /// Per-session Today-tab rendered width, captured via PreferenceKey so the
-    /// state badge can align its horizontal center with the tab's diagonal apex.
-    @State private var todayTabWidths: [String: CGFloat] = [:]
+    /// Per-session stats-corner widths, captured via PreferenceKey so the state badge can align
+    /// with the Today tab's diagonal apex and the slot grid can clear the corner.
+    @State private var cornerWidths: [String: BusyStatsCornerWidths] = [:]
 
     @Namespace private var sessionAnimation
 
@@ -143,7 +142,8 @@ struct SessionMonitorView: View {
                 logDebug(.navigation, "sessions changed (count=\(newSessions.count)) → syncSelection")
                 controller.syncSelection(sessions: newSessions)
                 let alive = Set(newSessions.map(\.id))
-                todayTabWidths = todayTabWidths.filter { alive.contains($0.key) }
+                let liveCornerWidths = cornerWidths.filter { alive.contains($0.key) }
+                if liveCornerWidths != cornerWidths { cornerWidths = liveCornerWidths }
             }
             .onAppear {
                 controller.ownerLabel = "Monitor"
@@ -466,10 +466,8 @@ struct SessionMonitorView: View {
                 )
             }
         }
-        .onPreferenceChange(TodayTabWidthKey.self) { width in
-            // Only write on an actual change — the dictionary feeds `stateBadgeOffset`,
-            // so an unconditional assignment re-invalidates layout every pass.
-            if width > 0, todayTabWidths[session.id] != width { todayTabWidths[session.id] = width }
+        .onPreferenceChange(BusyStatsCornerWidthsKey.self) { widths in
+            recordCornerWidths(widths, for: session.id)
         }
         .contentShape(Rectangle())
         .listRowBackground(
@@ -512,10 +510,8 @@ struct SessionMonitorView: View {
                 )
             }
         }
-        .onPreferenceChange(TodayTabWidthKey.self) { width in
-            // Only write on an actual change — the dictionary feeds `stateBadgeOffset`,
-            // so an unconditional assignment re-invalidates layout every pass.
-            if width > 0, todayTabWidths[session.id] != width { todayTabWidths[session.id] = width }
+        .onPreferenceChange(BusyStatsCornerWidthsKey.self) { widths in
+            recordCornerWidths(widths, for: session.id)
         }
         .contentShape(Rectangle())
         .onTapGesture {
@@ -533,87 +529,80 @@ struct SessionMonitorView: View {
         }
     }
 
+    // rowHorizontalPadding must equal the row's outer horizontal padding (List 0, ScrollView 16).
     @ViewBuilder
     private func sessionContent(_ session: Session, rowHorizontalPadding: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            sessionHeader(session, rowHorizontalPadding: rowHorizontalPadding)
-            sessionMetadata(session)
+        let widths = cornerWidths[session.id]
+        let todayTabWidth = widths?.todayTab ?? BusyStatsCornerLayout.estimatedTodayTabWidth
+        let slots = rowSlotSettings.slots
+        let reserves = SessionRowGeometry.slotReserves(
+            todayTabWidth: todayTabWidth,
+            cornerWidth: max(widths?.corner ?? 0, todayTabWidth),
+            statsEnabled: enableStats,
+            rowHorizontalPadding: rowHorizontalPadding
+        )
+        VStack(alignment: .leading, spacing: SessionMonitorRowLayout.titleToSlotsSpacing) {
+            sessionTitle(session)
+                .padding(.trailing, reserves.badge)
+            LiveSessionSlotGrid(
+                slots: slots,
+                resolve: { now in
+                    ResolvedSlotGrid.resolve(
+                        slots,
+                        session: session,
+                        now: now,
+                        abbreviateHome: monitorReplaceHomeWithTilde
+                    )
+                },
+                reserves: reserves
+            )
         }
-        .frame(minHeight: SessionMonitorRowLayout.contentMinHeight, alignment: .top)
+        .frame(maxWidth: .infinity, minHeight: SessionMonitorRowLayout.contentMinHeight, alignment: .topLeading)
+        .overlay(alignment: .topTrailing) {
+            stateBadge(
+                session,
+                offset: SessionRowGeometry.stateBadgeOffset(
+                    todayTabWidth: todayTabWidth,
+                    rowHorizontalPadding: rowHorizontalPadding
+                )
+            )
+        }
     }
 
-    /// `rowHorizontalPadding` must match the row's outer `.padding(.horizontal, X)`
-    /// — differs between row variants (List = 0, ScrollView = 16).
-    private func stateBadgeOffset(for session: Session, rowHorizontalPadding: CGFloat) -> CGFloat {
-        // Natural badge center-x (no offset) sits at:
-        //   row_right - rowHorizontalPadding - StateBadgeLayout.centerXFromRight.
-        // Today apex_x = row_right - todayWidth + tabDiagonalOffset.
-        // Required offset = apex_x - natural center.
-        let todayWidth = todayTabWidths[session.id] ?? 65
-        return (BusyStatsCornerLayout.tabDiagonalOffset + rowHorizontalPadding + StateBadgeLayout.centerXFromRight)
-            - todayWidth
+    // Only write on an actual change: the widths feed the badge offset and slot reserves,
+    // so an unconditional assignment re-invalidates layout every pass.
+    private func recordCornerWidths(_ widths: BusyStatsCornerWidths, for sessionID: String) {
+        guard widths.todayTab > 0, cornerWidths[sessionID] != widths else { return }
+        cornerWidths[sessionID] = widths
     }
 
-    @ViewBuilder
-    private func sessionHeader(_ session: Session, rowHorizontalPadding: CGFloat) -> some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode))
-                        .font(.headline)
-                    if monitorShowRenameButton {
-                        Button {
-                            controller.sessionToRename = session
-                            ShortcutCenter.shared.sessionListContext.notifyHint(for: .rename)
-                        } label: {
-                            Image(systemName: "pencil")
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                    }
+    private func sessionTitle(_ session: Session) -> some View {
+        HStack {
+            Text(sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode))
+                .font(.headline)
+            if monitorShowRenameButton {
+                Button {
+                    controller.sessionToRename = session
+                    ShortcutCenter.shared.sessionListContext.notifyHint(for: .rename)
+                } label: {
+                    Image(systemName: "pencil")
                 }
-                if monitorShowFolderPath {
-                    Label(displayPath(session.projectPath), systemImage: "folder")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if monitorShowBranch, let branch = session.gitBranch {
-                    Label(branch, systemImage: "arrow.triangle.branch")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
             }
-            Spacer()
-            VStack(spacing: 2) {
-                Image(systemName: session.state.iconName)
-                    .font(.system(size: 16))
-                Text(session.state.displayText)
-                    .font(.caption)
-            }
-            .frame(width: StateBadgeLayout.frameWidth)
-            .padding(.trailing, StateBadgeLayout.trailingPadding)
-            .offset(x: stateBadgeOffset(for: session, rowHorizontalPadding: rowHorizontalPadding))
         }
     }
 
-    private func displayPath(_ path: String) -> String {
-        monitorReplaceHomeWithTilde ? HomePathFormatter.abbreviate(path) : path
-    }
-
-    @ViewBuilder
-    private func sessionMetadata(_ session: Session) -> some View {
-        if monitorShowBranch, monitorShowFolderPath {
-            HStack {
-                // Always render the branch line (hidden when absent) so a non-git session
-                // reserves the same row height as a git-backed one — otherwise the card
-                // collapses and the row layout differs from its neighbors.
-                Label(session.gitBranch ?? " ", systemImage: "arrow.triangle.branch")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .opacity(session.gitBranch == nil ? 0 : 1)
-                    .accessibilityHidden(session.gitBranch == nil)
-                Spacer()
-            }
+    private func stateBadge(_ session: Session, offset: CGFloat) -> some View {
+        VStack(spacing: 2) {
+            Image(systemName: session.state.iconName)
+                .font(.system(size: 16))
+            Text(session.state.displayText)
+                .font(.caption)
         }
+        .frame(width: StateBadgeLayout.frameWidth)
+        .padding(.trailing, StateBadgeLayout.trailingPadding)
+        .offset(x: offset)
     }
 
     /// Dispatch a session-list shortcut while the monitor window is key.

@@ -7,8 +7,8 @@ The Settings window is organized into tabs, each covering a distinct configurati
 - **Launch at Login**: Start Juggler automatically when the Mac boots.
 - **Show Juggler in Dock**: Toggle the Dock icon (regular vs. accessory activation policy).
 - **Quit when Session Monitor is closed**: Quit the app when the monitor window closes.
-- **Session Title**: How session names are derived: Tab Title, Window Title, Window / Tab Title, Folder Name, or Parent / Folder Name.
-- **Session Monitor**: Show or hide the folder path, git branch, and rename button in Session Monitor rows, and optionally replace the home directory prefix in shown paths with `~` (for example `~/Projects/app`).
+- **Session Title**: How session names are derived: Tab Title, Window Title, Window / Tab Title, Folder Name, Parent / Folder Name, or Agent Session Title (the title the agent reports, falling back to Parent / Folder Name). The name is global: the monitor, popover, beacon and notifications all use it.
+- **Session Monitor**: Pick what each of the four row detail slots shows (top left, top right, bottom left, bottom right; see [Row details](main-window.md#row-details)), show or hide the rename button, and optionally replace the home directory prefix in shown folder paths with `~` (for example `~/Projects/app`). The `~` option applies only while a slot is set to Folder Path. Upgrading from the old "Show folder path" and "Show git branch" toggles maps them to slots once: with both on, Folder Path top left and Git Branch bottom left; with one off, the other takes the top left; with both off, both left slots are None. Model and Effort fill the right slots. The old `monitorShowFolderPath` and `monitorShowBranch` keys stay in `AppStorageKeys` only so this migration can read them; no view uses them.
 - **Notifications**: Toggle idle notifications, permission notifications, and sound (see [Notifications](notification.md)).
 - **Stats**: Enable Stats (show the busy-time chart in the Session Monitor), plus the stats-bar color: "Use cycling colors" (per-day palette colors) or a custom bar color when off.
 - **Backburner**: "Go to next session on backburner" option for rapid triage.

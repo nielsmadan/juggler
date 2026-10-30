@@ -15,6 +15,7 @@ enum IntegrationSync {
     static func run(client: HooklinesinkerClient = .shared) async {
         await syncAgentHooks(client: client)
         await syncKittyWatcher()
+        await syncAntigravityScript()
     }
 
     /// Whether `installedPath` exists and differs byte-for-byte from the bundled resource.
@@ -132,6 +133,22 @@ enum IntegrationSync {
             await MainActor.run { logInfo(.hooks, "Codex hooks updated and re-trusted") }
         } catch {
             await MainActor.run { logWarning(.hooks, "Codex re-trust after update failed: \(error)") }
+        }
+    }
+
+    private static func syncAntigravityScript() async {
+        guard UserDefaults.standard.bool(forKey: AppStorageKeys.antigravityEnabled),
+              isStale(
+                  installedPath: AntigravityHooksInstaller.notifyScriptPath,
+                  bundledResource: "antigravity-notify",
+                  ext: "sh"
+              )
+        else { return }
+        logInfo(.hooks, "Antigravity notify script is out of date — refreshing")
+        if let error = AntigravityHooksInstaller.refreshNotifyScript() {
+            logWarning(.hooks, "Antigravity notify script refresh failed: \(error)")
+        } else {
+            logInfo(.hooks, "Antigravity notify script updated to the current version")
         }
     }
 

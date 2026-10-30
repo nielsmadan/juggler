@@ -24,6 +24,8 @@ actor HookServer {
     private let sessionManager: SessionManager
     private let terminalBridgeRegistry: TerminalBridgeRegistry
     private let willProcessQueuedAction: (@Sendable () async -> Void)?
+    private let notificationSink: (@Sendable (_ title: String, _ sessionID: String) async -> Void)?
+    private var suppressedCodexPermissionBindings: Set<String> = []
     private var codexIgnorePermissionEvents: Bool {
         UserDefaults.standard.bool(forKey: AppStorageKeys.codexIgnorePermissionEvents)
     }
@@ -32,11 +34,13 @@ actor HookServer {
     init(
         sessionManager: SessionManager? = nil,
         terminalBridgeRegistry: TerminalBridgeRegistry = .shared,
-        willProcessQueuedAction: (@Sendable () async -> Void)? = nil
+        willProcessQueuedAction: (@Sendable () async -> Void)? = nil,
+        notificationSink: (@Sendable (_ title: String, _ sessionID: String) async -> Void)? = nil
     ) {
         self.sessionManager = sessionManager ?? .shared
         self.terminalBridgeRegistry = terminalBridgeRegistry
         self.willProcessQueuedAction = willProcessQueuedAction
+        self.notificationSink = notificationSink
     }
 
     func start() async throws {
@@ -390,7 +394,7 @@ actor HookServer {
                 }
                 continue
             }
-            await handleStatus(status, isHydration: true)
+            await handleStatus(status, source: .hydration)
         }
         hasHydrated = true
         bindingsHandledLive.removeAll()
@@ -418,7 +422,7 @@ actor HookServer {
         await handleStatus(status)
     }
 
-    func handleStatus(_ status: HooklinesinkerStatus, isHydration: Bool = false) async {
+    func handleStatus(_ status: HooklinesinkerStatus, source: StatusSource = .live) async {
         let terminalSessionID = status.terminalSessionID
 
         // No terminal session ID means no activation address: the row could never be
@@ -444,6 +448,7 @@ actor HookServer {
             // An end that arrives after the hydration snapshot was taken must also suppress the
             // replay, or the stored record would resurrect a session that just went away.
             recordHandledLive(status.bindingId)
+            suppressedCodexPermissionBindings.remove(status.bindingId)
             await removeSessionIfCurrent(
                 compositeID: compositeID,
                 agentSessionID: status.session.id,
@@ -468,6 +473,7 @@ actor HookServer {
         recordHandledLive(status.bindingId)
 
         let terminalType = status.resolvedTerminalType
+        let detailsChange: DetailsChange? = status.session.id.isEmpty ? nil : .replace(status.sessionDetails)
         await MainActor.run {
             logDebug(
                 .hooks,
@@ -475,7 +481,8 @@ actor HookServer {
             )
         }
 
-        await MainActor.run {
+        let enteredState = await MainActor.run {
+            let before = self.sessionManager.sessions.first(where: { $0.id == compositeID })?.state
             self.sessionManager.addOrUpdateSession(
                 claudeSessionID: status.session.id,
                 terminalSessionID: terminalSessionID,
@@ -490,20 +497,17 @@ actor HookServer {
                 gitRepoName: status.git?.repo,
                 transcriptPath: status.session.transcriptPath,
                 remoteHost: status.remoteHost,
-                bindingID: status.bindingId
+                bindingID: status.bindingId,
+                source: source,
+                detailsChange: detailsChange
             )
+            let after = self.sessionManager.sessions.first(where: { $0.id == compositeID })?.state
+            return Self.enteredState(before: before, after: after)
         }
 
         // Restoring a snapshot is not a state change the user needs to hear about.
-        if !isHydration {
-            switch state {
-            case .idle:
-                await sendNotificationIfEnabled(title: "Session Idle", sessionID: compositeID)
-            case .permission:
-                await sendNotificationIfEnabled(title: "Permission Required", sessionID: compositeID)
-            default:
-                break
-            }
+        if source == .live, let enteredState {
+            await notifyOnEntering(enteredState, sessionID: compositeID)
         }
 
         scheduleTerminalRefresh(
@@ -514,12 +518,35 @@ actor HookServer {
         )
     }
 
+    nonisolated static func enteredState(before: SessionState?, after: SessionState?) -> SessionState? {
+        after == before ? nil : after
+    }
+
+    private func notifyOnEntering(_ state: SessionState, sessionID: String) async {
+        let title: String
+        switch state {
+        case .idle: title = "Session Idle"
+        case .permission: title = "Permission Required"
+        case .working, .compacting, .backburner: return
+        }
+        if let notificationSink {
+            await notificationSink(title, sessionID)
+        } else {
+            await sendNotificationIfEnabled(title: title, sessionID: sessionID)
+        }
+    }
+
     private func ignoreCodexPermissionIfNeeded(_ status: HooklinesinkerStatus) async -> Bool {
-        guard status.agent == "codex",
-              status.event == "PermissionRequest" || status.event == "child:PermissionRequest",
-              codexIgnorePermissionEvents else {
+        guard status.agent == "codex" else { return false }
+        guard status.phase == .permission else {
+            suppressedCodexPermissionBindings.remove(status.bindingId)
             return false
         }
+        let isRequest = status.event.split(separator: ":").last == "PermissionRequest"
+        guard codexIgnorePermissionEvents,
+              isRequest || suppressedCodexPermissionBindings.contains(status.bindingId)
+        else { return false }
+        suppressedCodexPermissionBindings.insert(status.bindingId)
         await MainActor.run {
             logDebug(.hooks, "Ignoring Codex permission event by user preference")
         }
@@ -564,7 +591,13 @@ actor HookServer {
 
         switch action {
         case let .updateState(state):
-            await MainActor.run {
+            let detailsChange: DetailsChange? = payload.agent == "antigravity" ? .antigravity(
+                event: payload.event,
+                model: payload.hookInput?.model,
+                terminationReason: payload.hookInput?.terminationReason
+            ) : nil
+            let enteredState = await MainActor.run {
+                let before = self.sessionManager.sessions.first(where: { $0.id == compositeID })?.state
                 self.sessionManager.addOrUpdateSession(
                     claudeSessionID: claudeSessionID,
                     terminalSessionID: terminalSessionID,
@@ -578,16 +611,14 @@ actor HookServer {
                     gitBranch: gitBranch,
                     gitRepoName: gitRepo,
                     transcriptPath: transcriptPath,
-                    remoteHost: remoteHost
+                    remoteHost: remoteHost,
+                    detailsChange: detailsChange
                 )
+                let after = self.sessionManager.sessions.first(where: { $0.id == compositeID })?.state
+                return Self.enteredState(before: before, after: after)
             }
-            switch state {
-            case .idle:
-                await sendNotificationIfEnabled(title: "Session Idle", sessionID: compositeID)
-            case .permission:
-                await sendNotificationIfEnabled(title: "Permission Required", sessionID: compositeID)
-            default:
-                break
+            if let enteredState {
+                await notifyOnEntering(enteredState, sessionID: compositeID)
             }
 
             scheduleTerminalRefresh(
@@ -899,11 +930,15 @@ struct UnifiedHookPayload: Sendable {
         let sessionId: String?
         let transcriptPath: String?
         let toolName: String?
+        let model: String?
+        let terminationReason: String?
 
         enum CodingKeys: String, CodingKey {
             case sessionId = "session_id"
             case transcriptPath = "transcript_path"
             case toolName = "tool_name"
+            case model
+            case terminationReason = "termination_reason"
         }
     }
 
@@ -956,6 +991,8 @@ extension UnifiedHookPayload.HookInput: Decodable {
         sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId)
         transcriptPath = try container.decodeIfPresent(String.self, forKey: .transcriptPath)
         toolName = try container.decodeIfPresent(String.self, forKey: .toolName)
+        model = try? container.decodeIfPresent(String.self, forKey: .model)
+        terminationReason = try? container.decodeIfPresent(String.self, forKey: .terminationReason)
     }
 }
 

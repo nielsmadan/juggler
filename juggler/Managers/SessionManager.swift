@@ -217,6 +217,19 @@ final class SessionManager {
 
     // MARK: - State Transitions
 
+    nonisolated static let turnStartEvents: Set<String> = [
+        "UserPromptSubmit", "TurnStarted", "agent_start", "PreInvocation"
+    ]
+
+    nonisolated static func isNewTurn(old: SessionState?, new: SessionState, event: String?) -> Bool {
+        guard new == .working, let event, turnStartEvents.contains(event) else { return false }
+        switch old {
+        case nil, .idle: return true
+        case .backburner: return event == "UserPromptSubmit"
+        case .working, .permission, .compacting: return false
+        }
+    }
+
     private func handleStateTransition(
         at index: Int,
         from oldState: SessionState,
@@ -812,7 +825,9 @@ final class SessionManager {
         gitRepoName: String? = nil,
         transcriptPath: String? = nil,
         remoteHost: String? = nil,
-        bindingID: String? = nil
+        bindingID: String? = nil,
+        source: StatusSource = .live,
+        detailsChange: DetailsChange? = nil
     ) {
         let compositeID: String = if let pane = tmuxPane {
             "\(terminalSessionID):\(pane)"
@@ -826,6 +841,7 @@ final class SessionManager {
             // Keep the row's bindings fresh on every hook (before the backburner
             // early-return, so backburnered remote sessions stay reachable too).
             refreshBindingsRevealingHidden(at: index, event: event, bindingID: bindingID)
+            sessions[index].details = detailsChange?.applied(to: sessions[index].details) ?? sessions[index].details
 
             // A new agent thread can take over a pane (Codex /new). Track whose thread the row
             // now represents, so a late SessionEnd from the previous one can be told apart.
@@ -842,18 +858,6 @@ final class SessionManager {
 
             // Preserve backburner state - only UserPromptSubmit should exit backburner
             // (explicit reactivation via UI uses updateSessionState, not this method)
-            if oldState == .backburner, event != "UserPromptSubmit", !isAntigravityResume {
-                mergeSessionMetadata(
-                    at: index,
-                    tmuxSessionName: tmuxSessionName,
-                    gitBranch: gitBranch,
-                    gitRepoName: gitRepoName,
-                    transcriptPath: transcriptPath,
-                    remoteHost: remoteHost
-                )
-                return
-            }
-
             mergeSessionMetadata(
                 at: index,
                 tmuxSessionName: tmuxSessionName,
@@ -863,7 +867,14 @@ final class SessionManager {
                 remoteHost: remoteHost
             )
 
+            if oldState == .backburner, event != "UserPromptSubmit", !isAntigravityResume {
+                return
+            }
+
             if oldState != state {
+                if source == .live, Self.isNewTurn(old: oldState, new: state, event: event) {
+                    sessions[index].turnCount += 1
+                }
                 let sessionID = sessions[index].id
                 applyStateChange(sessionID: sessionID, from: oldState, to: state)
             }
@@ -899,6 +910,8 @@ final class SessionManager {
                 break
             }
             session.remoteHost = remoteHost?.isEmpty == true ? nil : remoteHost
+            session.details = detailsChange?.applied(to: session.details) ?? session.details
+            session.turnCount = source == .live && Self.isNewTurn(old: nil, new: state, event: event) ? 1 : 0
             sessions.append(session)
             refreshBindingsRevealingHidden(at: sessions.count - 1, event: event, bindingID: bindingID)
             // Reconcile against the stored (now-bound) element, not the local copy, so a

@@ -20,11 +20,24 @@ nonisolated struct HooklinesinkerStatus: Sendable {
     let tmux: TmuxIdentity?
     let git: GitIdentity?
     let remoteHost: String?
+    let activity: Activity?
 
     struct SessionIdentity: Sendable {
         let id: String
         let cwd: String
         let transcriptPath: String?
+        let title: String?
+        let model: String?
+        let effort: String?
+        let permissionMode: String?
+    }
+
+    struct Activity: Sendable, Equatable {
+        let tool: String?
+        let problem: String?
+        let subagents: Int
+        let contextPercent: Int?
+        let turns: Int
     }
 
     struct ProcessIdentity: Sendable {
@@ -73,6 +86,22 @@ nonisolated struct HooklinesinkerStatus: Sendable {
     var observedDate: Date? {
         try? Date(observedAt, strategy: .iso8601)
     }
+
+    var sessionDetails: SessionDetails {
+        SessionDetails(
+            agentTitle: session.title,
+            model: session.model,
+            effort: session.effort,
+            permissionMode: session.permissionMode,
+            currentTool: activity?.tool,
+            lastProblem: activity?.problem,
+            subagentCount: activity?.subagents ?? 0,
+            contextPercent: activity?.contextPercent,
+            turns: activity?.turns,
+            processStartedAt: process.flatMap { try? Date($0.startedAt, strategy: .iso8601) },
+            observedAt: observedDate
+        )
+    }
 }
 
 /// `unknown` is carried for diagnostics but never cycles a session — see `sessionState`.
@@ -119,11 +148,12 @@ nonisolated extension HooklinesinkerStatus: Decodable {
         tmux = try container.decodeIfPresent(TmuxIdentity.self, forKey: .tmux)
         git = try container.decodeIfPresent(GitIdentity.self, forKey: .git)
         remoteHost = try container.decodeIfPresent(String.self, forKey: .remoteHost)
+        activity = try? container.decodeIfPresent(Activity.self, forKey: .activity)
     }
 
     enum CodingKeys: String, CodingKey {
         case `protocol`, bindingId, agent, event, phase, running, observedAt
-        case session, process, terminal, tmux, git, remoteHost
+        case session, process, terminal, tmux, git, remoteHost, activity
     }
 }
 
@@ -133,10 +163,30 @@ nonisolated extension HooklinesinkerStatus.SessionIdentity: Decodable {
         id = try container.decode(String.self, forKey: .id)
         cwd = try container.decode(String.self, forKey: .cwd)
         transcriptPath = try container.decodeIfPresent(String.self, forKey: .transcriptPath)
+        title = try? container.decodeIfPresent(String.self, forKey: .title)
+        model = try? container.decodeIfPresent(String.self, forKey: .model)
+        effort = try? container.decodeIfPresent(String.self, forKey: .effort)
+        permissionMode = try? container.decodeIfPresent(String.self, forKey: .permissionMode)
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, cwd, transcriptPath
+        case id, cwd, transcriptPath, title, model, effort, permissionMode
+    }
+}
+
+nonisolated extension HooklinesinkerStatus.Activity: Decodable {
+    nonisolated init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        tool = try? container.decodeIfPresent(String.self, forKey: .tool)
+        problem = try? container.decodeIfPresent(String.self, forKey: .problem)
+        subagents = (try? container.decodeIfPresent(Int.self, forKey: .subagents)) ?? 0
+        let percent = try? container.decodeIfPresent(Int.self, forKey: .contextPercent)
+        contextPercent = percent.map { min(max($0, 0), 100) }
+        turns = (try? container.decodeIfPresent(Int.self, forKey: .turns)) ?? 0
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case tool, problem, subagents, contextPercent, turns
     }
 }
 

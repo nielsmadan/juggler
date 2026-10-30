@@ -2,10 +2,10 @@ import Foundation
 @testable import Juggler
 import Testing
 
-private func withAntigravityTempDir(_ body: (URL) throws -> Void) rethrows {
+private func withAntigravityTempDir(_ body: (URL) throws -> Void) throws {
     let dir = FileManager.default.temporaryDirectory
         .appendingPathComponent("antigravity-test-\(UUID().uuidString)")
-    try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: dir) }
     try body(dir)
 }
@@ -113,6 +113,42 @@ struct AntigravityHooksJSONTests {
             #expect(AntigravityHooksInstaller.areHooksRegistered(
                 hooksJSONPath: path, notifyScriptPath: notifyPath
             ))
+        }
+    }
+}
+
+@Suite("AntigravityHooksInstaller — notify script refresh")
+struct AntigravityNotifyRefreshTests {
+    @Test func refreshReplacesInstalledScriptAsExecutable() throws {
+        try withAntigravityTempDir { dir in
+            let bundled = dir.appendingPathComponent("bundled.sh")
+            let installed = dir.appendingPathComponent("notify.sh")
+            try "new".write(to: bundled, atomically: true, encoding: .utf8)
+            try "old".write(to: installed, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: installed.path)
+
+            let error = AntigravityHooksInstaller.refreshNotifyScript(
+                bundledScriptURL: bundled, notifyScriptPath: installed.path
+            )
+
+            #expect(error == nil)
+            #expect(try String(contentsOf: installed, encoding: .utf8) == "new")
+            let attributes = try FileManager.default.attributesOfItem(atPath: installed.path)
+            #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o755)
+        }
+    }
+
+    @Test func refreshDoesNothingWhenNotInstalled() throws {
+        try withAntigravityTempDir { dir in
+            let bundled = dir.appendingPathComponent("bundled.sh")
+            let installed = dir.appendingPathComponent("notify.sh")
+            try "new".write(to: bundled, atomically: true, encoding: .utf8)
+
+            _ = AntigravityHooksInstaller.refreshNotifyScript(
+                bundledScriptURL: bundled, notifyScriptPath: installed.path
+            )
+
+            #expect(!FileManager.default.fileExists(atPath: installed.path))
         }
     }
 }

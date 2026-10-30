@@ -69,8 +69,11 @@ matched case-sensitively; an unrecognized event produces no state change. Codex 
 responds.
 
 Codex does not identify the active reviewer in `PermissionRequest` hook input. The optional **Ignore Codex permission
-events** preference therefore suppresses only `PermissionRequest` and `child:PermissionRequest` transitions and leaves
-the session in its current state - it does not drop every status whose phase is `permission`. This prevents Auto
+events** preference therefore suppresses `PermissionRequest`, `child:PermissionRequest` and `resend:PermissionRequest`
+transitions and leaves the session in its current state. Once one is suppressed, every later Codex status for that
+binding whose phase is still `permission` is suppressed too (hooklinesinker keeps forwarding the aggregate
+`permission` phase on child tool and subagent events while the prompt is open), until a status for the binding leaves
+`permission`. It does not drop a `permission` status that no suppressed request preceded. This prevents Auto
 Review from briefly putting the session in Juggler's permission queue, but also hides manual permission prompts.
 Juggler preselects the preference when the top-level `approvals_reviewer = "auto_review"` setting is present in
 `~/.codex/config.toml`; profile and command-line overrides are not detected. `request_user_input` and `Stop` still

@@ -9,6 +9,9 @@ none of it goes stale when our code changes; it goes stale when the external thi
 - [**Coding Agent Hook & Plugin APIs**](coding-agent-hooks.md) — how Claude Code, Codex, OpenCode,
   Pi, and Antigravity emit lifecycle events, what each one cannot tell us, and where each diverges
   from its own documentation.
+- [**Agent Session Metadata in Hooks**](agent-session-metadata.md) — which of model, effort,
+  tokens, context, cost, timing and permission mode each of the eight agents puts on its hooks,
+  and what hooklinesinker currently forwards.
 - [**Terminal Control APIs**](terminal-control-apis.md) — what iTerm2, Kitty, WezTerm, and Ghostty
   expose for focusing a pane, recoloring it, and detecting that it is gone.
 - [**Terminal Candidates**](terminal-candidates.md) — which other terminals (Terminal.app, Warp,

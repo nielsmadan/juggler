@@ -59,6 +59,11 @@ build whenever the advertised minimum changes.
 **Documented — Swift Testing only.** `@Test` / `#expect`, no `XCTest`. A UI-test target existed
 historically and is gone; end-to-end coverage is the separate idle-CPU harness instead.
 
+**Gotcha — `JugglerTests` has a host app, which cannot launch inside the nono sandbox.** `just test`
+fails with LaunchServices error -54 there; run it from an unsandboxed terminal. In a sandbox,
+`build-for-testing` verifies that the tests compile. Without `ci.xcconfig` the build also needs the
+Mac Development identity from the login keychain, which the sandbox denies on purpose.
+
 **Verified — `withThrowingTaskGroup` deadlocks inside an actor-isolated method when the child
 closure captures `self`.** The parent task holds the actor while awaiting the child, the child needs
 the actor to start, and neither can proceed. It hangs **silently**, with no error and no timeout.
@@ -87,6 +92,13 @@ result.
 
 **Gotcha — `--swiftversion` and `SWIFT_VERSION` are separate knobs.** SwiftFormat is pinned at 5.9
 and the Xcode project at 5.0; they measure different things and can drift apart unnoticed.
+
+**Documented — SwiftFormat 0.64 rules are switched off in `.swiftformat`.** 0.64.0 added rules
+(`wrapIf*`, `wrapProperty`, `wrapFunctionBodies`, `docComments`, `noForceUnwrapInTests`,
+`noForceTryInTests`, `repeatedGuard`, `nestedIf`, `contentBuilder`, `redundantAsync`,
+`redundantThrows`) that flagged about 50 untouched files, so they are in the `--disable` list rather
+than reformatting the tree. To adopt them, drop those names from `--disable` and run `swiftformat .`
+once.
 
 ## Periphery
 

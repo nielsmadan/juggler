@@ -32,7 +32,9 @@ All notification settings are in **Settings > General > Notifications**:
 
 ## Behavior
 
-- Notifications are sent once per state transition, not repeatedly
+- Notifications are sent once per state transition, not repeatedly: a session that is already idle
+  or waiting for permission does not notify again when its agent reports the same state (for example
+  while a subagent keeps working during a permission prompt)
 - Backburnered sessions do not trigger notifications
 - Clicking a notification activates the corresponding session in the terminal (iTerm2, Kitty, or WezTerm)
 - A global hotkey (Shift+Cmd+E by default) jumps to the session from the most recent notification, even after the banner is dismissed

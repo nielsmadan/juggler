@@ -69,6 +69,7 @@ Juggler/
 │   ├── HookEventMapper.swift     # Hook event → state mapping (Claude Code + OpenCode + Codex + Pi + Antigravity)
 │   ├── ShortcutActions.swift     # Global and session-list ShortcutKit action definitions
 │   ├── QueueOrderMode.swift      # Fair, Prio, Static, Grouped modes
+│   ├── RowSlot.swift             # Row detail slot options, labels, 2x2 resolution, toggle migration
 │   ├── Session.swift             # Session data model
 │   ├── SessionState.swift        # idle, working, permission, backburner, compacting
 │   ├── TerminalType.swift        # Terminal app abstraction (iTerm2, Kitty, WezTerm, Ghostty - Ghostty recognized but no bridge yet)
@@ -92,8 +93,10 @@ Juggler/
 │   ├── RenameSessionView.swift   # Session rename sheet
 │   ├── SessionMonitorView.swift  # Main window session list
 │   ├── SessionRowView.swift      # Individual session row
+│   ├── SessionSlotGrid.swift     # 2x2 row detail grid (Session Monitor)
+│   ├── SessionRowGeometry.swift  # Row column widths, badge offset and trailing reserves
 │   ├── SettingsView.swift        # Preferences window
-│   └── ...                       # BeaconSettingsView, SessionListController, SettingWithDescription, CodexSetupController, AntigravitySetupController, BusyStatsCorner, StatsChartView, WindowAccessor
+│   └── ...                       # BeaconSettingsView, RowSlotSettings, SessionListController, SettingWithDescription, CodexSetupController, AntigravitySetupController, BusyStatsCorner, StatsChartView, WindowAccessor
 └── Resources/
     ├── iterm2_daemon.py          # Python daemon for iTerm2 API
     ├── juggler_watcher.py        # Kitty event watcher
@@ -134,6 +137,11 @@ HTTP sink, then runs `hooks install|status --agent <agent>`; the binary writes i
 own configuration and reports drift. Juggler does not build hook commands, parse `settings.json`
 or `hooks.json`, or ship notify scripts for those four agents. See
 [docs/tech/hooks.md](docs/tech/hooks.md).
+
+**Hooks are Juggler's only data source.** Never read agent transcripts, session files, databases
+or logs, even though `transcriptPath` arrives on the wire. New session details (model, tokens,
+context, …) come from hook inputs forwarded by hooklinesinker; see
+[docs/reference/agent-session-metadata.md](docs/reference/agent-session-metadata.md).
 
 The one thing Juggler still owns for Codex is **trust**: `[hooks.state]` in
 `~/.codex/config.toml`, hashed from the command and group index `hooks status --json` reports.

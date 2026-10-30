@@ -92,6 +92,26 @@ python3 << 'PYTHON' | curl -s -X POST "http://localhost:${JUGGLER_PORT}/hook" \
     >/dev/null 2>&1 || true
 import json
 import os
+import unicodedata
+
+
+ZERO_WIDTH_JOINER = "\u200d"
+MAX_DETAIL_SCALARS = 120
+
+
+def sanitize(value):
+    if not isinstance(value, str):
+        return None
+    kept = [
+        c for c in value.strip()
+        if c == ZERO_WIDTH_JOINER or unicodedata.category(c) not in ("Cc", "Cf")
+    ]
+    if len(kept) > MAX_DETAIL_SCALARS:
+        kept = kept[:MAX_DETAIL_SCALARS]
+        while kept and (kept[-1] == ZERO_WIDTH_JOINER or unicodedata.category(kept[-1]) in ("Mn", "Me")):
+            kept.pop()
+    return "".join(kept).strip() or None
+
 
 # Antigravity's stdin uses camelCase. Normalize the fields Juggler needs to the
 # snake_case keys HookServer decodes (session_id, transcript_path).
@@ -105,6 +125,12 @@ if raw.strip():
                 hook_input["session_id"] = full["conversationId"]
             if "transcriptPath" in full:
                 hook_input["transcript_path"] = full["transcriptPath"]
+            model = sanitize(full.get("modelName"))
+            if model:
+                hook_input["model"] = model
+            reason = sanitize(full.get("terminationReason"))
+            if reason:
+                hook_input["termination_reason"] = reason
     except json.JSONDecodeError:
         pass
 

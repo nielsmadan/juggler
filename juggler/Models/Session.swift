@@ -1,5 +1,55 @@
 import Foundation
 
+struct SessionDetails: Equatable, Sendable {
+    var agentTitle: String?
+    var model: String?
+    var effort: String?
+    var permissionMode: String?
+    var currentTool: String?
+    var lastProblem: String?
+    var subagentCount: Int = 0
+    var contextPercent: Int?
+    var turns: Int?
+    var processStartedAt: Date?
+    var observedAt: Date?
+
+    func replaced(by incoming: SessionDetails) -> SessionDetails {
+        if let current = observedAt, let next = incoming.observedAt, next < current { return self }
+        var result = incoming
+        result.processStartedAt = incoming.processStartedAt ?? processStartedAt
+        return result
+    }
+}
+
+nonisolated enum DetailsChange: Sendable {
+    case replace(SessionDetails)
+    case antigravity(event: String, model: String?, terminationReason: String?)
+
+    @MainActor
+    func applied(to details: SessionDetails) -> SessionDetails {
+        switch self {
+        case let .replace(incoming):
+            details.replaced(by: incoming)
+        case let .antigravity(event, model, terminationReason):
+            HookEventMapper.antigravityDetails(
+                details, event: event, model: model, terminationReason: terminationReason
+            )
+        }
+    }
+}
+
+nonisolated enum StatusSource: Sendable {
+    case live
+    case hydration
+}
+
+extension String? {
+    nonisolated var nonEmpty: String? {
+        guard let text = self, !text.isEmpty else { return nil }
+        return text
+    }
+}
+
 struct Session: Identifiable, Codable, Equatable {
     var claudeSessionID: String // May be shared across split panes
     let terminalSessionID: String // e.g., "w0t0p0:UUID"
@@ -42,6 +92,9 @@ struct Session: Identifiable, Codable, Equatable {
     var wasAwaitingUserBeforeBackburner = false
 
     var hooklinesinkerBindingIDs: Set<String> = []
+
+    var details = SessionDetails()
+    var turnCount: Int = 0
 
     var agentShortName: String {
         switch agent {
@@ -106,6 +159,8 @@ struct Session: Identifiable, Codable, Equatable {
             return projectFolderName
         case .parentAndFolderName:
             return parentAndFolderName
+        case .agentTitle:
+            return details.agentTitle.nonEmpty ?? parentAndFolderName
         }
     }
 
@@ -136,7 +191,8 @@ struct Session: Identifiable, Codable, Equatable {
             lhs.gitBranch == rhs.gitBranch &&
             lhs.gitRepoName == rhs.gitRepoName &&
             lhs.transcriptPath == rhs.transcriptPath &&
-            lhs.remoteHost == rhs.remoteHost
+            lhs.remoteHost == rhs.remoteHost &&
+            lhs.details.agentTitle == rhs.details.agentTitle
     }
 
     var fullDisplayName: String {

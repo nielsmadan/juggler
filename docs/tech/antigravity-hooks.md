@@ -24,7 +24,7 @@ Antigravity setup is a **single step** (one button in onboarding's Integration H
 
 Structurally identical to the per-agent notify scripts Juggler shipped before the hooklinesinker migration: event name as `$1`, hook JSON on stdin, detects terminal type / tmux / git, builds the unified payload via a quoted Python heredoc, and fire-and-forgets it to `curl`. Two differences matter:
 
-1. **camelCase input → snake_case payload.** Antigravity's stdin uses camelCase; the script normalizes `conversationId` → `session_id` and `transcriptPath` → `transcript_path`, so the HookServer's shared decoding path is unchanged.
+1. **camelCase input → snake_case payload.** Antigravity's stdin uses camelCase; the script normalizes `conversationId` → `session_id` and `transcriptPath` → `transcript_path`, so the HookServer's shared decoding path is unchanged. It also forwards `modelName` as `model` and `terminationReason` as `termination_reason`, sanitized with hooklinesinker's rules (control and format characters removed except the zero-width joiner, capped at 120 characters, a dangling joiner or combining mark dropped only when the cap cut the text); empty values are omitted.
 1. **cwd comes from `workspacePaths`, not `$PWD`.** Antigravity runs the hook from its own config dir (`~/.gemini/config`), so `$PWD` is wrong. The script reads `workspacePaths[0]` from stdin and uses it for both the reported cwd and git branch/repo detection (falling back to `$PWD` if absent). Without this, sessions show `~/.gemini/config` and never resolve a git branch.
 2. **stdout response (the critical one).** Antigravity *reads* the hook's stdout. The script emits it **unconditionally**, independent of the POST — so Juggler being down never blocks or traps the agent:
    - `Stop` → `{"decision":"stop"}`. Any value other than `"continue"` allows the stop; emitting `"continue"` would trap the agent back into its execution loop.
@@ -38,13 +38,21 @@ The payload's `agent` field is `"antigravity"`.
 {
   "agent": "antigravity",
   "event": "PreInvocation",
-  "hookInput": { "session_id": "<conversationId>", "transcript_path": "..." },
+  "hookInput": { "session_id": "<conversationId>", "transcript_path": "...", "model": "gemini-3.6-flash-medium" },
   "terminal": { "sessionId": "w0t0p0:UUID", "cwd": "/path", "terminalType": "iterm2" },
   "git": { "branch": "main", "repo": "app" }
 }
 ```
 
 See [Claude Code Hooks](hooks.md) for the full payload contract — it is shared.
+
+## Session details
+
+`HookServer` decodes `model` and `termination_reason` leniently and, for `agent == "antigravity"`, applies `HookEventMapper.antigravityDetails` (through `DetailsChange.antigravity`): a non-empty model replaces the stored model, a `PreInvocation` clears the last problem, and any event other than `PreInvocation` (in practice `Stop`) whose `termination_reason` is not `model_stop` sets it as the last problem. Antigravity sends no title, effort, permission mode, tool, subagent or context data and no process identity, so those row slots and Run Time stay empty. Turns is Juggler's own count: a `PreInvocation` that starts a turn from idle, or creates the row, counts one. See [Agent Session Metadata in Hooks](../reference/agent-session-metadata.md#row-slots-per-agent).
+
+## Script refresh
+
+The script is copied once at install, so an app update would otherwise leave an older `notify.sh` in place. `IntegrationSync.run` (at launch) calls `syncAntigravityScript`: when Antigravity is enabled and the installed script differs byte-for-byte from the bundled one, `AntigravityHooksInstaller.refreshNotifyScript` replaces it. A missing script is left alone (that is not installed, not stale). The replacement is written to a temporary file next to it and swapped in with `replaceItemAt`, so a running hook never sees a half-written script, then set to `755`. A failure is logged as a warning.
 
 ## Hook Events
 

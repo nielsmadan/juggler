@@ -17,18 +17,18 @@ The Session Monitor is a standalone window providing an expanded view of all ses
 │  Idle                                                        │
 │  ┌─────────────────────────────────────────────────────────┐│
 │  │ [icon] my-feature  [✎]                          idle    ││
-│  │ [CC ]  📁 ~/Projects/my-feature                          ││
-│  │        ⎇ feature/login                                   ││
+│  │ [CC ]  📁 ~/Projects/my-feature      claude-opus-4        ││
+│  │        ⎇ feature/login               high                 ││
 │  └─────────────────────────────────────────────────────────┘│
 │  ┌─────────────────────────────────────────────────────────┐│
 │  │ [icon] api-server  [✎]                          idle    ││
-│  │ [CC ]  📁 ~/Projects/api-server                          ││
+│  │ [CC ]  📁 ~/Projects/api-server      claude-opus-4        ││
 │  └─────────────────────────────────────────────────────────┘│
 ├─────────────────────────────────────────────────────────────┤
 │  Working                                                     │
 │  ┌─────────────────────────────────────────────────────────┐│
 │  │ [icon] data-pipeline  [✎]                     working   ││
-│  │ [CC ]  📁 ~/Projects/data-pipeline                       ││
+│  │ [CC ]  📁 ~/Projects/data-pipeline   gpt-5                ││
 │  └─────────────────────────────────────────────────────────┘│
 ├─────────────────────────────────────────────────────────────┤
 │  ▁▂▅▇ ▃  2/4 busy                          busy time by day  │  ← Stats chart
@@ -79,11 +79,25 @@ Each session row shows:
 |-------|-------------|
 | **Agent column** | Terminal-type icon, agent initials, and an "SSH" badge for remote sessions (hover shows user@host) |
 | **State icon + label** | Visual state indicator and its text label |
-| **Display name** | Project folder or custom name, with an inline rename (pencil) button |
-| **Project path** | Full path to project directory, or `~/...` when "Replace home path with ~" is on |
-| **Git branch** | Branch name (if available) |
+| **Display name** | Name per the Session Title setting (default: parent / folder name) or a custom name, with an inline rename (pencil) button |
+| **Row details** | Up to four small labelled values in a 2x2 grid under the name; see below |
 
-The project path, git branch, and rename button lines can each be hidden from Settings > General > Session Monitor; the same section shortens project paths under your home directory to `~/...`.
+The rename button can be hidden from Settings > General > Session Monitor; the same section chooses the four row details and can shorten project paths under your home directory to `~/...`.
+
+### Row details
+
+The grid has four slots: top left, top right, bottom left, bottom right. Each shows one value, chosen in Settings > General > Session Monitor > Row details. Defaults: Folder Path, Model, Git Branch, Effort. A value an agent does not report leaves its cell empty, so rows stay aligned. A grid row whose two slots are both None, or all four None, is not drawn.
+
+Options: None, Folder Path, Folder Name, Parent / Folder Name, Tab Title, Window Title, Agent Session Title, Git Branch, Model, Effort, Permission Mode, Current Tool, Last Problem, Subagents, Context %, Turns, Run Time. Which agents report which values is in [Agent Session Metadata in Hooks](../reference/agent-session-metadata.md#row-slots-per-agent).
+
+- **Permission Mode** shows labels such as Default, Plan, Accept Edits, Bypass, Auto, Don't Ask; unknown modes are split on `-` and `_` with each word capitalized.
+- **Last Problem** shows the last failed turn, for example "Rate limited" or "Interrupted", until the next turn starts.
+- **Subagents** and **Turns** are hidden at zero. Turns is the number of prompts the conversation has started, counted by hooklinesinker, so it is right even when Juggler starts mid-session and starts again at 0 after `/clear`. For Antigravity Juggler counts the turns it sees itself. OpenCode reports no turns.
+- **Run Time** is how long the agent process has been running, refreshed every 30 seconds.
+- **Current Tool** is the tool in use and clears when the turn ends. **Context %** shows "N% context".
+- Cells truncate to one line (Folder Path in the middle); hover shows the full text.
+- The two columns are always equal width. `SessionSlotGrid` uses a custom `EqualColumnsLayout` rather than `Grid`, because a `Grid` sizes columns to their content and the left and right cells would drift between rows. The badge and stats-tab reserves are padding inside the layout: the badge reserve goes to the title and the first rendered grid row (so a bottom-only grid sits beside the badge), the stats-tab reserve to the second, and the bottom reserve is `max(0, cornerWidth - rowHorizontalPadding) + 4` because the corner sits partly inside the row padding and 4 points keep text off the tab border (`SessionRowGeometry`). Whether a trailing cell is under 40 points is decided from measured widths, so a new row can draw one frame with that cell blank.
+- Right-hand cells leave room for the state badge (top) and the stats tabs (bottom, when stats are on). When a right-hand cell would be narrower than about 40 points, its text is hidden and appears on hover only.
 
 When stats are enabled, each card shows up to two trapezoid tabs in its corner: a **"Turn"** tab with the live duration of the current working turn (only while the session is working or compacting), and an always-present **"Today"** tab with that session's total busy time for the day.
 

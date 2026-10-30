@@ -114,7 +114,7 @@ Today's bar "growing live" is purely the height path (live `seconds` → normali
 - **Turn tab**: shown *only* while busy: gated on `session.currentWorkingDuration != nil` (`:24`), which is `nil` unless `working`/`compacting`. Displays the live current-turn duration. Transitions in/out via a move+opacity animation keyed on `currentWorkingDuration != nil` (`:50`).
 - **Today tab**: *always* present (`:36`): displays `session.busyTimeTodayLive` (committed today + open turn).
 
-Both format via `SessionStatsCalculator.formatDuration`. The Today tab is rendered last so its diagonal left edge cleanly overlays the Turn tab tucked beneath it; the negative `HStack` spacing (`-tabOverlap`) and `tabDiagonalOffset` (`AppConstants.swift:69-77`) make the two slants kiss without a gap. Today's rendered width is reported up via `TodayTabWidthKey` (`:5-10`) so the row's state badge can center-align on the tab's apex. Shape geometry: `TabShape` (filled trapezoid) and `TabBorderShape` (open diagonal+top "shelf" outline) at `:105` / `:122`.
+Both format via `SessionStatsCalculator.formatDuration`. The Today tab is rendered last so its diagonal left edge cleanly overlays the Turn tab tucked beneath it; the negative `HStack` spacing (`-tabOverlap`) and `tabDiagonalOffset` (`AppConstants.swift:69-77`) make the two slants kiss without a gap. Today's rendered width and the whole corner's width are reported up via `BusyStatsCornerWidthsKey`, so the row's state badge can center-align on the tab's apex and the slot grid can keep clear of the corner. Shape geometry: `TabShape` (filled trapezoid) and `TabBorderShape` (open diagonal+top "shelf" outline) at `:105` / `:122`.
 
 ## Gotchas
 

@@ -95,6 +95,22 @@ enum HookEventMapper {
         }
     }
 
+    static func antigravityDetails(
+        _ details: SessionDetails,
+        event: String,
+        model: String?,
+        terminationReason: String?
+    ) -> SessionDetails {
+        var result = details
+        if let model = model.nonEmpty { result.model = model }
+        if event == "PreInvocation" {
+            result.lastProblem = nil
+        } else if let reason = terminationReason.nonEmpty, reason != "model_stop" {
+            result.lastProblem = reason
+        }
+        return result
+    }
+
     private nonisolated static func mapOpenCode(event: String) -> MappedAction {
         switch event {
         case "session.created", "session.status.idle", "session.idle", "session.error":

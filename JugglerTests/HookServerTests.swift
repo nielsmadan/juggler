@@ -115,7 +115,7 @@ struct HookServerTests {
     @Test func serialize_200OK() {
         let response = HTTPResponse(status: 200, body: "{\"status\":\"ok\"}")
         let data = response.serialize()
-        let string = String(decoding: data, as: UTF8.self)
+        let string = String(bytes: data, encoding: .utf8) ?? ""
 
         #expect(string.contains("HTTP/1.1 200 OK"))
         #expect(string.contains("Content-Type: application/json"))
@@ -125,7 +125,7 @@ struct HookServerTests {
     @Test func serialize_404NotFound() {
         let response = HTTPResponse(status: 404, body: "{}")
         let data = response.serialize()
-        let string = String(decoding: data, as: UTF8.self)
+        let string = String(bytes: data, encoding: .utf8) ?? ""
 
         #expect(string.contains("HTTP/1.1 404 Not Found"))
     }
@@ -133,7 +133,7 @@ struct HookServerTests {
     @Test func serialize_405MethodNotAllowed() {
         let response = HTTPResponse(status: 405, body: "{}")
         let data = response.serialize()
-        let string = String(decoding: data, as: UTF8.self)
+        let string = String(bytes: data, encoding: .utf8) ?? ""
 
         #expect(string.contains("HTTP/1.1 405 Method Not Allowed"))
     }
@@ -142,7 +142,7 @@ struct HookServerTests {
         let body = "{\"message\":\"hello world\"}"
         let response = HTTPResponse(status: 200, body: body)
         let data = response.serialize()
-        let string = String(decoding: data, as: UTF8.self)
+        let string = String(bytes: data, encoding: .utf8) ?? ""
 
         #expect(string.contains("Content-Length: \(body.utf8.count)"))
     }
@@ -426,21 +426,21 @@ struct HookServerTests {
 
     @Test func serialize_400BadRequest() {
         let response = HTTPResponse(status: 400, body: "{}")
-        let string = String(decoding: response.serialize(), as: UTF8.self)
+        let string = String(bytes: response.serialize(), encoding: .utf8) ?? ""
 
         #expect(string.contains("HTTP/1.1 400 Bad Request"))
     }
 
     @Test func serialize_500_usesDefaultErrorText() {
         let response = HTTPResponse(status: 500, body: "{}")
-        let string = String(decoding: response.serialize(), as: UTF8.self)
+        let string = String(bytes: response.serialize(), encoding: .utf8) ?? ""
 
         #expect(string.contains("HTTP/1.1 500 Error"))
     }
 
     @Test func serialize_unknownStatusCode_usesError() {
         let response = HTTPResponse(status: 418, body: "{}")
-        let string = String(decoding: response.serialize(), as: UTF8.self)
+        let string = String(bytes: response.serialize(), encoding: .utf8) ?? ""
 
         #expect(string.contains("HTTP/1.1 418 Error"))
     }
@@ -535,7 +535,7 @@ struct HookServerTests {
         let body = "{\"name\":\"日本語\"}"
         let response = HTTPResponse(status: 200, body: body)
         let data = response.serialize()
-        let string = String(decoding: data, as: UTF8.self)
+        let string = String(bytes: data, encoding: .utf8) ?? ""
 
         #expect(string.contains("Content-Length: \(body.utf8.count)"))
     }
@@ -543,7 +543,7 @@ struct HookServerTests {
     @Test func serialize_emptyBody() {
         let response = HTTPResponse(status: 200, body: "")
         let data = response.serialize()
-        let string = String(decoding: data, as: UTF8.self)
+        let string = String(bytes: data, encoding: .utf8) ?? ""
 
         #expect(string.contains("Content-Length: 0"))
         #expect(string.contains("HTTP/1.1 200 OK"))
@@ -1782,5 +1782,112 @@ struct HookServerStatusTests {
                 #expect(manager.sessions.first?.state == .permission)
             }
         }
+
+        @Test @MainActor func codexResentPermissionRequestIsIgnoredWhenPreferenceIsOn() async {
+            await Self.withCodexIgnorePermissionEvents(true) {
+                let manager = SessionManager()
+                let server = HookServer(sessionManager: manager)
+
+                await server.handleStatusForTesting(TestFixtures.statusJSON(
+                    agent: "codex", event: "resend:PermissionRequest", phase: "permission", terminalSessionID: "s1"
+                ))
+
+                #expect(manager.sessions.isEmpty)
+            }
+        }
+
+        @Test @MainActor func childActivityDuringAnIgnoredPermissionIsIgnored() async {
+            await Self.withCodexIgnorePermissionEvents(true) {
+                let manager = SessionManager()
+                let server = HookServer(sessionManager: manager)
+
+                await server.handleStatusForTesting(TestFixtures.statusJSON(
+                    agent: "codex", event: "UserPromptSubmit", phase: "working", terminalSessionID: "s1"
+                ))
+                await server.handleStatusForTesting(TestFixtures.statusJSON(
+                    agent: "codex", event: "PermissionRequest", phase: "permission", terminalSessionID: "s1"
+                ))
+                await server.handleStatusForTesting(TestFixtures.statusJSON(
+                    agent: "codex", event: "child:PostToolUse", phase: "permission", terminalSessionID: "s1"
+                ))
+
+                #expect(manager.sessions.first?.state == .working)
+            }
+        }
+
+        @Test @MainActor func childPermissionSurfacesOnceTheIgnoredPermissionEnds() async {
+            await Self.withCodexIgnorePermissionEvents(true) {
+                let manager = SessionManager()
+                let server = HookServer(sessionManager: manager)
+
+                await server.handleStatusForTesting(TestFixtures.statusJSON(
+                    agent: "codex", event: "PermissionRequest", phase: "permission", terminalSessionID: "s1"
+                ))
+                await server.handleStatusForTesting(TestFixtures.statusJSON(
+                    agent: "codex", event: "PostToolUse", phase: "working", terminalSessionID: "s1"
+                ))
+                await server.handleStatusForTesting(TestFixtures.statusJSON(
+                    agent: "codex", event: "child:PreToolUse", phase: "permission", terminalSessionID: "s1"
+                ))
+
+                #expect(manager.sessions.first?.state == .permission)
+            }
+        }
+    }
+}
+
+private actor NotificationRecorder {
+    private(set) var titles: [String] = []
+
+    func record(_ title: String) {
+        titles.append(title)
+    }
+}
+
+@Suite("HookServer — notifications", .serialized)
+struct HookServerNotificationTests {
+    private let recorder = NotificationRecorder()
+
+    @MainActor private func makeServer() -> HookServer {
+        let recorder = recorder
+        return HookServer(sessionManager: SessionManager(), notificationSink: { title, _ in
+            await recorder.record(title)
+        })
+    }
+
+    private func status(agent: String = "claude", event: String, phase: String, activity: String? = nil) -> String {
+        TestFixtures.statusJSON(agent: agent, event: event, phase: phase, terminalSessionID: "s1", activity: activity)
+    }
+
+    @Test @MainActor func repeatedPermissionStatusesNotifyOnce() async {
+        let server = makeServer()
+        await server.handleStatusForTesting(status(event: "UserPromptSubmit", phase: "working"))
+        await server.handleStatusForTesting(status(event: "PermissionRequest", phase: "permission"))
+        await server.handleStatusForTesting(status(event: "PermissionRequest", phase: "permission"))
+
+        #expect(await recorder.titles == ["Permission Required"])
+    }
+
+    @Test @MainActor func childActivityWhileInPermissionDoesNotNotifyAgain() async {
+        let server = makeServer()
+        await server.handleStatusForTesting(status(agent: "droid", event: "UserPromptSubmit", phase: "working"))
+        await server.handleStatusForTesting(status(agent: "droid", event: "PermissionRequest", phase: "permission"))
+        await server.handleStatusForTesting(status(
+            agent: "droid",
+            event: "child:PreToolUse",
+            phase: "permission",
+            activity: "{\"tool\":\"Bash\",\"subagents\":1}"
+        ))
+
+        #expect(await recorder.titles == ["Permission Required"])
+    }
+
+    @Test @MainActor func idleThenPermissionNotifiesEachTransition() async {
+        let server = makeServer()
+        await server.handleStatusForTesting(status(event: "UserPromptSubmit", phase: "working"))
+        await server.handleStatusForTesting(status(event: "Stop", phase: "idle"))
+        await server.handleStatusForTesting(status(event: "PermissionRequest", phase: "permission"))
+
+        #expect(await recorder.titles == ["Session Idle", "Permission Required"])
     }
 }

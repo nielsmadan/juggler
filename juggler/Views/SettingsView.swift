@@ -69,8 +69,7 @@ struct GeneralSettingsView: View {
     @AppStorage(AppStorageKeys.statsBarColorGreen) private var statsBarColorGreen = 165.0
     @AppStorage(AppStorageKeys.statsBarColorBlue) private var statsBarColorBlue = 0.0
     @AppStorage(AppStorageKeys.goToNextOnBackburner) private var goToNextOnBackburner = true
-    @AppStorage(AppStorageKeys.monitorShowFolderPath) private var monitorShowFolderPath = true
-    @AppStorage(AppStorageKeys.monitorShowBranch) private var monitorShowBranch = true
+    private var rowSlotSettings = RowSlotSettings()
     @AppStorage(AppStorageKeys.monitorReplaceHomeWithTilde) private var monitorReplaceHomeWithTilde = false
     @AppStorage(AppStorageKeys.monitorShowRenameButton) private var monitorShowRenameButton = true
 
@@ -98,6 +97,43 @@ struct GeneralSettingsView: View {
                 }
             }
         )
+    }
+
+    private var showsFolderPathSlot: Bool {
+        rowSlotSettings.slots.values.contains(.folderPath)
+    }
+
+    private var rowDetailsPickers: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Row details")
+            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
+                ForEach(
+                    [[RowSlotPosition.topLeading, .topTrailing], [.bottomLeading, .bottomTrailing]],
+                    id: \.self
+                ) { pair in
+                    GridRow {
+                        ForEach(pair, id: \.self) { position in
+                            rowSlotPicker(position)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func rowSlotPicker(_ position: RowSlotPosition) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(position.title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Picker(position.title, selection: rowSlotSettings.binding(for: position)) {
+                ForEach(RowSlot.allCases, id: \.self) { slot in
+                    Text(slot.displayName).tag(slot)
+                }
+            }
+            .labelsHidden()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     var body: some View {
@@ -136,14 +172,13 @@ struct GeneralSettingsView: View {
             }
 
             Section("Session Monitor") {
-                Toggle("Show folder path", isOn: $monitorShowFolderPath)
-                Toggle("Show git branch", isOn: $monitorShowBranch)
+                rowDetailsPickers
                 Toggle("Show rename button", isOn: $monitorShowRenameButton)
                 SettingWithDescription(
                     description: "Replace the home directory with ~ in project paths, e.g. ~/Projects/app"
                 ) {
                     Toggle("Replace home path with ~", isOn: $monitorReplaceHomeWithTilde)
-                        .disabled(!monitorShowFolderPath)
+                        .disabled(!showsFolderPathSlot)
                 }
             }
 

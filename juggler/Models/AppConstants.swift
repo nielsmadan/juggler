@@ -67,6 +67,7 @@ enum BusyStatsCornerLayout {
     /// How far the Turn tab tucks underneath the Today tab's diagonal.
     /// Defined as `tabDiagonalOffset` so the tabs kiss at the top without a gap.
     static let tabOverlap: CGFloat = tabDiagonalOffset
+    static let estimatedTodayTabWidth: CGFloat = 65
 }
 
 /// Geometry constants for the session row's state badge (icon + "idle"/"working" label).
@@ -81,6 +82,7 @@ enum StateBadgeLayout {
 /// Geometry constants for session rows in the monitor window.
 enum SessionMonitorRowLayout {
     /// Floors every row's content height so a row stays aligned with its
-    /// neighbors when the folder path / branch lines are hidden.
+    /// neighbors when its slot rows are hidden.
     static let contentMinHeight: CGFloat = 56
+    static let titleToSlotsSpacing: CGFloat = 8
 }

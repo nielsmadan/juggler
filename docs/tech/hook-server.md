@@ -128,9 +128,12 @@ higher index). See [Codex Hooks](codex-hooks.md) for the full mechanism.
 Requires Codex CLI ≥ v0.114; `SessionEnd` additionally requires ≥ v0.145.
 
 Codex hook input does not distinguish an automatic approval review from a manual approval prompt. When
-`AppStorageKeys.codexIgnorePermissionEvents` is true, `HookServer` ignores Codex `PermissionRequest` and
-`child:PermissionRequest` events and logs the suppression as intentional; it does not drop every status whose
-phase is `permission`, so a tracked child's `request_user_input` still surfaces through the root's other events.
+`AppStorageKeys.codexIgnorePermissionEvents` is true, `HookServer` ignores Codex `PermissionRequest`,
+`child:PermissionRequest` and `resend:PermissionRequest` events and logs the suppression as intentional. It
+remembers the binding (`suppressedCodexPermissionBindings`) and also ignores that binding's later `permission`-phase
+statuses until one leaves `permission`, so child activity during an ignored prompt cannot flip the row. A
+`permission` status with no suppressed request before it is not dropped, so a tracked child's `request_user_input`
+still surfaces through the root's other events.
 Other agents keep their immediate permission mapping.
 
 Pi:

@@ -45,6 +45,33 @@ enum AntigravityHooksInstaller {
         "\(notifyScriptPath) \(event)"
     }
 
+    private static func copyNotifyScript(from bundledScript: URL, to notifyScriptPath: String) throws {
+        let destination = URL(fileURLWithPath: notifyScriptPath)
+        if FileManager.default.fileExists(atPath: notifyScriptPath) {
+            let staged = destination.deletingLastPathComponent()
+                .appendingPathComponent(".notify-\(UUID().uuidString).tmp")
+            try FileManager.default.copyItem(at: bundledScript, to: staged)
+            _ = try FileManager.default.replaceItemAt(destination, withItemAt: staged)
+        } else {
+            try FileManager.default.copyItem(at: bundledScript, to: destination)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: notifyScriptPath)
+    }
+
+    static func refreshNotifyScript(
+        bundledScriptURL: URL? = Bundle.main.url(forResource: "antigravity-notify", withExtension: "sh"),
+        notifyScriptPath: String = Self.notifyScriptPath
+    ) -> String? {
+        guard FileManager.default.fileExists(atPath: notifyScriptPath) else { return nil }
+        guard let bundledScriptURL else { return "Antigravity notify.sh not found in app bundle" }
+        do {
+            try copyNotifyScript(from: bundledScriptURL, to: notifyScriptPath)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     /// Installs notify.sh and registers the Juggler events in hooks.json.
     /// Returns nil on success, or an error message on failure. Paths and the bundled-script
     /// URL are injectable for testing; production callers omit them.
@@ -64,15 +91,7 @@ enum AntigravityHooksInstaller {
                 withIntermediateDirectories: true
             )
 
-            let destination = URL(fileURLWithPath: notifyScriptPath)
-            if FileManager.default.fileExists(atPath: notifyScriptPath) {
-                try FileManager.default.removeItem(at: destination)
-            }
-            try FileManager.default.copyItem(at: bundledScript, to: destination)
-            try FileManager.default.setAttributes(
-                [.posixPermissions: 0o755],
-                ofItemAtPath: notifyScriptPath
-            )
+            try copyNotifyScript(from: bundledScript, to: notifyScriptPath)
 
             try mergeHooksJSON(at: hooksJSONPath, notifyScriptPath: notifyScriptPath)
             return nil

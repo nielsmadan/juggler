@@ -191,6 +191,10 @@ struct JugglerApp: App {
         // Reduce tooltip hover delay from default ~1000ms to 300ms
         UserDefaults.standard.set(300, forKey: "NSInitialToolTipDelay")
 
+        for (key, value) in RowSlotMigration.pendingValues(stored: UserDefaults.standard.object(forKey:)) {
+            UserDefaults.standard.set(value, forKey: key)
+        }
+        UserDefaults.standard.register(defaults: RowSlotPosition.registrationDefaults)
         UserDefaults.standard.register(defaults: [
             "highlightOnHotkey": true,
             "highlightOnGuiSelect": true,

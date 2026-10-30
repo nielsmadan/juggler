@@ -51,7 +51,7 @@ struct AntigravityNotifyScriptTests {
         let out = stdout.fileHandleForReading.readDataToEndOfFile()
         _ = stderr.fileHandleForReading.readDataToEndOfFile()
         proc.waitUntilExit()
-        return String(decoding: out, as: UTF8.self)
+        return try #require(String(bytes: out, encoding: .utf8), "script wrote invalid UTF-8")
     }
 
     // MARK: - stdout decision contract
@@ -176,5 +176,51 @@ struct AntigravityNotifyScriptTests {
         let hookInput = try #require(payload["hookInput"] as? [String: Any])
         #expect(hookInput["session_id"] as? String == "abc-123")
         #expect(hookInput["transcript_path"] as? String == "/t/x.jsonl")
+    }
+
+    @Test func forwardsStringModelAndTerminationReason() throws {
+        let payload = try capturePayload(
+            event: "Stop",
+            stdinJSON: #"{"conversationId":"c1","modelName":" gemini-3\u0007 ","terminationReason":"max_steps_exceeded"}"#
+        )
+        let hookInput = try #require(payload["hookInput"] as? [String: Any])
+        #expect(hookInput["model"] as? String == "gemini-3")
+        #expect(hookInput["termination_reason"] as? String == "max_steps_exceeded")
+    }
+
+    @Test(arguments: [
+        (#""modelName":"\#(String(repeating: "a", count: 130))""#, String(repeating: "a", count: 120)),
+        (#""modelName":"\#(String(repeating: "a", count: 119))\u0301bb""#, String(repeating: "a", count: 119)),
+        (#""modelName":"\#(String(repeating: "a", count: 119))\u200dbb""#, String(repeating: "a", count: 119)),
+        (#""modelName":"a\u200db""#, "a\u{200D}b"),
+        (#""modelName":"e\u0301""#, "e\u{0301}"),
+        (#""modelName":"gem\u202eini""#, "gemini")
+    ])
+    func sanitizesModelLikeHooklinesinker(field: String, expected: String) throws {
+        let payload = try capturePayload(event: "PreInvocation", stdinJSON: #"{"conversationId":"c1",\#(field)}"#)
+        let hookInput = try #require(payload["hookInput"] as? [String: Any])
+        let model = try #require(hookInput["model"] as? String)
+        #expect(Array(model.unicodeScalars) == Array(expected.unicodeScalars))
+    }
+
+    @Test func omitsWhitespaceOnlyModel() throws {
+        let payload = try capturePayload(
+            event: "PreInvocation",
+            stdinJSON: #"{"conversationId":"c1","modelName":"   "}"#
+        )
+        let hookInput = try #require(payload["hookInput"] as? [String: Any])
+        #expect(hookInput["session_id"] as? String == "c1")
+        #expect(hookInput["model"] == nil)
+    }
+
+    @Test func omitsNonStringModelButStillPostsTheEvent() throws {
+        let payload = try capturePayload(
+            event: "PreInvocation",
+            stdinJSON: #"{"conversationId":"c1","modelName":42,"terminationReason":{"a":1}}"#
+        )
+        let hookInput = try #require(payload["hookInput"] as? [String: Any])
+        #expect(hookInput["session_id"] as? String == "c1")
+        #expect(hookInput["model"] == nil)
+        #expect(hookInput["termination_reason"] == nil)
     }
 }

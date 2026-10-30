@@ -45,12 +45,13 @@ that decode **first** for `/hook` bodies, falling back to the legacy `UnifiedHoo
   "phase": "working",
   "running": true,
   "observedAt": "2026-09-04T00:00:00Z",
-  "session": { "id": "…", "cwd": "/path", "transcriptPath": "…" },
+  "session": { "id": "…", "cwd": "/path", "transcriptPath": "…", "title": "…", "model": "…", "effort": "…", "permissionMode": "…" },
   "process": { "pid": 42, "startedAt": "…", "host": "…" },
   "terminal": { "sessionId": "w0t0p0:UUID", "terminalType": "iterm2", "kittyListenOn": null, "kittyPid": null },
   "tmux": { "pane": "%0", "sessionName": "work" },
   "git": { "branch": "main", "repo": "app" },
-  "remoteHost": null
+  "remoteHost": null,
+  "activity": { "tool": "Bash", "subagents": 0, "contextPercent": 42, "turns": 3 }
 }
 ```
 
@@ -71,6 +72,29 @@ Notes that matter when reading Juggler's code:
   because the inherited terminal variables name whichever tab started the tmux server. With no
   matching row, it falls through to the once-per-source empty-terminal warning, since tmux
   inside a terminal hooklinesinker cannot identify looks the same.
+
+- `session.title`, `model`, `effort`, `permissionMode` and `activity` are optional session details.
+  `HooklinesinkerStatus` decodes each leniently (a wrong-typed value becomes absent, `subagents` and
+  `turns` default to 0, `contextPercent` is clamped to 0-100), `sessionDetails` maps them to
+  `SessionDetails`, and `handleStatus` passes them to `SessionManager.addOrUpdateSession` as a
+  `DetailsChange.replace`. `SessionDetails.replaced(by:)`
+  replaces the stored details wholesale, because hooklinesinker already merged them with its stored
+  record, but keeps the previous process start time when the record has none and drops a record
+  whose `observedAt` is older than the one held. Records without a session ID do not update
+  details. Which agents fill which fields is in
+  [Agent Session Metadata in Hooks](../reference/agent-session-metadata.md); the merge rules are in
+  hooklinesinker's `docs/status-lifecycle.md`.
+- The Turns slot shows `activity.turns`, hooklinesinker's per-binding count of turn starts,
+  whenever the record carries `activity`. Juggler still keeps its own `Session.turnCount`, which
+  the slot falls back to for Antigravity and for records without `activity`:
+  `SessionManager.isNewTurn` counts a turn-start event (`UserPromptSubmit`, `TurnStarted`,
+  `agent_start`, `PreInvocation`) that moves a row from `idle` to `working` or creates it
+  `working`, and for a backburnered row only `UserPromptSubmit`. Hydration replays do not count.
+  See [Agent Session Metadata in Hooks](../reference/agent-session-metadata.md#turns-and-run-time).
+- A record can arrive with the same `phase` as the row already has, for example a `child:` or
+  `resend:` event that only changes `activity`. `handleStatus` compares the row's state before and
+  after the update and sends the idle or permission notification only when the state changed,
+  so a repeated or activity-only record never notifies again.
 
 Terminal, tmux, git and SSH detection all happen inside hooklinesinker now; Juggler no longer
 has a shell script reading `$ITERM_SESSION_ID` and friends for these agents.
