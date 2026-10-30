@@ -8,3 +8,4 @@
 --commas inline
 --disable wrapMultilineStatementBraces
 --exclude build,.build
+--disable wrapIfStatementBodies,wrapIfExpressionBodies,wrapPropertyBodies,wrapFunctionBodies,docComments,noForceUnwrapInTests,noForceTryInTests,repeatedGuard,nestedIf,contentBuilder,redundantAsync,redundantThrows

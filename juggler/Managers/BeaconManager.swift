@@ -78,15 +78,15 @@ final class BeaconManager {
 
     private func dismiss() {
         let generation = showGeneration
-        NSAnimationContext.runAnimationGroup({ context in
+        NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.3
             self.panel?.animator().alphaValue = 0
-        }, completionHandler: {
+        } completionHandler: {
             MainActor.assumeIsolated {
                 guard self.showGeneration == generation else { return }
                 self.panel?.orderOut(nil)
             }
-        })
+        }
     }
 
     private func createPanel() {
