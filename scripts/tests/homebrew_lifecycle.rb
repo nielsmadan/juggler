@@ -93,25 +93,30 @@ puts "PASS: Sparkle updates with an older Homebrew receipt"
       trashed.concat(paths)
     end
 
-    installer = Cask::Installer.new(cask, upgrade: operation == :upgrade, reinstall: operation == :reinstall)
-    installer.uninstall_artifacts
-    raise "App was not removed from custom appdir" if app.exist?
-    raise "Integration removed during #{operation}" unless extension.read == "installed"
+    installer = Cask::Installer.new(cask, command: command_runner, upgrade: operation == :upgrade,
+                                          reinstall: operation == :reinstall)
+    zap_stanzas = [:zap, :zap_failure].include?(operation) ? [zap] : []
 
-    if operation == :zap
-      zap.zap_phase(command: command_runner)
-      raise "Zap left the extension installed" if extension.exist?
-      expected = ["~/Library/Application Support/Juggler", "~/Library/Caches/com.nielsmadan.Juggler",
-                  "~/Library/Preferences/com.nielsmadan.Juggler.plist"]
-      raise "Unexpected zap paths: #{trashed.inspect}" unless trashed == expected
-    elsif operation == :zap_failure
+    case operation
+    when :zap_failure
       begin
-        zap.zap_phase(command: command_runner)
+        installer.uninstall_artifacts(zap_stanzas:)
         raise "Zap accepted failed integration cleanup"
       rescue ErrorDuringExecution
         raise "Zap trashed preferences after cleanup failed" unless trashed.empty?
         raise "Staged app was lost after cleanup failed" unless (cask.staged_path/"Juggler.app").directory?
       end
+    when :zap
+      installer.uninstall_artifacts(zap_stanzas:)
+      raise "App was not removed from custom appdir" if app.exist?
+      raise "Zap left the extension installed" if extension.exist?
+      expected = ["~/Library/Application Support/Juggler", "~/Library/Caches/com.nielsmadan.Juggler",
+                  "~/Library/Preferences/com.nielsmadan.Juggler.plist"]
+      raise "Unexpected zap paths: #{trashed.inspect}" unless trashed == expected
+    else
+      installer.uninstall_artifacts
+      raise "App was not removed from custom appdir" if app.exist?
+      raise "Integration removed during #{operation}" unless extension.read == "installed"
     end
     puts "PASS: #{operation}"
   end
