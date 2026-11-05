@@ -160,8 +160,8 @@ struct CyclingEnginePropertyTests {
     // MARK: - Property 5: a stale (out-of-range) currentIndex never crashes
 
     /// After sessions are removed, a `CyclingState` can carry an index larger than
-    /// the current list. With no focus the engine falls back to that index — it must
-    /// still land on a valid cyclable session rather than trip a bounds assert.
+    /// the current list. With no focus the engine must still land on a valid
+    /// cyclable session rather than trip a bounds assert.
     @Test(arguments: propertySeeds)
     func staleCurrentIndex_withNilFocus_yieldsValidTarget(seed: Int) {
         var rng = SeededGenerator(seed: seed)

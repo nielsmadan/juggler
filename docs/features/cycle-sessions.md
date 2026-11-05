@@ -71,6 +71,8 @@ Revealed hidden rows can still be activated explicitly by click or `Return`; see
 
 The order of sessions depends on the **Queue Mode** setting.
 
+When focus isn't on a tracked session, for example after you quit the session you were in, cycling forward starts at the first cyclable session and cycling backward starts at the last.
+
 ### Stale Sessions
 
 If activation lands on a session whose terminal tab/pane no longer exists, Juggler removes that session and silently advances to the next live one. Only the successful landing (or "All At Work" when none remain) is surfaced.

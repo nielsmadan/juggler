@@ -1243,6 +1243,54 @@ struct SessionManagerTests {
         #expect(result != nil)
     }
 
+    @Test func cycleForward_afterFocusedSessionRemoved_goesToFirstSession() {
+        let manager = SessionManager()
+        manager.testSetSessions([
+            makeSession("s1", state: .working),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle),
+            makeSession("s4", state: .idle)
+        ])
+        manager.testSetFocusedSessionID("s1")
+
+        #expect(manager.cycleForward()?.terminalSessionID == "s2")
+        manager.removeSession(sessionID: "s2")
+
+        #expect(manager.cycleForward()?.terminalSessionID == "s3")
+    }
+
+    @MainActor
+    @Test func cycleForward_staleTargetRemovedDuringActivation_retryAdvancesFromOrigin() {
+        let manager = SessionManager()
+        manager.testSetSessions([
+            makeSession("s1"), makeSession("s2"), makeSession("stale"), makeSession("s4"), makeSession("s5")
+        ])
+        manager.testSetFocusedSessionID("s2")
+
+        let target = manager.cycleForward()
+        #expect(target?.terminalSessionID == "stale")
+        let token = manager.beginActivation(targetSessionID: "stale")
+        manager.removeSession(sessionID: "stale")
+        manager.endActivation(token)
+
+        #expect(manager.cycleForward()?.terminalSessionID == "s4")
+    }
+
+    @MainActor
+    @Test func cycleBackward_staleTargetRemovedDuringActivation_retryAdvancesFromOrigin() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("s1"), makeSession("s2"), makeSession("stale"), makeSession("s4")])
+        manager.testSetFocusedSessionID("s4")
+
+        let target = manager.cycleBackward()
+        #expect(target?.terminalSessionID == "stale")
+        let token = manager.beginActivation(targetSessionID: "stale")
+        manager.removeSession(sessionID: "stale")
+        manager.endActivation(token)
+
+        #expect(manager.cycleBackward()?.terminalSessionID == "s2")
+    }
+
     @Test func cycleForward_noSessions_returnsNil() {
         let manager = SessionManager()
         let result = manager.cycleForward()

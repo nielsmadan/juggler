@@ -270,6 +270,7 @@ final class SessionManager {
     private(set) var activationTarget: String?
     private var activationToken: ActivationToken?
     private var activationFocusContextToken: UUID?
+    private var lastCycleStep: (targetID: String, originID: String?)?
 
     struct ActivationToken: Equatable {
         fileprivate let id = UUID()
@@ -1442,7 +1443,8 @@ final class SessionManager {
     }
 
     func removeSession(sessionID: String, now: Date = Date()) {
-        if activationTarget == sessionID { endActivation() }
+        let wasActivationTarget = activationTarget == sessionID
+        if wasActivationTarget { endActivation() }
         animationController.cancel(sessionID: sessionID)
         if let index = sessions.firstIndex(where: { $0.id == sessionID }) {
             let session = sessions[index]
@@ -1457,7 +1459,10 @@ final class SessionManager {
             sessions.remove(at: index)
         }
         if focusedSessionID == sessionID {
-            focusedSessionID = nil
+            focusedSessionID = cycleOriginToRestore(
+                removedSessionID: sessionID,
+                wasActivationTarget: wasActivationTarget
+            )
         }
         if lastActiveSessionID == sessionID {
             lastActiveSessionID = nil
@@ -1496,6 +1501,7 @@ final class SessionManager {
         focusedSessionID = nil
         lastActiveSessionID = nil
         lastNotificationTarget = nil
+        lastCycleStep = nil
         cyclingState = .initial
         hiddenBindings.revealAll()
         logInfo(.session, "Cleared all sessions")
@@ -1504,6 +1510,16 @@ final class SessionManager {
     func completeSessionReset(now: Date = Date()) {
         clearAllSessions(now: now)
         dispositionStore.clear()
+    }
+
+    // The activator retries a stale cycle target; it must advance from the cycle's origin, not from no focus.
+    private func cycleOriginToRestore(removedSessionID: String, wasActivationTarget: Bool) -> String? {
+        guard wasActivationTarget,
+              let step = lastCycleStep, step.targetID == removedSessionID,
+              let originID = step.originID,
+              sessions.contains(where: { $0.id == originID || $0.terminalSessionID == originID })
+        else { return nil }
+        return originID
     }
 
     /// Resolve the effective focus ID for cycling, consuming `lastActiveSessionID` as an anchor.
@@ -1570,6 +1586,7 @@ final class SessionManager {
 
         if let target = result.targetSession {
             focusedSessionID = target.id
+            lastCycleStep = (target.id, effectiveFocusID)
         }
         return result.targetSession
     }
@@ -1601,6 +1618,7 @@ final class SessionManager {
 
         if let target = result.targetSession {
             focusedSessionID = target.id
+            lastCycleStep = (target.id, effectiveFocusID)
         }
         return result.targetSession
     }

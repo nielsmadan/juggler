@@ -46,8 +46,7 @@ struct DefaultCyclingEngine: CyclingEngine {
         let targetIdx = findTargetIndexForward(
             cyclable: cyclable,
             allSessions: sessions,
-            focusedSessionID: focusedSessionID,
-            fallbackIndex: state.currentIndex
+            focusedSessionID: focusedSessionID
         )
 
         assert(
@@ -78,8 +77,7 @@ struct DefaultCyclingEngine: CyclingEngine {
         let targetIdx = findTargetIndexBackward(
             cyclable: cyclable,
             allSessions: sessions,
-            focusedSessionID: focusedSessionID,
-            fallbackIndex: state.currentIndex
+            focusedSessionID: focusedSessionID
         )
 
         assert(
@@ -122,20 +120,15 @@ struct DefaultCyclingEngine: CyclingEngine {
     private func findTargetIndexForward(
         cyclable: [Session],
         allSessions: [Session],
-        focusedSessionID: String?,
-        fallbackIndex: Int
+        focusedSessionID: String?
     ) -> Int {
-        guard let focusedID = focusedSessionID else {
-            return (fallbackIndex + 1) % cyclable.count
-        }
+        guard let focusedID = focusedSessionID else { return 0 }
 
         if let idx = findSessionIndex(in: cyclable, matching: focusedID) {
             return (idx + 1) % cyclable.count
         }
 
-        guard let allIdx = findSessionIndex(in: allSessions, matching: focusedID) else {
-            return (fallbackIndex + 1) % cyclable.count
-        }
+        guard let allIdx = findSessionIndex(in: allSessions, matching: focusedID) else { return 0 }
 
         for (i, session) in cyclable.enumerated() {
             if let sessionAllIdx = allSessions.firstIndex(where: { $0.id == session.id }),
@@ -149,20 +142,15 @@ struct DefaultCyclingEngine: CyclingEngine {
     private func findTargetIndexBackward(
         cyclable: [Session],
         allSessions: [Session],
-        focusedSessionID: String?,
-        fallbackIndex: Int
+        focusedSessionID: String?
     ) -> Int {
-        guard let focusedID = focusedSessionID else {
-            return (fallbackIndex - 1 + cyclable.count) % cyclable.count
-        }
+        guard let focusedID = focusedSessionID else { return cyclable.count - 1 }
 
         if let idx = findSessionIndex(in: cyclable, matching: focusedID) {
             return (idx - 1 + cyclable.count) % cyclable.count
         }
 
-        guard let allIdx = findSessionIndex(in: allSessions, matching: focusedID) else {
-            return (fallbackIndex - 1 + cyclable.count) % cyclable.count
-        }
+        guard let allIdx = findSessionIndex(in: allSessions, matching: focusedID) else { return cyclable.count - 1 }
 
         for (i, session) in cyclable.enumerated().reversed() {
             if let sessionAllIdx = allSessions.firstIndex(where: { $0.id == session.id }),

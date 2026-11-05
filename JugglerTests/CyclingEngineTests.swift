@@ -62,6 +62,50 @@ struct CyclingEngineTests {
         #expect(result.newState.currentIndex == 2)
     }
 
+    // MARK: - No Tracked Focus
+
+    @Test func cycleForward_noFocus_startsAtFirstRegardlessOfStaleIndex() {
+        let engine = DefaultCyclingEngine()
+        let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
+        let state = CyclingState(currentIndex: 1)
+
+        let result = engine.cycleForward(sessions: sessions, focusedSessionID: nil, state: state)
+
+        #expect(result.targetSession?.terminalSessionID == "A")
+        #expect(result.newState.currentIndex == 0)
+    }
+
+    @Test func cycleBackward_noFocus_startsAtLastRegardlessOfStaleIndex() {
+        let engine = DefaultCyclingEngine()
+        let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
+        let state = CyclingState(currentIndex: 1)
+
+        let result = engine.cycleBackward(sessions: sessions, focusedSessionID: nil, state: state)
+
+        #expect(result.targetSession?.terminalSessionID == "C")
+        #expect(result.newState.currentIndex == 2)
+    }
+
+    @Test func cycleForward_untrackedFocus_startsAtFirst() {
+        let engine = DefaultCyclingEngine()
+        let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
+        let state = CyclingState(currentIndex: 1)
+
+        let result = engine.cycleForward(sessions: sessions, focusedSessionID: "untracked", state: state)
+
+        #expect(result.targetSession?.terminalSessionID == "A")
+    }
+
+    @Test func cycleBackward_untrackedFocus_startsAtLast() {
+        let engine = DefaultCyclingEngine()
+        let sessions = [makeSession("A"), makeSession("B"), makeSession("C")]
+        let state = CyclingState(currentIndex: 1)
+
+        let result = engine.cycleBackward(sessions: sessions, focusedSessionID: "untracked", state: state)
+
+        #expect(result.targetSession?.terminalSessionID == "C")
+    }
+
     // MARK: - Sync State to Focus
 
     @Test func syncStateToFocus_updatesCurrentIndex() {
