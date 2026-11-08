@@ -173,7 +173,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func scheduleTerminalActivation(bundleID: String) {
+        guard let handoff = NotificationManager.shared.pendingClickHandoff else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            guard NotificationManager.shared.terminalBundleID(for: handoff) == bundleID else { return }
             NSApp.yieldActivation(toApplicationWithBundleIdentifier: bundleID)
             if let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
                 app.activate()

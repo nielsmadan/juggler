@@ -45,6 +45,11 @@ Each row shows:
 
 The currently active / keyboard-selected row is shown with a highlight background rather than a separate marker.
 
+The list shares [Show Hidden](main-window.md#hide-and-show-hidden) with the monitor. It defaults off each launch;
+when on, hidden rows retain their order, render dimmed with a passive eye-slash marker, and permit explicit click
+or `Return` activation. Opening the popover prefers the actual focused listed row for selection. Hide/Unhide
+(`E`) and Show Hidden (`⌘E`) are monitor-only; the popover has no controls or bindings for them.
+
 ### Row Coloring
 
 When enabled (Settings > Highlighting > Session List), the currently highlighted row is drawn in a color from a 5-color palette. Only one row is highlighted at a time, and the same color is applied to the terminal tab/pane. See [Highlight Color](highlight-color.md) for the rules that govern when the color changes.
@@ -86,7 +91,8 @@ When popover is focused:
 - **Rename**: Set custom display name
 - **Edit Note…**: Edit the session's note
 - **Backburner** / **Reactivate**: Toggle backburner state
-- **Remove**: Remove session from tracking. It stays hidden, including after a restart, until it reports new activity
+- **Remove**: Suppress a stale row and its hooklinesinker bindings, including after restart, until new activity.
+  This is separate from durable conversation Hide; see [hydration](../tech/hooks.md#hydration-at-launch)
 
 Notes are intentionally not shown in popover rows; use **Edit Note…** or `M` to view or change one.
 
@@ -110,10 +116,13 @@ When no sessions are tracked:
 │  Juggler                     ⚙️  📋  │
 ├──────────────────────────────────────┤
 │                                      │
-│          No sessions                 │
+│          No Sessions                 │
 │                                      │
 └──────────────────────────────────────┘
 ```
+
+When every tracked row is hidden and Show Hidden is off, the popover instead shows **"All Sessions Hidden"**
+with **"Turn on Show Hidden in Session Monitor to see these sessions."**
 
 ---
 

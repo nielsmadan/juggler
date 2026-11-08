@@ -9,15 +9,19 @@ actor TerminalBridgeRegistry {
     static let shared = TerminalBridgeRegistry()
 
     private var bridges: [TerminalType: any TerminalBridge] = [:]
+    private let beforeLookup: (@Sendable () async -> Void)?
 
-    init() {}
+    init(beforeLookup: (@Sendable () async -> Void)? = nil) {
+        self.beforeLookup = beforeLookup
+    }
 
     func register(_ bridge: any TerminalBridge, for type: TerminalType) {
         bridges[type] = bridge
     }
 
-    func bridge(for type: TerminalType) -> (any TerminalBridge)? {
-        bridges[type]
+    func bridge(for type: TerminalType) async -> (any TerminalBridge)? {
+        await beforeLookup?()
+        return bridges[type]
     }
 
     func stopAll() async {

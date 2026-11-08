@@ -30,7 +30,7 @@ session. Invoking it again for the same conversation keeps the current draft.
 
 ### What Gets Cycled
 
-Only sessions in **cyclable states** are included:
+Only non-hidden sessions in **cyclable states** are included:
 - `idle` - Waiting for user input
 - `permission` - Waiting for user permission
 
@@ -38,6 +38,11 @@ Sessions in these states are **excluded** from cycling:
 - `working` - Claude is actively working
 - `compacting` - Context compaction in progress
 - `backburner` - User manually deprioritized
+
+Hidden rows are excluded in every queue mode, even when Show Hidden reveals them. Auto-advance, Auto-restart,
+Send to Back and cycle-derived activation use the same exclusion. A focused hidden terminal remains tracked so
+cycling can move away from it; global Backburner and Send to Back do nothing while that row is focused.
+Revealed hidden rows can still be activated explicitly by click or `Return`; see [Hide and Show Hidden](main-window.md#hide-and-show-hidden).
 
 ### Cycle Order
 
@@ -114,13 +119,16 @@ Backburner allows temporarily removing a session from the cycling queue without 
 - When backburnering a working session:
   - Session moves to backburner section
   - Stays backburnered even when Claude finishes (hooks don't override)
-  - Only `UserPromptSubmit` or explicit reactivation exits backburner
+  - A prompt submission or explicit reactivation exits backburner; Antigravity can also wake on a working event when it was awaiting the user when shelved
+- Backburner follows the conversation across relaunches and duplicate rows. Launch hydration wakes it only with
+  newer evidence of user activity; ambiguous snapshots stay shelved. See [backburner handling](../tech/session-management.md#backburner-handling).
+- Hide and backburner are independent: reactivating a hidden conversation does not unhide it.
 
 ### Use Cases
 
 - Deprioritize sessions you'll return to later
 - Focus on a subset of active sessions
-- Hide sessions that are waiting but not urgent
+- Shelve sessions that are waiting but not urgent
 
 ## Terminal Highlighting
 

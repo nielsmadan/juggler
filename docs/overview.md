@@ -9,7 +9,7 @@ Juggler solves the "context switching" problem when running multiple Claude Code
 ## Key Features
 
 - **Global hotkeys** to cycle through idle sessions (`⇧⌘J`/`⇧⌘K`)
-- **Menu bar popover** showing all tracked sessions
+- **Menu bar popover** showing sessions, with a shared Show Hidden view control in the monitor
 - **Backburner queue** to temporarily deprioritize sessions
 - **Tab/pane highlighting** to quickly spot the active session
 - **Notifications** when sessions become idle or need permission
@@ -62,4 +62,5 @@ Juggler solves the "context switching" problem when running multiple Claude Code
 ### Occasional Manual Tests
 
 - [Clean Juggler and hooklinesinker integration](tests/juggler-hooklinesinker-clean-install/README.md) - Disposable macOS VM procedure and dated compatibility runs
+- [Session row layout and hidden sessions](tests/session-row-layout/README.md) - Disposable VM layout, disposition and navigation matrix
 

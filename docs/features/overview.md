@@ -17,9 +17,10 @@ Juggler monitors Claude Code, OpenCode, Codex, Pi, and Antigravity sessions runn
 ## Core Workflow
 
 1. **Agent hooks** (Claude Code, OpenCode, Codex, Pi, Antigravity) notify Juggler when sessions change state
-2. **Menu bar popover** shows all tracked sessions with their current state
+2. **Menu bar popover** shows listed sessions with their current state
 3. **Global hotkeys** cycle through sessions needing attention (idle/permission)
 4. **Backburner queue** allows deprioritizing sessions you want to ignore temporarily
+5. **[Hide](main-window.md#hide-and-show-hidden)** keeps conversations tracked without listing, cycling or notifications
 
 ## Session States
 
@@ -31,7 +32,8 @@ Juggler monitors Claude Code, OpenCode, Codex, Pi, and Antigravity sessions runn
 | `compacting` | `arrow.3.trianglepath` | No | Context compaction in progress |
 | `backburner` | `moon.zzz` | No | Manually deprioritized by user |
 
-Sessions in `idle` and `permission` states are included in the cycling queue. Working and backburnered sessions are excluded.
+Non-hidden sessions in `idle` and `permission` states are included in the cycling queue. Hidden is independent
+of these states; revealing hidden rows does not make them cycle-eligible.
 
 ## Feature Documentation
 

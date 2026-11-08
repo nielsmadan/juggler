@@ -3,33 +3,68 @@ import UserNotifications
 
 @MainActor
 final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
+    typealias RequestSender = @MainActor (UNNotificationRequest, @escaping @MainActor (Bool) -> Void) -> Void
+
     struct ClickHandoff: Equatable {
         fileprivate let id = UUID()
         let terminalBundleID: String
+        let target: SessionNotificationTarget?
     }
 
     static let shared = NotificationManager()
 
     private var clickHandoff: ClickHandoff?
+    private let sessionManager: SessionManager
+    private let sendRequest: RequestSender
+    private let activator: SessionActivator
 
     /// True while handling a notification click, so the app delegate can
     /// activate the terminal once macOS finishes its notification activation.
     var isHandlingNotificationClick: Bool {
-        clickHandoff != nil
+        pendingTerminalBundleID != nil
     }
 
     /// The terminal bundle ID to activate after notification click.
     var pendingTerminalBundleID: String? {
-        clickHandoff?.terminalBundleID
+        clickHandoff.flatMap { terminalBundleID(for: $0) }
+    }
+
+    var pendingClickHandoff: ClickHandoff? {
+        pendingTerminalBundleID == nil ? nil : clickHandoff
+    }
+
+    func terminalBundleID(for handoff: ClickHandoff) -> String? {
+        if let target = handoff.target, sessionManager.session(for: target) == nil { return nil }
+        return handoff.terminalBundleID
     }
 
     override private init() {
+        sessionManager = .shared
+        activator = .shared
+        sendRequest = Self.deliver
         super.init()
         UNUserNotificationCenter.current().delegate = self
     }
 
-    func beginClickHandoff(terminalBundleID: String) -> ClickHandoff {
-        let handoff = ClickHandoff(terminalBundleID: terminalBundleID)
+    init(sessionManager: SessionManager, activator: SessionActivator, sendRequest: @escaping RequestSender) {
+        self.sessionManager = sessionManager
+        self.activator = activator
+        self.sendRequest = sendRequest
+        super.init()
+    }
+
+    private static func deliver(_ request: UNNotificationRequest, completion: @escaping @MainActor (Bool) -> Void) {
+        UNUserNotificationCenter.current().add(request) { error in
+            let delivered = error == nil
+            Task { @MainActor in completion(delivered) }
+        }
+    }
+
+    func beginClickHandoff(
+        terminalBundleID: String,
+        target: SessionNotificationTarget? = nil
+    ) -> ClickHandoff {
+        let handoff = ClickHandoff(terminalBundleID: terminalBundleID, target: target)
         clickHandoff = handoff
         return handoff
     }
@@ -47,11 +82,12 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func sendNotification(title: String, body: String, sessionID: String) {
+    func sendNotification(title: String, body: String, target: SessionNotificationTarget) {
+        guard sessionManager.session(for: target) != nil else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
-        content.userInfo = ["sessionID": sessionID]
+        content.userInfo = target.userInfo
 
         if UserDefaults.standard.bool(forKey: AppStorageKeys.playSound) {
             content.sound = .default
@@ -63,19 +99,20 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             trigger: nil
         )
 
-        // Only record the session ID once the system confirms delivery, so the
-        // "go to last notification" hotkey can't jump to a banner the user never saw.
-        UNUserNotificationCenter.current().add(request) { error in
-            guard error == nil else { return }
-            Task { @MainActor in
-                SessionManager.shared.recordLastNotification(sessionID: sessionID)
-            }
+        sendRequest(request) { [weak self] delivered in
+            guard delivered, let self, sessionManager.session(for: target) != nil else { return }
+            sessionManager.recordLastNotification(target)
         }
     }
 
-    /// System-level notification with no associated session. The click handler in
-    /// userNotificationCenter(_:didReceive:withCompletionHandler:) only acts when
-    /// userInfo carries a sessionID, so these banners are inert on click.
+    func activateNotification(_ target: SessionNotificationTarget) async {
+        guard let session = sessionManager.session(for: target) else { return }
+        let handoff = beginClickHandoff(terminalBundleID: session.terminalType.bundleIdentifier, target: target)
+        defer { endClickHandoff(handoff) }
+        _ = await activator.activate(session: session, trigger: .notification, policy: .notification(target))
+    }
+
+    /// System-level notification with no associated session target.
     func sendSystemNotification(title: String, body: String) {
         let content = UNMutableNotificationContent()
         content.title = title
@@ -106,14 +143,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     ) {
         let userInfo = response.notification.request.content.userInfo
 
-        if let sessionID = userInfo["sessionID"] as? String {
+        if let target = SessionNotificationTarget(userInfo: userInfo) {
             Task { @MainActor in
-                guard let session = SessionManager.shared.sessions.first(where: { $0.id == sessionID }) else { return }
-
-                let handoff = beginClickHandoff(terminalBundleID: session.terminalType.bundleIdentifier)
-                defer { endClickHandoff(handoff) }
-
-                _ = await SessionActivator.shared.activate(session: session, trigger: .notification)
+                await activateNotification(target)
             }
         }
 

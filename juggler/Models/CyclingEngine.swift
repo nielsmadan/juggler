@@ -38,7 +38,7 @@ struct DefaultCyclingEngine: CyclingEngine {
         focusedSessionID: String?,
         state: CyclingState
     ) -> CyclingResult {
-        let cyclable = sessions.filter(\.state.isIncludedInCycle)
+        let cyclable = sessions.filter(\.isCycleEligible)
         guard !cyclable.isEmpty else {
             return CyclingResult(targetSession: nil, newState: state, didMove: false)
         }
@@ -70,7 +70,7 @@ struct DefaultCyclingEngine: CyclingEngine {
         focusedSessionID: String?,
         state: CyclingState
     ) -> CyclingResult {
-        let cyclable = sessions.filter(\.state.isIncludedInCycle)
+        let cyclable = sessions.filter(\.isCycleEligible)
         guard !cyclable.isEmpty else {
             return CyclingResult(targetSession: nil, newState: state, didMove: false)
         }
@@ -102,7 +102,7 @@ struct DefaultCyclingEngine: CyclingEngine {
         focusedSessionID: String?,
         state: CyclingState
     ) -> CyclingState {
-        let cyclable = sessions.filter(\.state.isIncludedInCycle)
+        let cyclable = sessions.filter(\.isCycleEligible)
         guard !cyclable.isEmpty, let focusedID = focusedSessionID else {
             return state
         }

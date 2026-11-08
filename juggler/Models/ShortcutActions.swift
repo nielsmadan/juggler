@@ -118,6 +118,20 @@ enum SessionListAction: String, ShortcutAction {
     }
 }
 
+enum SessionMonitorAction: String, ShortcutAction {
+    case toggleSelectedHidden
+    case toggleHiddenVisibility
+
+    var definition: ShortcutActionDefinition {
+        switch self {
+        case .toggleSelectedHidden:
+            .init("Hide / Unhide", Shortcut("e"), allowsKeyRepeat: false)
+        case .toggleHiddenVisibility:
+            .init("Show Hidden", Shortcut("cmd+e"), allowsKeyRepeat: false)
+        }
+    }
+}
+
 enum SessionRowContextAction: CaseIterable {
     case rename
     case editNote

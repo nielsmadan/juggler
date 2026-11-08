@@ -58,13 +58,20 @@ struct MenuBarView: View {
             QueueModePicker(selection: $queueOrderMode)
                 .padding(.bottom, 8)
 
-            if sessionManager.sessions.isEmpty {
-                Text("No sessions")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding()
+            if let emptyState = sessionManager.listEmptyState {
+                VStack(spacing: 6) {
+                    Text(emptyState.title)
+                    if emptyState == .allHidden {
+                        Text(emptyState.description)
+                            .font(.caption)
+                    }
+                }
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding()
             } else {
-                ForEach(sessionManager.sessions) { session in
+                ForEach(sessionManager.listedSessions) { session in
                     SessionRowView(
                         session: session,
                         controller: controller,
@@ -111,11 +118,11 @@ struct MenuBarView: View {
         .focusable()
         .focusEffectDisabled()
         .onKeyPress(.downArrow) {
-            controller.moveSelection(by: 1, in: sessionManager.sessions)
+            controller.moveSelection(by: 1, in: sessionManager.listedSessions)
             return .handled
         }
         .onKeyPress(.upArrow) {
-            controller.moveSelection(by: -1, in: sessionManager.sessions)
+            controller.moveSelection(by: -1, in: sessionManager.listedSessions)
             return .handled
         }
         .sheet(item: $controller.sessionToRename) { session in
@@ -136,17 +143,13 @@ struct MenuBarView: View {
                 onCancel: { controller.sessionToEditNote = nil }
             )
         }
-        .onChange(of: sessionManager.sessions) { _, newSessions in
+        .onChange(of: sessionManager.listedSessions) { _, newSessions in
             controller.syncSelection(sessions: newSessions)
         }
         .onAppear {
             // `syncColor: false` — opening the popover must not retint the global cycling color.
             controller.ownerLabel = "MenuBar"
-            if let initial = sessionManager.currentReferenceSessionID ?? sessionManager.sessions.first?.id {
-                controller.setSelection(toSessionID: initial, syncColor: false)
-            } else {
-                controller.syncSelection(sessions: sessionManager.sessions)
-            }
+            controller.syncPopoverSelection(sessionManager: sessionManager)
             isPopoverKey = controller.ownWindow?.isKeyWindow ?? true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
@@ -183,8 +186,8 @@ struct MenuBarView: View {
     private func handleSessionListAction(_ action: SessionListAction) {
         switch action {
         case .activate: activateSelected()
-        case .moveDown: controller.moveSelection(by: 1, in: sessionManager.sessions)
-        case .moveUp: controller.moveSelection(by: -1, in: sessionManager.sessions)
+        case .moveDown: controller.moveSelection(by: 1, in: sessionManager.listedSessions)
+        case .moveUp: controller.moveSelection(by: -1, in: sessionManager.listedSessions)
         case .backburner: controller.backburnerSelected(sessionManager: sessionManager)
         case .sendToBack: controller.sendToBackSelected(sessionManager: sessionManager)
         case .reactivateSelected: controller.reactivateSelected(sessionManager: sessionManager)
@@ -213,8 +216,8 @@ struct MenuBarView: View {
 
     private func handleEditorAction(_ action: SessionListAction) {
         switch action {
-        case .rename: controller.renameSelected(sessions: sessionManager.sessions)
-        case .editNote: controller.editNoteSelected(sessions: sessionManager.sessions)
+        case .rename: controller.renameSelected(sessions: sessionManager.listedSessions)
+        case .editNote: controller.editNoteSelected(sessions: sessionManager.listedSessions)
         default: assertionFailure("Unexpected editor action")
         }
     }
@@ -226,10 +229,9 @@ struct MenuBarView: View {
     }
 
     private func activateSelected() {
-        guard let id = controller.selectedSessionID,
-              let session = sessionManager.sessions.first(where: { $0.id == id }) else { return }
+        guard let session = controller.selectedSession(in: sessionManager.listedSessions) else { return }
         Task {
-            _ = await SessionActivator.shared.activate(session: session, trigger: .guiSelect)
+            _ = await SessionActivator.shared.activate(session: session, trigger: .guiSelect, policy: .explicit)
         }
         dismiss()
     }

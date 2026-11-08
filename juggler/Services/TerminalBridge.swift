@@ -55,12 +55,19 @@ enum ActivationTrigger {
 }
 
 enum TerminalActivation {
+    @discardableResult
     static func activate(
         session: Session,
         trigger: ActivationTrigger,
         sessionManager: SessionManager = .shared,
-        registry: TerminalBridgeRegistry = .shared
-    ) async throws {
+        registry: TerminalBridgeRegistry = .shared,
+        revalidate: @MainActor (Session) throws -> Session = { $0 }
+    ) async throws -> Session {
+        guard let bridge = await registry.bridge(for: session.terminalType) else {
+            logError(.session, "No bridge available for \(session.terminalType.displayName)")
+            throw TerminalBridgeError.bridgeNotAvailable(session.terminalType)
+        }
+        let session = try revalidate(session)
         // A remote tmux session's terminalSessionID is stale (tmux caches ITERM_SESSION_ID
         // in its environment), so once we've learned the live local pane hosting it we
         // address that instead. Falls back to terminalSessionID for every other session
@@ -78,12 +85,6 @@ enum TerminalActivation {
             }
             throw TerminalBridgeError.sessionNotFound(session.id)
         }
-        guard let bridge = await registry.bridge(for: session.terminalType) else {
-            await MainActor.run {
-                logError(.session, "No bridge available for \(session.terminalType.displayName)")
-            }
-            throw TerminalBridgeError.bridgeNotAvailable(session.terminalType)
-        }
         do {
             try await bridge.activate(sessionID: activationID)
         } catch let error as TerminalBridgeError {
@@ -91,7 +92,11 @@ enum TerminalActivation {
                await isSessionGone(bridge: bridge, activationID: activationID, message: message) {
                 await MainActor.run {
                     logWarning(.session, "Session '\(session.id)' not found in terminal, removing")
-                    sessionManager.removeSession(sessionID: session.id)
+                    if sessionManager.sessions.contains(where: {
+                        $0.id == session.id && $0.agentSessionIdentity == session.agentSessionIdentity
+                    }) {
+                        sessionManager.removeSession(sessionID: session.id)
+                    }
                 }
                 throw TerminalBridgeError.sessionNotFound(session.id)
             }
@@ -103,12 +108,13 @@ enum TerminalActivation {
         if let tmuxPane = session.tmuxPane, shouldRunLocalTmuxSelect(for: session) {
             await selectTmuxPane(tmuxPane)
         }
-        guard shouldHighlight(for: trigger) else { return }
+        guard shouldHighlight(for: trigger) else { return session }
         try await bridge.highlight(
             sessionID: activationID,
             tabConfig: tabHighlightConfig(for: session, sessionManager: sessionManager),
             paneConfig: paneHighlightConfig(for: session, sessionManager: sessionManager)
         )
+        return session
     }
 
     static func shouldRunLocalTmuxSelect(for session: Session) -> Bool {

@@ -46,6 +46,12 @@ struct SessionRowView: View {
             Text(sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode))
                 .lineLimit(1)
 
+            if session.isHidden {
+                Image(systemName: "eye.slash")
+                    .font(.caption)
+                    .accessibilityLabel("Hidden session")
+            }
+
             if let remoteHost = session.remoteHost {
                 Text("SSH")
                     .font(.caption2)
@@ -76,6 +82,7 @@ struct SessionRowView: View {
                 .stroke(isKeyboardSelected ? highlightColor : Color.clear, lineWidth: 1)
         )
         .contentShape(Rectangle())
+        .opacity(session.isHidden ? 0.55 : 1)
         .onTapGesture {
             activateSession()
         }
@@ -107,10 +114,11 @@ struct SessionRowView: View {
     }
 
     private func activateSession() {
+        guard sessionManager.listedSessions.contains(where: { $0.id == session.id }) else { return }
         sessionManager.syncColorIndex(toSessionID: session.id)
         ShortcutCenter.shared.sessionListContext.notifyHint(for: .activate)
         Task {
-            _ = await SessionActivator.shared.activate(session: session, trigger: .guiSelect)
+            _ = await SessionActivator.shared.activate(session: session, trigger: .guiSelect, policy: .explicit)
         }
         onActivate?()
     }

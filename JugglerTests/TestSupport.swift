@@ -199,6 +199,15 @@ enum TestDefaults {
     }
 }
 
+final nonisolated class DispositionCountingDefaults: UserDefaults, @unchecked Sendable {
+    var dispositionWrites = 0
+
+    override func set(_ value: Any?, forKey defaultName: String) {
+        if defaultName == AppStorageKeys.sessionDispositions { dispositionWrites += 1 }
+        super.set(value, forKey: defaultName)
+    }
+}
+
 extension TestFixtures {
     static func date(_ iso8601: String) -> Date {
         guard let date = try? Date(iso8601, strategy: .iso8601) else {
@@ -211,14 +220,19 @@ extension TestFixtures {
     static func isolatedSessionManager(
         hiddenBindings: HiddenBindingStore? = nil,
         dailyStats: DailyStatsStore? = nil,
+        noteStore: SessionNoteStore? = nil,
+        dispositionStore: SessionDispositionStore = SessionDispositionStore(),
         fileID: String = #fileID,
         function: String = #function
     ) -> SessionManager {
         SessionManager(
             dailyStats: dailyStats
                 ?? DailyStatsStore(defaults: TestDefaults.fresh("stats", fileID: fileID, function: function)),
+            noteStore: noteStore
+                ?? SessionNoteStore(defaults: TestDefaults.fresh("notes", fileID: fileID, function: function)),
             hiddenBindings: hiddenBindings
-                ?? HiddenBindingStore(defaults: TestDefaults.fresh("hidden", fileID: fileID, function: function))
+                ?? HiddenBindingStore(defaults: TestDefaults.fresh("hidden", fileID: fileID, function: function)),
+            dispositionStore: dispositionStore
         )
     }
 }

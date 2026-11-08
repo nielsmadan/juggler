@@ -82,9 +82,19 @@ file list.
 
 | Data | Location | Persistence |
 |------|----------|-------------|
-| Sessions | In-memory | None (populated by hooks) |
-| Settings | `~/Library/Preferences/dev.juggler.Juggler.plist` | @AppStorage |
-| Hidden session bindings | Same plist, key `hiddenSessionBindings` | `HiddenBindingStore` (binding → removal time) |
+| Live session rows | In-memory | Rebuilt from hooks and launch hydration |
+| Settings | `~/Library/Preferences/com.nielsmadan.Juggler.plist` | @AppStorage |
+| Conversation notes | Same preferences, key `sessionNotes` | `SessionNoteStore`, keyed by agent/conversation |
+| Hidden/backburner dispositions | Same preferences, key `sessionDispositions` | `SessionDispositionStore`, keyed by agent/conversation |
+| Removed stale bindings | Same preferences, key `hiddenSessionBindings` | `HiddenBindingStore` (binding → removal time), separate from Hide |
+| Busy time by day | Same preferences, key `dailyBusyStats` | `DailyStatsStore` |
+
+Hide is independent of session state and busy-time accounting. It excludes rows from cycling, automation and
+notifications; launch-scoped Show Hidden reveals them in monitor/popover for explicit activation only. Dispositions
+synchronize duplicate conversation rows and survive relaunch; new conversations in a reused pane load their own
+intent. Backburner hydration requires newer activity proof to wake. Successful Reset Sessions clears dispositions
+and stale-binding suppression while retaining notes. See [Session Management](session-management.md) for identity,
+transient intent, generation-bound activation/notification checks and conservative wake rules.
 
 ## Technical Decisions
 
@@ -93,7 +103,7 @@ file list.
 | UI Framework | SwiftUI | Declarative, modern, less code |
 | App Lifecycle | NSStatusItem + NSPopover | Managed by StatusBarManager; SwiftUI Window scenes for settings/monitor |
 | macOS Target | 15+ | `@Observable` (14), `defaultLaunchBehavior` (15) |
-| Shortcuts | ShortcutKit | Shared global/local registry, Carbon activation, recorder UI, and conflict handling |
+| Shortcuts | ShortcutKit 0.8.0 | Shared registry, per-activation local handlers, Carbon activation, recorder UI and conflicts |
 | Auto-Updates | Sparkle | Industry standard for non-App Store apps |
 | Hook Server | HTTP localhost:7483 | Debuggable with curl, future remote support |
 | iTerm2 Integration | Persistent Python daemon | Fast (~50ms vs ~1000ms per-command) |

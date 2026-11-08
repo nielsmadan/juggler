@@ -2,12 +2,13 @@ import Foundation
 @testable import Juggler
 import Testing
 
-private func preserveDefaults(_ keys: String...) -> () -> Void {
+func preserveDefaults(_ keys: String...) -> () -> Void {
     let snapshot = keys.map { ($0, UserDefaults.standard.object(forKey: $0)) }
     return {
         for (key, value) in snapshot {
-            if let value { UserDefaults.standard.set(value, forKey: key) }
-            else { UserDefaults.standard.removeObject(forKey: key) }
+            if let value { UserDefaults.standard.set(value, forKey: key) } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
         }
     }
 }
@@ -585,8 +586,9 @@ struct SessionManagerTests {
         let previous = UserDefaults.standard.string(forKey: key)
         UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: key)
         defer {
-            if let previous { UserDefaults.standard.set(previous, forKey: key) }
-            else { UserDefaults.standard.removeObject(forKey: key) }
+            if let previous { UserDefaults.standard.set(previous, forKey: key) } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
         }
 
         let manager = SessionManager()
@@ -608,8 +610,9 @@ struct SessionManagerTests {
         let previous = UserDefaults.standard.string(forKey: key)
         UserDefaults.standard.set(QueueOrderMode.static.rawValue, forKey: key)
         defer {
-            if let previous { UserDefaults.standard.set(previous, forKey: key) }
-            else { UserDefaults.standard.removeObject(forKey: key) }
+            if let previous { UserDefaults.standard.set(previous, forKey: key) } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
         }
 
         let manager = SessionManager()
@@ -628,8 +631,9 @@ struct SessionManagerTests {
         let previous = UserDefaults.standard.string(forKey: key)
         UserDefaults.standard.set(QueueOrderMode.grouped.rawValue, forKey: key)
         defer {
-            if let previous { UserDefaults.standard.set(previous, forKey: key) }
-            else { UserDefaults.standard.removeObject(forKey: key) }
+            if let previous { UserDefaults.standard.set(previous, forKey: key) } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
         }
 
         func windowed(_ id: String, window: String?, startedAt: TimeInterval) -> Session {
@@ -3492,7 +3496,9 @@ struct SessionManagerDismissalTests {
         manager.testSetFocusedSessionID("s1")
         _ = manager.cycleForward()
         manager.testSetLastActiveSessionID("s2")
-        manager.recordLastNotification(sessionID: "s2")
+        if let notification = manager.makeNotificationTarget(sessionID: "s2") {
+            manager.recordLastNotification(notification)
+        }
         #expect(manager.cyclingState != .initial)
         #expect(manager.lastActiveSessionID == "s2")
 

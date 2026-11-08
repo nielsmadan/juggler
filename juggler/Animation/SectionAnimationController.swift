@@ -56,9 +56,30 @@ enum SectionAnimationTiming {
 final class SectionAnimationController {
     private(set) var downAnimation: DownAnimationState?
     private(set) var upAnimation: UpAnimationState?
+    @ObservationIgnored private var downTask: Task<Void, Never>?
+    @ObservationIgnored private var upTask: Task<Void, Never>?
+    @ObservationIgnored private let sleep: (Duration) async throws -> Void
+
+    init(sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+        self.sleep = sleep
+    }
+
+    func cancel(sessionID: String) {
+        if downAnimation?.sessionID == sessionID {
+            downTask?.cancel()
+            downTask = nil
+            downAnimation = nil
+        }
+        if upAnimation?.sessionID == sessionID {
+            upTask?.cancel()
+            upTask = nil
+            upAnimation = nil
+        }
+    }
 
     /// Returns the effective section for a session, or nil if it shouldn't be shown (during DOWN inFlight).
     func effectiveSection(for session: Session) -> SectionType? {
+        guard !session.isHidden else { return SectionType(from: session.state) }
         if let down = downAnimation, down.sessionID == session.id {
             switch down.phase {
             case .departing:
@@ -83,6 +104,7 @@ final class SectionAnimationController {
         to toState: SessionState
     ) {
         let direction = Self.direction(from: fromState, to: toState)
+        if direction != .none { cancel(sessionID: sessionID) }
 
         switch direction {
         case .down:
@@ -108,16 +130,17 @@ final class SectionAnimationController {
     }
 
     private func startDownAnimation(sessionID: String, from fromState: SessionState) {
+        downTask?.cancel()
         downAnimation = DownAnimationState(
             sessionID: sessionID,
             fromState: fromState,
             phase: .departing
         )
 
-        Task { @MainActor in
+        downTask = Task { @MainActor in
             // Brief delay lets SwiftUI commit the initial state before the phase transition triggers layout changes.
-            try? await Task.sleep(for: .milliseconds(50))
-            guard downAnimation?.sessionID == sessionID else { return }
+            try? await sleep(.milliseconds(50))
+            guard !Task.isCancelled, downAnimation?.sessionID == sessionID else { return }
 
             withAnimation(.easeInOut(duration: SectionAnimationTiming.downDepartureDuration)) {
                 downAnimation = DownAnimationState(
@@ -127,10 +150,10 @@ final class SectionAnimationController {
                 )
             }
 
-            try? await Task
-                .sleep(for: .seconds(SectionAnimationTiming.downDepartureDuration + SectionAnimationTiming
-                        .downOffscreenDelay))
-            guard downAnimation?.sessionID == sessionID else { return }
+            try? await sleep(.seconds(
+                SectionAnimationTiming.downDepartureDuration + SectionAnimationTiming.downOffscreenDelay
+            ))
+            guard !Task.isCancelled, downAnimation?.sessionID == sessionID else { return }
 
             withAnimation(.easeInOut(duration: SectionAnimationTiming.downArrivalDuration)) {
                 downAnimation = DownAnimationState(
@@ -140,22 +163,25 @@ final class SectionAnimationController {
                 )
             }
 
-            try? await Task.sleep(for: .seconds(SectionAnimationTiming.downArrivalDuration))
-            if downAnimation?.sessionID == sessionID {
+            try? await sleep(.seconds(SectionAnimationTiming.downArrivalDuration))
+            if !Task.isCancelled, downAnimation?.sessionID == sessionID {
                 downAnimation = nil
+                downTask = nil
             }
         }
     }
 
     private func startUpAnimation(sessionID: String) {
+        upTask?.cancel()
         upAnimation = UpAnimationState(
             sessionID: sessionID
         )
 
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(SectionAnimationTiming.upMoveDuration))
-            if upAnimation?.sessionID == sessionID {
+        upTask = Task { @MainActor in
+            try? await sleep(.seconds(SectionAnimationTiming.upMoveDuration))
+            if !Task.isCancelled, upAnimation?.sessionID == sessionID {
                 upAnimation = nil
+                upTask = nil
             }
         }
     }

@@ -2,12 +2,26 @@
 
 The SessionManager is the central state manager for tracking agent sessions (Claude Code, OpenCode, Codex, Pi, Antigravity).
 
+- [Implementation](#implementation)
+- [Session model](#session-model)
+- [Session notes](#session-notes)
+- [Conversation dispositions](#conversation-dispositions)
+- [Session states](#session-states)
+- [Data flow](#data-flow)
+- [Cycling engine](#cycling-engine)
+- [Hotkeys](#hotkeys)
+- [Activation and notifications](#activation-and-notifications)
+- [Reorder animations](#reorder-animations)
+- [Backburner handling](#backburner-handling)
+- [Stale session cleanup](#stale-session-cleanup)
+
 ## Implementation
 
 **File:** `Managers/SessionManager.swift`
 
 - `@Observable` singleton
 - In-memory session storage
+- Durable conversation notes and hidden/backburner dispositions in separate stores
 - Cycling logic via CyclingEngine
 - State transitions with animations
 
@@ -60,8 +74,39 @@ A session without an agent session ID cannot form a durable key, so its note rem
 If the row later receives an ID, that transient note is saved under the resulting key. Removing a live row does not
 remove its persisted note, which allows a later resume of the same conversation to recover it.
 
-Only notes are restored from disk. The live session list remains in memory and is rebuilt from hook and terminal events
-after every app launch.
+Notes and conversation dispositions are restored from disk. The live session list remains in memory and is rebuilt
+from hook and terminal events after every app launch.
+
+## Conversation Dispositions
+
+`SessionDispositionStore` persists Hide and backburner intent under `(agent, agentSessionID)`, independently of
+`SessionNoteStore` and `HiddenBindingStore`. `SessionManager.shared` injects a UserDefaults-backed store;
+ordinary `SessionManager()` instances use an in-memory disposition store. A row's terminal/pane ID identifies
+its live location, while its conversation identity owns durable intent. Duplicate live rows synchronize both
+disposition fields, with one persistence update and automation effects only for the initiating row. A new
+conversation in the same pane loads its own disposition, never the old conversation's.
+
+Until a stable nonempty conversation identity arrives, choices remain on the live row. Per-field transient
+overrides distinguish explicit Unhide/Reactivate from untouched state. Filling the missing identity applies
+those overrides over the stored disposition, persists the reconciled result and synchronizes duplicate rows.
+A stable identity replacement instead loads the replacement's stored intent and clears old deferred work and
+details. Stale non-establishing events cannot replace ownership.
+
+The `sessionDispositions` UserDefaults data contains a version-1 envelope of records. Writes sort records by
+agent/session ID and JSON keys for deterministic encoding. Decoding skips malformed records and invalid keys;
+the last valid duplicate wins, including an empty record that clears an earlier one. Empty dispositions are
+removed. Corrupt or unsupported envelopes log an error and yield an empty in-memory store.
+
+`Session.isHidden` is orthogonal to `SessionState`: Hide changes neither state nor busy timestamps, so hooks,
+metadata, turn durations and busy-time commits continue. `Session.isCycleEligible` combines the state-only
+`SessionState.isIncludedInCycle` with `!isHidden`; keep the state-only predicate where the prior state is
+needed, such as Antigravity backburner wake logic.
+
+`SessionManager.listedSessions` applies the launch-scoped `showsHiddenSessions` flag, initially false. Both
+views, their selection/navigation, empty states and name disambiguation use that projection. Revealed hidden
+rows retain their normal section/order. Stats intentionally read raw `sessions` instead. A focused hidden row
+remains a valid focus anchor for cycling away; an unfocused hidden busy anchor is cleared, including when
+transient-to-stable hydration discovers persisted Hide.
 
 ## Session States
 
@@ -84,7 +129,7 @@ enum SessionState: String, Codable {
 ### Session Registration
 
 1. Hook fires (e.g., `SessionStart`)
-2. `notify.sh` enriches with terminal info
+2. hooklinesinker enriches with terminal info (Antigravity uses Juggler's bundled notify script)
 3. HTTP POST to HookServer
 4. `addOrUpdateSession()` creates/updates session
 
@@ -114,7 +159,7 @@ protocol CyclingEngine {
 
 ### Cycling Logic
 
-1. Filter to cyclable sessions (idle/permission)
+1. Filter to cycle-eligible sessions (non-hidden idle/permission)
 2. Advance index based on direction
 3. Wrap around at boundaries
 4. Report whether cycling moved (`didMove`) so the caller can decide whether to advance the highlight color
@@ -155,13 +200,13 @@ delegates fired actions to `HotkeyManager` (`Managers/HotkeyManager.swift`), whi
 The note shortcut requires one unambiguous focus match. When multiple remote tmux sessions share the same live local
 host pane and no unique session can be established, the shortcut reports that there is no active session.
 
-The jump-to-latest shortcut activates `SessionManager.lastNotifiedSessionID` (recorded by `NotificationManager` via `recordLastNotification`), independent of cycle order, and shows "No Notification" in the beacon if there's no recorded session or it's gone.
+The jump-to-latest shortcut resolves `SessionManager.lastNotificationTarget`, independent of cycle order, and shows
+"No Notification" if it has been invalidated or its row is gone.
 
-Every activation surface delegates to `SessionActivator`. It processes activation requests in request order, holds the `beginActivation` / `endActivation` guard for each full terminal operation, and returns a typed outcome. Cycling-style workflows use `activateFirstAvailable`, which silently skips stale sessions until a live target activates or no candidate remains.
-
-A local `ShortcutContext` holds one active dispatch handler. The popover and the monitor share
-that context, so they must never mount `.activeShortcutContext` at the same time —
-`keyWindowShortcutContext` gates it to the key window.
+ShortcutKit 0.8.0 binds local dispatch handlers per activation. `keyWindowShortcutContext` mounts only for the
+receiving key window. The monitor composes the shared `sessionList` context with its own `sessionMonitor`
+context (`E` Hide/Unhide, `⌘E` Show Hidden, no key repeat); the popover mounts only `sessionList`.
+The monitor legend and Settings expose both contexts. These bindings are independent of row-action visibility.
 
 Capture whether a terminal is frontmost **synchronously** in `HotkeyManager.dispatch`, before any
 asynchronous work starts; the answer changes as soon as activation begins.
@@ -169,11 +214,37 @@ asynchronous work starts; the answer changes as soon as activation begins.
 `ShortcutAction` raw values are persistence identifiers. Renaming a case requires migrating saved
 bindings.
 
+## Activation and Notifications
+
+Every activation surface delegates to serialized `SessionActivator`. It validates the live row and conversation
+when dequeued and again immediately before the terminal bridge call. Explicit row click/Return activation can
+target a listed hidden row; cycle and automatic policies require `isCycleEligible`. `activateFirstAvailable`
+skips terminal targets confirmed gone until a live candidate activates or none remain. Global Backburner and
+Send to Back no-op for a focused hidden row.
+
+Auto Next/Auto Restart requests capture the source conversation, row generation and focus-context generation;
+the destination also carries its generation to the final bridge check. Hide, identity replacement, source state
+or focus changes permanently invalidate stale requests, even if the row is later unhidden or returns to its old
+state. After a bridge completes, an automatic request may update focus only while it still owns the activation
+lifetime, focus context and same live target generation. Reset, removal, replacement and newer focus decisions win.
+
+Notification targets contain live row ID, stable conversation identity when available, an invalidatable token
+and a monotonic sequence. Hook dispatch (including injected senders), default sending, delivery completion,
+Last Notification recording, banner clicks, terminal-focus handoff and the Last Notification shortcut revalidate
+the target. Completion order cannot replace a newer delivered target with an older one. Hidden rows never send
+or resolve notification targets. Hide rotates the token and clears its Last Notification reference; Unhide does
+not revive a pre-hide banner. Identity replacement rotates validity as well. A rejected old banner cannot
+activate its terminal; macOS can still foreground the posting app as described in the
+[platform limitation](overview.md#notification-click-activation).
+
 ## Reorder Animations
 
 **File:** `Animation/SectionAnimationController.swift`
 
 Handles visual transitions when sessions change sections:
+
+Hide and identity replacement cancel pending section animations. Hidden rows receive state/reorder updates
+without animation; revealed hidden rows appear in their current section without replaying stale transitions.
 
 ### UP Animation (busy → idle)
 
@@ -202,18 +273,32 @@ signal for cross-section movement: animating the state change, the reorder, or
 
 ## Backburner Handling
 
-Special logic to preserve backburner state:
+`BackburnerDisposition` saves whether the conversation was awaiting the user, the shelving timestamp and valid
+turn-count baselines by hooklinesinker binding. Backburnered rows continue merging metadata and binding observations
+while retaining `.backburner`. Hide is independent: waking or explicitly reactivating does not unhide a conversation.
 
-In `addOrUpdateSession()` (`SessionManager.swift:605`), when the existing state is `.backburner` and the event isn't `UserPromptSubmit`, the method calls `mergeSessionMetadata(...)` to refresh tmux/git/transcript fields and returns without changing state - preserving backburner.
+Live `UserPromptSubmit` wakes it. Antigravity, which has no such event, wakes on a working event only if it was
+awaiting the user when shelved. Explicit Reactivate clears the persisted backburner field across duplicate rows.
 
-Only `UserPromptSubmit` or explicit reactivation (via `updateSessionState`, not this method) exits backburner.
+Launch hydration is more conservative. The incoming `observedAt` must be strictly newer than `backburneredAt`,
+and one of these must prove activity while Juggler was offline:
+
+- An explicitly supplied nonnegative integer turn count exceeds the saved baseline for the **same binding**.
+- The snapshot event is `UserPromptSubmit`.
+- It is a qualifying Antigravity working event and the saved awaiting-user flag is true.
+
+Missing, malformed or negative counts, unknown bindings, unchanged counts and older/equal timestamps do not prove
+a wake. A generic newer working snapshot alone is insufficient. Ambiguous snapshots remain shelved until a live
+prompt, qualifying Antigravity event or explicit Reactivate. Hydration does not trigger automatic activation.
 
 ## Stale Session Cleanup
 
 Sessions are removed reactively (no polling timer). Two manual escape hatches cover rows the
-automatic paths cannot clear: **Remove**, which hides the row's hooklinesinker bindings until they
-report activity, and Settings → General → Reset Sessions, which clears the hooklinesinker ledger
-and every row. See [hooks](hooks.md#hydration-at-launch).
+automatic paths cannot clear: **Remove**, which suppresses stale hooklinesinker bindings until activity,
+and Settings → General → Reset Sessions, which clears the shared ledger and every row. `HiddenBindingStore`
+belongs to Remove, not durable conversation Hide. Successful reset clears both stores' suppression/dispositions
+while preserving notes and committed busy time; failure clears no local state.
+See [hooks](hooks.md#hydration-at-launch) and [Reset Sessions](hooks.md#reset-sessions).
 
 1. iTerm2 daemon and Kitty watcher push `session_terminated` events when tabs close, routed through `SessionManager.removeSessionsByTerminalID`.
 2. Activation that fails because the session is gone (`TerminalActivation.activate` detecting a missing session) calls `removeSession` and throws `.sessionNotFound`. `SessionActivator.activateFirstAvailable` maps that to an unavailable target and asks its candidate provider for the next session until a live session activates or none remain. This backstops Kitty in particular: its watcher delivers `session_terminated` over fire-and-forget HTTP with no retry, so a dropped event would otherwise leak the session until the next activation attempt prunes it.

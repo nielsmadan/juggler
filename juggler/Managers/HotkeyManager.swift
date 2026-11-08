@@ -18,8 +18,19 @@ final class HotkeyManager {
     /// Whether the show-monitor hotkey initiated the current popover/window cycle.
     /// Reset when Juggler loses focus so external window opens don't confuse step 3.
     private var monitorCycleActive = false
+    private let sessionManager: SessionManager
+    private let activator: SessionActivator
+    private let showBeacon: (String) -> Void
 
-    private init() {}
+    init(
+        sessionManager: SessionManager = .shared,
+        activator: SessionActivator = .shared,
+        showBeacon: @escaping (String) -> Void = { BeaconManager.shared.show(sessionName: $0) }
+    ) {
+        self.sessionManager = sessionManager
+        self.activator = activator
+        self.showBeacon = showBeacon
+    }
 
     func setupHotkeys() {
         _ = NSWorkspace.shared.notificationCenter.addObserver(
@@ -35,18 +46,19 @@ final class HotkeyManager {
 
         _ = NotificationCenter.default.addObserver(
             forName: .shouldAutoAdvance, object: nil, queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
+            guard let request = notification.userInfo?["request"] as? SessionAutomaticActivation else { return }
             Task { @MainActor in
-                await self?.handleAutoAdvance()
+                await self?.handleAutomaticActivation(request)
             }
         }
 
         _ = NotificationCenter.default.addObserver(
             forName: .shouldAutoRestart, object: nil, queue: .main
         ) { [weak self] notification in
-            guard let sessionID = notification.userInfo?["sessionID"] as? String else { return }
+            guard let request = notification.userInfo?["request"] as? SessionAutomaticActivation else { return }
             Task { @MainActor in
-                await self?.handleAutoRestart(sessionID: sessionID)
+                await self?.handleAutomaticActivation(request)
             }
         }
     }
@@ -58,10 +70,10 @@ final class HotkeyManager {
     func dispatch(_ action: GlobalAction) {
         switch action {
         case .cycleForward:
-            let wasTerminalFrontmost = SessionManager.shared.isTerminalFrontmost()
+            let wasTerminalFrontmost = sessionManager.isTerminalFrontmost()
             Task { await self.handleCycleForward(wasTerminalFrontmost: wasTerminalFrontmost) }
         case .cycleBackward:
-            let wasTerminalFrontmost = SessionManager.shared.isTerminalFrontmost()
+            let wasTerminalFrontmost = sessionManager.isTerminalFrontmost()
             Task { await self.handleCycleBackward(wasTerminalFrontmost: wasTerminalFrontmost) }
         case .backburner:
             Task { await self.handleBackburner() }
@@ -82,7 +94,7 @@ final class HotkeyManager {
         await activateWithRetry(
             direction: "forward",
             presentation: cyclePresentation(),
-            cycle: { SessionManager.shared.cycleForward(wasTerminalFrontmost: wasTerminalFrontmost) }
+            cycle: { self.sessionManager.cycleForward(wasTerminalFrontmost: wasTerminalFrontmost) }
         )
     }
 
@@ -90,12 +102,12 @@ final class HotkeyManager {
         await activateWithRetry(
             direction: "backward",
             presentation: cyclePresentation(),
-            cycle: { SessionManager.shared.cycleBackward(wasTerminalFrontmost: wasTerminalFrontmost) }
+            cycle: { self.sessionManager.cycleBackward(wasTerminalFrontmost: wasTerminalFrontmost) }
         )
     }
 
     private func cyclePresentation() -> SessionActivationPresentation {
-        let manager = SessionManager.shared
+        let manager = sessionManager
         return .forCyclableCount(
             manager.cyclableSessions.count,
             returnsToFocusedSession: manager.isFocusedOnOnlyCyclableSession
@@ -105,12 +117,14 @@ final class HotkeyManager {
     private func activateWithRetry(
         direction: String,
         presentation: SessionActivationPresentation = .cycle,
+        automaticRequest: SessionAutomaticActivation? = nil,
         cycle: () -> Session?
     ) async {
         logDebug(.hotkey, "Cycle \(direction) triggered")
-        let outcome = await SessionActivator.shared.activateFirstAvailable(
+        let outcome = await activator.activateFirstAvailable(
             trigger: .hotkey,
             presentation: presentation,
+            automaticRequest: automaticRequest,
             nextSession: cycle
         )
         switch outcome {
@@ -123,32 +137,25 @@ final class HotkeyManager {
         }
     }
 
-    private func handleAutoAdvance() async {
+    func handleAutomaticActivation(_ request: SessionAutomaticActivation) async {
         await activateWithRetry(
-            direction: "auto-advance",
-            cycle: { SessionManager.shared.cycleForward() }
+            direction: request.kind == .advance ? "auto-advance" : "auto-restart",
+            automaticRequest: request,
+            cycle: { self.sessionManager.nextAutomaticSession(for: request) }
         )
     }
 
-    private func handleAutoRestart(sessionID: String) async {
-        await activateWithRetry(
-            direction: "auto-restart",
-            cycle: {
-                SessionManager.shared.sessions.first { $0.id == sessionID && $0.state.isIncludedInCycle }
-            }
-        )
-    }
-
-    private func handleGoToLastNotification() async {
+    func handleGoToLastNotification() async {
         logDebug(.hotkey, "Go to last notification triggered")
-        guard let id = SessionManager.shared.lastNotifiedSessionID,
-              let target = SessionManager.shared.sessions.first(where: { $0.id == id }) else {
-            BeaconManager.shared.show(sessionName: "No Notification")
+        guard let notification = sessionManager.lastNotificationTarget,
+              let target = sessionManager.session(for: notification) else {
+            showBeacon("No Notification")
             return
         }
-        let outcome = await SessionActivator.shared.activate(
+        let outcome = await activator.activate(
             session: target,
             trigger: .hotkey,
+            policy: .notification(notification),
             presentation: .notificationJump
         )
         if case let .failed(error) = outcome {
@@ -156,49 +163,49 @@ final class HotkeyManager {
         }
     }
 
-    private func handleBackburner() async {
+    func handleBackburner() async {
         logDebug(.hotkey, "Backburner triggered")
-        guard let session = SessionManager.shared.currentSession else {
+        guard let session = sessionManager.currentCommandSession else {
             logDebug(.hotkey, "No current session to backburner")
             return
         }
-        SessionManager.shared.backburnerSession(terminalSessionID: session.id)
+        sessionManager.backburnerSession(terminalSessionID: session.id)
 
         let goToNext = UserDefaults.standard.bool(forKey: AppStorageKeys.goToNextOnBackburner)
         guard goToNext else { return }
-        guard SessionManager.shared.currentSession != nil else { return }
-        SessionManager.shared.advanceColorIndex(by: 1)
-        let outcome = await SessionActivator.shared.activateFirstAvailable(
+        guard sessionManager.currentCyclableSession != nil else { return }
+        sessionManager.advanceColorIndex(by: 1)
+        let outcome = await activator.activateFirstAvailable(
             trigger: .hotkey,
             presentation: .failureOnly,
-            nextSession: { SessionManager.shared.currentSession }
+            nextSession: { self.sessionManager.currentCyclableSession }
         )
         if case let .failed(error) = outcome {
             logError(.hotkey, "Backburner go-to-next failed: \(error)")
         }
     }
 
-    private func handleSendToBack() async {
+    func handleSendToBack() async {
         logDebug(.hotkey, "Send to back triggered")
-        guard let current = SessionManager.shared.currentSession,
-              current.state.isIncludedInCycle else {
+        guard let current = sessionManager.currentCommandSession,
+              current.isCycleEligible else {
             logDebug(.hotkey, "No cyclable current session to send to back")
             return
         }
-        guard let next = SessionManager.shared.sendToBackOfQueue(sessionID: current.id) else {
+        guard let next = sessionManager.sendToBackOfQueue(sessionID: current.id) else {
             logDebug(.hotkey, "Send to back not applicable in current queue mode")
             return
         }
-        SessionManager.shared.updateFocusedSession(terminalSessionID: next.id)
+        sessionManager.updateFocusedSession(terminalSessionID: next.id)
         await activateWithRetry(
             direction: "send-to-back",
-            cycle: { SessionManager.shared.currentSession }
+            cycle: { self.sessionManager.currentCyclableSession }
         )
     }
 
     private func handleReactivateAll() {
         logDebug(.hotkey, "Reactivate all triggered")
-        SessionManager.shared.reactivateAllBackburnered()
+        sessionManager.reactivateAllBackburnered()
     }
 
     private func handleShowMonitor() {

@@ -9,7 +9,8 @@ The beacon is a brief HUD overlay that shows the current session name whenever t
 - `⇧⌘K` - cycle forward → beacon shows next session name
 - `⇧⌘J` - cycle backward → beacon shows previous session name
 
-Cycling while no cyclable session exists shows the fallback label **"All At Work"**.
+Cycling while no non-hidden cyclable session exists shows the fallback label **"All At Work"**,
+including when all idle sessions are hidden. See [cycling eligibility](cycle-sessions.md#what-gets-cycled).
 
 Cycling while exactly one session is cyclable shows **"Only 1 Session"** with the session's display name as the subtitle, so rapid cycling doesn't look like a stuck re-highlight of an unnamed session. It appears only when the cycle returns to the session you're already on; arriving at it for the first time from another session shows the normal session-name beacon.
 
@@ -30,7 +31,11 @@ The session's display name appears as the title. If the session has a note, it a
 - More than one coding harness: the target harness name, such as `Claude Code` or `Codex`.
 - Both vary: terminal first, as in `iTerm2 · Claude Code`.
 
-These conditions are independent and count every tracked session, including backburnered sessions. The hierarchy is title → note → metadata when a note exists, and title → metadata otherwise. Fallback beacons such as "All At Work," "No Notification," and "Activation Failed" remain title-only. "Only 1 Session" is the exception: it uses the reason as the title, includes the note when present, and shows the session's display name as the final line.
+These conditions are independent and count every tracked session, including backburnered and hidden sessions.
+Show Hidden does not change beacon metadata. The hierarchy is title → note → metadata when a note exists, and
+title → metadata otherwise. Fallback beacons such as "All At Work," "No Notification," and "Activation Failed"
+remain title-only. "Only 1 Session" is the exception: it uses the reason as the title, includes the note when
+present, and shows the session's display name as the final line.
 
 The title uses medium white text. The note and metadata use smaller regular white text. All rows are single-line and centered; the note truncates at the tail, while the title and metadata truncate in the middle. The panel is solid black with a 2 px white border.
 

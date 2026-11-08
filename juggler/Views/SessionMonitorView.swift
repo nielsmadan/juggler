@@ -18,16 +18,19 @@ struct SessionMonitorView: View {
         .default.rawValue
     @AppStorage(AppStorageKeys.controlBarHintDismissed) private var controlBarHintDismissed = false
     @AppStorage(AppStorageKeys.monitorReplaceHomeWithTilde) private var monitorReplaceHomeWithTilde = false
-    @AppStorage(AppStorageKeys.monitorShowRenameButton) private var monitorShowRenameButton = true
-    @AppStorage(AppStorageKeys.monitorShowNoteButton) private var monitorShowNoteButton = true
+    private var rowActionSettings = RowActionSettings()
     private var rowSlotSettings = RowSlotSettings()
 
     private var titleMode: SessionTitleMode {
         SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .default
     }
 
-    private var showsSessionActions: Bool {
-        monitorShowRenameButton || monitorShowNoteButton
+    private var rowActions: [SessionRowAction] {
+        rowActionSettings.actions
+    }
+
+    private var selectionSource: SessionListController.SelectionSource {
+        .init(sessionManager: sessionManager)
     }
 
     private var controlBarDividerColor: Color {
@@ -115,6 +118,10 @@ struct SessionMonitorView: View {
                                       isActive: isMonitorWindowKey) { action, _ in
                 handleSessionListAction(action)
             }
+            .keyWindowShortcutContext(ShortcutCenter.shared.sessionMonitorContext,
+                                      isActive: isMonitorWindowKey) { action, _ in
+                handleSessionMonitorAction(action)
+            }
             .shortcutHintHUD(
                 presenter: ShortcutCenter.shared.hintPresenter,
                 options: ShortcutCenter.shared.hintOptions
@@ -152,16 +159,18 @@ struct SessionMonitorView: View {
                     onCancel: { controller.sessionToEditNote = nil }
                 )
             }
-            .onChange(of: sessionManager.sessions) { _, newSessions in
-                logDebug(.navigation, "sessions changed (count=\(newSessions.count)) → syncSelection")
-                controller.syncSelection(sessions: newSessions)
+            .onChange(of: sessionManager.listedSessions) { _, newSessions in
+                controller.syncMonitorSelection(sessionManager: sessionManager)
                 let alive = Set(newSessions.map(\.id))
                 let liveCornerWidths = cornerWidths.filter { alive.contains($0.key) }
                 if liveCornerWidths != cornerWidths { cornerWidths = liveCornerWidths }
             }
+            .onChange(of: sessionManager.orderedVisibleSessions().map(\.id)) {
+                controller.syncMonitorSelection(sessionManager: sessionManager)
+            }
             .onAppear {
                 controller.ownerLabel = "Monitor"
-                controller.syncSelection(sessions: sessionManager.sessions)
+                controller.syncMonitorSelection(sessionManager: sessionManager)
             }
             .onDisappear {
                 scrollTask?.cancel()
@@ -176,33 +185,22 @@ struct SessionMonitorView: View {
                     sessionManager.reorderForPermissionPriority(prioritizePermissionSessions, mode: mode)
                 }
             }
-            .onChange(of: sessionManager.currentSession?.id) { _, newID in
-                if let current = sessionManager.currentSession {
-                    logDebug(.navigation, "currentSession changed → \(newID ?? "nil") → setSelection(\(current.id))")
-                    controller.setSelection(toSessionID: current.id)
-                }
+            .onChange(of: selectionSource) { previous, current in
+                controller.syncCurrentSelection(from: previous, to: current, sessions: sessionManager.listedSessions)
             }
             .onChange(of: sessionManager.focusedSessionID) { _, newFocusedID in
-                guard let focusedID = newFocusedID else { return }
-                if let session = sessionManager.sessions.first(where: {
-                    $0.terminalSessionID == focusedID || $0.id == focusedID
-                }) {
-                    logDebug(.navigation, "focusedSessionID changed → \(focusedID) → setSelection(\(session.id))")
-                    controller.setSelection(toSessionID: session.id)
-                }
+                controller.selectListedSession(matching: newFocusedID, in: sessionManager.listedSessions)
             }
             .onChange(of: sessionManager.isSessionFocused) { _, isFocused in
                 // Resync selection when a terminal becomes active, so arrow-key
                 // drift in the monitor doesn't persist when returning to the terminal.
                 // Skip if an activation is in flight — the focus event for the target
                 // session hasn't arrived yet, so resyncing would flash the old session.
-                if isFocused, sessionManager.activationTarget == nil,
-                   let focusedID = sessionManager.focusedSessionID,
-                   let session = sessionManager.sessions.first(where: {
-                       $0.terminalSessionID == focusedID || $0.id == focusedID
-                   }) {
-                    logDebug(.navigation, "isSessionFocused → true → setSelection(\(session.id))")
-                    controller.setSelection(toSessionID: session.id)
+                if isFocused, sessionManager.activationTarget == nil {
+                    controller.selectListedSession(
+                        matching: sessionManager.focusedSessionID,
+                        in: sessionManager.listedSessions
+                    )
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
@@ -237,13 +235,11 @@ struct SessionMonitorView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 8)
             }
-            if sessionManager.sessions.isEmpty {
+            if let emptyState = sessionManager.listEmptyState {
                 ContentUnavailableView(
-                    "No Sessions",
-                    systemImage: "terminal",
-                    description: Text(
-                        "Start or continue a session and it will show up here.\n\nCodex and Antigravity sessions appear after your first message."
-                    )
+                    emptyState.title,
+                    systemImage: emptyState.icon,
+                    description: Text(emptyState.description)
                 )
                 .frame(maxHeight: .infinity)
             } else {
@@ -288,7 +284,7 @@ struct SessionMonitorView: View {
             }
         } else if queueOrderMode == QueueOrderMode.static.rawValue {
             List {
-                ForEach(sessionManager.sessions) { session in
+                ForEach(sessionManager.listedSessions) { session in
                     listSessionRow(session)
                 }
             }
@@ -313,7 +309,7 @@ struct SessionMonitorView: View {
                 }
                 .animation(
                     .easeInOut(duration: SectionAnimationTiming.upMoveDuration),
-                    value: sessionManager.sessions.map(\.id)
+                    value: sessionManager.listedSessions.map(\.id)
                 )
             }
         }
@@ -329,7 +325,7 @@ struct SessionMonitorView: View {
 
     private func scrollToSelected(_ proxy: ScrollViewProxy) {
         guard let id = controller.selectedSessionID,
-              let session = sessionManager.sessions.first(where: { $0.id == id }) else {
+              let session = sessionManager.listedSessions.first(where: { $0.id == id }) else {
             logDebug(.navigation, "scrollToSelected skipped — no valid selection")
             return
         }
@@ -407,6 +403,21 @@ struct SessionMonitorView: View {
             toggleButton(isOn: $beaconEnabled, action: .beacon, icon: "light.panel",
                          activeColor: CyclingColors.palette[4],
                          help: "Beacon: show session name when cycling")
+            Button {
+                controller.toggleHiddenVisibility(sessionManager: sessionManager)
+                ShortcutCenter.shared.sessionMonitorContext.notify(.toggleHiddenVisibility)
+            } label: {
+                Image(systemName: sessionManager.showsHiddenSessions ? "eye" : "eye.slash")
+                    .font(.callout)
+                    .frame(width: 32, height: 28)
+                    .background(sessionManager.showsHiddenSessions ? Color.accentColor : Color.clear)
+                    .foregroundStyle(sessionManager.showsHiddenSessions ? .white : .primary)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Show Hidden: reveal hidden sessions in Session Monitor and the popover")
+            .accessibilityLabel("Show Hidden")
+            .accessibilityValue(sessionManager.showsHiddenSessions ? "On" : "Off")
         }
         .fixedSize(horizontal: false, vertical: true)
         .background(.bar)
@@ -486,6 +497,7 @@ struct SessionMonitorView: View {
             recordCornerWidth(width, for: session.id)
         }
         .contentShape(Rectangle())
+        .opacity(session.isHidden ? 0.55 : 1)
         .listRowBackground(
             isActiveRow(session)
                 ? highlightColor.opacity(0.15)
@@ -531,6 +543,7 @@ struct SessionMonitorView: View {
             recordCornerWidth(width, for: session.id)
         }
         .contentShape(Rectangle())
+        .opacity(session.isHidden ? 0.55 : 1)
         .onTapGesture {
             activateSession(session)
         }
@@ -557,7 +570,7 @@ struct SessionMonitorView: View {
             cornerWidth: cornerWidth,
             statsEnabled: enableStats,
             rowHorizontalPadding: rowInsets.horizontal,
-            showsActions: showsSessionActions
+            showsActions: !rowActions.isEmpty
         )
         VStack(alignment: .leading, spacing: SessionMonitorRowLayout.titleToSlotsSpacing) {
             sessionTitle(session)
@@ -591,9 +604,13 @@ struct SessionMonitorView: View {
                     statsEnabled: enableStats,
                     rowVerticalPadding: rowInsets.vertical
                 )
-                trailingControls(session, height: controlAreaHeight)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .offset(x: rowInsets.horizontal)
+                trailingControls(
+                    session,
+                    height: controlAreaHeight,
+                    actionTopOffset: SessionRowActionLayout.topOffset(rowVerticalPadding: rowInsets.vertical)
+                )
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .offset(x: rowInsets.horizontal)
             }
         }
     }
@@ -606,37 +623,36 @@ struct SessionMonitorView: View {
     }
 
     private func sessionTitle(_ session: Session) -> some View {
-        Text(sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode))
-            .font(.headline)
-            .lineLimit(1)
-    }
-
-    private func trailingControls(_ session: Session, height: CGFloat) -> some View {
-        HStack(alignment: .top, spacing: 0) {
-            stateBadge(session)
-                .frame(height: height, alignment: .center)
-            if showsSessionActions {
-                sessionActions(session)
-                    .frame(height: height, alignment: .top)
+        HStack(spacing: 4) {
+            Text(sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode))
+                .font(.headline)
+                .lineLimit(1)
+            if session.isHidden {
+                Image(systemName: "eye.slash")
+                    .font(.caption)
+                    .accessibilityLabel("Hidden session")
             }
         }
     }
 
-    private func sessionActions(_ session: Session) -> some View {
-        VStack(spacing: SessionRowActionLayout.verticalSpacing) {
-            if monitorShowRenameButton {
-                rowActionButton(icon: "pencil", label: "Rename session") {
-                    controller.sessionToRename = session
-                    ShortcutCenter.shared.sessionListContext.notifyHint(for: .rename)
-                }
+    private func trailingControls(_ session: Session, height: CGFloat, actionTopOffset: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            stateBadge(session)
+                .frame(height: height, alignment: .center)
+            if !rowActions.isEmpty {
+                sessionActions(session, height: height)
+                    .frame(height: height, alignment: .top)
+                    .offset(y: actionTopOffset)
             }
-            if monitorShowNoteButton {
-                rowActionButton(
-                    icon: session.note == nil ? "text.bubble" : "text.bubble.fill",
-                    label: session.note == nil ? "Add note" : "Edit note"
-                ) {
-                    controller.sessionToEditNote = session
-                    ShortcutCenter.shared.sessionListContext.notifyHint(for: .editNote)
+        }
+    }
+
+    private func sessionActions(_ session: Session, height: CGFloat) -> some View {
+        let metrics = SessionRowActionLayout.metrics(actionCount: rowActions.count, availableHeight: height)
+        return VStack(spacing: metrics.spacing) {
+            ForEach(rowActions, id: \.self) { action in
+                rowActionButton(icon: action.icon(for: session), label: action.label(for: session), metrics: metrics) {
+                    performRowAction(action, session: session)
                 }
             }
         }
@@ -646,18 +662,43 @@ struct SessionMonitorView: View {
     private func rowActionButton(
         icon: String,
         label: String,
+        metrics: SessionRowActionLayout.Metrics,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: SessionRowActionLayout.iconSize))
-                .frame(width: SessionRowActionLayout.buttonSize, height: SessionRowActionLayout.buttonSize)
+                .font(.system(size: metrics.iconSize))
+                .frame(width: SessionRowActionLayout.buttonSize, height: metrics.buttonHeight)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
         .help(label)
         .accessibilityLabel(label)
+    }
+
+    private func performRowAction(_ action: SessionRowAction, session: Session) {
+        switch action {
+        case .rename:
+            controller.sessionToRename = session
+            ShortcutCenter.shared.sessionListContext.notifyHint(for: .rename)
+        case .note:
+            controller.sessionToEditNote = session
+            ShortcutCenter.shared.sessionListContext.notifyHint(for: .editNote)
+        case .hide:
+            controller.toggleHidden(sessionID: session.id, sessionManager: sessionManager)
+            ShortcutCenter.shared.sessionMonitorContext.notify(.toggleSelectedHidden)
+        }
+    }
+
+    private func handleSessionMonitorAction(_ action: SessionMonitorAction) {
+        switch action {
+        case .toggleSelectedHidden:
+            guard let session = controller.selectedSession(in: sessionManager.listedSessions) else { return }
+            controller.toggleHidden(sessionID: session.id, sessionManager: sessionManager)
+        case .toggleHiddenVisibility:
+            controller.toggleHiddenVisibility(sessionManager: sessionManager)
+        }
     }
 
     private func stateBadge(_ session: Session) -> some View {
@@ -693,8 +734,8 @@ struct SessionMonitorView: View {
 
     private func handleEditorAction(_ action: SessionListAction) {
         switch action {
-        case .rename: controller.renameSelected(sessions: sessionManager.sessions)
-        case .editNote: controller.editNoteSelected(sessions: sessionManager.sessions)
+        case .rename: controller.renameSelected(sessions: sessionManager.listedSessions)
+        case .editNote: controller.editNoteSelected(sessions: sessionManager.listedSessions)
         default: assertionFailure("Unexpected editor action")
         }
     }
@@ -704,18 +745,18 @@ struct SessionMonitorView: View {
     }
 
     private func activateSelected() {
-        guard let id = controller.selectedSessionID,
-              let session = sessionManager.sessions.first(where: { $0.id == id }) else { return }
+        guard let session = controller.selectedSession(in: sessionManager.listedSessions) else { return }
         activateSession(session)
     }
 
     private func activateSession(_ session: Session) {
+        guard sessionManager.listedSessions.contains(where: { $0.id == session.id }) else { return }
         if controller.selectedSessionID != session.id {
             sessionManager.syncColorIndex(toSessionID: session.id)
         }
         ShortcutCenter.shared.sessionListContext.notifyHint(for: .activate)
         Task {
-            _ = await SessionActivator.shared.activate(session: session, trigger: .guiSelect)
+            _ = await SessionActivator.shared.activate(session: session, trigger: .guiSelect, policy: .explicit)
         }
     }
 
@@ -726,7 +767,7 @@ struct SessionMonitorView: View {
         KeyBindingsLegendView(
             registry: ShortcutCenter.shared.registry,
             style: .embedded,
-            contextIDs: ["sessionList"],
+            contextIDs: ["sessionList", "sessionMonitor"],
             options: LegendOptions(
                 columns: .fixed(3),
                 size: .medium,

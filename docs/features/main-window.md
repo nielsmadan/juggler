@@ -1,6 +1,17 @@
 # Session Monitor Window
 
-The Session Monitor is a standalone window providing an expanded view of all sessions with additional details and statistics.
+The Session Monitor is a standalone window providing an expanded view of tracked sessions with additional details and statistics. Hidden sessions are omitted until Show Hidden is enabled.
+
+- [Opening the window](#opening-the-window)
+- [Layout](#layout)
+- [Empty state](#empty-state)
+- [Control bar](#control-bar)
+- [Sections](#sections)
+- [Session cards](#session-cards)
+- [Stats chart](#stats-chart)
+- [Keyboard shortcuts](#keyboard-shortcuts)
+- [Interactions](#interactions)
+- [Window behavior](#window-behavior)
 
 ## Opening the Window
 
@@ -12,7 +23,7 @@ The Session Monitor is a standalone window providing an expanded view of all ses
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  [ Fair ][ Prio ][ Static ][ Grouped ] │ ⏩  ⟳  💡           │  ← Control bar
+│  [ Fair ][ Prio ][ Static ][ Grouped ] │ ⏩  ⟳  💡  👁       │  ← Control bar
 ├─────────────────────────────────────────────────────────────┤
 │  Idle                                                        │
 │  ┌─────────────────────────────────────────────────────────┐│
@@ -32,7 +43,7 @@ The Session Monitor is a standalone window providing an expanded view of all ses
 │  │ [CC ]  📁 ~/Projects/data-pipeline   gpt-5          [💬]  ││
 │  └─────────────────────────────────────────────────────────┘│
 ├─────────────────────────────────────────────────────────────┤
-│  ▁▂▅▇ ▃  2/4 busy                          busy time by day  │  ← Stats chart
+│  ▁▂▅▇ ▃  2/4 busy, 1 hidden                busy time by day  │  ← Stats chart
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -40,15 +51,19 @@ The Session Monitor is a standalone window providing an expanded view of all ses
 
 With no tracked sessions, the window shows a "No Sessions" placeholder: *"Start or continue a session and it will show up here. Codex and Antigravity sessions appear after your first message."*
 
+With tracked rows that are all hidden and Show Hidden off, it shows **"All Sessions Hidden"** and
+**"Turn on Show Hidden in Session Monitor to see these sessions."** The control bar remains available.
+
 ## Control Bar
 
-A single bar at the top combines the queue mode picker with four toggle buttons:
+A single bar at the top combines the queue mode picker with five toggle buttons:
 
 - **Queue mode picker**: Fair / Prio / Static / Grouped.
 - **Permission First** (`hand.raised.fill`) - In Fair and Prio modes, keep permission sessions above idle sessions. The control is disabled in Static and Grouped modes, which preserve fixed session ordering.
 - **Auto-advance** (`forward.fill`) - Go to the next session when the current one goes busy.
 - **Auto-restart** (`autostartstop`) - When all sessions are busy and one becomes idle, jump to it.
 - **Beacon** (`light.panel`) - Show the session-name beacon when cycling.
+- **Show Hidden** (`eye.slash` when off, `eye` when on) - Reveal hidden rows in both the monitor and popover.
 
 A dismissible hint ("Hover over buttons to show help.") appears below the bar until dismissed.
 Using a control-bar toggle, queue-mode choice, or row action button shows a transient hint for its keyboard equivalent.
@@ -81,13 +96,30 @@ Each session row shows:
 | **Agent column** | Terminal-type icon, agent initials, and an "SSH" badge for remote sessions (hover shows user@host) |
 | **State icon + label** | Visual state indicator and its text label, centered in the area above the stats tabs |
 | **Display name** | Name per the Session Title setting (default: parent / folder name) or a custom name |
-| **Row actions** | Compact, top-aligned vertical rename and note buttons at the row's right edge; each can be hidden independently |
+| **Row actions** | Compact, top-aligned vertical rename, note and Hide/Unhide buttons at the row's right edge; each can be hidden independently |
 | **Row details** | Up to four small labelled values in a 2x2 grid under the name; see below |
 | **Note** | One tail-truncated line below the row details, shown only when a note exists |
 
 The note button uses an outlined text bubble when empty and a filled bubble when a note exists. It opens a single-line editor; press `Return` to save or `Escape` to cancel. Rows without a note reserve no empty space.
 
-The rename and note buttons can each be hidden from Settings > General > Session Monitor; the same section chooses the four row details and can shorten project paths under your home directory to `~/...`.
+All three actions are enabled by default and can each be hidden from Settings > General > Session Monitor.
+The stack sizes its buttons to the available height without making the row taller; the same section chooses the
+four row details and can shorten project paths under your home directory to `~/...`.
+
+### Hide and Show Hidden
+
+Press `E` or use the right-edge `eye.slash` action to hide a row. Press `⌘E` or use the top-bar eye to reveal it;
+the revealed row's action is `eye` (Unhide). Hidden rows keep their normal section and queue order, render at
+55% opacity and carry a passive eye-slash marker labelled "Hidden session". Clicking one or pressing `Return`
+activates it explicitly. Revealing it does not restore cycling, automatic activation, or notifications.
+
+Hide follows the conversation across duplicate rows and relaunches. It is independent of idle, working,
+permission, compacting and backburner state; updates and busy-time accounting continue. Show Hidden is shared
+with the popover for this launch and defaults off at the next launch. It is not a saved preference.
+
+When hiding removes the selection, selection moves to the next remaining row in rendered order, then the previous
+one if there is no next row; an empty list clears selection. Turning Show Hidden off also repairs selection.
+Focus synchronization prefers the actual focused row when it is listed, including a revealed hidden row.
 
 ### Row details
 
@@ -108,7 +140,7 @@ When stats are enabled, each card shows up to two trapezoid tabs in its corner: 
 
 ## Stats Chart
 
-When enabled (Settings > General > Stats), the footer shows a bar chart of **busy time per day** (busy time summed across all sessions). Today is the rightmost bar and grows live; older days fall off the left edge. An overlay shows the live "N/M busy" count and a "busy time by day" caption. Bars use per-day palette colors when "Use cycling colors" is on, otherwise the custom bar color; the chart has no stop/pause controls.
+When enabled (Settings > General > Stats), the footer shows a bar chart of **busy time per day** (busy time summed across all sessions). Today is the rightmost bar and grows live; older days fall off the left edge. An overlay always reads **"X/Y busy, Z hidden"**, including when Z is zero, with a "busy time by day" caption. X counts working/compacting rows, Y counts all tracked rows and Z counts hidden rows; duplicate conversation rows count individually. Show Hidden does not change these counts or the chart's busy time. Bars use per-day palette colors when "Use cycling colors" is on, otherwise the custom bar color; the chart has no stop/pause controls.
 
 ## Keyboard Shortcuts
 
@@ -122,12 +154,17 @@ When window is focused (defaults shown; all configurable in Settings > Shortcuts
 | `L` | Backburner selected |
 | `R` | Rename selected |
 | `M` | Edit note for selected |
+| `E` | Hide/Unhide selected |
+| `⌘E` | Toggle Show Hidden |
 | `Shift+L` | Reactivate selected |
 | `H` | Reactivate all |
 | `B` | Toggle beacon |
 | `P` | Toggle permission-first ordering |
 | `A` | Toggle auto-advance |
 | `Q` | Toggle auto-restart |
+
+Hide/Unhide and Show Hidden use a monitor-only shortcut context with key repeat disabled. They are not consumed
+in the popover; the other Session List bindings are shared. Buttons show the corresponding transient shortcut hints.
 
 ## Interactions
 
@@ -148,7 +185,10 @@ When window is focused (defaults shown; all configurable in Settings > Shortcuts
 
 ### Context Menu
 
-Row context menus live in the popover (right-click a session row); the monitor window uses trailing action buttons and keyboard shortcuts for rename and notes, plus keyboard shortcuts for backburner / reactivate. Removing a session is available from the popover row context menu (Remove); a removed session stays hidden, including after a restart, until it reports new activity.
+Row context menus live in the popover (right-click a session row); the monitor window uses trailing action buttons
+and keyboard shortcuts for rename, notes and Hide/Unhide, plus keyboard shortcuts for backburner / reactivate.
+The popover's **Remove** is separate stale-binding suppression: it removes a row until new activity, including
+across restart. It does not set the conversation's durable Hide choice. See [hydration](../tech/hooks.md#hydration-at-launch).
 
 ## Window Behavior
 

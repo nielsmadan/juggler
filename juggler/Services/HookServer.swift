@@ -24,7 +24,8 @@ actor HookServer {
     private let sessionManager: SessionManager
     private let terminalBridgeRegistry: TerminalBridgeRegistry
     private let willProcessQueuedAction: (@Sendable () async -> Void)?
-    private let notificationSink: (@Sendable (_ title: String, _ sessionID: String) async -> Void)?
+    private let notificationSink: (@MainActor @Sendable (String, SessionNotificationTarget) -> Void)?
+    private let notificationManager: NotificationManager
     private var suppressedCodexPermissionBindings: Set<String> = []
     private var codexIgnorePermissionEvents: Bool {
         UserDefaults.standard.bool(forKey: AppStorageKeys.codexIgnorePermissionEvents)
@@ -35,12 +36,14 @@ actor HookServer {
         sessionManager: SessionManager? = nil,
         terminalBridgeRegistry: TerminalBridgeRegistry = .shared,
         willProcessQueuedAction: (@Sendable () async -> Void)? = nil,
-        notificationSink: (@Sendable (_ title: String, _ sessionID: String) async -> Void)? = nil
+        notificationSink: (@MainActor @Sendable (String, SessionNotificationTarget) -> Void)? = nil,
+        notificationManager: NotificationManager = .shared
     ) {
         self.sessionManager = sessionManager ?? .shared
         self.terminalBridgeRegistry = terminalBridgeRegistry
         self.willProcessQueuedAction = willProcessQueuedAction
         self.notificationSink = notificationSink
+        self.notificationManager = notificationManager
     }
 
     func start() async throws {
@@ -502,14 +505,13 @@ actor HookServer {
                 detailsChange: detailsChange
             )
             let after = self.sessionManager.sessions.first(where: { $0.id == compositeID })?.state
-            return (accepted: accepted, enteredState: Self.enteredState(before: before, after: after))
+            let enteredState = Self.enteredState(before: before, after: after)
+            if accepted, source == .live, let enteredState {
+                self.notifyOnEntering(enteredState, sessionID: compositeID)
+            }
+            return accepted
         }
-        guard result.accepted else { return }
-
-        // Restoring a snapshot is not a state change the user needs to hear about.
-        if source == .live, let enteredState = result.enteredState {
-            await notifyOnEntering(enteredState, sessionID: compositeID)
-        }
+        guard result else { return }
 
         scheduleTerminalRefresh(
             terminalSessionID: terminalSessionID,
@@ -523,17 +525,19 @@ actor HookServer {
         after == before ? nil : after
     }
 
-    private func notifyOnEntering(_ state: SessionState, sessionID: String) async {
+    @MainActor
+    private func notifyOnEntering(_ state: SessionState, sessionID: String) {
         let title: String
         switch state {
         case .idle: title = "Session Idle"
         case .permission: title = "Permission Required"
         case .working, .compacting, .backburner: return
         }
+        guard let target = sessionManager.makeNotificationTarget(sessionID: sessionID) else { return }
         if let notificationSink {
-            await notificationSink(title, sessionID)
+            notificationSink(title, target)
         } else {
-            await sendNotificationIfEnabled(title: title, sessionID: sessionID)
+            sendNotificationIfEnabled(title: title, target: target)
         }
     }
 
@@ -616,12 +620,12 @@ actor HookServer {
                     detailsChange: detailsChange
                 )
                 let after = self.sessionManager.sessions.first(where: { $0.id == compositeID })?.state
-                return (accepted: accepted, enteredState: Self.enteredState(before: before, after: after))
+                if accepted, let enteredState = Self.enteredState(before: before, after: after) {
+                    self.notifyOnEntering(enteredState, sessionID: compositeID)
+                }
+                return accepted
             }
-            guard result.accepted else { return }
-            if let enteredState = result.enteredState {
-                await notifyOnEntering(enteredState, sessionID: compositeID)
-            }
+            guard result else { return }
 
             scheduleTerminalRefresh(
                 terminalSessionID: terminalSessionID,
@@ -746,11 +750,9 @@ actor HookServer {
         sessionManager.removeSession(sessionID: compositeID)
     }
 
-    private func sendNotificationIfEnabled(title: String, sessionID: String) async {
-        let session = await MainActor.run {
-            self.sessionManager.sessions.first(where: { $0.id == sessionID })
-        }
-        guard let session else { return }
+    @MainActor
+    private func sendNotificationIfEnabled(title: String, target: SessionNotificationTarget) {
+        guard let session = sessionManager.session(for: target) else { return }
 
         let shouldNotify: Bool = switch title {
         case "Session Idle":
@@ -762,15 +764,13 @@ actor HookServer {
         }
 
         if shouldNotify {
-            await MainActor.run {
-                NotificationManager.shared.sendNotification(
-                    title: title,
-                    body: session.title(for: SessionTitleMode(
-                        rawValue: UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
-                    ) ?? .default),
-                    sessionID: sessionID
-                )
-            }
+            notificationManager.sendNotification(
+                title: title,
+                body: session.title(for: SessionTitleMode(
+                    rawValue: UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
+                ) ?? .default),
+                target: target
+            )
         }
     }
 

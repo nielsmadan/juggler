@@ -10,6 +10,7 @@ struct SessionDetails: Equatable, Sendable {
     var subagentCount: Int = 0
     var contextPercent: Int?
     var turns: Int?
+    var reportedTurns: Int?
     var processStartedAt: Date?
     var observedAt: Date?
 
@@ -18,6 +19,19 @@ struct SessionDetails: Equatable, Sendable {
         var result = incoming
         result.processStartedAt = incoming.processStartedAt ?? processStartedAt
         return result
+    }
+}
+
+nonisolated struct BindingTurnObservation: Equatable, Sendable {
+    let turns: Int?
+    let observedAt: Date?
+
+    func merging(_ incoming: Self) -> Self {
+        if let currentTime = observedAt, let incomingTime = incoming.observedAt, currentTime != incomingTime {
+            return currentTime > incomingTime ? self : incoming
+        }
+        let count = if let turns, let incomingTurns = incoming.turns { max(turns, incomingTurns) } else { nil as Int? }
+        return Self(turns: count, observedAt: observedAt == incoming.observedAt ? observedAt : nil)
     }
 }
 
@@ -88,11 +102,17 @@ struct Session: Identifiable, Codable, Equatable {
     // `ITERM_SESSION_ID`). Takes precedence over `terminalSessionID` when set.
     var liveHostPaneID: String?
 
-    // Antigravity has no `UserPromptSubmit`, so a backburnered session is auto-reactivated
-    // on its next `working` event only if it was shelved while awaiting the user.
-    var wasAwaitingUserBeforeBackburner = false
+    var disposition = SessionDisposition.empty
+    var transientDispositionOverrides = TransientDispositionOverrides()
+
+    var isHidden: Bool { disposition.isHidden }
+    var isCycleEligible: Bool { state.isIncludedInCycle && !isHidden }
+    var notificationToken = UUID()
+    var automationToken = UUID()
+    var wasAwaitingUserBeforeBackburner: Bool { disposition.backburner?.wasAwaitingUser ?? false }
 
     var hooklinesinkerBindingIDs: Set<String> = []
+    var bindingTurnObservations: [String: BindingTurnObservation] = [:]
 
     var details = SessionDetails()
     var turnCount: Int = 0
@@ -186,6 +206,7 @@ struct Session: Identifiable, Codable, Equatable {
             lhs.tmuxSessionName == rhs.tmuxSessionName &&
             lhs.customName == rhs.customName &&
             lhs.note == rhs.note &&
+            lhs.disposition == rhs.disposition &&
             lhs.state == rhs.state &&
             lhs.startedAt == rhs.startedAt &&
             lhs.paneIndex == rhs.paneIndex &&
@@ -228,5 +249,13 @@ extension Session {
     mutating func replaceAgentSessionIdentity(with identity: AgentSessionIdentity) {
         agent = identity.agent
         agentSessionID = identity.agentSessionID
+    }
+
+    mutating func recordBindingTurns(bindingID: String?, detailsChange: DetailsChange?) {
+        guard agentSessionIdentity.isPersistent, let bindingID, !bindingID.isEmpty,
+              case let .replace(details)? = detailsChange else { return }
+        let count = details.reportedTurns.flatMap { $0 >= 0 ? $0 : nil }
+        let incoming = BindingTurnObservation(turns: count, observedAt: details.observedAt)
+        bindingTurnObservations[bindingID] = bindingTurnObservations[bindingID]?.merging(incoming) ?? incoming
     }
 }

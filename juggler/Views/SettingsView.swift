@@ -64,8 +64,7 @@ struct GeneralSettingsView: View {
     @AppStorage(AppStorageKeys.goToNextOnBackburner) private var goToNextOnBackburner = true
     private var rowSlotSettings = RowSlotSettings()
     @AppStorage(AppStorageKeys.monitorReplaceHomeWithTilde) private var monitorReplaceHomeWithTilde = false
-    @AppStorage(AppStorageKeys.monitorShowRenameButton) private var monitorShowRenameButton = true
-    @AppStorage(AppStorageKeys.monitorShowNoteButton) private var monitorShowNoteButton = true
+    private var rowActionSettings = RowActionSettings()
 
     @State private var showingUninstallConfirm = false
     @State private var showingUninstallSummary = false
@@ -167,8 +166,9 @@ struct GeneralSettingsView: View {
 
             Section("Session Monitor") {
                 rowDetailsPickers
-                Toggle("Show rename button", isOn: $monitorShowRenameButton)
-                Toggle("Show note button", isOn: $monitorShowNoteButton)
+                Toggle("Show rename button", isOn: rowActionSettings.binding(for: .rename))
+                Toggle("Show note button", isOn: rowActionSettings.binding(for: .note))
+                Toggle("Show hide button", isOn: rowActionSettings.binding(for: .hide))
                 SettingWithDescription(
                     description: "Replace the home directory with ~ in project paths, e.g. ~/Projects/app"
                 ) {

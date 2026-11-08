@@ -8,6 +8,35 @@ import Testing
 @Suite("Shortcut actions")
 @MainActor
 struct ShortcutActionsTests {
+    @Test func monitorVisibilityActionsHaveStableIDsAndNonrepeatingDefaults() {
+        #expect(SessionMonitorAction.allCases.map(\.rawValue) == ["toggleSelectedHidden", "toggleHiddenVisibility"])
+        #expect(SessionMonitorAction.toggleSelectedHidden.definition.defaultShortcuts == [Shortcut("e")])
+        #expect(SessionMonitorAction.toggleHiddenVisibility.definition.defaultShortcuts == [Shortcut("cmd+e")])
+        #expect(SessionMonitorAction.allCases.allSatisfy { !$0.definition.allowsKeyRepeat })
+    }
+
+    @Test func monitorContextHasItsOwnSettingsSection() throws {
+        let center = ShortcutCenter.shared
+        #expect(center.sessionMonitorContext.id == "sessionMonitor")
+        let group = try #require(center.registry.keyBindings.groups.first { $0.contextID == "sessionMonitor" })
+        #expect(String(localized: group.displayName) == "Session Monitor")
+        #expect(group.entries.map(\.actionID) == ["toggleSelectedHidden", "toggleHiddenVisibility"])
+        let shared = try #require(center.registry.keyBindings.groups.first { $0.contextID == "sessionList" })
+        #expect(shared.entries.map(\.actionID) == SessionListAction.allCases.map(\.rawValue))
+    }
+
+    @Test func monitorPointerHintsUseTheMonitorContext() {
+        let context = ShortcutContext<SessionMonitorAction>("sessionMonitor")
+        let registry = ShortcutRegistry(contexts: [context])
+        var events: [(String, String)] = []
+        let cancellable = registry.actionFired.sink { events.append(($0.contextID, $0.actionID)) }
+        context.notify(.toggleSelectedHidden)
+        context.notify(.toggleHiddenVisibility)
+        #expect(events.map(\.0) == ["sessionMonitor", "sessionMonitor"])
+        #expect(events.map(\.1) == ["toggleSelectedHidden", "toggleHiddenVisibility"])
+        withExtendedLifetime(cancellable) {}
+    }
+
     @Test func noteActionsUseMatchingDefaultShortcuts() {
         #expect(GlobalAction.editNote.definition.defaultShortcuts == [Shortcut("cmd+shift+m")])
         #expect(SessionListAction.editNote.definition.defaultShortcuts == [Shortcut("m")])

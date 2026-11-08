@@ -78,9 +78,27 @@ enum StateBadgeLayout {
 
 enum SessionRowActionLayout {
     static let buttonSize: CGFloat = 16
-    static let iconSize: CGFloat = 11
     static let verticalSpacing: CGFloat = 2
     static let trailingPadding: CGFloat = 4
+
+    struct Metrics: Equatable {
+        let buttonHeight: CGFloat
+        let iconSize: CGFloat
+        let spacing: CGFloat
+    }
+
+    static func metrics(actionCount: Int, availableHeight: CGFloat) -> Metrics {
+        guard actionCount > 0 else { return Metrics(buttonHeight: 0, iconSize: 0, spacing: 0) }
+        let height = max(0, availableHeight)
+        let count = CGFloat(actionCount)
+        let spacing = actionCount > 1 ? min(verticalSpacing, height / (count * 8)) : 0
+        let buttonHeight = min(buttonSize, max(0, (height - spacing * (count - 1)) / count))
+        return Metrics(buttonHeight: buttonHeight, iconSize: min(11, buttonHeight * 0.8), spacing: spacing)
+    }
+
+    static func topOffset(rowVerticalPadding: CGFloat) -> CGFloat {
+        -max(0, rowVerticalPadding)
+    }
 
     static func width(showsActions: Bool) -> CGFloat {
         showsActions ? buttonSize + trailingPadding : 0

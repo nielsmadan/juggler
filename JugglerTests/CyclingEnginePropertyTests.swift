@@ -29,7 +29,9 @@ private let allStates: [SessionState] = [.idle, .working, .permission, .backburn
 private func randomSessions(using rng: inout SeededGenerator) -> [Session] {
     let count = Int.random(in: 0 ... 8, using: &rng)
     return (0 ..< count).map { i in
-        makeSession("S\(i)", state: allStates.randomElement(using: &rng)!)
+        var session = makeSession("S\(i)", state: allStates.randomElement(using: &rng)!)
+        session.disposition.isHidden = Bool.random(using: &rng)
+        return session
     }
 }
 
@@ -57,9 +59,9 @@ struct CyclingEnginePropertyTests {
         let result = engine.cycleForward(sessions: sessions, focusedSessionID: focus, state: .initial)
 
         if let target = result.targetSession {
-            #expect(target.state.isIncludedInCycle)
+            #expect(target.isCycleEligible)
         } else {
-            #expect(!sessions.contains { $0.state.isIncludedInCycle })
+            #expect(sessions.filter(\.isCycleEligible).isEmpty)
         }
     }
 
@@ -72,9 +74,9 @@ struct CyclingEnginePropertyTests {
         let result = engine.cycleBackward(sessions: sessions, focusedSessionID: focus, state: .initial)
 
         if let target = result.targetSession {
-            #expect(target.state.isIncludedInCycle)
+            #expect(target.isCycleEligible)
         } else {
-            #expect(!sessions.contains { $0.state.isIncludedInCycle })
+            #expect(sessions.filter(\.isCycleEligible).isEmpty)
         }
     }
 
@@ -84,7 +86,7 @@ struct CyclingEnginePropertyTests {
     func roundTrip_forwardThenBackward_returnsToOrigin(seed: Int) {
         var rng = SeededGenerator(seed: seed)
         let sessions = randomSessions(using: &rng)
-        let cyclable = sessions.filter(\.state.isIncludedInCycle)
+        let cyclable = sessions.filter(\.isCycleEligible)
         guard cyclable.count >= 2, let origin = cyclable.randomElement(using: &rng) else { return }
 
         let forward = engine.cycleForward(
@@ -111,7 +113,7 @@ struct CyclingEnginePropertyTests {
     func fullTraversal_visitsEveryCyclableSessionOnce(seed: Int) {
         var rng = SeededGenerator(seed: seed)
         let sessions = randomSessions(using: &rng)
-        let cyclable = sessions.filter(\.state.isIncludedInCycle)
+        let cyclable = sessions.filter(\.isCycleEligible)
         guard let start = cyclable.first else { return }
 
         var focus = start.terminalSessionID
@@ -142,7 +144,7 @@ struct CyclingEnginePropertyTests {
         var rng = SeededGenerator(seed: seed)
         let sessions = randomSessions(using: &rng)
         let focus = randomFocus(in: sessions, using: &rng)
-        let cyclableCount = sessions.filter(\.state.isIncludedInCycle).count
+        let cyclableCount = sessions.filter(\.isCycleEligible).count
 
         let forward = engine.cycleForward(sessions: sessions, focusedSessionID: focus, state: .initial)
         if forward.targetSession != nil {
@@ -168,12 +170,12 @@ struct CyclingEnginePropertyTests {
 
         let forward = engine.cycleForward(sessions: sessions, focusedSessionID: nil, state: staleState)
         if let target = forward.targetSession {
-            #expect(target.state.isIncludedInCycle)
+            #expect(target.isCycleEligible)
         }
 
         let backward = engine.cycleBackward(sessions: sessions, focusedSessionID: nil, state: staleState)
         if let target = backward.targetSession {
-            #expect(target.state.isIncludedInCycle)
+            #expect(target.isCycleEligible)
         }
     }
 }

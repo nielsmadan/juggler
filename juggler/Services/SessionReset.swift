@@ -8,7 +8,7 @@ enum SessionReset {
     ) async throws {
         do {
             let removed = try await client.resetSessions()
-            sessionManager.clearAllSessions()
+            sessionManager.completeSessionReset()
             logInfo(.hooks, "Reset hooklinesinker sessions: removed \(removed) record(s)")
         } catch {
             logWarning(.hooks, "Session reset failed: \(error.localizedDescription)")

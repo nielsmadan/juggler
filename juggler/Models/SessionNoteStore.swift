@@ -1,11 +1,14 @@
 import Foundation
 
-struct AgentSessionIdentity: Hashable, Codable {
+nonisolated struct AgentSessionIdentity: Hashable, Codable {
     let agent: String
     let agentSessionID: String
 
     var isPersistent: Bool {
-        !agent.isEmpty && !agentSessionID.isEmpty
+        [agent, agentSessionID].allSatisfy {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && $0.rangeOfCharacter(from: .controlCharacters) == nil
+        }
     }
 }
 

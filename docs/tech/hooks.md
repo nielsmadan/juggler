@@ -84,6 +84,9 @@ Notes that matter when reading Juggler's code:
   details. Which agents fill which fields is in
   [Agent Session Metadata in Hooks](../reference/agent-session-metadata.md); the merge rules are in
   hooklinesinker's `docs/status-lifecycle.md`.
+- Offline backburner wake evidence retains `activity.turns` separately as `reportedTurns`: only an explicitly
+  supplied nonnegative integer qualifies, never the display's default zero. See
+  [backburner handling](session-management.md#backburner-handling).
 - The Turns slot shows `activity.turns`, hooklinesinker's per-binding count of turn starts,
   whenever the record carries `activity`. Juggler still keeps its own `Session.turnCount`, which
   the slot falls back to for Antigravity and for records without `activity`:
@@ -107,6 +110,10 @@ which started before Juggler launched appear. Records whose binding already arri
 that startup window are skipped, so nothing is doubled and a session that ended between the
 snapshot and the replay is not resurrected.
 
+Replay restores conversation-scoped Hide/backburner after stable identity is available. Hidden rows still hydrate
+and update; list filtering happens in Juggler. Backburner wakes only with the newer evidence described in
+[session management](session-management.md#backburner-handling); ambiguous snapshots remain shelved.
+
 Records the user removed are skipped too. **Remove** in a row's context menu
 (`SessionManager.dismissSession`) hides every hooklinesinker binding the row carried, with the
 removal time, in `HiddenBindingStore` (UserDefaults key `hiddenSessionBindings`). Hydration skips
@@ -121,21 +128,28 @@ the snapshot read the whole ledger: no skipped records and no problems other tha
 or sweep entries from the health log. A ledger that could not be read comes back as an empty
 list with a problem, and pruning on it would bring every dismissed row back at the next launch.
 
-Hiding lives in Juggler rather than in hooklinesinker because the ledger is shared: deleting a
+Stale-binding suppression lives in Juggler rather than in hooklinesinker because the ledger is shared: deleting a
 binding's record there would hide the session from every consumer, and the next hook would
 recreate it anyway.
+
+Remove/`HiddenBindingStore` is independent of durable Hide/`SessionDispositionStore`. New activity clears a
+binding's removal suppression but does not unhide its conversation. The durable disposition follows
+`(agent, agentSessionID)`, including another binding or pane for that same conversation.
 
 ### Reset Sessions
 
 Settings → General → Reset Sessions runs `sessions reset --json` through
-`HooklinesinkerClient.resetSessions()`, then `SessionManager.clearAllSessions()` clears the rows,
-focus, cycling state and hidden bindings after committing in-progress busy time
+`HooklinesinkerClient.resetSessions()`, then `SessionManager.completeSessionReset()` clears the rows,
+focus, cycling state, stale-binding suppression and all stored hidden/backburner dispositions after committing in-progress busy time
 (`SessionReset.run`). hooklinesinker sends a `swept` event only for dead sessions and nothing
 for live ones, so clearing the rows is Juggler's job. If the command exits nonzero, Juggler clears nothing and shows its stderr: rows
 cleared while the ledger kept their records would come back at the next launch. A reset that
 removed some records before failing on others leaves the rows of the removed ones until their
 next event. The reset wipes the local ledger shared with every hooklinesinker consumer; sessions
 on SSH hosts keep their remote ledgers and reappear with their next event.
+
+Conversation notes and accumulated busy totals survive. The local reset happens only after the CLI succeeds;
+a failed reset leaves rows, notes and dispositions unchanged locally, even if the shared CLI partly changed its ledger.
 
 `sessions reset` first ships in a hooklinesinker release after 1.1.0. A Juggler build pinned to
 1.1.0 shows the CLI's usage error instead, so the pin has to be bumped
@@ -210,11 +224,10 @@ late `SessionEnd` from killing the session that replaced it in the same pane.
 
 ### Backburner State Persistence
 
-When a session is backburnered:
-
-- Most events are ignored (state preserved)
-- Only a prompt submission exits backburner
-- This prevents working sessions from being unintentionally un-backburnered
+Backburner intent persists by conversation identity. Hooks keep metadata current while preserving the shelved state;
+live prompts or explicit Reactivate wake it (with an awaiting-user working-event exception for Antigravity).
+Launch snapshots require strictly newer activity proof. See [backburner handling](session-management.md#backburner-handling)
+for the evidence rules and invalid-count cases.
 
 ## Configuration
 

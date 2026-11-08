@@ -104,7 +104,7 @@ struct StatsChartView: View {
 
     private var overlayText: some View {
         HStack(alignment: .top) {
-            Text("\(workingCount)/\(sessionManager.sessions.count) busy")
+            Text(SessionStatsSummary(sessions: sessionManager.sessions).displayText)
                 .font(.system(size: 12, weight: .semibold))
             Spacer()
             Text("busy time by day")
@@ -117,10 +117,6 @@ struct StatsChartView: View {
     }
 
     // MARK: - Data
-
-    private var workingCount: Int {
-        sessionManager.sessions.filter { $0.state == .working || $0.state == .compacting }.count
-    }
 
     /// Live today total: persisted busy time + every in-progress turn.
     private func liveTodaySeconds() -> TimeInterval {

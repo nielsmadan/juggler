@@ -1,5 +1,34 @@
 import Foundation
 
+enum SessionActivationPolicy {
+    case explicit
+    case cycleEligible
+    case automatic(SessionAutomaticActivation)
+    case notification(SessionNotificationTarget)
+
+    func resolve(_ requested: Session, in manager: SessionManager) -> Session? {
+        guard let current = manager.sessions.first(where: { $0.id == requested.id }),
+              current.agentSessionIdentity == requested.agentSessionIdentity else { return nil }
+        switch self {
+        case .explicit:
+            return current
+        case .cycleEligible:
+            return current.isCycleEligible ? current : nil
+        case let .automatic(request):
+            guard manager.isValidAutomaticActivation(request), current.isCycleEligible,
+                  current.automationToken == requested.automationToken else { return nil }
+            return current
+        case let .notification(target):
+            guard target.sessionID == requested.id else { return nil }
+            return manager.session(for: target)
+        }
+    }
+}
+
+enum SessionActivationError: Error {
+    case invalidated
+}
+
 enum SessionActivationOutcome {
     case activated(Session)
     case unavailable
@@ -45,6 +74,8 @@ final class SessionActivator {
     private var activationInProgress = false
     private var activationWaiters: [CheckedContinuation<Void, Never>] = []
 
+    var queuedActivationCount: Int { activationWaiters.count }
+
     init(
         sessionManager: SessionManager = .shared,
         registry: TerminalBridgeRegistry = .shared,
@@ -60,30 +91,39 @@ final class SessionActivator {
     func activate(
         session: Session,
         trigger: ActivationTrigger,
+        policy: SessionActivationPolicy,
         presentation: SessionActivationPresentation = .manual
     ) async -> SessionActivationOutcome {
         await waitForActivationTurn()
         defer { finishActivationTurn() }
 
-        let outcome = await performActivation(session: session, trigger: trigger)
-        present(outcome, using: presentation)
-        return outcome
+        let attempt = await performActivation(session: session, trigger: trigger, policy: policy)
+        present(attempt.outcome, using: presentation)
+        return attempt.outcome
     }
 
     func activateFirstAvailable(
         trigger: ActivationTrigger,
         presentation: SessionActivationPresentation,
+        automaticRequest: SessionAutomaticActivation? = nil,
         nextSession: () -> Session?
     ) async -> SessionActivationOutcome {
         await waitForActivationTurn()
         defer { finishActivationTurn() }
 
-        while let session = nextSession() {
-            let outcome = await performActivation(session: session, trigger: trigger)
-            switch outcome {
+        var attemptedIDs: Set<String> = []
+        while true {
+            if let automaticRequest, !sessionManager.isValidAutomaticActivation(automaticRequest) {
+                return .unavailable
+            }
+            guard let session = nextSession(), attemptedIDs.insert(session.id).inserted else { break }
+            let policy: SessionActivationPolicy = automaticRequest.map { .automatic($0) } ?? .cycleEligible
+            let attempt = await performActivation(session: session, trigger: trigger, policy: policy)
+            if automaticRequest != nil, attempt.invalidated { return .unavailable }
+            switch attempt.outcome {
             case .activated, .failed:
-                present(outcome, using: presentation)
-                return outcome
+                present(attempt.outcome, using: presentation)
+                return attempt.outcome
             case .unavailable:
                 continue
             }
@@ -116,23 +156,44 @@ final class SessionActivator {
 
     private func performActivation(
         session: Session,
-        trigger: ActivationTrigger
-    ) async -> SessionActivationOutcome {
-        let token = sessionManager.beginActivation(targetSessionID: session.id)
-        defer { sessionManager.endActivation(token) }
+        trigger: ActivationTrigger,
+        policy: SessionActivationPolicy
+    ) async -> (outcome: SessionActivationOutcome, invalidated: Bool) {
+        guard policy.resolve(session, in: sessionManager) != nil, !Task.isCancelled else {
+            return (.unavailable, true)
+        }
+        var token: SessionManager.ActivationToken?
+        defer {
+            if let token { sessionManager.endActivation(token) }
+        }
 
         do {
-            try await TerminalActivation.activate(
+            let activated = try await TerminalActivation.activate(
                 session: session,
                 trigger: trigger,
                 sessionManager: sessionManager,
-                registry: registry
+                registry: registry,
+                revalidate: { requested in
+                    guard !Task.isCancelled, let current = policy.resolve(requested, in: self.sessionManager) else {
+                        throw SessionActivationError.invalidated
+                    }
+                    if case let .automatic(request) = policy {
+                        self.sessionManager.prepareAutomaticActivation(request, target: current)
+                    }
+                    token = self.sessionManager.beginActivation(targetSessionID: current.id)
+                    return current
+                }
             )
-            return .activated(session)
+            if case let .automatic(request) = policy, let token {
+                sessionManager.finishAutomaticActivation(request, target: activated, token: token)
+            }
+            return (.activated(activated), false)
+        } catch SessionActivationError.invalidated {
+            return (.unavailable, true)
         } catch TerminalBridgeError.sessionNotFound {
-            return .unavailable
+            return (.unavailable, false)
         } catch {
-            return .failed(error)
+            return (.failed(error), false)
         }
     }
 

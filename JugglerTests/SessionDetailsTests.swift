@@ -45,6 +45,7 @@ struct StatusDetailsDecodingTests {
             tool: "Bash", problem: "rate_limit_error", subagents: 2, contextPercent: 41, turns: 3
         ))
         #expect(status.sessionDetails.turns == 3)
+        #expect(status.sessionDetails.reportedTurns == 3)
         #expect(status.sessionDetails.processStartedAt == Date(timeIntervalSince1970: 1_788_519_600))
     }
 
@@ -54,6 +55,7 @@ struct StatusDetailsDecodingTests {
         #expect(status.session.model == nil)
         #expect(status.sessionDetails.subagentCount == 0)
         #expect(status.sessionDetails.turns == nil)
+        #expect(status.sessionDetails.reportedTurns == nil)
     }
 
     @Test(arguments: ["{\"tool\":\"Bash\"}", "{\"turns\":\"4\"}"])
@@ -61,6 +63,15 @@ struct StatusDetailsDecodingTests {
         let status = try decode(detailStatus(activity: activity))
         #expect(status.activity?.turns == 0)
         #expect(status.sessionDetails.turns == 0)
+        #expect(status.activity?.reportedTurns == nil)
+        #expect(status.sessionDetails.reportedTurns == nil)
+    }
+
+    @Test(arguments: [-1, 0, 4])
+    func onlyNonnegativeIntegerCountsAreEvidence(turns: Int) throws {
+        let status = try decode(detailStatus(activity: "{\"turns\":\(turns)}"))
+        #expect(status.activity?.turns == turns)
+        #expect(status.sessionDetails.reportedTurns == (turns >= 0 ? turns : nil))
     }
 
     @Test func stringContextPercentDegradesToNil() throws {

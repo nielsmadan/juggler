@@ -8,11 +8,16 @@ The Settings window is organized into tabs, each covering a distinct configurati
 - **Show Juggler in Dock**: Toggle the Dock icon (regular vs. accessory activation policy).
 - **Quit when Session Monitor is closed**: Quit the app when the monitor window closes.
 - **Session Title**: How session names are derived: Tab Title, Window Title, Window / Tab Title, Folder Name, Parent / Folder Name, or Agent Session Title (the title the agent reports, falling back to Parent / Folder Name). The name is global: the monitor, popover, beacon and notifications all use it.
-- **Session Monitor**: Pick what each of the four row detail slots shows (top left, top right, bottom left, bottom right; see [Row details](main-window.md#row-details)), show or hide the trailing rename and note buttons independently, and optionally replace the home directory prefix in shown folder paths with `~` (for example `~/Projects/app`). The `~` option applies only while a slot is set to Folder Path. Upgrading from the old "Show folder path" and "Show git branch" toggles maps them to slots once: with both on, Folder Path top left and Git Branch bottom left; with one off, the other takes the top left; with both off, both left slots are None. Model and Effort fill the right slots. The old `monitorShowFolderPath` and `monitorShowBranch` keys stay in `AppStorageKeys` only so this migration can read them; no view uses them.
+- **Session Monitor**: Pick what each of the four row detail slots shows (top left, top right, bottom left, bottom right; see [Row details](main-window.md#row-details)), show or hide the trailing rename, note and hide buttons independently (all on by default), and optionally replace the home directory prefix in shown folder paths with `~` (for example `~/Projects/app`). "Show hide button" affects only the row action; `E` and the top-bar Show Hidden control remain available. The `~` option applies only while a slot is set to Folder Path. Upgrading from the old "Show folder path" and "Show git branch" toggles maps them to slots once: with both on, Folder Path top left and Git Branch bottom left; with one off, the other takes the top left; with both off, both left slots are None. Model and Effort fill the right slots. The old `monitorShowFolderPath` and `monitorShowBranch` keys stay in `AppStorageKeys` only so this migration can read them; no view uses them.
 - **Notifications**: Toggle idle notifications, permission notifications, and sound (see [Notifications](notification.md)).
 - **Stats**: Enable Stats (show the busy-time chart in the Session Monitor), plus the stats-bar color: "Use cycling colors" (per-day palette colors) or a custom bar color when off.
 - **Backburner**: "Go to next session on backburner" option for rapid triage.
-- **Sessions**: "Reset Sessions..." clears every tracked session, in Juggler and in the hooklinesinker ledger it shares with other apps, after a confirmation. The list rebuilds from live activity: working sessions reappear within seconds, idle ones the next time they run. If hooklinesinker cannot reset its ledger, the error is shown and nothing is cleared. Use it when the list shows sessions that are not real, for example two rows for one terminal pane.
+- **Sessions**: "Reset Sessions..." clears every tracked session, the hooklinesinker ledger shared with other apps,
+  stale-binding suppression, and saved hidden/backburner dispositions after a confirmation. Conversation notes
+  and accumulated busy time are preserved. The list rebuilds from live activity: working sessions reappear within
+  seconds, idle ones the next time they run. If hooklinesinker cannot reset its ledger, the error is shown and
+  Juggler clears no local rows or dispositions. Use it when the list shows sessions that are not real, for example
+  two rows for one terminal pane. See [reset mechanics](../tech/hooks.md#reset-sessions).
 - **Uninstall**: Remove all integrations (Claude Code hooks, Kitty watcher, OpenCode plugin), reset the Automation permission, clear settings, and quit.
 
 Permission-first ordering, auto-advance, and auto-restart are toggled from the Session Monitor control bar (and
@@ -55,6 +60,9 @@ The beacon is enabled/disabled from the Session Monitor control bar and the "Tog
 - **Session List shortcuts**: Configurable ShortcutKit bindings for the popover and monitor window: Activate, Move Down,
   Move Up, Backburner, Send to Back, Reactivate Selected, Reactivate All, Rename, Edit Note (default M), Cycle Mode
   Forward, Cycle Mode Backward, Toggle Beacon, Permission First, Auto Next, Auto Restart.
+- **Session Monitor shortcuts**: Hide/Unhide selected (`E`) and Show Hidden (`⌘E`), both without key repeat.
+  These apply only while the monitor is the key window. Show Hidden is a launch-scoped view control shared with
+  the popover, not a persistent Settings toggle; see [Hide and Show Hidden](main-window.md#hide-and-show-hidden).
 
 ## Updates
 

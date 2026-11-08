@@ -172,7 +172,12 @@ allow. See [Antigravity Hooks](antigravity-hooks.md) for the full mechanism.
 
 ## Backburner Protection
 
-When a session is backburnered, most events are ignored to preserve the backburner state. Only `UserPromptSubmit` will exit backburner (indicating explicit user action). Antigravity has no `UserPromptSubmit`; a backburnered Antigravity session instead exits on its next `working` event, but only if it was awaiting the user when backburnered (`Session.wasAwaitingUserBeforeBackburner`) — see [Antigravity Hooks](antigravity-hooks.md).
+Backburnered rows still merge metadata while preserving their shelved state. Live `UserPromptSubmit` or explicit
+Reactivate wakes them; Antigravity can wake on a working event only when it was awaiting the user when shelved.
+Conversation dispositions persist across launch hydration, which requires strictly newer wake evidence.
+Hidden rows continue receiving hooks and busy-time updates while notifications and automation remain suppressed.
+See [conversation dispositions](session-management.md#conversation-dispositions) and
+[backburner handling](session-management.md#backburner-handling).
 
 ## Testing with curl
 

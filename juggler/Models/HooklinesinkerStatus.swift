@@ -38,6 +38,16 @@ nonisolated struct HooklinesinkerStatus: Sendable {
         let subagents: Int
         let contextPercent: Int?
         let turns: Int
+        let reportedTurns: Int?
+
+        init(tool: String?, problem: String?, subagents: Int, contextPercent: Int?, turns: Int) {
+            self.tool = tool
+            self.problem = problem
+            self.subagents = subagents
+            self.contextPercent = contextPercent
+            self.turns = turns
+            reportedTurns = turns >= 0 ? turns : nil
+        }
     }
 
     struct ProcessIdentity: Sendable {
@@ -98,6 +108,7 @@ nonisolated struct HooklinesinkerStatus: Sendable {
             subagentCount: activity?.subagents ?? 0,
             contextPercent: activity?.contextPercent,
             turns: activity?.turns,
+            reportedTurns: activity?.reportedTurns,
             processStartedAt: process.flatMap { try? Date($0.startedAt, strategy: .iso8601) },
             observedAt: observedDate
         )
@@ -182,7 +193,9 @@ nonisolated extension HooklinesinkerStatus.Activity: Decodable {
         subagents = (try? container.decodeIfPresent(Int.self, forKey: .subagents)) ?? 0
         let percent = try? container.decodeIfPresent(Int.self, forKey: .contextPercent)
         contextPercent = percent.map { min(max($0, 0), 100) }
-        turns = (try? container.decodeIfPresent(Int.self, forKey: .turns)) ?? 0
+        let count = try? container.decode(Int.self, forKey: .turns)
+        turns = count ?? 0
+        reportedTurns = count.flatMap { $0 >= 0 ? $0 : nil }
     }
 
     enum CodingKeys: String, CodingKey {

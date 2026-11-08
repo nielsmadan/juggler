@@ -34,6 +34,11 @@ final class ShortcutCenter {
         displayName: "Shortcuts"
     )
 
+    let sessionMonitorContext = ShortcutContext<SessionMonitorAction>(
+        "sessionMonitor",
+        displayName: "Session Monitor"
+    )
+
     let registry: ShortcutRegistry
     let hintPresenter: ShortcutHintPresenter
     let hintOptions = HintHUDOptions(placement: .top, presentation: .window)
@@ -42,7 +47,7 @@ final class ShortcutCenter {
     private var didStart = false
 
     private init() {
-        let registry = ShortcutRegistry(contexts: [globalContext, sessionListContext])
+        let registry = ShortcutRegistry(contexts: [globalContext, sessionListContext, sessionMonitorContext])
         self.registry = registry
         hintPresenter = ShortcutHintPresenter(registry: registry)
     }
@@ -60,12 +65,7 @@ final class ShortcutCenter {
 }
 
 extension View {
-    /// Activate `context` only while `isActive` is true (i.e. the hosting window
-    /// is key). ShortcutKit stores a single handler per context, so two windows
-    /// sharing one context must never both be active — gating on key-window
-    /// state guarantees exactly one is. Toggling `isActive` mounts/unmounts a
-    /// zero-size companion view carrying `.activeShortcutContext`, whose
-    /// onAppear/onDisappear push/pop the context and set/clear the handler.
+    // Key-window gating scopes ShortcutKit's per-activation handler to the receiving window.
     func keyWindowShortcutContext<A: ShortcutAction>(
         _ context: ShortcutContext<A>,
         isActive: Bool,

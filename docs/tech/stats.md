@@ -18,6 +18,9 @@ Implementation of the busy-time tracking subsystem: per-session accrual, per-day
 
 "Busy time" = wall-clock time a session spends in `working` or `compacting`. Two states count as busy throughout; `idle`/`permission`/`backburner` do not.
 
+Hidden is a separate disposition, not a state boundary: hiding/unhiding neither commits nor restarts an open busy
+stretch. Hidden hooks, rollover, removal and termination use the same accrual paths as visible rows.
+
 Three layers:
 
 - **Accrual**: `SessionManager` watches state transitions and converts busy stretches into committed `TimeInterval` deltas.
@@ -100,6 +103,9 @@ Rollover is **not** driven by a background timer in `SessionManager`. It's drive
 - **Bar heights** are normalized against `max(visible seconds)`, floored at `barMinHeight` (`:73`) so a near-zero day still shows a foot under its duration label.
 - **Color**: per-date stable index (`colorIndex`, `:181-187`) keyed off day-count from a fixed reference date, so window resizing never reshuffles hues. Today's bar is full-strength; older bars are dimmed by `StatsChart.barDimFactor`. Cycling-palette vs. fixed custom color is an `@AppStorage` toggle.
 - **Duration labels** use `SessionStatsCalculator.formatDuration` (`SessionStatsCalculator.swift:14`) - `0m` / `<1m` / `Xm` / `XhYYm` / `XdYYh`.
+- **Live summary** uses pure `SessionStatsSummary(sessions:)` over the raw tracked rows, never `listedSessions`:
+  `X/Y busy, Z hidden`, always including zero hidden. X counts working/compacting rows, Y all rows and Z hidden rows.
+  Duplicate rows for one conversation count individually. Show Hidden changes neither this summary nor time totals.
 
 ## Bar layout: StatsBarLayout
 

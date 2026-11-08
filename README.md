@@ -77,6 +77,7 @@ Upgrades and ordinary reinstalls preserve integrations. Other tools' hooks and s
 - **Queue modes** - Fair (round-robin), Priority (most recent first), Static (creation order), or Grouped (by window)
 - **Permission-first queue** - Optionally keep quick permission decisions ahead of ordinary idle sessions
 - **Backburner** - Park sessions you don't need right now. They stay tracked but won't appear in your cycle
+- **Hide sessions** - Keep a conversation tracked without showing it in the list, cycling to it, or notifying you. Hide and backburner choices survive restarts
 - **Session notes** - Add a short note to a conversation and see it in the monitor and beacon when you return
 - **Idle time stats** - Per-session and global idle vs. working time
 - **Guided setup** - Onboarding walks you through permissions, terminal integration, and hook installation
@@ -95,6 +96,18 @@ Upgrades and ordinary reinstalls preserve integrations. Other tools' hooks and s
 | `⇧⌘;` | Toggle popover / open monitor |
 
 All shortcuts are customizable in Settings.
+
+In the Session Monitor, `E` hides or unhides the selected conversation and `⌘E` toggles **Show Hidden**.
+The top-bar eye also toggles Show Hidden; each row has a Hide/Unhide action at its right edge.
+Revealed hidden rows are dimmed with an eye-slash marker and can still be opened by click or `Return`.
+Show Hidden also affects the popover, and starts off each time Juggler launches. These two shortcuts apply only
+in the monitor. Settings lets you show or hide each row action independently.
+
+Hiding keeps state updates and busy time running. The stats footer always counts all tracked rows:
+`X/Y busy, Z hidden`. Hide follows the agent conversation, so a new conversation in the same pane starts clean.
+Settings → General → **Reset Sessions…** clears tracked rows and saved hide/backburner choices while preserving
+conversation notes. The popover's **Remove** action is a separate cleanup for stale rows; new activity can bring
+a removed row back.
 
 ## Compatibility
 

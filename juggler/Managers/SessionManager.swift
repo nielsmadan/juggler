@@ -12,13 +12,24 @@ enum QueuePosition: Equatable {
 
 @Observable
 final class SessionManager {
-    static let shared = SessionManager()
+    static let shared = SessionManager(dispositionStore: SessionDispositionStore(defaults: .standard))
 
     private(set) var sessions: [Session] = []
+    var showsHiddenSessions = false
+
+    var listedSessions: [Session] {
+        sessions.filter { showsHiddenSessions || !$0.isHidden }
+    }
+
+    var listEmptyState: SessionListEmptyState? {
+        if sessions.isEmpty { return .noSessions }
+        return listedSessions.isEmpty ? .allHidden : nil
+    }
 
     /// Persisted per-day busy-time totals. Fed by state transitions and rollover.
     let dailyStats: DailyStatsStore
     let noteStore: SessionNoteStore
+    let dispositionStore: SessionDispositionStore
 
     private let hiddenBindings: HiddenBindingStore
 
@@ -59,8 +70,23 @@ final class SessionManager {
 
     private(set) var cyclingState = CyclingState.initial
     // Normalized to the session's composite id by updateFocusedSession.
-    private(set) var focusedSessionID: String?
-    var isTerminalAppActive = false
+    private(set) var focusedSessionID: String? {
+        didSet {
+            if focusedSessionID != oldValue { automationContextToken = UUID() }
+        }
+    }
+
+    var isTerminalAppActive = false {
+        didSet {
+            guard isTerminalAppActive != oldValue else { return }
+            let preservesFocusCommit = isTerminalAppActive && activationToken != nil
+                && activationFocusContextToken == automationContextToken
+            automationContextToken = UUID()
+            if preservesFocusCommit { activationFocusContextToken = automationContextToken }
+        }
+    }
+
+    private var automationContextToken = UUID()
 
     /// Live local handle (iTerm2 pane UUID / kitty window id) of the most recently
     /// focused pane per terminal, captured from that terminal's own focus events. Used
@@ -79,14 +105,109 @@ final class SessionManager {
 
     /// Tracks the session the user was last focused on, even after it goes busy.
     /// Used when auto-advance is OFF to keep the busy session highlighted as "current".
-    private(set) var lastActiveSessionID: String?
+    private(set) var lastActiveSessionID: String? {
+        didSet {
+            if lastActiveSessionID != oldValue { automationContextToken = UUID() }
+        }
+    }
 
-    /// Session ID from the most recent successfully delivered notification.
-    /// Consumed by the "go to last notification" hotkey.
-    private(set) var lastNotifiedSessionID: String?
+    private(set) var lastNotificationTarget: SessionNotificationTarget?
+    private var notificationSequence: UInt64 = 0
+    private var lastDeliveredNotificationSequence: UInt64 = 0
 
-    func recordLastNotification(sessionID: String) {
-        lastNotifiedSessionID = sessionID
+    var lastNotifiedSessionID: String? {
+        lastNotificationTarget.flatMap { session(for: $0)?.id }
+    }
+
+    func makeNotificationTarget(sessionID: String) -> SessionNotificationTarget? {
+        guard let session = sessions.first(where: { $0.id == sessionID }), !session.isHidden else { return nil }
+        notificationSequence += 1
+        return SessionNotificationTarget(
+            sessionID: session.id, identity: session.noteKey,
+            token: session.notificationToken, sequence: notificationSequence
+        )
+    }
+
+    func session(for target: SessionNotificationTarget) -> Session? {
+        sessions.first {
+            $0.id == target.sessionID && !$0.isHidden
+                && $0.notificationToken == target.token && $0.noteKey == target.identity
+        }
+    }
+
+    func recordLastNotification(_ target: SessionNotificationTarget) {
+        guard session(for: target) != nil, target.sequence > lastDeliveredNotificationSequence else { return }
+        lastDeliveredNotificationSequence = target.sequence
+        lastNotificationTarget = target
+    }
+
+    private func invalidateDeferredWork(at index: Int) {
+        let id = sessions[index].id
+        sessions[index].notificationToken = UUID()
+        sessions[index].automationToken = UUID()
+        if lastNotificationTarget?.sessionID == id { lastNotificationTarget = nil }
+        animationController.cancel(sessionID: id)
+    }
+
+    func makeAutomaticActivation(
+        _ kind: SessionAutomaticActivation.Kind,
+        sessionID: String
+    ) -> SessionAutomaticActivation? {
+        guard let source = sessions.first(where: { $0.id == sessionID }) else { return nil }
+        let request = SessionAutomaticActivation(
+            kind: kind, sourceID: source.id, sourceIdentity: source.agentSessionIdentity,
+            sourceToken: source.automationToken, contextToken: automationContextToken
+        )
+        return isValidAutomaticActivation(request) ? request : nil
+    }
+
+    func isValidAutomaticActivation(_ request: SessionAutomaticActivation) -> Bool {
+        guard request.contextToken == automationContextToken,
+              let source = sessions.first(where: { $0.id == request.sourceID }),
+              source.agentSessionIdentity == request.sourceIdentity,
+              source.automationToken == request.sourceToken, !source.isHidden else { return false }
+        switch request.kind {
+        case .advance:
+            return (source.state == .working || source.state == .compacting)
+                && (focusedSessionID == source.id || focusedSessionID == source.terminalSessionID)
+                && (lastActiveSessionID == nil || lastActiveSessionID == source.id)
+        case .restart:
+            return source.isCycleEligible
+        }
+    }
+
+    func nextAutomaticSession(for request: SessionAutomaticActivation) -> Session? {
+        guard isValidAutomaticActivation(request) else { return nil }
+        switch request.kind {
+        case .advance:
+            return cyclingEngine.cycleForward(
+                sessions: sessions, focusedSessionID: request.sourceID, state: cyclingState
+            ).targetSession
+        case .restart:
+            return sessions.first { $0.id == request.sourceID && $0.isCycleEligible }
+        }
+    }
+
+    func prepareAutomaticActivation(_ request: SessionAutomaticActivation, target: Session) {
+        guard request.kind == .advance,
+              let index = cyclableSessions.firstIndex(where: { $0.id == target.id }) else { return }
+        cyclingState = CyclingState(currentIndex: index)
+        if cyclableSessions.count > 1 { advanceColorIndex(by: 1) }
+    }
+
+    func finishAutomaticActivation(
+        _ request: SessionAutomaticActivation,
+        target: Session,
+        token: ActivationToken
+    ) {
+        guard request.kind == .advance, activationToken == token, activationTarget == target.id,
+              activationFocusContextToken == automationContextToken,
+              sessions.contains(where: {
+                  $0.id == target.id && $0.agentSessionIdentity == target.agentSessionIdentity
+                      && $0.automationToken == target.automationToken
+              }) else { return }
+        lastActiveSessionID = nil
+        focusedSessionID = target.id
     }
 
     /// Check whether a terminal app is currently the frontmost application (live check, no caching).
@@ -129,7 +250,8 @@ final class SessionManager {
     /// No auto-advance flag check needed: the `lastActiveSessionID` anchor is only ever
     /// set while auto-advance is off — see `applyStateChange`.
     var currentReferenceSessionID: String? {
-        if let lastActive = lastActiveSessionID, sessions.contains(where: { $0.id == lastActive }) {
+        guard !isFocusedSessionHidden else { return nil }
+        if let lastActive = lastActiveSessionID, sessions.contains(where: { $0.id == lastActive && !$0.isHidden }) {
             return lastActive
         }
         if isSessionFocused { return currentSession?.id }
@@ -140,6 +262,7 @@ final class SessionManager {
     /// When non-nil, `updateFocusedSession` ignores focus events that don't match this target.
     private(set) var activationTarget: String?
     private var activationToken: ActivationToken?
+    private var activationFocusContextToken: UUID?
 
     struct ActivationToken: Equatable {
         fileprivate let id = UUID()
@@ -188,16 +311,18 @@ final class SessionManager {
     /// shown in each, by `effectiveSection`. The single source for the Fair/Prio
     /// section order — consumed by both the monitor's section rows and navigation.
     func sessionsBySection() -> [(section: SectionType, sessions: [Session])] {
+        let listed = listedSessions
+        guard !listed.isEmpty else { return [] }
         let sections: [SectionType] = [.idle, .working, .backburner]
         return sections.map { section in
-            (section, sessions.filter { animationController.effectiveSection(for: $0) == section })
+            (section, listed.filter { animationController.effectiveSection(for: $0) == section })
         }
     }
 
     /// Sessions grouped by terminal window, in Grouped-mode render order (keys
     /// sorted, each group by `startedAt`). The single source for that ordering.
     func sessionsByWindowGroup() -> [(key: String, sessions: [Session])] {
-        Dictionary(grouping: sessions) { $0.terminalWindowName ?? Self.unknownWindowGroup }
+        Dictionary(grouping: listedSessions) { $0.terminalWindowName ?? Self.unknownWindowGroup }
             .map { (key: $0.key, sessions: $0.value.sorted { $0.startedAt < $1.startedAt }) }
             .sorted { $0.key < $1.key }
     }
@@ -209,7 +334,7 @@ final class SessionManager {
         case .fair, .prio:
             sessionsBySection().flatMap(\.sessions)
         case .static:
-            sessions
+            listedSessions
         case .grouped:
             sessionsByWindowGroup().flatMap(\.sessions)
         }
@@ -218,12 +343,14 @@ final class SessionManager {
     init(
         dailyStats: DailyStatsStore = DailyStatsStore(),
         noteStore: SessionNoteStore = SessionNoteStore(),
-        hiddenBindings: HiddenBindingStore = HiddenBindingStore()
+        hiddenBindings: HiddenBindingStore = HiddenBindingStore(),
+        dispositionStore: SessionDispositionStore = SessionDispositionStore()
     ) {
         cyclingEngine = DefaultCyclingEngine()
         self.dailyStats = dailyStats
         self.noteStore = noteStore
         self.hiddenBindings = hiddenBindings
+        self.dispositionStore = dispositionStore
         lastSeenDay = Calendar.current.startOfDay(for: Date())
         Self.migrateLegacyQueueOrderModeValues(in: .standard)
     }
@@ -332,30 +459,31 @@ final class SessionManager {
         sessionID: String,
         from oldState: SessionState,
         to newState: SessionState,
-        now: Date = Date()
+        now: Date = Date(),
+        allowsAutomation: Bool = true,
+        allowsAnimation: Bool = true
     ) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
-
-        // Record whether the session was awaiting the user (idle/permission) when it
-        // enters backburner — drives Antigravity's idle-origin auto-reactivation.
-        if newState == .backburner, oldState != .backburner {
-            sessions[index].wasAwaitingUserBeforeBackburner = oldState.isIncludedInCycle
-        }
 
         logDebug(.session, "\(sessions[index].displayName): \(oldState.rawValue) → \(newState.rawValue)")
 
         // Trigger animation (must be before state change so effectiveState works)
-        animationController.animateTransition(
-            sessionID: sessions[index].id,
-            from: oldState,
-            to: newState
-        )
+        let wasCyclable = sessions[index].isCycleEligible
+        let isHidden = sessions[index].isHidden
+        if oldState != newState { sessions[index].automationToken = UUID() }
+        if !isHidden, allowsAnimation {
+            animationController.animateTransition(
+                sessionID: sessions[index].id,
+                from: oldState,
+                to: newState
+            )
+        }
 
         let fromSection = SectionType(from: oldState)
         let toSection = SectionType(from: newState)
         let isUpMove = toSection.rawValue < fromSection.rawValue
 
-        if isUpMove {
+        if isUpMove, !isHidden, allowsAnimation {
             withAnimation(.easeInOut(duration: SectionAnimationTiming.upMoveDuration)) {
                 sessions[index].state = newState
                 handleStateTransition(at: index, from: oldState, to: newState, now: now)
@@ -365,10 +493,14 @@ final class SessionManager {
             handleStateTransition(at: index, from: oldState, to: newState, now: now)
         }
 
+        let isCyclable = sessions.first(where: { $0.id == sessionID })?.isCycleEligible == true
+        if isCyclable, lastActiveSessionID == sessionID {
+            lastActiveSessionID = nil
+        }
+        guard allowsAutomation, !isHidden else { return }
+
         // Handle auto-advance when a session goes busy (not backburner — that's a deliberate user action
         // handled by HotkeyManager.handleBackburner directly)
-        let wasCyclable = oldState.isIncludedInCycle
-        let isCyclable = newState.isIncludedInCycle
         if wasCyclable, !isCyclable, newState != .backburner {
             // Only act if the user is still focused on this session.
             // If they already cycled away, the hook arrived late — don't yank them.
@@ -386,7 +518,11 @@ final class SessionManager {
                 let autoAdvance = UserDefaults.standard.bool(forKey: AppStorageKeys.autoAdvanceOnBusy)
                 if autoAdvance {
                     logDebug(.session, "Auto-advance triggered for \(sessionID)")
-                    NotificationCenter.default.post(name: .shouldAutoAdvance, object: nil)
+                    if let request = makeAutomaticActivation(.advance, sessionID: sessionID) {
+                        NotificationCenter.default.post(
+                            name: .shouldAutoAdvance, object: nil, userInfo: ["request": request]
+                        )
+                    }
                 } else {
                     logDebug(.session, "Anchored lastActiveSessionID to \(sessionID)")
                     lastActiveSessionID = sessionID
@@ -394,21 +530,16 @@ final class SessionManager {
             }
         }
 
-        if isCyclable, lastActiveSessionID == sessionID {
-            logDebug(.session, "Cleared lastActiveSessionID for \(sessionID)")
-            lastActiveSessionID = nil
-        }
-
         if !wasCyclable, isCyclable {
             let autoRestart = UserDefaults.standard.bool(forKey: AppStorageKeys.autoRestartOnIdle)
             if autoRestart {
-                let cyclableCount = sessions.filter(\.state.isIncludedInCycle).count
-                if cyclableCount == 1 {
+                let cyclableCount = cyclableSessions.count
+                if cyclableCount == 1, let request = makeAutomaticActivation(.restart, sessionID: sessionID) {
                     logDebug(.session, "Auto-restart triggered for \(sessionID)")
                     NotificationCenter.default.post(
                         name: .shouldAutoRestart,
                         object: nil,
-                        userInfo: ["sessionID": sessionID]
+                        userInfo: ["sessionID": sessionID, "request": request]
                     )
                 }
             }
@@ -563,22 +694,36 @@ final class SessionManager {
     }
 
     var cyclableSessions: [Session] {
-        sessions.filter(\.state.isIncludedInCycle)
+        sessions.filter(\.isCycleEligible)
+    }
+
+    var isFocusedSessionHidden: Bool {
+        guard let focusedSessionID else { return false }
+        return sessions.contains {
+            $0.isHidden && ($0.id == focusedSessionID || $0.terminalSessionID == focusedSessionID)
+        }
+    }
+
+    var currentCommandSession: Session? {
+        isFocusedSessionHidden ? nil : currentSession
     }
 
     var currentSession: Session? {
-        let cyclable = cyclableSessions
-
         // When auto-advance is OFF and we have a lastActiveSessionID pointing to a busy session,
         // return that session as current even though it's not cyclable.
         // This keeps the UI highlighting stable when a session goes busy.
         let autoAdvance = UserDefaults.standard.bool(forKey: AppStorageKeys.autoAdvanceOnBusy)
         if !autoAdvance, let lastID = lastActiveSessionID,
            let session = sessions.first(where: { $0.id == lastID }),
-           !session.state.isIncludedInCycle {
+           !session.isHidden, !session.isCycleEligible {
             return session
         }
 
+        return currentCyclableSession
+    }
+
+    var currentCyclableSession: Session? {
+        let cyclable = cyclableSessions
         guard !cyclable.isEmpty else { return nil }
 
         // Prefer focused session if it's cyclable (focusedSessionID is normalized on entry)
@@ -614,6 +759,7 @@ final class SessionManager {
         let token = ActivationToken()
         activationTarget = targetSessionID
         activationToken = token
+        activationFocusContextToken = automationContextToken
         return token
     }
 
@@ -622,6 +768,7 @@ final class SessionManager {
     func endActivation() {
         activationTarget = nil
         activationToken = nil
+        activationFocusContextToken = nil
     }
 
     @MainActor
@@ -739,15 +886,18 @@ final class SessionManager {
             nil
         }
 
+        let matchesActivationTarget = sessions.contains {
+            $0.id == activationTarget && (resolved == $0.id || resolved == $0.terminalSessionID)
+        }
+        let preservesFocusCommit = matchesActivationTarget && activationToken != nil
+            && activationFocusContextToken == automationContextToken
+        if resolved != focusedSessionID { automationContextToken = UUID() }
+
         // During session activation, ignore focus events that don't match the target.
         // This prevents intermediate events (e.g., iTerm2 briefly focusing the wrong tab
         // as the app comes to foreground) from causing UI flicker.
         if let target = activationTarget, let newID = resolved {
-            let matchesTarget = sessions.contains(where: {
-                $0.id == target
-                    && ($0.terminalSessionID == newID || newID == $0.id)
-            })
-            if matchesTarget {
+            if matchesActivationTarget {
                 // Focus arrived at our target — accept it while retaining the guard
                 // until the terminal operation completes.
             } else {
@@ -757,6 +907,8 @@ final class SessionManager {
         }
 
         focusedSessionID = resolved
+        clearUnfocusedHiddenAnchor()
+        if preservesFocusCommit { activationFocusContextToken = automationContextToken }
 
         if let newID = resolved {
             logDebug(.session, "Focus updated to \(newID) → isSessionFocused=\(isSessionFocused)")
@@ -844,47 +996,167 @@ final class SessionManager {
         at index: Int,
         incoming: AgentSessionIdentity,
         event: String?
-    ) -> Bool {
+    ) -> SessionIdentityTransition {
         let current = sessions[index].agentSessionIdentity
         let transientNote = sessions[index].note
-        let agentChanged = current.agent != incoming.agent
-
-        if !agentChanged, incoming.agentSessionID.isEmpty {
-            return true
-        }
-        guard current != incoming else { return true }
-
-        let fillsMissingID = !agentChanged
-            && current.agentSessionID.isEmpty
-            && !incoming.agentSessionID.isEmpty
-        let establishesIdentity = event.map {
-            HookEventMapper.establishesSessionIdentity(event: $0, agent: incoming.agent)
-        } ?? true
-        guard fillsMissingID || establishesIdentity else { return false }
-
-        sessions[index].replaceAgentSessionIdentity(with: incoming)
-
-        if agentChanged {
-            sessions[index].note = sessions[index].noteKey.flatMap(noteStore.note)
-            return true
-        }
-
-        guard let key = sessions[index].noteKey else { return true }
-
-        if current.agentSessionID.isEmpty, let transientNote {
-            let normalized = noteStore.setNote(transientNote, for: key)
-            for matchingIndex in sessions.indices where sessions[matchingIndex].noteKey == key {
-                sessions[matchingIndex].note = normalized
+        let transition = SessionIdentityTransition.resolve(current: current, incoming: incoming, event: event)
+        switch transition {
+        case .unchanged, .rejected:
+            return transition
+        case .filledMissing:
+            invalidateDeferredWork(at: index)
+            sessions[index].replaceAgentSessionIdentity(with: incoming)
+            sessions[index].disposition = sessions[index].transientDispositionOverrides
+                .applying(to: dispositionStore.disposition(for: incoming))
+            clearUnfocusedHiddenAnchor()
+            if let transientNote {
+                let normalized = noteStore.setNote(transientNote, for: incoming)
+                for matchingIndex in sessions.indices where sessions[matchingIndex].noteKey == incoming {
+                    sessions[matchingIndex].note = normalized
+                }
+            } else {
+                sessions[index].note = noteStore.note(for: incoming)
             }
-        } else {
-            sessions[index].note = noteStore.note(for: key)
+        case .replaced:
+            let sessionID = sessions[index].id
+            if lastActiveSessionID == sessionID { lastActiveSessionID = nil }
+            invalidateDeferredWork(at: index)
+            if activationTarget == sessionID { endActivation() }
+            sessions[index].replaceAgentSessionIdentity(with: incoming)
+            sessions[index].note = noteStore.note(for: incoming)
+            sessions[index].disposition = dispositionStore.disposition(for: incoming)
+            sessions[index].details = SessionDetails()
+            sessions[index].bindingTurnObservations = [:]
+            sessions[index].turnCount = 0
         }
-        return true
+        sessions[index].transientDispositionOverrides = TransientDispositionOverrides()
+        return transition
+    }
+
+    func setSessionHidden(sessionID: String, isHidden: Bool) {
+        guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
+        var disposition = sessions[index].disposition
+        disposition.isHidden = isHidden
+        if !sessions[index].agentSessionIdentity.isPersistent {
+            sessions[index].transientDispositionOverrides.isHidden = isHidden
+        }
+        synchronizeDisposition(disposition, sessionID: sessionID)
+    }
+
+    func toggleSessionHidden(sessionID: String) {
+        guard let session = sessions.first(where: { $0.id == sessionID }) else { return }
+        setSessionHidden(sessionID: sessionID, isHidden: !session.isHidden)
+    }
+
+    private func synchronizeDisposition(
+        _ disposition: SessionDisposition,
+        sessionID: String,
+        wakeState: SessionState? = nil,
+        now: Date = Date(),
+        allowsAutomation: Bool = true,
+        allowsAnimation: Bool = true
+    ) {
+        guard let target = sessions.first(where: { $0.id == sessionID }) else { return }
+        let identity = target.agentSessionIdentity
+        dispositionStore.setDisposition(disposition, for: identity)
+        let matchingIDs = [sessionID] + sessions.filter {
+            $0.id != sessionID && identity.isPersistent && $0.agentSessionIdentity == identity
+        }.map(\.id)
+        for id in matchingIDs {
+            guard let index = sessions.firstIndex(where: { $0.id == id }) else { continue }
+            if disposition.isHidden, !sessions[index].isHidden {
+                invalidateDeferredWork(at: index)
+                if lastActiveSessionID == id { lastActiveSessionID = nil }
+            }
+            sessions[index].disposition = disposition
+            let oldState = sessions[index].state
+            let newState: SessionState = if disposition.backburner != nil {
+                .backburner
+            } else if oldState == .backburner, let wakeState {
+                wakeState
+            } else {
+                oldState
+            }
+            if oldState != newState {
+                applyStateChange(sessionID: id, from: oldState, to: newState, now: now,
+                                 allowsAutomation: allowsAutomation && id == sessionID,
+                                 allowsAnimation: allowsAnimation)
+            }
+        }
+    }
+
+    private func applyIncomingState(
+        sessionID: String,
+        state: SessionState,
+        event: String?,
+        source: StatusSource,
+        detailsChange: DetailsChange?,
+        bindingID: String?,
+        allowsAnimation: Bool
+    ) {
+        guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
+        var disposition = sessions[index].disposition
+        let evidence: SessionDetails = if case let .replace(details)? = detailsChange {
+            details
+        } else {
+            SessionDetails()
+        }
+        if let backburner = disposition.backburner,
+           backburner.shouldWake(agent: sessions[index].agent, state: state, event: event,
+                                 source: source, details: evidence, bindingID: bindingID) {
+            disposition.backburner = nil
+            if !sessions[index].agentSessionIdentity.isPersistent {
+                sessions[index].transientDispositionOverrides.backburner = .set(nil)
+            }
+        }
+        synchronizeDisposition(disposition, sessionID: sessionID, wakeState: state, allowsAutomation: source == .live,
+                               allowsAnimation: allowsAnimation)
+        guard disposition.backburner == nil,
+              let session = sessions.first(where: { $0.id == sessionID }), session.state != state else { return }
+        applyStateChange(sessionID: sessionID, from: session.state, to: state, allowsAutomation: source == .live,
+                         allowsAnimation: allowsAnimation)
     }
 
     private func hydrateStoredNote(for session: inout Session) {
         guard let key = session.noteKey else { return }
         session.note = noteStore.note(for: key)
+    }
+
+    private func hydrateDisposition(
+        for session: inout Session,
+        event: String?,
+        source: StatusSource,
+        bindingID: String?,
+        now: Date
+    ) {
+        session.disposition = dispositionStore.disposition(for: session.agentSessionIdentity)
+        if session.state == .backburner, session.disposition.backburner == nil {
+            session.disposition.backburner = BackburnerDisposition(
+                wasAwaitingUser: false, backburneredAt: now,
+                turnsByBinding: session.bindingTurnObservations.compactMapValues(\.turns)
+            )
+        }
+        if let backburner = session.disposition.backburner,
+           backburner.shouldWake(agent: session.agent, state: session.state, event: event,
+                                 source: source, details: session.details, bindingID: bindingID) {
+            session.disposition.backburner = nil
+        }
+        if session.disposition.backburner != nil { session.state = .backburner }
+    }
+
+    private func backburnerDisposition(for session: Session, now: Date) -> BackburnerDisposition {
+        let identity = session.agentSessionIdentity
+        let matching = sessions.filter {
+            $0.id == session.id || (identity.isPersistent && $0.agentSessionIdentity == identity)
+        }
+        var observations: [String: BindingTurnObservation] = [:]
+        for row in matching {
+            observations.merge(row.bindingTurnObservations) { $0.merging($1) }
+        }
+        return BackburnerDisposition(
+            wasAwaitingUser: session.state.isIncludedInCycle, backburneredAt: now,
+            turnsByBinding: observations.compactMapValues(\.turns)
+        )
     }
 
     @MainActor
@@ -913,24 +1185,15 @@ final class SessionManager {
             let oldState = sessions[index].state
 
             let incomingIdentity = AgentSessionIdentity(agent: agent, agentSessionID: agentSessionID)
-            guard updateAgentSessionIdentity(at: index, incoming: incomingIdentity, event: event) else {
-                return false
-            }
+            let transition = updateAgentSessionIdentity(at: index, incoming: incomingIdentity, event: event)
+            guard transition != .rejected else { return false }
 
             // Keep the row's bindings fresh on every hook (before the backburner
             // early-return, so backburnered remote sessions stay reachable too).
             refreshBindingsRevealingHidden(at: index, event: event, bindingID: bindingID)
             sessions[index].details = detailsChange?.applied(to: sessions[index].details) ?? sessions[index].details
+            sessions[index].recordBindingTurns(bindingID: bindingID, detailsChange: detailsChange)
 
-            // Antigravity has no UserPromptSubmit; a session shelved while idle is
-            // auto-reactivated on its next working event (a resume). One shelved while
-            // working stays put — see docs/superpowers/specs/antigravity-integration.md.
-            let isAntigravityResume = sessions[index].agent == "antigravity"
-                && state == .working
-                && sessions[index].wasAwaitingUserBeforeBackburner
-
-            // Preserve backburner state - only UserPromptSubmit should exit backburner
-            // (explicit reactivation via UI uses updateSessionState, not this method)
             mergeSessionMetadata(
                 at: index,
                 tmuxSessionName: tmuxSessionName,
@@ -940,16 +1203,13 @@ final class SessionManager {
                 remoteHost: remoteHost
             )
 
-            if oldState == .backburner, event != "UserPromptSubmit", !isAntigravityResume {
-                return true
-            }
-
-            if oldState != state {
-                if source == .live, Self.isNewTurn(old: oldState, new: state, event: event) {
-                    sessions[index].turnCount += 1
-                }
-                let sessionID = sessions[index].id
-                applyStateChange(sessionID: sessionID, from: oldState, to: state)
+            let isReplacement = if case .replaced = transition { true } else { false }
+            applyIncomingState(sessionID: compositeID, state: state, event: event, source: source,
+                               detailsChange: detailsChange, bindingID: bindingID, allowsAnimation: !isReplacement)
+            let turnOrigin: SessionState? = if case .replaced = transition { nil } else { oldState }
+            if source == .live, let updatedIndex = sessions.firstIndex(where: { $0.id == compositeID }),
+               Self.isNewTurn(old: turnOrigin, new: sessions[updatedIndex].state, event: event) {
+                sessions[updatedIndex].turnCount += 1
             }
             return true
         } else {
@@ -972,11 +1232,14 @@ final class SessionManager {
             session.gitRepoName = gitRepoName?.isEmpty == true ? nil : gitRepoName
             session.transcriptPath = transcriptPath?.isEmpty == true ? nil : transcriptPath
             hydrateStoredNote(for: &session)
+            session.details = detailsChange?.applied(to: session.details) ?? session.details
+            session.recordBindingTurns(bindingID: bindingID, detailsChange: detailsChange)
+            hydrateDisposition(for: &session, event: event, source: source, bindingID: bindingID, now: now)
             // Initialize the state-entry timestamp so the first observed state
             // has a sensible reference (no transition fires for new sessions).
             // For idle/permission this also seeds the Fair/Prio queue sort key
             // (`lastBecameIdle`) — see `reorderForMode`.
-            switch state {
+            switch session.state {
             case .working, .compacting:
                 session.lastBecameWorking = now
             case .idle, .permission:
@@ -985,13 +1248,14 @@ final class SessionManager {
                 break
             }
             session.remoteHost = remoteHost?.isEmpty == true ? nil : remoteHost
-            session.details = detailsChange?.applied(to: session.details) ?? session.details
-            session.turnCount = source == .live && Self.isNewTurn(old: nil, new: state, event: event) ? 1 : 0
+            session.turnCount = source == .live && Self.isNewTurn(old: nil, new: session.state, event: event) ? 1 : 0
             sessions.append(session)
             refreshBindingsRevealingHidden(at: sessions.count - 1, event: event, bindingID: bindingID)
             // Reconcile against the stored (now-bound) element, not the local copy, so a
             // focus event that arrived before this remote session existed can resolve.
             reconcileFocus(forNewSession: sessions[sessions.count - 1])
+            synchronizeDisposition(session.disposition, sessionID: session.id, wakeState: state,
+                                   allowsAutomation: source == .live)
 
             // Highlight immediately without waiting for the next app switch
             let frontmostBundle = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -1037,12 +1301,24 @@ final class SessionManager {
     }
 
     @MainActor
-    func updateSessionState(terminalSessionID: String, state: SessionState) {
+    func updateSessionState(terminalSessionID: String, state: SessionState, now: Date = Date()) {
         guard let index = sessions.firstIndex(where: { $0.id == terminalSessionID }) else { return }
         let oldState = sessions[index].state
-        if oldState != state {
-            let sessionID = sessions[index].id
-            applyStateChange(sessionID: sessionID, from: oldState, to: state)
+        if state == .backburner || oldState == .backburner || state == .idle {
+            var disposition = sessions[index].disposition
+            if state == .backburner {
+                disposition.backburner = disposition.backburner ?? backburnerDisposition(for: sessions[index], now: now)
+            } else {
+                disposition.backburner = nil
+            }
+            if !sessions[index].agentSessionIdentity.isPersistent {
+                sessions[index].transientDispositionOverrides.backburner = .set(disposition.backburner)
+            }
+            synchronizeDisposition(disposition, sessionID: terminalSessionID, wakeState: state, now: now)
+        }
+        guard let session = sessions.first(where: { $0.id == terminalSessionID }) else { return }
+        if session.state != state {
+            applyStateChange(sessionID: terminalSessionID, from: session.state, to: state, now: now)
         }
     }
 
@@ -1105,6 +1381,8 @@ final class SessionManager {
     }
 
     func removeSession(sessionID: String, now: Date = Date()) {
+        if activationTarget == sessionID { endActivation() }
+        animationController.cancel(sessionID: sessionID)
         if let index = sessions.firstIndex(where: { $0.id == sessionID }) {
             let session = sessions[index]
             let isBusy = session.state == .working || session.state == .compacting
@@ -1123,8 +1401,8 @@ final class SessionManager {
         if lastActiveSessionID == sessionID {
             lastActiveSessionID = nil
         }
-        if lastNotifiedSessionID == sessionID {
-            lastNotifiedSessionID = nil
+        if lastNotificationTarget?.sessionID == sessionID {
+            lastNotificationTarget = nil
         }
     }
 
@@ -1150,14 +1428,21 @@ final class SessionManager {
 
     /// Clears Juggler's rows only; `SessionReset` pairs it with clearing the ledger they hydrate from.
     func clearAllSessions(now: Date = Date()) {
+        endActivation()
         commitInProgressBusyTime(now: now)
+        sessions.forEach { animationController.cancel(sessionID: $0.id) }
         sessions = []
         focusedSessionID = nil
         lastActiveSessionID = nil
-        lastNotifiedSessionID = nil
+        lastNotificationTarget = nil
         cyclingState = .initial
         hiddenBindings.revealAll()
         logInfo(.session, "Cleared all sessions")
+    }
+
+    func completeSessionReset(now: Date = Date()) {
+        clearAllSessions(now: now)
+        dispositionStore.clear()
     }
 
     /// Resolve the effective focus ID for cycling, consuming `lastActiveSessionID` as an anchor.
@@ -1167,14 +1452,15 @@ final class SessionManager {
         wasTerminalFrontmost: Bool,
         direction: String
     ) -> (effectiveFocusID: String?, earlyReturn: Session?) {
-        let effectiveFocusID = lastActiveSessionID ?? focusedSessionID
+        clearUnfocusedHiddenAnchor()
+        let effectiveFocusID = isFocusedSessionHidden ? focusedSessionID : (lastActiveSessionID ?? focusedSessionID)
         if lastActiveSessionID != nil {
             lastActiveSessionID = nil
         }
 
         let focusedIsTracked = effectiveFocusID.map { matchesTrackedSession($0) } ?? false
         if let focusedID = effectiveFocusID, !wasTerminalFrontmost || !focusedIsTracked {
-            let cyclable = sessions.filter(\.state.isIncludedInCycle)
+            let cyclable = cyclableSessions
             if let session = cyclable.first(where: {
                 $0.id == focusedID || $0.terminalSessionID == focusedID
             }) {
@@ -1189,13 +1475,20 @@ final class SessionManager {
         return (effectiveFocusID, nil)
     }
 
+    private func clearUnfocusedHiddenAnchor() {
+        guard let anchor = lastActiveSessionID,
+              let session = sessions.first(where: { $0.id == anchor }), session.isHidden,
+              focusedSessionID != session.id, focusedSessionID != session.terminalSessionID else { return }
+        lastActiveSessionID = nil
+    }
+
     func cycleForward(wasTerminalFrontmost: Bool = true) -> Session? {
         let (effectiveFocusID, earlyReturn) = resolveEffectiveFocus(
             wasTerminalFrontmost: wasTerminalFrontmost, direction: "Forward"
         )
         if let session = earlyReturn { return session }
 
-        let cyclable = sessions.filter(\.state.isIncludedInCycle)
+        let cyclable = cyclableSessions
         logDebug(
             .hotkey,
             "cycleForward: focused=\(effectiveFocusID ?? "nil") stateIdx=\(cyclingState.currentIndex) cyclable=\(cyclable.map { "\($0.id)(\($0.terminalType.displayName))" })"
@@ -1226,7 +1519,7 @@ final class SessionManager {
         )
         if let session = earlyReturn { return session }
 
-        let cyclable = sessions.filter(\.state.isIncludedInCycle)
+        let cyclable = cyclableSessions
         logDebug(
             .hotkey,
             "cycleBackward: focused=\(effectiveFocusID ?? "nil") stateIdx=\(cyclingState.currentIndex) cyclable=\(cyclable.map { "\($0.id)(\($0.terminalType.displayName))" })"
@@ -1253,7 +1546,7 @@ final class SessionManager {
 
     func disambiguatedDisplayName(for session: Session, titleMode: SessionTitleMode = .tabTitle) -> String {
         let baseName = session.title(for: titleMode)
-        let sessionsWithSameName = sessions.filter { $0.title(for: titleMode) == baseName }
+        let sessionsWithSameName = listedSessions.filter { $0.title(for: titleMode) == baseName }
 
         guard sessionsWithSameName.count > 1 else {
             return baseName
@@ -1267,8 +1560,8 @@ final class SessionManager {
         return baseName
     }
 
-    func backburnerSession(terminalSessionID: String) {
-        updateSessionState(terminalSessionID: terminalSessionID, state: .backburner)
+    func backburnerSession(terminalSessionID: String, now: Date = Date()) {
+        updateSessionState(terminalSessionID: terminalSessionID, state: .backburner, now: now)
     }
 
     @discardableResult
@@ -1276,7 +1569,7 @@ final class SessionManager {
     func moveSessionToBackOfQueue(sessionID: String) -> Bool {
         guard queueOrderMode == .fair || queueOrderMode == .prio else { return false }
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return false }
-        guard sessions[index].state.isIncludedInCycle else { return false }
+        guard sessions[index].isCycleEligible else { return false }
 
         let position: QueuePosition = if prioritizePermissionSessions, sessions[index].state == .permission {
             .bottomOfPermission
@@ -1301,7 +1594,7 @@ final class SessionManager {
     @discardableResult
     @MainActor
     func sendToBackOfQueue(sessionID: String) -> Session? {
-        let cyclable = sessions.filter(\.state.isIncludedInCycle)
+        let cyclable = cyclableSessions
         guard let currentIdx = cyclable.firstIndex(where: { $0.id == sessionID }) else { return nil }
         let next = cyclable[(currentIdx + 1) % cyclable.count]
         guard moveSessionToBackOfQueue(sessionID: sessionID) else { return nil }
@@ -1317,7 +1610,7 @@ final class SessionManager {
     func reactivateAllBackburnered() {
         let backburneredIDs = sessions.filter { $0.state == .backburner }.map(\.id)
         for id in backburneredIDs {
-            applyStateChange(sessionID: id, from: .backburner, to: .idle)
+            reactivateSession(terminalSessionID: id)
         }
     }
 }

@@ -6,7 +6,7 @@ private enum SessionActivatorMockError: Error {
     case failed
 }
 
-private actor SessionActivatorMockBridge: TerminalBridge {
+actor SessionActivatorMockBridge: TerminalBridge {
     enum Behavior: Sendable {
         case succeeds
         case sessionNotFound
@@ -91,7 +91,7 @@ struct SessionActivatorTests {
             presentBeacon: { _, _, _, _ in }
         )
 
-        let outcome = await activator.activate(session: session, trigger: .guiSelect)
+        let outcome = await activator.activate(session: session, trigger: .guiSelect, policy: .explicit)
 
         guard case let .activated(activated) = outcome else {
             Issue.record("Expected activation to succeed")
@@ -116,7 +116,7 @@ struct SessionActivatorTests {
             presentBeacon: { beacons.append(.init(title: $0, note: $1, metadata: $2, force: $3)) }
         )
 
-        let outcome = await activator.activate(session: session, trigger: .guiSelect)
+        let outcome = await activator.activate(session: session, trigger: .guiSelect, policy: .explicit)
 
         guard case .failed = outcome else {
             Issue.record("Expected activation to fail")
@@ -187,7 +187,7 @@ struct SessionActivatorTests {
             }
         )
 
-        _ = await activator.activate(session: target, trigger: .hotkey, presentation: .cycle)
+        _ = await activator.activate(session: target, trigger: .hotkey, policy: .cycleEligible, presentation: .cycle)
 
         #expect(beacons.count == 1)
         #expect(beacons[0].note == "Review parser edge cases")
@@ -253,6 +253,7 @@ struct SessionActivatorTests {
         let outcome = await activator.activate(
             session: session,
             trigger: .hotkey,
+            policy: .cycleEligible,
             presentation: .onlySessionCycle
         )
 
@@ -304,6 +305,7 @@ struct SessionActivatorTests {
         let outcome = await activator.activate(
             session: session,
             trigger: .hotkey,
+            policy: .notification(manager.makeNotificationTarget(sessionID: session.id)!),
             presentation: .notificationJump
         )
 
@@ -331,7 +333,7 @@ struct SessionActivatorTests {
         )
 
         let task = Task {
-            await activator.activate(session: target, trigger: .guiSelect)
+            await activator.activate(session: target, trigger: .guiSelect, policy: .explicit)
         }
         await bridge.waitUntilActivationStarts(target.id)
 
@@ -364,12 +366,22 @@ struct SessionActivatorTests {
         )
 
         let firstTask = Task {
-            await activator.activate(session: firstSession, trigger: .hotkey, presentation: .cycle)
+            await activator.activate(
+                session: firstSession,
+                trigger: .hotkey,
+                policy: .cycleEligible,
+                presentation: .cycle
+            )
         }
         await bridge.waitUntilActivationStarts(firstSession.id)
 
         let secondTask = Task {
-            await activator.activate(session: secondSession, trigger: .hotkey, presentation: .cycle)
+            await activator.activate(
+                session: secondSession,
+                trigger: .hotkey,
+                policy: .cycleEligible,
+                presentation: .cycle
+            )
         }
         await Task.yield()
 

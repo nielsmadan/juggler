@@ -1903,7 +1903,8 @@ struct HookServerStatusTests {
     }
 }
 
-private actor NotificationRecorder {
+@MainActor
+private final class NotificationRecorder {
     private(set) var titles: [String] = []
 
     func record(_ title: String) {
@@ -1913,12 +1914,13 @@ private actor NotificationRecorder {
 
 @Suite("HookServer — notifications", .serialized)
 struct HookServerNotificationTests {
+    @MainActor
     private let recorder = NotificationRecorder()
 
     @MainActor private func makeServer() -> HookServer {
         let recorder = recorder
         return HookServer(sessionManager: SessionManager(), notificationSink: { title, _ in
-            await recorder.record(title)
+            recorder.record(title)
         })
     }
 
@@ -1932,7 +1934,7 @@ struct HookServerNotificationTests {
         await server.handleStatusForTesting(status(event: "PermissionRequest", phase: "permission"))
         await server.handleStatusForTesting(status(event: "PermissionRequest", phase: "permission"))
 
-        #expect(await recorder.titles == ["Permission Required"])
+        #expect(recorder.titles == ["Permission Required"])
     }
 
     @Test @MainActor func childActivityWhileInPermissionDoesNotNotifyAgain() async {
@@ -1946,7 +1948,7 @@ struct HookServerNotificationTests {
             activity: "{\"tool\":\"Bash\",\"subagents\":1}"
         ))
 
-        #expect(await recorder.titles == ["Permission Required"])
+        #expect(recorder.titles == ["Permission Required"])
     }
 
     @Test @MainActor func idleThenPermissionNotifiesEachTransition() async {
@@ -1955,6 +1957,6 @@ struct HookServerNotificationTests {
         await server.handleStatusForTesting(status(event: "Stop", phase: "idle"))
         await server.handleStatusForTesting(status(event: "PermissionRequest", phase: "permission"))
 
-        #expect(await recorder.titles == ["Session Idle", "Permission Required"])
+        #expect(recorder.titles == ["Session Idle", "Permission Required"])
     }
 }

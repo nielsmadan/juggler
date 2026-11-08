@@ -3,12 +3,31 @@ import SwiftUI
 
 @Observable
 final class SessionListController {
+    struct SelectionSource: Equatable {
+        let currentSessionID: String?
+        let listedSessionIDs: [String]
+        let hiddenSessionIDs: Set<String>
+
+        init(currentSessionID: String?, listedSessions: [Session]) {
+            self.currentSessionID = currentSessionID
+            listedSessionIDs = listedSessions.map(\.id)
+            hiddenSessionIDs = Set(listedSessions.filter(\.isHidden).map(\.id))
+        }
+
+        init(sessionManager: SessionManager) {
+            let listed = sessionManager.listedSessions
+            let focused = SessionListController.listedSession(matching: sessionManager.focusedSessionID, in: listed)
+            self.init(currentSessionID: focused?.id ?? sessionManager.currentSession?.id, listedSessions: listed)
+        }
+    }
+
     /// The selected session, tracked by id so selection follows the session
     /// across reorders and matches the rendered (visible) row order rather than
     /// the raw `sessions` array index.
     var selectedSessionID: String?
     var sessionToRename: Session?
     var sessionToEditNote: Session?
+    private var renderedSessionIDs: [String] = []
 
     /// The window hosting this controller's view. Set by `WindowAccessor`; used
     /// by the view to gate session-list shortcut activation on key-window state.
@@ -42,6 +61,7 @@ final class SessionListController {
             )
             return
         }
+        renderedSessionIDs = ids
         let newID: String = if let currentID = selectedSessionID, let idx = ids.firstIndex(of: currentID) {
             ids[(idx + delta + ids.count) % ids.count]
         } else {
@@ -56,24 +76,87 @@ final class SessionListController {
         )
     }
 
-    /// Reconcile selection after the sessions list changes. id-based selection is
-    /// inherently reorder-stable, so this only handles the selected session
-    /// disappearing (fall back to the first visible row) or the list emptying.
-    func syncSelection(sessions: [Session]) {
+    func syncSelection(
+        sessions: [Session],
+        renderedSessions: [Session]? = nil,
+        clearsColorWhenEmpty: Bool = true
+    ) {
         let previousID = selectedSessionID
+        let renderedIDs = (renderedSessions ?? sessions).map(\.id)
         if sessions.isEmpty {
             selectedSessionID = nil
-            SessionManager.shared.clearColorIndex()
+            if clearsColorWhenEmpty { SessionManager.shared.clearColorIndex() }
         } else if let id = selectedSessionID, sessions.contains(where: { $0.id == id }) {
             // Selected session still present — nothing to do.
         } else {
-            // Selected session vanished — fall back to the first row. Color is an
-            // independent cycling counter, so leave it untouched here.
-            selectedSessionID = sessions.first?.id
+            selectedSessionID = replacementSelection(in: renderedIDs) ?? sessions.first?.id
+        }
+        if selectedSessionID == nil || renderedIDs.contains(where: { $0 == selectedSessionID }) {
+            renderedSessionIDs = renderedIDs
         }
         if previousID != selectedSessionID {
             logDebug(.navigation, "syncSelection: \(previousID ?? "nil") → \(selectedSessionID ?? "nil")")
         }
+    }
+
+    private func replacementSelection(in availableIDs: [String]) -> String? {
+        guard let selectedSessionID, let index = renderedSessionIDs.firstIndex(of: selectedSessionID) else {
+            return availableIDs.first
+        }
+        let available = Set(availableIDs)
+        return renderedSessionIDs.dropFirst(index + 1).first(where: { available.contains($0) })
+            ?? renderedSessionIDs.prefix(index).reversed().first(where: { available.contains($0) })
+            ?? availableIDs.first
+    }
+
+    func syncMonitorSelection(sessionManager: SessionManager) {
+        syncSelection(
+            sessions: sessionManager.listedSessions,
+            renderedSessions: sessionManager.orderedVisibleSessions()
+        )
+    }
+
+    func selectListedSession(matching id: String?, in sessions: [Session], syncColor: Bool = true) {
+        guard let session = Self.listedSession(matching: id, in: sessions) else { return }
+        setSelection(toSessionID: session.id, syncColor: syncColor)
+    }
+
+    private static func listedSession(matching id: String?, in sessions: [Session]) -> Session? {
+        guard let id else { return nil }
+        return sessions.first(where: { $0.id == id })
+            ?? sessions.first(where: { $0.terminalSessionID == id || $0.terminalSessionID.hasSuffix(":\(id)") })
+    }
+
+    func syncPopoverSelection(sessionManager: SessionManager) {
+        let listed = sessionManager.listedSessions
+        syncSelection(sessions: listed, clearsColorWhenEmpty: false)
+        let target = Self.listedSession(matching: sessionManager.focusedSessionID, in: listed)
+            ?? Self.listedSession(matching: sessionManager.currentReferenceSessionID, in: listed)
+        if let target { setSelection(toSessionID: target.id, syncColor: false) }
+    }
+
+    func syncCurrentSelection(from previous: SelectionSource, to current: SelectionSource, sessions: [Session]) {
+        guard previous.currentSessionID != current.currentSessionID,
+              previous.listedSessionIDs == current.listedSessionIDs,
+              previous.hiddenSessionIDs == current.hiddenSessionIDs else { return }
+        selectListedSession(matching: current.currentSessionID, in: sessions)
+    }
+
+    func selectedSession(in sessions: [Session]) -> Session? {
+        sessions.first { $0.id == selectedSessionID }
+    }
+
+    func toggleHidden(sessionID: String, sessionManager: SessionManager) {
+        guard sessionManager.listedSessions.contains(where: { $0.id == sessionID }) else { return }
+        syncMonitorSelection(sessionManager: sessionManager)
+        sessionManager.toggleSessionHidden(sessionID: sessionID)
+        syncMonitorSelection(sessionManager: sessionManager)
+    }
+
+    func toggleHiddenVisibility(sessionManager: SessionManager) {
+        syncMonitorSelection(sessionManager: sessionManager)
+        sessionManager.showsHiddenSessions.toggle()
+        syncMonitorSelection(sessionManager: sessionManager)
     }
 
     /// Set selection explicitly to a session (e.g., from external focus changes).
