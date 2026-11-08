@@ -11,4 +11,4 @@ agents = ["claude"]
 render = false
 
 [kit.macos]
-vendored = "sha256:a9b7c2b8c24fcb7f1cc415cbf5d3a336d930295915862ee2197424c88f93e2e6"
+vendored = "sha256:e380e8424f4b81af723ba7d2837c5730f2a90fd1d358ab6aa6f6cc1d76388abe"

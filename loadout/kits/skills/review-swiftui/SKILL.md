@@ -9,6 +9,28 @@ Find consequential UI defects and useful SwiftUI improvements. Start with the ap
 not a checklist of missing modifiers. A platform recommendation is a reason to investigate; it is
 not proof of a defect or its priority. Review read-only unless the user requests fixes.
 
+## Review grading
+
+Use only these finding priorities, in descending order:
+
+- **Critical Issues (Must Fix):** a verified path causes data loss, a security failure, a materially
+  wrong operation, or makes a core workflow unusable without reasonable recovery.
+- **Improvements (Should Fix):** an ordinary supported workflow demonstrably fails or repeatedly
+  imposes substantial friction, or a concrete design defect creates meaningful maintenance cost.
+- **Suggestions (Nice to Have):** a worthwhile improvement with small practical impact, including
+  optional polish, local simplification, and rare recoverable edge cases.
+
+Grade the demonstrated consequence, realistic reachability, and available recovery against project
+priorities. A category, missing convention, hypothetical future problem, or confidence that a claim
+is true does not set its priority. Do not assign automatic severity floors or ceilings. Keep
+unverified claims in validation gaps, outside the graded finding count; distinguish suggestions
+from defects. For plans, trace the consequence if implemented and state the assumptions.
+
+Use the short labels **Must Fix**, **Should Fix**, and **Nice to Have** in summaries and ledgers.
+Keep effort, verification status, user-facing change size, and tool/vendor diagnostic ratings
+separate. When called by `code-review`, return its requested evidence and impact fields; the parent
+owns scoring and final triage. Otherwise apply this rubric directly. Omit empty priority sections.
+
 ## Scope and ownership
 
 Accept the caller's resolved files and diff, an explicit target, or these scope selectors:
@@ -80,18 +102,9 @@ itself a bug. Likewise, presence of a shortcut is not proof that it serves a Voi
 A proposed fix must preserve nested actions, focus behavior, destructive-action safety, deployment
 compatibility, and existing alternate routes.
 
-## Priority
+## SwiftUI calibration
 
-Use **Critical Issues (Must Fix)**, **Improvements (Should Fix)**, and **Suggestions (Nice to
-Have)**. Assess user consequence, realistic reachability, recovery, and the project's stated
-priorities separately from confidence that the code behaves as described. A true finding can be low
-priority.
-
-| Tier         | Threshold                                                                                                                                                                                                                                                       |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Must Fix     | A traced path causes data loss, a security failure, a materially wrong operation, or makes a core workflow unusable without reasonable recovery. Name that consequence; "non-native" or "inaccessible" alone is insufficient.                                   |
-| Should Fix   | An ordinary supported workflow demonstrably fails or repeatedly imposes substantial friction, or a concrete design defect will create meaningful repair work. State why the remaining routes are inadequate.                                                    |
-| Nice to Have | A useful improvement with small practical impact: missing convenience shortcuts, a more idiomatic control, clearer announcements, or a rare recoverable lifecycle defect. Default platform-conformance suggestions here unless stronger impact is demonstrated. |
+Apply Review grading to these UI cases:
 
 - A missing Return/Escape shortcut is usually polish when a usable action/dismissal route exists. Do
   not promote it because a sibling happens to use that modifier.

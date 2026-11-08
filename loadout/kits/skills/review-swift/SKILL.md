@@ -11,6 +11,28 @@ Swift review that covers what **the compiler and SwiftLint cannot decide for you
 
 Run on `.swift` files. Complements `review-cleancode` (SOLID/DRY/smells) — don't repeat it.
 
+## Review grading
+
+Use only these finding priorities, in descending order:
+
+- **Critical Issues (Must Fix):** a verified path causes data loss, a security failure, a materially
+  wrong operation, or makes a core workflow unusable without reasonable recovery.
+- **Improvements (Should Fix):** an ordinary supported workflow demonstrably fails or repeatedly
+  imposes substantial friction, or a concrete design defect creates meaningful maintenance cost.
+- **Suggestions (Nice to Have):** a worthwhile improvement with small practical impact, including
+  optional polish, local simplification, and rare recoverable edge cases.
+
+Grade the demonstrated consequence, realistic reachability, and available recovery against project
+priorities. A category, missing convention, hypothetical future problem, or confidence that a claim
+is true does not set its priority. Do not assign automatic severity floors or ceilings. Keep
+unverified claims in validation gaps, outside the graded finding count; distinguish suggestions
+from defects. For plans, trace the consequence if implemented and state the assumptions.
+
+Use the short labels **Must Fix**, **Should Fix**, and **Nice to Have** in summaries and ledgers.
+Keep effort, verification status, user-facing change size, and tool/vendor diagnostic ratings
+separate. When called by `code-review`, return its requested evidence and impact fields; the parent
+owns scoring and final triage. Otherwise apply this rubric directly. Omit empty priority sections.
+
 ## Relationship to the toolchain (read first)
 
 Three layers already cover the mechanical work. Your job is what's left.
@@ -198,12 +220,6 @@ Common reviewer instincts that are wrong or unsupported. See `references/memory-
 - **Demanding migration off XCTest to swift-testing** — XCTest is not deprecated and still has no equivalent for UI automation, performance testing, or Objective-C exception handling.
 - **Anything the project's enabled SwiftLint rules or Swift 6 mode already catch.**
 
-## Severity
-
-- **Critical**: crashes or corrupts at runtime — force-unwrap/`try!` on external data, `@unchecked Sendable` over genuinely unsynchronized shared mutable state, illegal state reachable in a load-bearing model.
-- **High**: will cause bugs as the code evolves — invalid states representable, state assumption across a suspension, unstructured `Task` with no cancellation owner, retain cycle, wrong SwiftUI source of truth, downcast hiding a wrong upstream type.
-- **Medium**: optional/error modeling, value/reference semantics mismatch, Codable failure handling, access-control leaks, unjustified typed throws, identity churn.
-- **Suggestion**: single-conformer protocols, `any`→`some`, wrapper types, naming polish where the code is awkward rather than buggy.
 
 ## Output Format
 
@@ -213,21 +229,19 @@ Common reviewer instincts that are wrong or unsupported. See `references/memory-
 ### Baseline
 {Language mode / default isolation / strict concurrency, and any assumption you had to make — these change how the code *reads*, so state them whenever they were ambiguous. **At `--all` only:** the §P results, including the toolchain recommendation. On a diff review, omit this block if the isolation picture was unambiguous.}
 
-### Critical (crash / data race / corruption reachable)
+### Critical Issues (Must Fix)
 - {file}:{line} — {category}: {description}
   **Why it's not a lint or compiler finding:** {what judgment this needed}
   **Impact:** {what breaks}
   **Fix:** {model change / isolation change / real failure path — with code}
 
-### High (design problems that will cause bugs)
+### Improvements (Should Fix)
 - {file}:{line} — {category}: {description}
   **Fix:** {solution}
 
-### Medium (optionals, errors, semantics, ownership)
+### Suggestions (Nice to Have)
 - {file}:{line} — {category}: {description} — {suggested change}
 
-### Suggestions
-- {opportunities}
 ```
 
 If `--multi` was used, append one subsection per advisor that responded (titled with the advisor's name as reported by `second-opinion`), then a **Cross-Model Agreement** subsection.
@@ -237,17 +251,17 @@ If `--multi` was used, append one subsection per advisor that responded (titled 
 **Invalid state representable:**
 > /review-swift --staged
 
-Finds `struct FeedState { var isLoading: Bool; var items: [Item]?; var error: Error? }` — nothing prevents `isLoading == true` with both `items` and `error` set, and the view has three `if` branches guessing. Reports High with an `enum FeedState { case idle, loading, loaded([Item]), failed(Error) }` rewrite. Not a lint finding: the struct is perfectly valid Swift.
+Finds `struct FeedState { var isLoading: Bool; var items: [Item]?; var error: Error? }` — nothing prevents `isLoading == true` with both `items` and `error` set, and the view has three `if` branches guessing. Reports Should Fix when those contradictory branches create incorrect ordinary UI behavior; otherwise a useful modeling improvement is Nice to Have. Proposes an `enum FeedState { case idle, loading, loaded([Item]), failed(Error) }` rewrite. Not a lint finding: the struct is perfectly valid Swift.
 
 **Force-unwrap hiding a mistyped source:**
 > /review-swift --changed
 
-Finds `URLRequest(url: URL(string: config.host + path)!)` where `config.host` is a `String` decoded from a plist. Reports Critical — decode `host` as a `URL` or validate once at config load, rather than guarding each call site. `force_unwrapping` is opt-in and may not even be running; even when it is, it only says "there's a `!`".
+Finds `URLRequest(url: URL(string: config.host + path)!)` where `config.host` is a `String` decoded from a plist. Reports Should Fix if a malformed configured host causes a recoverable failure, or Must Fix only for a demonstrated core outage without reasonable recovery — decode `host` as a `URL` or validate once at config load, rather than guarding each call site. `force_unwrapping` is opt-in and may not even be running; even when it is, it only says "there's a `!`".
 
 **State assumption across a suspension:**
 > /review-swift
 
-Finds an actor cache whose `value(for:)` checks a dictionary, `await`s a network fetch, then writes back. Reports High — concurrent callers each see an empty cache and issue duplicate requests. Fix: store the in-flight `Task` so later callers await the same one. The compiler is silent; this is explicitly outside its scope.
+Finds an actor cache whose `value(for:)` checks a dictionary, `await`s a network fetch, then writes back. Concurrent callers each see an empty cache and issue duplicate requests. Reports Should Fix if this causes demonstrated substantial cost or wrong results; otherwise Nice to Have. Fix: store the in-flight `Task` so later callers await the same one. The compiler is silent; this is explicitly outside its scope.
 
 ## Troubleshooting
 
