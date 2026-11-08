@@ -22,7 +22,15 @@ struct IntegrationTests {
         gitRepoName: String? = nil
     ) async {
         struct HookPayload: Encodable {
-            struct HookInput: Encodable { let session_id: String }
+            struct HookInput: Encodable {
+                let sessionID: String
+
+                func encode(to encoder: any Encoder) throws {
+                    var container = encoder.singleValueContainer()
+                    try container.encode(["session_id": sessionID])
+                }
+            }
+
             struct Terminal: Encodable { let sessionId: String; let cwd: String }
             struct Git: Encodable { let branch: String?; let repo: String? }
             struct Tmux: Encodable { let pane: String?; let sessionName: String? }
@@ -37,7 +45,7 @@ struct IntegrationTests {
         let payload = HookPayload(
             agent: agent,
             event: event,
-            hookInput: .init(session_id: agentSessionID),
+            hookInput: .init(sessionID: agentSessionID),
             terminal: .init(sessionId: terminalSessionID, cwd: projectPath),
             git: (gitBranch != nil || gitRepoName != nil)
                 ? .init(branch: gitBranch, repo: gitRepoName) : nil,
@@ -355,7 +363,7 @@ struct IntegrationTests {
         let server = HookServer(sessionManager: manager)
 
         await simulateHook(server: server, event: "SessionStart", terminalSessionID: "s1")
-        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .backburner)
+        manager.backburnerSession(terminalSessionID: "s1")
         #expect(manager.sessions[0].state == .backburner)
 
         await simulateHook(server: server, event: "Stop", terminalSessionID: "s1")
@@ -370,7 +378,7 @@ struct IntegrationTests {
         let server = HookServer(sessionManager: manager)
 
         await simulateHook(server: server, event: "SessionStart", terminalSessionID: "s1")
-        manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .backburner)
+        manager.backburnerSession(terminalSessionID: "s1")
         #expect(manager.sessions[0].state == .backburner)
 
         await simulateHook(server: server, event: "UserPromptSubmit", terminalSessionID: "s1")
