@@ -35,7 +35,7 @@ struct SessionActivationPresentation: Equatable {
 
 @MainActor
 final class SessionActivator {
-    typealias BeaconPresenter = @MainActor (String, String?, Bool) -> Void
+    typealias BeaconPresenter = @MainActor (String, String?, String?, Bool) -> Void
 
     static let shared = SessionActivator()
 
@@ -48,8 +48,8 @@ final class SessionActivator {
     init(
         sessionManager: SessionManager = .shared,
         registry: TerminalBridgeRegistry = .shared,
-        presentBeacon: @escaping BeaconPresenter = { title, subtitle, force in
-            BeaconManager.shared.show(sessionName: title, subtitle: subtitle, force: force)
+        presentBeacon: @escaping BeaconPresenter = { title, note, metadata, force in
+            BeaconManager.shared.show(sessionName: title, note: note, metadata: metadata, force: force)
         }
     ) {
         self.sessionManager = sessionManager
@@ -148,21 +148,21 @@ final class SessionActivator {
             case .sessionBeacon:
                 let displayName = displayName(for: session)
                 let metadata = BeaconMetadata.resolve(for: session, among: sessionManager.sessions)
-                presentBeacon(displayName, metadata.subtitle, false)
+                presentBeacon(displayName, session.note, metadata.subtitle, false)
             case .onlySessionBeacon:
-                presentBeacon("Only 1 Session", displayName(for: session), false)
+                presentBeacon("Only 1 Session", session.note, displayName(for: session), false)
             }
         case .unavailable:
             switch presentation.unavailable {
             case .none:
                 return
             case .activationFailed:
-                presentBeacon("Activation Failed", nil, true)
+                presentBeacon("Activation Failed", nil, nil, true)
             case let .beacon(title):
-                presentBeacon(title, nil, false)
+                presentBeacon(title, nil, nil, false)
             }
         case .failed:
-            presentBeacon("Activation Failed", nil, true)
+            presentBeacon("Activation Failed", nil, nil, true)
         }
     }
 

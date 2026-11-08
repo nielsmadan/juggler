@@ -16,19 +16,20 @@ The Session Monitor is a standalone window providing an expanded view of all ses
 ├─────────────────────────────────────────────────────────────┤
 │  Idle                                                        │
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │ [icon] my-feature  [✎]                          idle    ││
-│  │ [CC ]  📁 ~/Projects/my-feature      claude-opus-4        ││
+│  │ [icon] my-feature                       idle  [✎]      ││
+│  │ [CC ]  📁 ~/Projects/my-feature      claude-opus-4 [💬]   ││
 │  │        ⎇ feature/login               high                 ││
+│  │        Finish the API error states                        ││
 │  └─────────────────────────────────────────────────────────┘│
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │ [icon] api-server  [✎]                          idle    ││
-│  │ [CC ]  📁 ~/Projects/api-server      claude-opus-4        ││
+│  │ [icon] api-server                        idle  [✎]     ││
+│  │ [CC ]  📁 ~/Projects/api-server      claude-opus-4 [💬]   ││
 │  └─────────────────────────────────────────────────────────┘│
 ├─────────────────────────────────────────────────────────────┤
 │  Working                                                     │
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │ [icon] data-pipeline  [✎]                     working   ││
-│  │ [CC ]  📁 ~/Projects/data-pipeline   gpt-5                ││
+│  │ [icon] data-pipeline                   working [✎]     ││
+│  │ [CC ]  📁 ~/Projects/data-pipeline   gpt-5          [💬]  ││
 │  └─────────────────────────────────────────────────────────┘│
 ├─────────────────────────────────────────────────────────────┤
 │  ▁▂▅▇ ▃  2/4 busy                          busy time by day  │  ← Stats chart
@@ -50,7 +51,7 @@ A single bar at the top combines the queue mode picker with four toggle buttons:
 - **Beacon** (`light.panel`) - Show the session-name beacon when cycling.
 
 A dismissible hint ("Hover over buttons to show help.") appears below the bar until dismissed.
-Using a control-bar toggle, queue-mode choice, or rename button shows a transient hint for its keyboard equivalent.
+Using a control-bar toggle, queue-mode choice, or row action button shows a transient hint for its keyboard equivalent.
 Directly selecting a queue mode suggests the shortest cycling direction (`Tab` or `Shift+Tab`).
 Hints appear at the top center of the monitor window and remain above an open rename sheet.
 
@@ -78,11 +79,15 @@ Each session row shows:
 | Field | Description |
 |-------|-------------|
 | **Agent column** | Terminal-type icon, agent initials, and an "SSH" badge for remote sessions (hover shows user@host) |
-| **State icon + label** | Visual state indicator and its text label |
-| **Display name** | Name per the Session Title setting (default: parent / folder name) or a custom name, with an inline rename (pencil) button |
+| **State icon + label** | Visual state indicator and its text label, centered in the area above the stats tabs |
+| **Display name** | Name per the Session Title setting (default: parent / folder name) or a custom name |
+| **Row actions** | Compact, top-aligned vertical rename and note buttons at the row's right edge; each can be hidden independently |
 | **Row details** | Up to four small labelled values in a 2x2 grid under the name; see below |
+| **Note** | One tail-truncated line below the row details, shown only when a note exists |
 
-The rename button can be hidden from Settings > General > Session Monitor; the same section chooses the four row details and can shorten project paths under your home directory to `~/...`.
+The note button uses an outlined text bubble when empty and a filled bubble when a note exists. It opens a single-line editor; press `Return` to save or `Escape` to cancel. Rows without a note reserve no empty space.
+
+The rename and note buttons can each be hidden from Settings > General > Session Monitor; the same section chooses the four row details and can shorten project paths under your home directory to `~/...`.
 
 ### Row details
 
@@ -96,8 +101,8 @@ Options: None, Folder Path, Folder Name, Parent / Folder Name, Tab Title, Window
 - **Run Time** is how long the agent process has been running, refreshed every 30 seconds.
 - **Current Tool** is the tool in use and clears when the turn ends. **Context %** shows "N% context".
 - Cells truncate to one line (Folder Path in the middle); hover shows the full text.
-- The two columns are always equal width. `SessionSlotGrid` uses a custom `EqualColumnsLayout` rather than `Grid`, because a `Grid` sizes columns to their content and the left and right cells would drift between rows. The badge and stats-tab reserves are padding inside the layout: the badge reserve goes to the title and the first rendered grid row (so a bottom-only grid sits beside the badge), the stats-tab reserve to the second, and the bottom reserve is `max(0, cornerWidth - rowHorizontalPadding) + 4` because the corner sits partly inside the row padding and 4 points keep text off the tab border (`SessionRowGeometry`). Whether a trailing cell is under 40 points is decided from measured widths, so a new row can draw one frame with that cell blank.
-- Right-hand cells leave room for the state badge (top) and the stats tabs (bottom, when stats are on). When a right-hand cell would be narrower than about 40 points, its text is hidden and appears on hover only.
+- The two columns are always equal width. `SessionSlotGrid` uses a custom `EqualColumnsLayout` rather than `Grid`, because a `Grid` sizes columns to their content and the left and right cells would drift between rows. Trailing reserves are padding inside the layout: both rendered grid rows leave room for the right-edge control rail, and the bottom row also uses the wider stats-tab reserve when needed. The stats reserve is `max(0, cornerWidth - rowHorizontalPadding) + 4` because the corner sits partly inside the row padding and 4 points keep text off the tab border (`SessionRowGeometry`). Whether a trailing cell is under 40 points is decided from measured widths, so a new row can draw one frame with that cell blank.
+- The state badge is centered vertically in the space above the stats tabs, or in the full row when stats are off. The action stack is top-aligned in that area. When a right-hand cell would be narrower than about 40 points after its reserve, its text is hidden and appears on hover only.
 
 When stats are enabled, each card shows up to two trapezoid tabs in its corner: a **"Turn"** tab with the live duration of the current working turn (only while the session is working or compacting), and an always-present **"Today"** tab with that session's total busy time for the day.
 
@@ -116,6 +121,7 @@ When window is focused (defaults shown; all configurable in Settings > Shortcuts
 | `Return` | Activate selected session |
 | `L` | Backburner selected |
 | `R` | Rename selected |
+| `M` | Edit note for selected |
 | `Shift+L` | Reactivate selected |
 | `H` | Reactivate all |
 | `B` | Toggle beacon |
@@ -133,11 +139,16 @@ When window is focused (defaults shown; all configurable in Settings > Shortcuts
 
 ### Rename
 
-- Click the inline pencil button on a row, or use the Rename shortcut.
+- Click the trailing pencil button on a row, or use the Rename shortcut.
+
+### Notes
+
+- Click the trailing bubble button on a row, or use the Edit Note shortcut.
+- Notes persist when the same coding-agent conversation is resumed. A new conversation in the same terminal pane starts without the previous note.
 
 ### Context Menu
 
-Row context menus live in the popover (right-click a session row); the monitor window uses the inline pencil button and keyboard shortcuts for rename / backburner / reactivate. Removing a session is available from the popover row context menu (Remove); a removed session stays hidden, including after a restart, until it reports new activity.
+Row context menus live in the popover (right-click a session row); the monitor window uses trailing action buttons and keyboard shortcuts for rename and notes, plus keyboard shortcuts for backburner / reactivate. Removing a session is available from the popover row context menu (Remove); a removed session stays hidden, including after a restart, until it reports new activity.
 
 ## Window Behavior
 

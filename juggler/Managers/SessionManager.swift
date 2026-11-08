@@ -18,6 +18,7 @@ final class SessionManager {
 
     /// Persisted per-day busy-time totals. Fed by state transitions and rollover.
     let dailyStats: DailyStatsStore
+    let noteStore: SessionNoteStore
 
     private let hiddenBindings: HiddenBindingStore
 
@@ -104,6 +105,25 @@ final class SessionManager {
     var isSessionFocused: Bool {
         guard isTerminalAppActive, let focusedID = focusedSessionID else { return false }
         return matchesTrackedSession(focusedID)
+    }
+
+    var focusedTrackedSession: Session? {
+        guard isTerminalAppActive,
+              let focusedSessionID,
+              let frontmostTerminalType = frontmostTerminalTypeProvider()
+        else { return nil }
+        let matches = sessions.filter {
+            $0.terminalType == frontmostTerminalType
+                && ($0.id == focusedSessionID || $0.terminalSessionID == focusedSessionID)
+        }
+        guard matches.count == 1, let match = matches.first else { return nil }
+        if let liveHostPaneID = match.liveHostPaneID {
+            let liveMatches = sessions.filter {
+                $0.terminalType == frontmostTerminalType && $0.liveHostPaneID == liveHostPaneID
+            }
+            guard liveMatches.count == 1 else { return nil }
+        }
+        return match
     }
 
     /// No auto-advance flag check needed: the `lastActiveSessionID` anchor is only ever
@@ -197,10 +217,12 @@ final class SessionManager {
 
     init(
         dailyStats: DailyStatsStore = DailyStatsStore(),
+        noteStore: SessionNoteStore = SessionNoteStore(),
         hiddenBindings: HiddenBindingStore = HiddenBindingStore()
     ) {
         cyclingEngine = DefaultCyclingEngine()
         self.dailyStats = dailyStats
+        self.noteStore = noteStore
         self.hiddenBindings = hiddenBindings
         lastSeenDay = Calendar.current.startOfDay(for: Date())
         Self.migrateLegacyQueueOrderModeValues(in: .standard)
@@ -252,12 +274,7 @@ final class SessionManager {
         let isWorking = newState == .working || newState == .compacting
 
         if wasWorking, !isWorking {
-            if let lastBecameWorking = sessions[index].lastBecameWorking {
-                let workingDuration = now.timeIntervalSince(lastBecameWorking)
-                sessions[index].busyTimeToday += workingDuration
-                dailyStats.addBusyTime(workingDuration, on: now)
-                sessions[index].lastBecameWorking = nil
-            }
+            closeOpenBusyStretch(at: index, through: now, creditedOn: now)
         }
 
         if isWorking, !wasWorking {
@@ -294,6 +311,20 @@ final class SessionManager {
                 sessions.insert(session, at: insertIdx)
             }
         }
+    }
+
+    private func closeOpenBusyStretch(
+        at index: Int,
+        through end: Date,
+        creditedOn date: Date,
+        restartAt: Date? = nil
+    ) {
+        defer { sessions[index].lastBecameWorking = restartAt }
+        guard let start = sessions[index].lastBecameWorking else { return }
+        let elapsed = end.timeIntervalSince(start)
+        guard elapsed > 0 else { return }
+        sessions[index].busyTimeToday += elapsed
+        dailyStats.addBusyTime(elapsed, on: date)
     }
 
     @MainActor
@@ -398,9 +429,12 @@ final class SessionManager {
             if isBusy,
                let lastBecameWorking = sessions[index].lastBecameWorking,
                lastBecameWorking < newDay {
-                let beforeMidnight = newDay.timeIntervalSince(lastBecameWorking)
-                dailyStats.addBusyTime(beforeMidnight, on: lastSeenDay)
-                sessions[index].lastBecameWorking = newDay
+                closeOpenBusyStretch(
+                    at: index,
+                    through: newDay,
+                    creditedOn: lastSeenDay,
+                    restartAt: newDay
+                )
             }
             sessions[index].busyTimeToday = 0
         }
@@ -414,12 +448,8 @@ final class SessionManager {
     func commitInProgressBusyTime(now: Date = Date()) {
         for index in sessions.indices {
             let isBusy = sessions[index].state == .working || sessions[index].state == .compacting
-            guard isBusy, let lastBecameWorking = sessions[index].lastBecameWorking else { continue }
-            let elapsed = now.timeIntervalSince(lastBecameWorking)
-            guard elapsed > 0 else { continue }
-            sessions[index].busyTimeToday += elapsed
-            dailyStats.addBusyTime(elapsed, on: now)
-            sessions[index].lastBecameWorking = nil
+            guard isBusy else { continue }
+            closeOpenBusyStretch(at: index, through: now, creditedOn: now)
         }
     }
 
@@ -810,9 +840,57 @@ final class SessionManager {
         sessions[index].hooklinesinkerBindingIDs.insert(bindingID)
     }
 
+    private func updateAgentSessionIdentity(
+        at index: Int,
+        incoming: AgentSessionIdentity,
+        event: String?
+    ) -> Bool {
+        let current = sessions[index].agentSessionIdentity
+        let transientNote = sessions[index].note
+        let agentChanged = current.agent != incoming.agent
+
+        if !agentChanged, incoming.agentSessionID.isEmpty {
+            return true
+        }
+        guard current != incoming else { return true }
+
+        let fillsMissingID = !agentChanged
+            && current.agentSessionID.isEmpty
+            && !incoming.agentSessionID.isEmpty
+        let establishesIdentity = event.map {
+            HookEventMapper.establishesSessionIdentity(event: $0, agent: incoming.agent)
+        } ?? true
+        guard fillsMissingID || establishesIdentity else { return false }
+
+        sessions[index].replaceAgentSessionIdentity(with: incoming)
+
+        if agentChanged {
+            sessions[index].note = sessions[index].noteKey.flatMap(noteStore.note)
+            return true
+        }
+
+        guard let key = sessions[index].noteKey else { return true }
+
+        if current.agentSessionID.isEmpty, let transientNote {
+            let normalized = noteStore.setNote(transientNote, for: key)
+            for matchingIndex in sessions.indices where sessions[matchingIndex].noteKey == key {
+                sessions[matchingIndex].note = normalized
+            }
+        } else {
+            sessions[index].note = noteStore.note(for: key)
+        }
+        return true
+    }
+
+    private func hydrateStoredNote(for session: inout Session) {
+        guard let key = session.noteKey else { return }
+        session.note = noteStore.note(for: key)
+    }
+
     @MainActor
+    @discardableResult
     func addOrUpdateSession(
-        claudeSessionID: String,
+        agentSessionID: String,
         terminalSessionID: String,
         tmuxPane: String? = nil,
         tmuxSessionName: String? = nil,
@@ -828,26 +906,21 @@ final class SessionManager {
         bindingID: String? = nil,
         source: StatusSource = .live,
         detailsChange: DetailsChange? = nil
-    ) {
-        let compositeID: String = if let pane = tmuxPane {
-            "\(terminalSessionID):\(pane)"
-        } else {
-            terminalSessionID
-        }
+    ) -> Bool {
+        let compositeID = tmuxPane.map { "\(terminalSessionID):\($0)" } ?? terminalSessionID
 
         if let index = sessions.firstIndex(where: { $0.id == compositeID }) {
             let oldState = sessions[index].state
+
+            let incomingIdentity = AgentSessionIdentity(agent: agent, agentSessionID: agentSessionID)
+            guard updateAgentSessionIdentity(at: index, incoming: incomingIdentity, event: event) else {
+                return false
+            }
 
             // Keep the row's bindings fresh on every hook (before the backburner
             // early-return, so backburnered remote sessions stay reachable too).
             refreshBindingsRevealingHidden(at: index, event: event, bindingID: bindingID)
             sessions[index].details = detailsChange?.applied(to: sessions[index].details) ?? sessions[index].details
-
-            // A new agent thread can take over a pane (Codex /new). Track whose thread the row
-            // now represents, so a late SessionEnd from the previous one can be told apart.
-            if !claudeSessionID.isEmpty {
-                sessions[index].claudeSessionID = claudeSessionID
-            }
 
             // Antigravity has no UserPromptSubmit; a session shelved while idle is
             // auto-reactivated on its next working event (a resume). One shelved while
@@ -868,7 +941,7 @@ final class SessionManager {
             )
 
             if oldState == .backburner, event != "UserPromptSubmit", !isAntigravityResume {
-                return
+                return true
             }
 
             if oldState != state {
@@ -878,10 +951,11 @@ final class SessionManager {
                 let sessionID = sessions[index].id
                 applyStateChange(sessionID: sessionID, from: oldState, to: state)
             }
+            return true
         } else {
             let now = Date()
             var session = Session(
-                claudeSessionID: claudeSessionID,
+                agentSessionID: agentSessionID,
                 terminalSessionID: terminalSessionID,
                 tmuxPane: tmuxPane,
                 terminalType: terminalType,
@@ -897,6 +971,7 @@ final class SessionManager {
             session.gitBranch = gitBranch?.isEmpty == true ? nil : gitBranch
             session.gitRepoName = gitRepoName?.isEmpty == true ? nil : gitRepoName
             session.transcriptPath = transcriptPath?.isEmpty == true ? nil : transcriptPath
+            hydrateStoredNote(for: &session)
             // Initialize the state-entry timestamp so the first observed state
             // has a sensible reference (no transition fires for new sessions).
             // For idle/permission this also seeds the Fair/Prio queue sort key
@@ -931,6 +1006,7 @@ final class SessionManager {
 
             logInfo(.session, "New session added: \(session.displayName)")
             reorderNewSessionForPermissionPriorityIfNeeded()
+            return true
         }
     }
 
@@ -991,25 +1067,56 @@ final class SessionManager {
         sessions[index].customName = customName?.isEmpty == true ? nil : customName
     }
 
-    func removeSessionsByTerminalID(_ terminalSessionID: String) {
+    @discardableResult
+    func updateNote(for target: Session, note: String?) -> Bool {
+        let normalized = SessionNoteStore.normalize(note)
+
+        if let key = target.noteKey {
+            noteStore.setNote(normalized, for: key)
+            for index in sessions.indices where sessions[index].noteKey == key {
+                sessions[index].note = normalized
+            }
+            return true
+        }
+
+        guard let index = sessions.firstIndex(where: {
+            $0.id == target.id && $0.agent == target.agent
+        }) else { return false }
+
+        sessions[index].note = normalized
+        if let key = sessions[index].noteKey {
+            noteStore.setNote(normalized, for: key)
+            for matchingIndex in sessions.indices where sessions[matchingIndex].noteKey == key {
+                sessions[matchingIndex].note = normalized
+            }
+        }
+        return true
+    }
+
+    func removeSessionsByTerminalID(_ terminalSessionID: String, now: Date = Date()) {
         guard !terminalSessionID.isEmpty else { return }
         let matching = sessions.filter {
             $0.terminalSessionID == terminalSessionID
                 || $0.terminalSessionID.hasSuffix(":\(terminalSessionID)")
         }
         for session in matching {
-            removeSession(sessionID: session.id)
+            removeSession(sessionID: session.id, now: now)
         }
     }
 
-    func removeSession(sessionID: String) {
-        if let session = sessions.first(where: { $0.id == sessionID }) {
-            let name = session.displayName
+    func removeSession(sessionID: String, now: Date = Date()) {
+        if let index = sessions.firstIndex(where: { $0.id == sessionID }) {
+            let session = sessions[index]
+            let isBusy = session.state == .working || session.state == .compacting
+            if isBusy {
+                closeOpenBusyStretch(at: index, through: now, creditedOn: now)
+            }
+            let name = sessions[index].displayName
             Task { @MainActor in
                 logInfo(.session, "Session removed: \(name)")
             }
+            sessions.remove(at: index)
         }
-        sessions.removeAll { $0.id == sessionID }
         if focusedSessionID == sessionID {
             focusedSessionID = nil
         }

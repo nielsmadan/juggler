@@ -39,7 +39,12 @@ final class BeaconManager {
         return BeaconAnchor(rawValue: raw) ?? .default
     }
 
-    func show(sessionName: String, subtitle: String? = nil, force: Bool = false) {
+    func show(
+        sessionName: String,
+        note: String? = nil,
+        metadata: String? = nil,
+        force: Bool = false
+    ) {
         guard isEnabled || force else { return }
 
         showGeneration += 1
@@ -49,7 +54,12 @@ final class BeaconManager {
             createPanel()
         }
 
-        hostingController?.rootView = BeaconContentView(sessionName: sessionName, subtitle: subtitle, size: size)
+        hostingController?.rootView = BeaconContentView(
+            sessionName: sessionName,
+            note: note,
+            metadata: metadata,
+            size: size
+        )
 
         let panelSize: NSSize
         if let hosting = hostingController {

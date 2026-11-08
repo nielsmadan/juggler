@@ -1,10 +1,3 @@
-//
-//  SessionMonitorView.swift
-//  Juggler
-//
-//  Created by Niels Madan on 22.01.26.
-//
-
 import Carbon.HIToolbox
 import ShortcutKit
 import ShortcutKitUI
@@ -26,10 +19,15 @@ struct SessionMonitorView: View {
     @AppStorage(AppStorageKeys.controlBarHintDismissed) private var controlBarHintDismissed = false
     @AppStorage(AppStorageKeys.monitorReplaceHomeWithTilde) private var monitorReplaceHomeWithTilde = false
     @AppStorage(AppStorageKeys.monitorShowRenameButton) private var monitorShowRenameButton = true
+    @AppStorage(AppStorageKeys.monitorShowNoteButton) private var monitorShowNoteButton = true
     private var rowSlotSettings = RowSlotSettings()
 
     private var titleMode: SessionTitleMode {
         SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .default
+    }
+
+    private var showsSessionActions: Bool {
+        monitorShowRenameButton || monitorShowNoteButton
     }
 
     private var controlBarDividerColor: Color {
@@ -41,9 +39,8 @@ struct SessionMonitorView: View {
     @State private var controller = SessionListController()
     @State private var isMonitorWindowKey = false
     @State private var scrollTask: Task<Void, Never>?
-    /// Per-session stats-corner widths, captured via PreferenceKey so the state badge can align
-    /// with the Today tab's diagonal apex and the slot grid can clear the corner.
-    @State private var cornerWidths: [String: BusyStatsCornerWidths] = [:]
+    /// Per-session stats-corner widths, captured via PreferenceKey so row content clears the corner.
+    @State private var cornerWidths: [String: CGFloat] = [:]
 
     @Namespace private var sessionAnimation
 
@@ -137,6 +134,23 @@ struct SessionMonitorView: View {
             .sheet(item: $controller.sessionToRename) { session in
                 RenameSessionView(session: session)
                     .environment(sessionManager)
+            }
+            .sheet(item: $controller.sessionToEditNote) { session in
+                SessionNoteEditorView(
+                    sessionName: sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode),
+                    note: session.note,
+                    onSave: { note in
+                        let saved = sessionManager.updateNote(for: session, note: note)
+                        controller.sessionToEditNote = nil
+                        if !saved {
+                            BeaconManager.shared.show(
+                                sessionName: "Session No Longer Available",
+                                force: true
+                            )
+                        }
+                    },
+                    onCancel: { controller.sessionToEditNote = nil }
+                )
             }
             .onChange(of: sessionManager.sessions) { _, newSessions in
                 logDebug(.navigation, "sessions changed (count=\(newSessions.count)) → syncSelection")
@@ -450,12 +464,14 @@ struct SessionMonitorView: View {
 
     @ViewBuilder
     private func listSessionRow(_ session: Session) -> some View {
+        let rowInsets = SessionMonitorRowLayout.listInsets
+
         HStack(alignment: .top, spacing: 8) {
             agentColumn(session)
-            // List rows have no outer horizontal padding — the List itself manages insets.
-            sessionContent(session, rowHorizontalPadding: 0)
+            sessionContent(session, rowInsets: rowInsets)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, rowInsets.vertical)
+        .padding(.horizontal, rowInsets.horizontal)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .bottomTrailing) {
             if enableStats {
@@ -466,8 +482,8 @@ struct SessionMonitorView: View {
                 )
             }
         }
-        .onPreferenceChange(BusyStatsCornerWidthsKey.self) { widths in
-            recordCornerWidths(widths, for: session.id)
+        .onPreferenceChange(BusyStatsCornerWidthKey.self) { width in
+            recordCornerWidth(width, for: session.id)
         }
         .contentShape(Rectangle())
         .listRowBackground(
@@ -488,13 +504,14 @@ struct SessionMonitorView: View {
     @ViewBuilder
     private func scrollViewSessionRow(_ session: Session) -> some View {
         let isDownAnimation = animationController.isDownAnimating(sessionID: session.id)
+        let rowInsets = SessionMonitorRowLayout.scrollInsets
 
         let row = HStack(alignment: .top, spacing: 8) {
             agentColumn(session)
-            sessionContent(session, rowHorizontalPadding: 16)
+            sessionContent(session, rowInsets: rowInsets)
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 16)
+        .padding(.vertical, rowInsets.vertical)
+        .padding(.horizontal, rowInsets.horizontal)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             isActiveRow(session)
@@ -510,8 +527,8 @@ struct SessionMonitorView: View {
                 )
             }
         }
-        .onPreferenceChange(BusyStatsCornerWidthsKey.self) { widths in
-            recordCornerWidths(widths, for: session.id)
+        .onPreferenceChange(BusyStatsCornerWidthKey.self) { width in
+            recordCornerWidth(width, for: session.id)
         }
         .contentShape(Rectangle())
         .onTapGesture {
@@ -529,21 +546,22 @@ struct SessionMonitorView: View {
         }
     }
 
-    // rowHorizontalPadding must equal the row's outer horizontal padding (List 0, ScrollView 16).
     @ViewBuilder
-    private func sessionContent(_ session: Session, rowHorizontalPadding: CGFloat) -> some View {
-        let widths = cornerWidths[session.id]
-        let todayTabWidth = widths?.todayTab ?? BusyStatsCornerLayout.estimatedTodayTabWidth
+    private func sessionContent(
+        _ session: Session,
+        rowInsets: SessionMonitorRowLayout.Insets
+    ) -> some View {
+        let cornerWidth = cornerWidths[session.id] ?? BusyStatsCornerLayout.estimatedTodayTabWidth
         let slots = rowSlotSettings.slots
         let reserves = SessionRowGeometry.slotReserves(
-            todayTabWidth: todayTabWidth,
-            cornerWidth: max(widths?.corner ?? 0, todayTabWidth),
+            cornerWidth: cornerWidth,
             statsEnabled: enableStats,
-            rowHorizontalPadding: rowHorizontalPadding
+            rowHorizontalPadding: rowInsets.horizontal,
+            showsActions: showsSessionActions
         )
         VStack(alignment: .leading, spacing: SessionMonitorRowLayout.titleToSlotsSpacing) {
             sessionTitle(session)
-                .padding(.trailing, reserves.badge)
+                .padding(.trailing, reserves.top)
             LiveSessionSlotGrid(
                 slots: slots,
                 resolve: { now in
@@ -556,44 +574,93 @@ struct SessionMonitorView: View {
                 },
                 reserves: reserves
             )
+            if let note = session.note {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(Color.primary.opacity(0.85))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.trailing, reserves.bottom)
+            }
         }
         .frame(maxWidth: .infinity, minHeight: SessionMonitorRowLayout.contentMinHeight, alignment: .topLeading)
-        .overlay(alignment: .topTrailing) {
-            stateBadge(
-                session,
-                offset: SessionRowGeometry.stateBadgeOffset(
-                    todayTabWidth: todayTabWidth,
-                    rowHorizontalPadding: rowHorizontalPadding
+        .overlay {
+            GeometryReader { geo in
+                let controlAreaHeight = SessionRowGeometry.controlAreaHeight(
+                    contentHeight: geo.size.height,
+                    statsEnabled: enableStats,
+                    rowVerticalPadding: rowInsets.vertical
                 )
-            )
-        }
-    }
-
-    // Only write on an actual change: the widths feed the badge offset and slot reserves,
-    // so an unconditional assignment re-invalidates layout every pass.
-    private func recordCornerWidths(_ widths: BusyStatsCornerWidths, for sessionID: String) {
-        guard widths.todayTab > 0, cornerWidths[sessionID] != widths else { return }
-        cornerWidths[sessionID] = widths
-    }
-
-    private func sessionTitle(_ session: Session) -> some View {
-        HStack {
-            Text(sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode))
-                .font(.headline)
-            if monitorShowRenameButton {
-                Button {
-                    controller.sessionToRename = session
-                    ShortcutCenter.shared.sessionListContext.notifyHint(for: .rename)
-                } label: {
-                    Image(systemName: "pencil")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                trailingControls(session, height: controlAreaHeight)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .offset(x: rowInsets.horizontal)
             }
         }
     }
 
-    private func stateBadge(_ session: Session, offset: CGFloat) -> some View {
+    // Only write on an actual change: the width feeds the slot reserves,
+    // so an unconditional assignment re-invalidates layout every pass.
+    private func recordCornerWidth(_ width: CGFloat, for sessionID: String) {
+        guard width > 0, cornerWidths[sessionID] != width else { return }
+        cornerWidths[sessionID] = width
+    }
+
+    private func sessionTitle(_ session: Session) -> some View {
+        Text(sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode))
+            .font(.headline)
+            .lineLimit(1)
+    }
+
+    private func trailingControls(_ session: Session, height: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            stateBadge(session)
+                .frame(height: height, alignment: .center)
+            if showsSessionActions {
+                sessionActions(session)
+                    .frame(height: height, alignment: .top)
+            }
+        }
+    }
+
+    private func sessionActions(_ session: Session) -> some View {
+        VStack(spacing: SessionRowActionLayout.verticalSpacing) {
+            if monitorShowRenameButton {
+                rowActionButton(icon: "pencil", label: "Rename session") {
+                    controller.sessionToRename = session
+                    ShortcutCenter.shared.sessionListContext.notifyHint(for: .rename)
+                }
+            }
+            if monitorShowNoteButton {
+                rowActionButton(
+                    icon: session.note == nil ? "text.bubble" : "text.bubble.fill",
+                    label: session.note == nil ? "Add note" : "Edit note"
+                ) {
+                    controller.sessionToEditNote = session
+                    ShortcutCenter.shared.sessionListContext.notifyHint(for: .editNote)
+                }
+            }
+        }
+        .padding(.trailing, SessionRowActionLayout.trailingPadding)
+    }
+
+    private func rowActionButton(
+        icon: String,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: SessionRowActionLayout.iconSize))
+                .frame(width: SessionRowActionLayout.buttonSize, height: SessionRowActionLayout.buttonSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help(label)
+        .accessibilityLabel(label)
+    }
+
+    private func stateBadge(_ session: Session) -> some View {
         VStack(spacing: 2) {
             Image(systemName: session.state.iconName)
                 .font(.system(size: 16))
@@ -602,10 +669,8 @@ struct SessionMonitorView: View {
         }
         .frame(width: StateBadgeLayout.frameWidth)
         .padding(.trailing, StateBadgeLayout.trailingPadding)
-        .offset(x: offset)
     }
 
-    /// Dispatch a session-list shortcut while the monitor window is key.
     private func handleSessionListAction(_ action: SessionListAction) {
         switch action {
         case .activate: activateSelected()
@@ -615,7 +680,7 @@ struct SessionMonitorView: View {
         case .sendToBack: controller.sendToBackSelected(sessionManager: sessionManager)
         case .reactivateSelected: controller.reactivateSelected(sessionManager: sessionManager)
         case .reactivateAll: controller.reactivateAll(sessionManager: sessionManager)
-        case .rename: controller.renameSelected(sessions: sessionManager.sessions)
+        case .rename, .editNote: handleEditorAction(action)
         case .cycleModeForward: queueOrderMode = controller.cycleMode(forward: true, currentMode: queueOrderMode)
         case .cycleModeBackward: queueOrderMode = controller.cycleMode(forward: false, currentMode: queueOrderMode)
         case .toggleBeacon: beaconEnabled.toggle()
@@ -623,6 +688,14 @@ struct SessionMonitorView: View {
         case .toggleAutoRestart: autoRestartOnIdle.toggle()
         case .togglePermissionFirst:
             if permissionFirstAvailable { prioritizePermissionSessions.toggle() }
+        }
+    }
+
+    private func handleEditorAction(_ action: SessionListAction) {
+        switch action {
+        case .rename: controller.renameSelected(sessions: sessionManager.sessions)
+        case .editNote: controller.editNoteSelected(sessions: sessionManager.sessions)
+        default: assertionFailure("Unexpected editor action")
         }
     }
 

@@ -8,7 +8,7 @@ The Settings window is organized into tabs, each covering a distinct configurati
 - **Show Juggler in Dock**: Toggle the Dock icon (regular vs. accessory activation policy).
 - **Quit when Session Monitor is closed**: Quit the app when the monitor window closes.
 - **Session Title**: How session names are derived: Tab Title, Window Title, Window / Tab Title, Folder Name, Parent / Folder Name, or Agent Session Title (the title the agent reports, falling back to Parent / Folder Name). The name is global: the monitor, popover, beacon and notifications all use it.
-- **Session Monitor**: Pick what each of the four row detail slots shows (top left, top right, bottom left, bottom right; see [Row details](main-window.md#row-details)), show or hide the rename button, and optionally replace the home directory prefix in shown folder paths with `~` (for example `~/Projects/app`). The `~` option applies only while a slot is set to Folder Path. Upgrading from the old "Show folder path" and "Show git branch" toggles maps them to slots once: with both on, Folder Path top left and Git Branch bottom left; with one off, the other takes the top left; with both off, both left slots are None. Model and Effort fill the right slots. The old `monitorShowFolderPath` and `monitorShowBranch` keys stay in `AppStorageKeys` only so this migration can read them; no view uses them.
+- **Session Monitor**: Pick what each of the four row detail slots shows (top left, top right, bottom left, bottom right; see [Row details](main-window.md#row-details)), show or hide the trailing rename and note buttons independently, and optionally replace the home directory prefix in shown folder paths with `~` (for example `~/Projects/app`). The `~` option applies only while a slot is set to Folder Path. Upgrading from the old "Show folder path" and "Show git branch" toggles maps them to slots once: with both on, Folder Path top left and Git Branch bottom left; with one off, the other takes the top left; with both off, both left slots are None. Model and Effort fill the right slots. The old `monitorShowFolderPath` and `monitorShowBranch` keys stay in `AppStorageKeys` only so this migration can read them; no view uses them.
 - **Notifications**: Toggle idle notifications, permission notifications, and sound (see [Notifications](notification.md)).
 - **Stats**: Enable Stats (show the busy-time chart in the Session Monitor), plus the stats-bar color: "Use cycling colors" (per-day palette colors) or a custom bar color when off.
 - **Backburner**: "Go to next session on backburner" option for rapid triage.
@@ -49,8 +49,12 @@ The beacon is enabled/disabled from the Session Monitor control bar and the "Tog
 
 - **Show Shortcut Helper**: Toggle the persistent shortcut reference in the popover and monitor.
 - **Show shortcut hints / Hint frequency**: Control transient shortcut hints shown after using shortcut-backed UI.
-- **Global hotkeys**: Recorders for all six global shortcuts (see [Cycle Sessions](cycle-sessions.md#global-shortcuts) and [Notifications](notification.md)).
-- **Session List shortcuts**: Configurable local shortcuts for the popover and monitor window: Move Down, Move Up, Backburner, Reactivate Selected, Reactivate All, Rename, Cycle Mode Forward, Cycle Mode Backward, Toggle Beacon, Permission First, Auto Next, Auto Restart.
+- **Global hotkeys**: ShortcutKit recorders for all eight global shortcuts (see
+  [Cycle Sessions](cycle-sessions.md#global-shortcuts) and [Notifications](notification.md)). Edit Current Note
+  defaults to ⇧⌘M; every binding is customizable.
+- **Session List shortcuts**: Configurable ShortcutKit bindings for the popover and monitor window: Activate, Move Down,
+  Move Up, Backburner, Send to Back, Reactivate Selected, Reactivate All, Rename, Edit Note (default M), Cycle Mode
+  Forward, Cycle Mode Backward, Toggle Beacon, Permission First, Auto Next, Auto Restart.
 
 ## Updates
 

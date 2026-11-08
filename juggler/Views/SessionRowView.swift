@@ -84,6 +84,10 @@ struct SessionRowView: View {
                 performContextAction(.rename)
             }
 
+            Button("Edit Note…") {
+                performContextAction(.editNote)
+            }
+
             if session.state == .backburner {
                 Button("Reactivate") {
                     performContextAction(.reactivate)

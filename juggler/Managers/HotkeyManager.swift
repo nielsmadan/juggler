@@ -73,6 +73,8 @@ final class HotkeyManager {
             handleShowMonitor()
         case .goToLastNotification:
             Task { await self.handleGoToLastNotification() }
+        case .editNote:
+            SessionNoteEditorManager.shared.editFocusedSession()
         }
     }
 

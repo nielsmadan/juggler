@@ -29,28 +29,36 @@ nonisolated enum SessionSlotGridLayout {
 }
 
 struct SlotTrailingReserves: Equatable {
-    let badge: CGFloat
-    let corner: CGFloat
+    let top: CGFloat
+    let bottom: CGFloat
 }
 
 enum SessionRowGeometry {
-    // Moves the badge from its natural center to the Today tab's diagonal apex.
-    static func stateBadgeOffset(todayTabWidth: CGFloat, rowHorizontalPadding: CGFloat) -> CGFloat {
-        BusyStatsCornerLayout.tabDiagonalOffset + rowHorizontalPadding + StateBadgeLayout.centerXFromRight
-            - todayTabWidth
-    }
-
     static func slotReserves(
-        todayTabWidth: CGFloat,
         cornerWidth: CGFloat,
         statsEnabled: Bool,
-        rowHorizontalPadding: CGFloat
+        rowHorizontalPadding: CGFloat,
+        showsActions: Bool
     ) -> SlotTrailingReserves {
-        let badgeOffset = stateBadgeOffset(todayTabWidth: todayTabWidth, rowHorizontalPadding: rowHorizontalPadding)
+        let topControlsWidth = StateBadgeLayout.frameWidth
+            + StateBadgeLayout.trailingPadding
+            + SessionRowActionLayout.width(showsActions: showsActions)
+        let controlsOverlap = max(0, topControlsWidth - rowHorizontalPadding)
         let cornerOverlap = max(0, cornerWidth - rowHorizontalPadding) + SessionSlotGridLayout.cornerGap
         return SlotTrailingReserves(
-            badge: StateBadgeLayout.frameWidth + StateBadgeLayout.trailingPadding - badgeOffset,
-            corner: statsEnabled ? cornerOverlap : 0
+            top: controlsOverlap,
+            bottom: max(controlsOverlap, statsEnabled ? cornerOverlap : 0)
         )
+    }
+
+    static func controlAreaHeight(
+        contentHeight: CGFloat,
+        statsEnabled: Bool,
+        rowVerticalPadding: CGFloat
+    ) -> CGFloat {
+        let cornerOverlap = statsEnabled
+            ? max(0, BusyStatsCornerLayout.tabHeight - rowVerticalPadding)
+            : 0
+        return max(0, contentHeight - cornerOverlap)
     }
 }

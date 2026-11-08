@@ -3,6 +3,22 @@ import Testing
 
 @Suite("HookEventMapper")
 struct HookEventMapperTests {
+    @Test func identityEstablishingEvents_areAgentSpecific() {
+        #expect(HookEventMapper.establishesSessionIdentity(event: "SessionStart", agent: "claude-code"))
+        #expect(HookEventMapper.establishesSessionIdentity(event: "UserPromptSubmit", agent: "codex"))
+        #expect(HookEventMapper.establishesSessionIdentity(event: "session.created", agent: "opencode"))
+        #expect(HookEventMapper.establishesSessionIdentity(event: "session_start", agent: "pi"))
+        #expect(HookEventMapper.establishesSessionIdentity(event: "PreInvocation", agent: "antigravity"))
+    }
+
+    @Test func delayedLifecycleEvents_doNotEstablishSessionIdentity() {
+        #expect(!HookEventMapper.establishesSessionIdentity(event: "Stop", agent: "claude-code"))
+        #expect(!HookEventMapper.establishesSessionIdentity(event: "PostToolUse", agent: "codex"))
+        #expect(!HookEventMapper.establishesSessionIdentity(event: "session.status.idle", agent: "opencode"))
+        #expect(!HookEventMapper.establishesSessionIdentity(event: "agent_settled", agent: "pi"))
+        #expect(!HookEventMapper.establishesSessionIdentity(event: "Stop", agent: "antigravity"))
+    }
+
     // MARK: - Idle State Mappings
 
     @Test func sessionStart_mapsToIdle() {

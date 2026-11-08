@@ -6,7 +6,7 @@ import Testing
 struct SessionTests {
     @Test func sessionDisplayNamePrefersCustomName() {
         var session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -28,7 +28,7 @@ struct SessionTests {
 
     @Test func sessionFullDisplayNameShowsPaneInfo() {
         var session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -68,7 +68,7 @@ struct SessionTests {
 
     @Test func projectFolderName_extractsLastPathComponent() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -81,7 +81,7 @@ struct SessionTests {
 
     @Test func projectFolderName_singleComponent() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -94,7 +94,7 @@ struct SessionTests {
 
     @Test func projectFolderName_rootPath_returnsUnknown() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -107,7 +107,7 @@ struct SessionTests {
 
     @Test func projectFolderName_emptyPath_returnsUnknown() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -122,7 +122,7 @@ struct SessionTests {
 
     @Test func parentAndFolderName_extractsLastTwoComponents() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -135,7 +135,7 @@ struct SessionTests {
 
     @Test func parentAndFolderName_deepPath() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -148,7 +148,7 @@ struct SessionTests {
 
     @Test func parentAndFolderName_singleComponent_fallsBackToFolderName() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -161,7 +161,7 @@ struct SessionTests {
 
     @Test func parentAndFolderName_emptyPath_returnsUnknown() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -176,7 +176,7 @@ struct SessionTests {
 
     @Test func titleForMode_tabTitle_usesTerminalTabName() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -190,7 +190,7 @@ struct SessionTests {
 
     @Test func titleForMode_tabTitle_fallsBackToFolderName() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -203,7 +203,7 @@ struct SessionTests {
 
     @Test func titleForMode_windowTitle_usesTerminalWindowName() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -217,7 +217,7 @@ struct SessionTests {
 
     @Test func titleForMode_windowTitle_fallsBackToFolderName() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -230,7 +230,7 @@ struct SessionTests {
 
     @Test func titleForMode_windowAndTabTitle_combinesBoth() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -245,7 +245,7 @@ struct SessionTests {
 
     @Test func titleForMode_windowAndTabTitle_fallsBackToAvailable() {
         let sessionWindowOnly = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -257,7 +257,7 @@ struct SessionTests {
         #expect(sessionWindowOnly.title(for: .windowAndTabTitle) == "my-window")
 
         let sessionTabOnly = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -269,7 +269,7 @@ struct SessionTests {
         #expect(sessionTabOnly.title(for: .windowAndTabTitle) == "my-tab")
 
         let sessionNeither = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -282,7 +282,7 @@ struct SessionTests {
 
     @Test func titleForMode_folderName_usesFolderName() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -297,7 +297,7 @@ struct SessionTests {
 
     @Test func titleForMode_parentAndFolderName_usesParentAndFolder() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -311,7 +311,7 @@ struct SessionTests {
 
     @Test func titleForMode_customName_overridesAllModes() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -329,7 +329,7 @@ struct SessionTests {
 
     @Test func titleForMode_tabTitle_tmux_usesTmuxSessionName() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             tmuxPane: "%1",
             terminalType: .iterm2,
@@ -344,7 +344,7 @@ struct SessionTests {
 
     @Test func titleForMode_tmux_folderMode_ignoresTmuxSessionName() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             tmuxPane: "%1",
             terminalType: .iterm2,
@@ -359,7 +359,7 @@ struct SessionTests {
 
     @Test func titleForMode_tmux_windowMode_ignoresTmuxSessionName() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             tmuxPane: "%1",
             terminalType: .iterm2,
@@ -375,7 +375,7 @@ struct SessionTests {
 
     @Test func parentAndFolderName_rootPath_returnsUnknown() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -390,7 +390,7 @@ struct SessionTests {
 
     @Test func agentShortName_claudeCode() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -403,7 +403,7 @@ struct SessionTests {
 
     @Test func agentShortName_opencode() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "opencode",
@@ -416,7 +416,7 @@ struct SessionTests {
 
     @Test func agentShortName_codex() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "codex",
@@ -429,7 +429,7 @@ struct SessionTests {
 
     @Test func agentShortName_droid() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "droid",
@@ -442,7 +442,7 @@ struct SessionTests {
 
     @Test func agentShortName_qwen() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "qwen",
@@ -455,7 +455,7 @@ struct SessionTests {
 
     @Test func agentShortName_kimi() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "kimi",
@@ -485,7 +485,7 @@ struct SessionTests {
 
     @Test func displayName_tmux_prefersTmuxSessionName() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             tmuxPane: "%1",
             terminalType: .iterm2,
@@ -501,7 +501,7 @@ struct SessionTests {
 
     @Test func displayName_tmux_fallsBackToFolderName() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             tmuxPane: "%1",
             terminalType: .iterm2,
@@ -517,7 +517,7 @@ struct SessionTests {
 
     @Test func currentWorkingDuration_nilWhenIdle() {
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -532,7 +532,7 @@ struct SessionTests {
     @Test func currentWorkingDuration_calculatesWhenWorking() {
         let tenSecondsAgo = Date().addingTimeInterval(-10)
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -548,7 +548,7 @@ struct SessionTests {
     @Test func currentWorkingDuration_calculatesWhenCompacting() {
         let fiveSecondsAgo = Date().addingTimeInterval(-5)
         let session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -563,7 +563,7 @@ struct SessionTests {
 
     @Test func busyTimeTodayLive_sumsTodayAndCurrent() {
         var session = Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -584,7 +584,7 @@ struct SessionTests {
 
     @Test func session_codableRoundtrip() throws {
         let original = Session(
-            claudeSessionID: "claude-123",
+            agentSessionID: "agent-123",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -592,6 +592,7 @@ struct SessionTests {
             terminalTabName: "my-tab",
             terminalWindowName: "my-window",
             customName: "custom",
+            note: "Finish persistence",
             state: .idle,
             startedAt: Date(timeIntervalSince1970: 900),
             lastBecameIdle: Date(timeIntervalSince1970: 950),
@@ -608,6 +609,8 @@ struct SessionTests {
         let decoder = JSONDecoder()
         let decoded = try decoder.decode(Session.self, from: data)
 
+        #expect(decoded.agentSessionID == "agent-123")
+        #expect(decoded.note == "Finish persistence")
         #expect(decoded == original)
     }
 
@@ -616,7 +619,7 @@ struct SessionTests {
     @Test func session_equatable_ignoresTimingFields() {
         let now = Date()
         var s1 = Session(
-            claudeSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
+            agentSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
             agent: "claude-code", projectPath: "/test", state: .idle, startedAt: now
         )
         var s2 = s1
@@ -634,7 +637,7 @@ struct SessionTests {
     @Test func session_equatable_detectsStateDifference() {
         let now = Date()
         let s1 = Session(
-            claudeSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
+            agentSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
             agent: "claude-code", projectPath: "/test", state: .idle, startedAt: now
         )
         var s2 = s1
@@ -643,10 +646,22 @@ struct SessionTests {
         #expect(s1 != s2)
     }
 
+    @Test func session_equatable_detectsNoteDifference() {
+        let now = Date()
+        let s1 = Session(
+            agentSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
+            agent: "claude-code", projectPath: "/test", note: "first", state: .idle, startedAt: now
+        )
+        var s2 = s1
+        s2.note = "second"
+
+        #expect(s1 != s2)
+    }
+
     @Test func session_equatable_detectsGitBranchDifference() {
         let now = Date()
         var s1 = Session(
-            claudeSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
+            agentSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
             agent: "claude-code", projectPath: "/test", state: .idle, startedAt: now
         )
         var s2 = s1
@@ -660,7 +675,7 @@ struct SessionTests {
 
     @Test func session_id_withoutTmuxPane_usesTerminalSessionID() {
         let session = Session(
-            claudeSessionID: "c1", terminalSessionID: "w0t0p0:abc",
+            agentSessionID: "c1", terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2, agent: "claude-code",
             projectPath: "/test", state: .idle, startedAt: Date()
         )
@@ -669,7 +684,7 @@ struct SessionTests {
 
     @Test func session_id_withTmuxPane_appendsPane() {
         let session = Session(
-            claudeSessionID: "c1", terminalSessionID: "w0t0p0:abc",
+            agentSessionID: "c1", terminalSessionID: "w0t0p0:abc",
             tmuxPane: "%3", terminalType: .iterm2, agent: "claude-code",
             projectPath: "/test", state: .idle, startedAt: Date()
         )
@@ -680,7 +695,7 @@ struct SessionTests {
 
     @Test func displayName_nonTmux_prefersCustomOverTab() {
         let session = Session(
-            claudeSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
+            agentSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
             agent: "claude-code", projectPath: "/path/project",
             terminalTabName: "tab", customName: "custom",
             state: .idle, startedAt: Date()
@@ -690,7 +705,7 @@ struct SessionTests {
 
     @Test func displayName_nonTmux_prefersTabOverFolder() {
         let session = Session(
-            claudeSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
+            agentSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
             agent: "claude-code", projectPath: "/path/project",
             terminalTabName: "my-tab",
             state: .idle, startedAt: Date()
@@ -700,7 +715,7 @@ struct SessionTests {
 
     @Test func displayName_nonTmux_fallsBackToFolderName() {
         let session = Session(
-            claudeSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
+            agentSessionID: "c1", terminalSessionID: "s1", terminalType: .iterm2,
             agent: "claude-code", projectPath: "/path/project",
             state: .idle, startedAt: Date()
         )
@@ -721,7 +736,7 @@ struct SessionTests {
 
     private func makeSession(agent: String) -> Session {
         Session(
-            claudeSessionID: "test",
+            agentSessionID: "test",
             terminalSessionID: "w0t0p0:abc",
             terminalType: .iterm2,
             agent: agent,

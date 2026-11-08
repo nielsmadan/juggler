@@ -171,7 +171,7 @@ struct TerminalActivationTests {
             resetHighlightDefaults()
             let registry = TerminalBridgeRegistry()
             let session = Session(
-                claudeSessionID: "c1",
+                agentSessionID: "c1",
                 terminalSessionID: "ghost-session",
                 terminalType: .ghostty,
                 agent: "claude-code",
@@ -220,7 +220,7 @@ struct TerminalActivationTests {
             UserDefaults.standard.set(true, forKey: AppStorageKeys.paneHighlightEnabled)
 
             var session = Session(
-                claudeSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
+                agentSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
                 tmuxPane: "%11", terminalType: .iterm2, agent: "claude-code",
                 projectPath: "/test", state: .idle, startedAt: Date()
             )
@@ -245,7 +245,7 @@ struct TerminalActivationTests {
             UserDefaults.standard.set(false, forKey: AppStorageKeys.highlightOnHotkey)
 
             var session = Session(
-                claudeSessionID: "c1", terminalSessionID: "w1t0p0:REAL",
+                agentSessionID: "c1", terminalSessionID: "w1t0p0:REAL",
                 terminalType: .iterm2, agent: "claude-code",
                 projectPath: "/test", state: .idle, startedAt: Date()
             )

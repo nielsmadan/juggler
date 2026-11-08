@@ -51,7 +51,7 @@ extension String? {
 }
 
 struct Session: Identifiable, Codable, Equatable {
-    var claudeSessionID: String // May be shared across split panes
+    var agentSessionID: String // May be shared across split panes
     let terminalSessionID: String // e.g., "w0t0p0:UUID"
     var tmuxPane: String? // e.g., "%1", nil if not inside tmux
 
@@ -63,12 +63,13 @@ struct Session: Identifiable, Codable, Equatable {
     }
 
     let terminalType: TerminalType
-    let agent: String
+    var agent: String
     let projectPath: String
     var terminalTabName: String?
     var terminalWindowName: String?
     var tmuxSessionName: String?
     var customName: String?
+    var note: String?
     var state: SessionState
     var startedAt: Date
     var lastBecameIdle: Date?
@@ -165,8 +166,8 @@ struct Session: Identifiable, Codable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case claudeSessionID, terminalSessionID, tmuxPane, terminalType, agent, projectPath
-        case terminalTabName, terminalWindowName, tmuxSessionName, customName, state, startedAt
+        case agentSessionID, terminalSessionID, tmuxPane, terminalType, agent, projectPath
+        case terminalTabName, terminalWindowName, tmuxSessionName, customName, note, state, startedAt
         case lastBecameIdle, lastBecameWorking, busyTimeToday
         case paneIndex, paneCount, gitBranch, gitRepoName, transcriptPath, remoteHost
     }
@@ -174,7 +175,7 @@ struct Session: Identifiable, Codable, Equatable {
     // Excludes the volatile timing fields so .onChange(of: sessions) doesn't fire on
     // every hook event.
     static func == (lhs: Session, rhs: Session) -> Bool {
-        lhs.claudeSessionID == rhs.claudeSessionID &&
+        lhs.agentSessionID == rhs.agentSessionID &&
             lhs.terminalSessionID == rhs.terminalSessionID &&
             lhs.tmuxPane == rhs.tmuxPane &&
             lhs.terminalType == rhs.terminalType &&
@@ -184,6 +185,7 @@ struct Session: Identifiable, Codable, Equatable {
             lhs.terminalWindowName == rhs.terminalWindowName &&
             lhs.tmuxSessionName == rhs.tmuxSessionName &&
             lhs.customName == rhs.customName &&
+            lhs.note == rhs.note &&
             lhs.state == rhs.state &&
             lhs.startedAt == rhs.startedAt &&
             lhs.paneIndex == rhs.paneIndex &&
@@ -210,5 +212,21 @@ struct Session: Identifiable, Codable, Equatable {
 
     var busyTimeTodayLive: TimeInterval {
         busyTimeToday + (currentWorkingDuration ?? 0)
+    }
+}
+
+extension Session {
+    var agentSessionIdentity: AgentSessionIdentity {
+        AgentSessionIdentity(agent: agent, agentSessionID: agentSessionID)
+    }
+
+    var noteKey: SessionNoteKey? {
+        let identity = agentSessionIdentity
+        return identity.isPersistent ? identity : nil
+    }
+
+    mutating func replaceAgentSessionIdentity(with identity: AgentSessionIdentity) {
+        agent = identity.agent
+        agentSessionID = identity.agentSessionID
     }
 }

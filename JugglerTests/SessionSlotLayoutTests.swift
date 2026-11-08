@@ -6,74 +6,111 @@ import Testing
 struct SessionRowGeometryTests {
     private let todayOnly: CGFloat = 65
     private let turnAndToday: CGFloat = 130
+    private let listInsets = SessionMonitorRowLayout.listInsets
+    private let scrollInsets = SessionMonitorRowLayout.scrollInsets
 
     @Test func listRow_withoutTurnTab() {
         let reserves = SessionRowGeometry.slotReserves(
-            todayTabWidth: todayOnly,
             cornerWidth: todayOnly,
             statsEnabled: true,
-            rowHorizontalPadding: 0
+            rowHorizontalPadding: listInsets.horizontal,
+            showsActions: true
         )
-        #expect(reserves == SlotTrailingReserves(badge: 91, corner: 69))
+        #expect(reserves == SlotTrailingReserves(top: 94, bottom: 94))
     }
 
     @Test func listRow_withTurnTab() {
         let reserves = SessionRowGeometry.slotReserves(
-            todayTabWidth: todayOnly,
             cornerWidth: turnAndToday,
             statsEnabled: true,
-            rowHorizontalPadding: 0
+            rowHorizontalPadding: listInsets.horizontal,
+            showsActions: true
         )
-        #expect(reserves == SlotTrailingReserves(badge: 91, corner: 134))
+        #expect(reserves == SlotTrailingReserves(top: 94, bottom: 134))
     }
 
     @Test func scrollViewRow_withoutTurnTab() {
         let reserves = SessionRowGeometry.slotReserves(
-            todayTabWidth: todayOnly,
             cornerWidth: todayOnly,
             statsEnabled: true,
-            rowHorizontalPadding: 16
+            rowHorizontalPadding: scrollInsets.horizontal,
+            showsActions: true
         )
-        #expect(reserves == SlotTrailingReserves(badge: 75, corner: 53))
+        #expect(reserves == SlotTrailingReserves(top: 78, bottom: 78))
     }
 
     @Test func scrollViewRow_withTurnTab() {
         let reserves = SessionRowGeometry.slotReserves(
-            todayTabWidth: todayOnly,
             cornerWidth: turnAndToday,
             statsEnabled: true,
-            rowHorizontalPadding: 16
+            rowHorizontalPadding: scrollInsets.horizontal,
+            showsActions: true
         )
-        #expect(reserves == SlotTrailingReserves(badge: 75, corner: 118))
+        #expect(reserves == SlotTrailingReserves(top: 78, bottom: 118))
     }
 
-    @Test func statsOff_reservesOnlyTheBadge() {
+    @Test func statsOff_reservesControlsAcrossBothRows() {
         let list = SessionRowGeometry.slotReserves(
-            todayTabWidth: todayOnly,
             cornerWidth: turnAndToday,
             statsEnabled: false,
-            rowHorizontalPadding: 0
+            rowHorizontalPadding: listInsets.horizontal,
+            showsActions: true
         )
         let scroll = SessionRowGeometry.slotReserves(
-            todayTabWidth: todayOnly,
             cornerWidth: turnAndToday,
             statsEnabled: false,
-            rowHorizontalPadding: 16
+            rowHorizontalPadding: scrollInsets.horizontal,
+            showsActions: true
         )
-        #expect(list == SlotTrailingReserves(badge: 91, corner: 0))
-        #expect(scroll == SlotTrailingReserves(badge: 75, corner: 0))
+        #expect(list == SlotTrailingReserves(top: 94, bottom: 94))
+        #expect(scroll == SlotTrailingReserves(top: 78, bottom: 78))
     }
 
-    @Test func wideTodayTab_shiftsBadgeLeftAndGrowsTopReserve() {
-        let offset = SessionRowGeometry.stateBadgeOffset(todayTabWidth: 80, rowHorizontalPadding: 0)
-        let reserves = SessionRowGeometry.slotReserves(
-            todayTabWidth: 80,
-            cornerWidth: 80,
+    @Test func hiddenActions_releaseTheirTrailingSpace() {
+        let reserves = [false, true].map { showsActions in
+            SessionRowGeometry.slotReserves(
+                cornerWidth: todayOnly,
+                statsEnabled: false,
+                rowHorizontalPadding: listInsets.horizontal,
+                showsActions: showsActions
+            )
+        }
+        #expect(reserves.map(\.top) == [74, 94])
+        #expect(reserves.map(\.bottom) == [74, 94])
+    }
+
+    @Test func actionVisibility_preservesWiderStatsCornerReserve() {
+        let reserves = [false, true].map { showsActions in
+            SessionRowGeometry.slotReserves(
+                cornerWidth: turnAndToday,
+                statsEnabled: true,
+                rowHorizontalPadding: listInsets.horizontal,
+                showsActions: showsActions
+            )
+        }
+        #expect(reserves.map(\.top) == [74, 94])
+        #expect(reserves.map(\.bottom) == [134, 134])
+    }
+
+    @Test func controlArea_excludesStatsCornerOverlap() {
+        let listHeight = SessionRowGeometry.controlAreaHeight(
+            contentHeight: SessionMonitorRowLayout.contentMinHeight,
             statsEnabled: true,
-            rowHorizontalPadding: 0
+            rowVerticalPadding: listInsets.vertical
         )
-        #expect(offset == -32)
-        #expect(reserves.badge == 106)
+        let scrollHeight = SessionRowGeometry.controlAreaHeight(
+            contentHeight: SessionMonitorRowLayout.contentMinHeight,
+            statsEnabled: true,
+            rowVerticalPadding: scrollInsets.vertical
+        )
+        let statsOffHeight = SessionRowGeometry.controlAreaHeight(
+            contentHeight: SessionMonitorRowLayout.contentMinHeight,
+            statsEnabled: false,
+            rowVerticalPadding: listInsets.vertical
+        )
+        #expect(listHeight == 40)
+        #expect(scrollHeight == 44)
+        #expect(statsOffHeight == SessionMonitorRowLayout.contentMinHeight)
     }
 }
 

@@ -166,11 +166,11 @@ enum TestFixtures {
 }
 
 /// Shared helper for constructing a minimal `Session` in tests.
-/// The `id` string is used for both `claudeSessionID` and `terminalSessionID`,
+/// The `id` string is used for both `agentSessionID` and `terminalSessionID`,
 /// and `projectPath` is derived as `/test/{id}` so sessions are easy to spot in failures.
 func makeSession(_ id: String, state: SessionState = .idle) -> Session {
     Session(
-        claudeSessionID: id,
+        agentSessionID: id,
         terminalSessionID: id,
         terminalType: .iterm2,
         agent: "claude-code",

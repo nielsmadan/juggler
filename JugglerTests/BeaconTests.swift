@@ -45,6 +45,19 @@ struct BeaconTests {
         }
     }
 
+    @Test func beaconSize_metadataFontIsSmallerThanSubtitle() {
+        for size in BeaconSize.allCases {
+            #expect(size.metadataFontSize < size.subtitleFontSize)
+        }
+    }
+
+    @Test func beaconSize_noteFontIsBetweenSubtitleAndTitle() {
+        for size in BeaconSize.allCases {
+            #expect(size.noteFontSize > size.subtitleFontSize)
+            #expect(size.noteFontSize < size.fontSize)
+        }
+    }
+
     @Test func beaconSize_subtitleFontSize() {
         #expect(BeaconSize.xs.subtitleFontSize == 10)
         #expect(BeaconSize.s.subtitleFontSize == 11)
@@ -75,5 +88,16 @@ struct BeaconTests {
         #expect(BeaconSize.m.minWidth == 200)
         #expect(BeaconSize.l.minWidth == 260)
         #expect(BeaconSize.xl.minWidth == 320)
+    }
+
+    @Test @MainActor func beaconContentLinesOrderTitleNoteBeforeMetadata() {
+        let lines = BeaconContentView.contentLines(
+            sessionName: "Parser",
+            note: "Review edge cases",
+            metadata: "iTerm2 · Codex"
+        )
+
+        #expect(lines.map(\.role) == [.title, .note, .metadata])
+        #expect(lines.map(\.text) == ["Parser", "Review edge cases", "iTerm2 · Codex"])
     }
 }

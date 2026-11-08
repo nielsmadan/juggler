@@ -70,7 +70,8 @@ private actor SessionActivatorMockBridge: TerminalBridge {
 
 private struct PresentedActivationBeacon: Equatable {
     let title: String
-    let subtitle: String?
+    let note: String?
+    let metadata: String?
     let force: Bool
 }
 
@@ -87,7 +88,7 @@ struct SessionActivatorTests {
         let activator = SessionActivator(
             sessionManager: manager,
             registry: registry,
-            presentBeacon: { _, _, _ in }
+            presentBeacon: { _, _, _, _ in }
         )
 
         let outcome = await activator.activate(session: session, trigger: .guiSelect)
@@ -112,7 +113,7 @@ struct SessionActivatorTests {
         let activator = SessionActivator(
             sessionManager: manager,
             registry: registry,
-            presentBeacon: { beacons.append(.init(title: $0, subtitle: $1, force: $2)) }
+            presentBeacon: { beacons.append(.init(title: $0, note: $1, metadata: $2, force: $3)) }
         )
 
         let outcome = await activator.activate(session: session, trigger: .guiSelect)
@@ -122,7 +123,7 @@ struct SessionActivatorTests {
             return
         }
         #expect(manager.activationTarget == nil)
-        #expect(beacons == [.init(title: "Activation Failed", subtitle: nil, force: true)])
+        #expect(beacons == [.init(title: "Activation Failed", note: nil, metadata: nil, force: true)])
     }
 
     @Test func activateFirstAvailable_skipsStaleSessionAndPresentsSuccessfulTarget() async {
@@ -138,7 +139,7 @@ struct SessionActivatorTests {
         let activator = SessionActivator(
             sessionManager: manager,
             registry: registry,
-            presentBeacon: { beacons.append(.init(title: $0, subtitle: $1, force: $2)) }
+            presentBeacon: { beacons.append(.init(title: $0, note: $1, metadata: $2, force: $3)) }
         )
 
         let outcome = await activator.activateFirstAvailable(
@@ -157,7 +158,41 @@ struct SessionActivatorTests {
         #expect(activated.id == "live")
         #expect(manager.sessions.map(\.id) == ["live"])
         #expect(await bridge.recordedActivationCalls() == ["stale", "live"])
-        #expect(beacons == [.init(title: expectedTitle, subtitle: nil, force: false)])
+        #expect(beacons == [.init(title: expectedTitle, note: nil, metadata: nil, force: false)])
+    }
+
+    @Test func activate_successfulCycleForwardsNoteAndMetadata() async {
+        let manager = SessionManager()
+        let registry = TerminalBridgeRegistry()
+        let bridge = SessionActivatorMockBridge()
+        await registry.register(bridge, for: .iterm2)
+        var target = makeSession("target")
+        target.note = "Review parser edge cases"
+        let other = Session(
+            agentSessionID: "other",
+            terminalSessionID: "other",
+            terminalType: .kitty,
+            agent: "codex",
+            projectPath: "/test/other",
+            state: .idle,
+            startedAt: Date()
+        )
+        manager.testSetSessions([target, other])
+        var beacons: [PresentedActivationBeacon] = []
+        let activator = SessionActivator(
+            sessionManager: manager,
+            registry: registry,
+            presentBeacon: {
+                beacons.append(.init(title: $0, note: $1, metadata: $2, force: $3))
+            }
+        )
+
+        _ = await activator.activate(session: target, trigger: .hotkey, presentation: .cycle)
+
+        #expect(beacons.count == 1)
+        #expect(beacons[0].note == "Review parser edge cases")
+        #expect(beacons[0].metadata == "iTerm2 · Claude Code")
+        #expect(beacons[0].force == false)
     }
 
     @Test func activateFirstAvailable_singleCyclableSession_presentsOnlySessionBeacon() async {
@@ -165,14 +200,15 @@ struct SessionActivatorTests {
         let registry = TerminalBridgeRegistry()
         let bridge = SessionActivatorMockBridge()
         await registry.register(bridge, for: .iterm2)
-        let session = makeSession("s1")
+        var session = makeSession("s1")
+        session.note = "Keep the parser context"
         manager.testSetSessions([session])
         var candidates = [session]
         var beacons: [PresentedActivationBeacon] = []
         let activator = SessionActivator(
             sessionManager: manager,
             registry: registry,
-            presentBeacon: { beacons.append(.init(title: $0, subtitle: $1, force: $2)) }
+            presentBeacon: { beacons.append(.init(title: $0, note: $1, metadata: $2, force: $3)) }
         )
 
         let outcome = await activator.activateFirstAvailable(
@@ -190,7 +226,14 @@ struct SessionActivatorTests {
         let expectedSubtitle = manager.disambiguatedDisplayName(for: session, titleMode: titleMode)
         #expect(activated.id == "s1")
         #expect(await bridge.recordedActivationCalls() == ["s1"])
-        #expect(beacons == [.init(title: "Only 1 Session", subtitle: expectedSubtitle, force: false)])
+        #expect(beacons == [
+            .init(
+                title: "Only 1 Session",
+                note: "Keep the parser context",
+                metadata: expectedSubtitle,
+                force: false
+            )
+        ])
     }
 
     @Test func activate_singleCyclable_usesOnlySessionPresentation() async {
@@ -204,7 +247,7 @@ struct SessionActivatorTests {
         let activator = SessionActivator(
             sessionManager: manager,
             registry: registry,
-            presentBeacon: { beacons.append(.init(title: $0, subtitle: $1, force: $2)) }
+            presentBeacon: { beacons.append(.init(title: $0, note: $1, metadata: $2, force: $3)) }
         )
 
         let outcome = await activator.activate(
@@ -221,7 +264,9 @@ struct SessionActivatorTests {
         let titleMode = SessionTitleMode(rawValue: rawTitleMode) ?? .default
         let expectedSubtitle = manager.disambiguatedDisplayName(for: session, titleMode: titleMode)
         #expect(activated.id == "s1")
-        #expect(beacons == [.init(title: "Only 1 Session", subtitle: expectedSubtitle, force: false)])
+        #expect(beacons == [
+            .init(title: "Only 1 Session", note: nil, metadata: expectedSubtitle, force: false)
+        ])
     }
 
     @Test func forCyclableCount_singleSessionFocused_usesOnlySessionPresentation() {
@@ -253,7 +298,7 @@ struct SessionActivatorTests {
         let activator = SessionActivator(
             sessionManager: manager,
             registry: registry,
-            presentBeacon: { beacons.append(.init(title: $0, subtitle: $1, force: $2)) }
+            presentBeacon: { beacons.append(.init(title: $0, note: $1, metadata: $2, force: $3)) }
         )
 
         let outcome = await activator.activate(
@@ -266,7 +311,7 @@ struct SessionActivatorTests {
             Issue.record("Expected the stale target to be unavailable")
             return
         }
-        #expect(beacons == [.init(title: "No Notification", subtitle: nil, force: false)])
+        #expect(beacons == [.init(title: "No Notification", note: nil, metadata: nil, force: false)])
     }
 
     @Test func activate_guardSuppressesIntermediateFocusWhileBridgeIsSuspended() async {
@@ -282,7 +327,7 @@ struct SessionActivatorTests {
         let activator = SessionActivator(
             sessionManager: manager,
             registry: registry,
-            presentBeacon: { _, _, _ in }
+            presentBeacon: { _, _, _, _ in }
         )
 
         let task = Task {
@@ -315,7 +360,7 @@ struct SessionActivatorTests {
         let activator = SessionActivator(
             sessionManager: manager,
             registry: registry,
-            presentBeacon: { beacons.append(.init(title: $0, subtitle: $1, force: $2)) }
+            presentBeacon: { beacons.append(.init(title: $0, note: $1, metadata: $2, force: $3)) }
         )
 
         let firstTask = Task {
@@ -360,7 +405,7 @@ struct SessionActivatorTests {
         let activator = SessionActivator(
             sessionManager: manager,
             registry: registry,
-            presentBeacon: { beacons.append(.init(title: $0, subtitle: $1, force: $2)) }
+            presentBeacon: { beacons.append(.init(title: $0, note: $1, metadata: $2, force: $3)) }
         )
 
         let outcome = await activator.activateFirstAvailable(
@@ -374,7 +419,7 @@ struct SessionActivatorTests {
             return
         }
         #expect(await bridge.recordedActivationCalls() == [first.id, second.id])
-        #expect(beacons == [.init(title: "All At Work", subtitle: nil, force: false)])
+        #expect(beacons == [.init(title: "All At Work", note: nil, metadata: nil, force: false)])
     }
 
     @Test func activateFirstAvailable_failureOnlyExhaustion_presentsNothing() async {
@@ -389,7 +434,7 @@ struct SessionActivatorTests {
         let activator = SessionActivator(
             sessionManager: manager,
             registry: registry,
-            presentBeacon: { beacons.append(.init(title: $0, subtitle: $1, force: $2)) }
+            presentBeacon: { beacons.append(.init(title: $0, note: $1, metadata: $2, force: $3)) }
         )
 
         let outcome = await activator.activateFirstAvailable(
@@ -418,7 +463,7 @@ struct SessionActivatorTests {
         let activator = SessionActivator(
             sessionManager: manager,
             registry: registry,
-            presentBeacon: { beacons.append(.init(title: $0, subtitle: $1, force: $2)) }
+            presentBeacon: { beacons.append(.init(title: $0, note: $1, metadata: $2, force: $3)) }
         )
 
         let outcome = await activator.activateFirstAvailable(
@@ -433,6 +478,6 @@ struct SessionActivatorTests {
         }
         #expect(await bridge.recordedActivationCalls() == [failed.id])
         #expect(candidates.map(\.id) == [untried.id])
-        #expect(beacons == [.init(title: "Activation Failed", subtitle: nil, force: true)])
+        #expect(beacons == [.init(title: "Activation Failed", note: nil, metadata: nil, force: true)])
     }
 }

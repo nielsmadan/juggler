@@ -13,7 +13,7 @@ struct IntegrationTests {
         server: HookServer,
         agent: String = "claude-code",
         event: String,
-        claudeSessionID: String = "claude-1",
+        agentSessionID: String = "claude-1",
         terminalSessionID: String,
         tmuxPane: String? = nil,
         tmuxSessionName: String? = nil,
@@ -37,7 +37,7 @@ struct IntegrationTests {
         let payload = HookPayload(
             agent: agent,
             event: event,
-            hookInput: .init(session_id: claudeSessionID),
+            hookInput: .init(session_id: agentSessionID),
             terminal: .init(sessionId: terminalSessionID, cwd: projectPath),
             git: (gitBranch != nil || gitRepoName != nil)
                 ? .init(branch: gitBranch, repo: gitRepoName) : nil,
@@ -92,21 +92,21 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c3",
+            agentSessionID: "c3",
             terminalSessionID: "s3",
             projectPath: "/c"
         )
@@ -151,14 +151,14 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
@@ -175,21 +175,21 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c3",
+            agentSessionID: "c3",
             terminalSessionID: "s3",
             projectPath: "/c"
         )
@@ -198,7 +198,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "UserPromptSubmit",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
@@ -219,14 +219,14 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
@@ -244,7 +244,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
@@ -267,14 +267,14 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/project-a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/project-b"
         )
@@ -296,7 +296,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "UserPromptSubmit",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/project-b"
         )
@@ -310,14 +310,14 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "Stop",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/project-b"
         )
         #expect(manager.cyclableSessions.count == 2)
 
         // 7. Session ends
-        await simulateHook(server: server, event: "SessionEnd", claudeSessionID: "c1", terminalSessionID: "s1")
+        await simulateHook(server: server, event: "SessionEnd", agentSessionID: "c1", terminalSessionID: "s1")
         #expect(manager.sessions.count == 1)
         #expect(manager.sessions[0].id == "s2")
     }
@@ -389,14 +389,14 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
@@ -426,7 +426,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
@@ -504,21 +504,21 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c3",
+            agentSessionID: "c3",
             terminalSessionID: "s3",
             projectPath: "/c"
         )
@@ -527,7 +527,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "UserPromptSubmit",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
@@ -540,7 +540,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "Stop",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
@@ -558,21 +558,21 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c3",
+            agentSessionID: "c3",
             terminalSessionID: "s3",
             projectPath: "/c"
         )
@@ -581,14 +581,14 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "UserPromptSubmit",
-            claudeSessionID: "c3",
+            agentSessionID: "c3",
             terminalSessionID: "s3",
             projectPath: "/c"
         )
         await simulateHook(
             server: server,
             event: "Stop",
-            claudeSessionID: "c3",
+            agentSessionID: "c3",
             terminalSessionID: "s3",
             projectPath: "/c"
         )
@@ -617,14 +617,14 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
@@ -636,7 +636,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "UserPromptSubmit",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
@@ -654,14 +654,14 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
@@ -672,7 +672,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "UserPromptSubmit",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
@@ -700,14 +700,14 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
@@ -719,7 +719,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "UserPromptSubmit",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
@@ -734,7 +734,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "Stop",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
@@ -762,28 +762,28 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
         await simulateHook(
             server: server,
             event: "UserPromptSubmit",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "UserPromptSubmit",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
@@ -793,7 +793,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "Stop",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
@@ -818,21 +818,21 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
         await simulateHook(
             server: server,
             event: "UserPromptSubmit",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
@@ -842,7 +842,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "Stop",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
@@ -870,28 +870,28 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
         await simulateHook(
             server: server,
             event: "UserPromptSubmit",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "UserPromptSubmit",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
@@ -900,7 +900,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "Stop",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
@@ -927,7 +927,7 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "w0t0p0:abc-uuid",
             projectPath: "/test"
         )
@@ -947,14 +947,14 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
@@ -989,14 +989,14 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "s1",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "s2",
             projectPath: "/b"
         )
@@ -1019,14 +1019,14 @@ struct IntegrationTests {
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "w0t0p0:uuid-a",
             projectPath: "/a"
         )
         await simulateHook(
             server: server,
             event: "SessionStart",
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "w0t1p0:uuid-b",
             projectPath: "/b"
         )
@@ -1051,7 +1051,7 @@ struct IntegrationTests {
             server: server,
             agent: "opencode",
             event: "session.created",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1",
             projectPath: "/Users/test/oc-project"
         )
@@ -1071,7 +1071,7 @@ struct IntegrationTests {
             server: server,
             agent: "opencode",
             event: "session.created",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
         #expect(manager.sessions[0].state == .idle)
@@ -1080,7 +1080,7 @@ struct IntegrationTests {
             server: server,
             agent: "opencode",
             event: "session.status.busy",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
         #expect(manager.sessions[0].state == .working)
@@ -1094,14 +1094,14 @@ struct IntegrationTests {
             server: server,
             agent: "opencode",
             event: "session.created",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
         await simulateHook(
             server: server,
             agent: "opencode",
             event: "session.status.busy",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
         #expect(manager.sessions[0].state == .working)
@@ -1110,7 +1110,7 @@ struct IntegrationTests {
             server: server,
             agent: "opencode",
             event: "session.status.idle",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
         #expect(manager.sessions[0].state == .idle)
@@ -1124,14 +1124,14 @@ struct IntegrationTests {
             server: server,
             agent: "opencode",
             event: "session.created",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
         await simulateHook(
             server: server,
             agent: "opencode",
             event: "permission.asked",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
 
@@ -1147,21 +1147,21 @@ struct IntegrationTests {
             server: server,
             agent: "opencode",
             event: "session.created",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
         await simulateHook(
             server: server,
             agent: "opencode",
             event: "session.status.busy",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
         await simulateHook(
             server: server,
             agent: "opencode",
             event: "session.compacted",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
 
@@ -1176,7 +1176,7 @@ struct IntegrationTests {
             server: server,
             agent: "opencode",
             event: "session.created",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
         #expect(manager.sessions.count == 1)
@@ -1185,7 +1185,7 @@ struct IntegrationTests {
             server: server,
             agent: "opencode",
             event: "session.deleted",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
         #expect(manager.sessions.isEmpty)
@@ -1199,7 +1199,7 @@ struct IntegrationTests {
             server: server,
             agent: "opencode",
             event: "session.created",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
         #expect(manager.sessions.count == 1)
@@ -1208,7 +1208,7 @@ struct IntegrationTests {
             server: server,
             agent: "opencode",
             event: "server.instance.disposed",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s1"
         )
         #expect(manager.sessions.isEmpty)
@@ -1222,7 +1222,7 @@ struct IntegrationTests {
             server: server,
             agent: "claude-code",
             event: "SessionStart",
-            claudeSessionID: "cc-1",
+            agentSessionID: "cc-1",
             terminalSessionID: "s-cc",
             projectPath: "/claude/project"
         )
@@ -1231,7 +1231,7 @@ struct IntegrationTests {
             server: server,
             agent: "opencode",
             event: "session.created",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s-oc",
             projectPath: "/opencode/project"
         )
@@ -1251,7 +1251,7 @@ struct IntegrationTests {
             server: server,
             agent: "opencode",
             event: "session.status.busy",
-            claudeSessionID: "oc-1",
+            agentSessionID: "oc-1",
             terminalSessionID: "s-oc",
             projectPath: "/opencode/project"
         )
@@ -1270,7 +1270,7 @@ struct IntegrationTests {
             server: server,
             agent: "codex",
             event: "SessionStart",
-            claudeSessionID: "codex-1",
+            agentSessionID: "codex-1",
             terminalSessionID: "s1",
             projectPath: "/Users/test/codex-project"
         )
@@ -1298,34 +1298,34 @@ struct IntegrationTests {
         let server = HookServer(sessionManager: manager)
 
         await simulateHook(server: server, agent: "codex", event: "SessionStart",
-                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+                           agentSessionID: "codex-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .idle)
 
         await simulateHook(server: server, agent: "codex", event: "UserPromptSubmit",
-                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+                           agentSessionID: "codex-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .working)
 
         await simulateHook(server: server, agent: "codex", event: "PermissionRequest",
-                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+                           agentSessionID: "codex-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .permission)
 
         await simulateHook(server: server, agent: "codex", event: "UserPromptSubmit",
-                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+                           agentSessionID: "codex-1", terminalSessionID: "s1")
         UserDefaults.standard.set(true, forKey: autoReviewKey)
         await simulateHook(server: server, agent: "codex", event: "PermissionRequest",
-                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+                           agentSessionID: "codex-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .working)
 
         await simulateHook(server: server, agent: "codex", event: "PreCompact",
-                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+                           agentSessionID: "codex-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .compacting)
 
         await simulateHook(server: server, agent: "codex", event: "PostCompact",
-                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+                           agentSessionID: "codex-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .working)
 
         await simulateHook(server: server, agent: "codex", event: "Stop",
-                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+                           agentSessionID: "codex-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .idle)
 
         // The whole sequence is a single session.
@@ -1337,11 +1337,11 @@ struct IntegrationTests {
         let server = HookServer(sessionManager: manager)
 
         await simulateHook(server: server, agent: "codex", event: "SessionStart",
-                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+                           agentSessionID: "codex-1", terminalSessionID: "s1")
         #expect(manager.sessions.count == 1)
 
         await simulateHook(server: server, agent: "codex", event: "SessionEnd",
-                           claudeSessionID: "codex-1", terminalSessionID: "s1")
+                           agentSessionID: "codex-1", terminalSessionID: "s1")
         #expect(manager.sessions.isEmpty)
     }
 
@@ -1352,18 +1352,18 @@ struct IntegrationTests {
         let server = HookServer(sessionManager: manager)
 
         await simulateHook(server: server, agent: "codex", event: "SessionStart",
-                           claudeSessionID: "codex-old", terminalSessionID: "s1")
+                           agentSessionID: "codex-old", terminalSessionID: "s1")
         await simulateHook(server: server, agent: "codex", event: "SessionStart",
-                           claudeSessionID: "codex-new", terminalSessionID: "s1")
+                           agentSessionID: "codex-new", terminalSessionID: "s1")
         #expect(manager.sessions.count == 1)
 
         await simulateHook(server: server, agent: "codex", event: "SessionEnd",
-                           claudeSessionID: "codex-old", terminalSessionID: "s1")
+                           agentSessionID: "codex-old", terminalSessionID: "s1")
         #expect(manager.sessions.count == 1)
-        #expect(manager.sessions.first?.claudeSessionID == "codex-new")
+        #expect(manager.sessions.first?.agentSessionID == "codex-new")
 
         await simulateHook(server: server, agent: "codex", event: "SessionEnd",
-                           claudeSessionID: "codex-new", terminalSessionID: "s1")
+                           agentSessionID: "codex-new", terminalSessionID: "s1")
         #expect(manager.sessions.isEmpty)
     }
 
@@ -1375,7 +1375,7 @@ struct IntegrationTests {
             server: server,
             agent: "claude-code",
             event: "SessionStart",
-            claudeSessionID: "cc-1",
+            agentSessionID: "cc-1",
             terminalSessionID: "s-cc",
             projectPath: "/claude/project"
         )
@@ -1383,7 +1383,7 @@ struct IntegrationTests {
             server: server,
             agent: "codex",
             event: "SessionStart",
-            claudeSessionID: "codex-1",
+            agentSessionID: "codex-1",
             terminalSessionID: "s-codex",
             projectPath: "/codex/project"
         )
@@ -1397,7 +1397,7 @@ struct IntegrationTests {
             server: server,
             agent: "codex",
             event: "UserPromptSubmit",
-            claudeSessionID: "codex-1",
+            agentSessionID: "codex-1",
             terminalSessionID: "s-codex",
             projectPath: "/codex/project"
         )
@@ -1415,7 +1415,7 @@ struct IntegrationTests {
             server: server,
             agent: "pi",
             event: "session_start",
-            claudeSessionID: "pi-1",
+            agentSessionID: "pi-1",
             terminalSessionID: "s1",
             projectPath: "/Users/test/pi-project"
         )
@@ -1432,31 +1432,31 @@ struct IntegrationTests {
         let server = HookServer(sessionManager: manager)
 
         await simulateHook(server: server, agent: "pi", event: "session_start",
-                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+                           agentSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .idle)
 
         await simulateHook(server: server, agent: "pi", event: "agent_start",
-                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+                           agentSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .working)
 
         await simulateHook(server: server, agent: "pi", event: "permission_prompt",
-                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+                           agentSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .permission)
 
         await simulateHook(server: server, agent: "pi", event: "permission_resolved",
-                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+                           agentSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .working)
 
         await simulateHook(server: server, agent: "pi", event: "session_before_compact",
-                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+                           agentSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .compacting)
 
         await simulateHook(server: server, agent: "pi", event: "session_compact_working",
-                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+                           agentSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .working)
 
         await simulateHook(server: server, agent: "pi", event: "agent_settled",
-                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+                           agentSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .idle)
 
         // The whole sequence is a single session.
@@ -1468,15 +1468,15 @@ struct IntegrationTests {
         let server = HookServer(sessionManager: manager)
 
         await simulateHook(server: server, agent: "pi", event: "session_start",
-                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+                           agentSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .idle)
 
         await simulateHook(server: server, agent: "pi", event: "session_before_compact",
-                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+                           agentSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .compacting)
 
         await simulateHook(server: server, agent: "pi", event: "session_compact_idle",
-                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+                           agentSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .idle)
 
         #expect(manager.sessions.count == 1)
@@ -1489,11 +1489,11 @@ struct IntegrationTests {
         let server = HookServer(sessionManager: manager)
 
         await simulateHook(server: server, agent: "pi", event: "session_start",
-                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+                           agentSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.count == 1)
 
         await simulateHook(server: server, agent: "pi", event: "session_shutdown",
-                           claudeSessionID: "pi-1", terminalSessionID: "s1")
+                           agentSessionID: "pi-1", terminalSessionID: "s1")
         #expect(manager.sessions.isEmpty)
     }
 
@@ -1505,7 +1505,7 @@ struct IntegrationTests {
         let server = HookServer(sessionManager: manager)
 
         await simulateHook(server: server, agent: "antigravity", event: "PreInvocation",
-                           claudeSessionID: "ag-1", terminalSessionID: "s1",
+                           agentSessionID: "ag-1", terminalSessionID: "s1",
                            projectPath: "/Users/test/ag-project")
 
         #expect(manager.sessions.count == 1)
@@ -1519,11 +1519,11 @@ struct IntegrationTests {
         let server = HookServer(sessionManager: manager)
 
         await simulateHook(server: server, agent: "antigravity", event: "PreInvocation",
-                           claudeSessionID: "ag-1", terminalSessionID: "s1")
+                           agentSessionID: "ag-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .working)
 
         await simulateHook(server: server, agent: "antigravity", event: "Stop",
-                           claudeSessionID: "ag-1", terminalSessionID: "s1")
+                           agentSessionID: "ag-1", terminalSessionID: "s1")
         #expect(manager.sessions.first?.state == .idle)
         #expect(manager.sessions.count == 1)
     }

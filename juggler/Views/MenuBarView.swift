@@ -21,6 +21,11 @@ struct MenuBarView: View {
     @AppStorage(AppStorageKeys.autoAdvanceOnBusy) private var autoAdvanceOnBusy = false
     @AppStorage(AppStorageKeys.autoRestartOnIdle) private var autoRestartOnIdle = false
     @AppStorage(AppStorageKeys.prioritizePermissionSessions) private var prioritizePermissionSessions = false
+    @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw = SessionTitleMode.default.rawValue
+
+    private var titleMode: SessionTitleMode {
+        SessionTitleMode(rawValue: sessionTitleModeRaw) ?? .default
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -117,6 +122,20 @@ struct MenuBarView: View {
             RenameSessionView(session: session)
                 .environment(sessionManager)
         }
+        .sheet(item: $controller.sessionToEditNote) { session in
+            SessionNoteEditorView(
+                sessionName: sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode),
+                note: session.note,
+                onSave: { note in
+                    let saved = sessionManager.updateNote(for: session, note: note)
+                    controller.sessionToEditNote = nil
+                    if !saved {
+                        BeaconManager.shared.show(sessionName: "Session No Longer Available", force: true)
+                    }
+                },
+                onCancel: { controller.sessionToEditNote = nil }
+            )
+        }
         .onChange(of: sessionManager.sessions) { _, newSessions in
             controller.syncSelection(sessions: newSessions)
         }
@@ -170,7 +189,7 @@ struct MenuBarView: View {
         case .sendToBack: controller.sendToBackSelected(sessionManager: sessionManager)
         case .reactivateSelected: controller.reactivateSelected(sessionManager: sessionManager)
         case .reactivateAll: controller.reactivateAll(sessionManager: sessionManager)
-        case .rename: controller.renameSelected(sessions: sessionManager.sessions)
+        case .rename, .editNote: handleEditorAction(action)
         case .cycleModeForward: queueOrderMode = controller.cycleMode(forward: true, currentMode: queueOrderMode)
         case .cycleModeBackward: queueOrderMode = controller.cycleMode(forward: false, currentMode: queueOrderMode)
         case .toggleBeacon:
@@ -189,6 +208,14 @@ struct MenuBarView: View {
             } else {
                 BeaconManager.shared.show(sessionName: "Permission First N/A", force: true)
             }
+        }
+    }
+
+    private func handleEditorAction(_ action: SessionListAction) {
+        switch action {
+        case .rename: controller.renameSelected(sessions: sessionManager.sessions)
+        case .editNote: controller.editNoteSelected(sessions: sessionManager.sessions)
+        default: assertionFailure("Unexpected editor action")
         }
     }
 

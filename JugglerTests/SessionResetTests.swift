@@ -13,7 +13,7 @@ struct SessionResetTests {
     ) -> SessionManager {
         let manager = TestFixtures.isolatedSessionManager(hiddenBindings: hidden, function: function)
         manager.addOrUpdateSession(
-            claudeSessionID: "native",
+            agentSessionID: "native",
             terminalSessionID: "s1",
             projectPath: "/test/project",
             state: .idle,

@@ -94,7 +94,7 @@ Juggler/
 │   ├── SessionMonitorView.swift  # Main window session list
 │   ├── SessionRowView.swift      # Individual session row
 │   ├── SessionSlotGrid.swift     # 2x2 row detail grid (Session Monitor)
-│   ├── SessionRowGeometry.swift  # Row column widths, badge offset and trailing reserves
+│   ├── SessionRowGeometry.swift  # Row column widths, control alignment and trailing reserves
 │   ├── SettingsView.swift        # Preferences window
 │   └── ...                       # BeaconSettingsView, RowSlotSettings, SessionListController, SettingWithDescription, CodexSetupController, AntigravitySetupController, BusyStatsCorner, StatsChartView, WindowAccessor
 └── Resources/

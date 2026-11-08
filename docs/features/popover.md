@@ -77,14 +77,18 @@ When popover is focused:
 - `Return`: Activate selected session
 - `L`: Backburner selected session
 - `R`: Rename selected session
+- `M`: Edit note for selected session
 - `Shift+L`: Reactivate selected (if backburnered)
 - `H`: Reactivate all backburnered
 
 ### Context Menu (Right-Click)
 
 - **Rename**: Set custom display name
+- **Edit Note…**: Edit the session's note
 - **Backburner** / **Reactivate**: Toggle backburner state
 - **Remove**: Remove session from tracking. It stays hidden, including after a restart, until it reports new activity
+
+Notes are intentionally not shown in popover rows; use **Edit Note…** or `M` to view or change one.
 
 ## Shortcut Hints
 
@@ -95,8 +99,8 @@ Bottom section shows commonly used shortcuts:
 
 Can be hidden via Settings > Shortcuts > Show Shortcut Helper.
 
-Using Rename, Backburner, or Reactivate from a row's context menu shows its keyboard equivalent at the top center of
-the popover.
+Using Rename, Edit Note, Backburner, or Reactivate from a row's context menu shows its keyboard equivalent at the top
+center of the popover.
 
 ## Empty State
 

@@ -15,12 +15,12 @@ The SessionManager is the central state manager for tracking agent sessions (Cla
 
 ```swift
 struct Session: Identifiable, Codable, Equatable {
-    var claudeSessionID: String      // Agent session ID; refreshed when a new thread takes the pane
+    var agentSessionID: String      // Agent session ID; refreshed when a new thread takes the pane
     let terminalSessionID: String    // e.g., "w0t0p0:UUID"
     var tmuxPane: String?            // e.g., "%1", nil if not inside tmux
     var id: String { ... }           // Computed: "\(terminalSessionID):\(tmuxPane)" or terminalSessionID
     let terminalType: TerminalType   // .iterm2, .kitty, .wezterm
-    let agent: String                // "claude-code", "opencode", or "codex"
+    var agent: String                // "claude-code", "opencode", "codex", "pi", or "antigravity"
     let projectPath: String          // Working directory
     var terminalTabName: String?     // Tab name from terminal
     var terminalWindowName: String?  // Window name
@@ -37,8 +37,31 @@ struct Session: Identifiable, Codable, Equatable {
     var gitRepoName: String?         // Repository name
     var transcriptPath: String?      // Path to transcript JSONL
     var remoteHost: String?          // SSH host, nil for local sessions
+    var note: String?                // User-assigned note for this agent conversation
 }
 ```
+
+## Session Notes
+
+Notes are durable per agent conversation, not per terminal row. `SessionNoteStore` keys each note by the pair
+`(agent, agentSessionID)`, so resuming the same conversation restores its note even when it appears in another pane.
+All live rows for that pair stay synchronized. When a different `agentSessionID` takes over an existing pane, the row
+loads that conversation's own stored note (or no note) instead of inheriting the previous conversation's note.
+
+Conversation ownership changes only on agent-specific start or prompt events. Later lifecycle events from a previous
+conversation are ignored instead of replacing the pane's current identity or state. Removal events compare the agent
+namespace and, when supplied, the agent session ID before deleting the row.
+
+The store decodes the complete `UserDefaults` collection once at initialization and serves subsequent reads from an
+in-memory dictionary. Each note change or clear synchronously rewrites the complete collection, sorted by agent and
+agent session ID for deterministic encoding.
+
+A session without an agent session ID cannot form a durable key, so its note remains transient on the live `Session`.
+If the row later receives an ID, that transient note is saved under the resulting key. Removing a live row does not
+remove its persisted note, which allows a later resume of the same conversation to recover it.
+
+Only notes are restored from disk. The live session list remains in memory and is rebuilt from hook and terminal events
+after every app launch.
 
 ## Session States
 
@@ -123,9 +146,14 @@ delegates fired actions to `HotkeyManager` (`Managers/HotkeyManager.swift`), whi
 |---|---|
 | `⌘⇧K` / `⌘⇧J` | Cycle forward / backward through cyclable sessions |
 | `⌘⇧L` | Backburner the current session |
+| `⌘⇧O` | Send the current session to the back of its queue |
 | `⌘⇧H` | Reactivate all backburnered sessions |
 | `⌘⇧;` | Show monitor (popover → main window → dismiss cycle) |
 | `⌘⇧E` | Jump to the session from the most recent delivered notification |
+| `⌘⇧M` | Edit the note for the focused tracked session |
+
+The note shortcut requires one unambiguous focus match. When multiple remote tmux sessions share the same live local
+host pane and no unique session can be established, the shortcut reports that there is no active session.
 
 The jump-to-latest shortcut activates `SessionManager.lastNotifiedSessionID` (recorded by `NotificationManager` via `recordLastNotification`), independent of cycle order, and shows "No Notification" in the beacon if there's no recorded session or it's gone.
 

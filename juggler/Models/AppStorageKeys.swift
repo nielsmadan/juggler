@@ -7,6 +7,7 @@ nonisolated enum AppStorageKeys {
     static let quitOnMonitorClose = "quitOnMonitorClose"
     static let hasCompletedOnboarding = "hasCompletedOnboarding"
     static let sessionTitleMode = "sessionTitleMode"
+    static let sessionNotes = "sessionNotes"
     static let controlBarHintDismissed = "controlBarHintDismissed"
 
     static let queueOrderMode = "queueOrderMode"
@@ -32,6 +33,7 @@ nonisolated enum AppStorageKeys {
     static let monitorShowBranch = "monitorShowBranch"
     static let monitorReplaceHomeWithTilde = "monitorReplaceHomeWithTilde"
     static let monitorShowRenameButton = "monitorShowRenameButton"
+    static let monitorShowNoteButton = "monitorShowNoteButton"
     static let monitorSlotTopLeading = "monitorSlotTopLeading"
     static let monitorSlotTopTrailing = "monitorSlotTopTrailing"
     static let monitorSlotBottomLeading = "monitorSlotBottomLeading"

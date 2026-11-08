@@ -151,6 +151,8 @@ reset_defaults() {
   W=480 H=920
   tart exec "$vm" /usr/bin/defaults write com.nielsmadan.Juggler sessionTitleMode -string parentAndFolderName
   tart exec "$vm" /usr/bin/defaults write com.nielsmadan.Juggler enableStats -bool true
+  tart exec "$vm" /usr/bin/defaults write com.nielsmadan.Juggler monitorShowRenameButton -bool true
+  tart exec "$vm" /usr/bin/defaults write com.nielsmadan.Juggler monitorShowNoteButton -bool true
 }
 ```
 
@@ -227,11 +229,15 @@ each filename is the case id below plus `.png`.
 | `16-stats-on` | `enableStats -bool true` | same as `00` for comparison |
 | `17-static-list-long` | `queueOrderMode -string static`, long slots | `List` row variant (row padding 0) |
 | `18-bottom-trailing-long` | `slots folderPath model gitBranch agentTitle` | long value beside the stats corner |
-| `19-settings` | Settings > General (`cmd-,`) | "Row details" 2 x 2 pickers; read the picker's 17 items |
+| `19-settings` | Settings > General (`cmd-,`) | "Row details" 2 x 2 pickers; read the picker's 17 items; rename and note visibility toggles |
 | `20-settings-live` | pick Current Tool for Top left in Settings | row updates live; "Replace home path" disabled |
 | `21-tilde` | Folder Path back, enable "Replace home path with ~" | paths show `~/...` |
 | `22-migration` | quit, delete the four slot keys, `monitorShowFolderPath false`, `monitorShowBranch true`, relaunch | slots migrate to Git Branch / Model / None / Effort, once |
 | `23-backburner-details` | backburner the Antigravity row (`l`), POST a `Stop` with a new model | details update on the backburnered row |
+| `24-rename-hidden` | `monitorShowRenameButton -bool false` | only the note action is visible in the right-edge stack |
+| `25-note-hidden` | `monitorShowNoteButton -bool false` | only the rename action is visible in the right-edge stack |
+| `26-actions-hidden` | both visibility keys `false` | no action gap; the state badge owns the right edge |
+| `27-note-present` | select the first row, press `M`, enter `Layout note`, then press `Return` | run last; note line appears and the note action uses the filled bubble |
 
 All 17 options appear across cases 00 to 09 (`none` in 01 to 03). `reset_defaults` restores the 480 x 920 window; record the size used per screenshot. Dark mode:
 
@@ -242,6 +248,9 @@ tart exec "$vm" /usr/bin/osascript -e \
 
 Use `false` to return. Run cases 11 to 14 once at default slots and once at `slots agentTitle model
 gitBranch lastProblem` (long values stress truncation); name those copies with a `-long` suffix.
+Run case 27 last because saved notes persist for resumed conversations. Compare it with case 00 and
+verify the taller noted row keeps the state badge centered above the stats tabs while the action stack
+stays top-aligned.
 Example case:
 
 ```bash
@@ -252,8 +261,10 @@ tart exec "$vm" /usr/bin/osascript "$ui" rows > "$evidence/03-top-none.rows.txt"
 ```
 
 For each screenshot check: no truncation without an ellipsis, no overlapping text, a blank cell
-keeps its row height, a row of two None slots is absent, stats bar presence matches the toggle, text
-is legible in both appearances, and the selected row highlights. Record failures with the case id.
+keeps its row height, a row of two None slots is absent, stats bar presence matches the toggle,
+enabled row actions form a compact top-aligned vertical stack after the state badge at the right
+edge, the state badge is centered above the stats tabs, text is legible in both appearances, and the
+selected row highlights. Record failures with the case id.
 
 ## Sanitize and record
 

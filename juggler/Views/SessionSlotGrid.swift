@@ -40,7 +40,7 @@ struct SessionSlotGrid: View, Equatable {
                 ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
                     columns {
                         leadingCell(row.leading)
-                        trailingCell(row.trailing, reserve: index == 0 ? reserves.badge : reserves.corner)
+                        trailingCell(row.trailing, reserve: index == 0 ? reserves.top : reserves.bottom)
                     }
                 }
             }

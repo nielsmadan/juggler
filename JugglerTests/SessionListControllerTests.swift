@@ -149,6 +149,22 @@ struct SessionListControllerTests {
 
     // MARK: - cycleMode Tests
 
+    @Test func editNoteSelected_validSelectionSetsTarget() {
+        let controller = SessionListController()
+        let sessions = [makeSession("s1"), makeSession("s2")]
+        controller.setSelection(toSessionID: "s2", syncColor: false)
+
+        controller.editNoteSelected(sessions: sessions)
+
+        #expect(controller.sessionToEditNote?.id == "s2")
+    }
+
+    @Test func editNoteSelected_noSelectionDoesNothing() {
+        let controller = SessionListController()
+        controller.editNoteSelected(sessions: [makeSession("s1")])
+        #expect(controller.sessionToEditNote == nil)
+    }
+
     @Test func cycleMode_forward_fairToPrio() {
         let controller = SessionListController()
 
@@ -317,6 +333,20 @@ struct SessionListControllerTests {
         #expect(controller.selectedSessionID == "clicked")
         #expect(controller.sessionToRename?.id == "clicked")
         #expect(shortcutAction == .rename)
+    }
+
+    @Test @MainActor func contextEditNote_selectsClickedSessionAndUsesParentEditorTarget() {
+        let controller = SessionListController()
+        let manager = SessionManager()
+        let sessions = [makeSession("selected"), makeSession("clicked")]
+        manager.testSetSessions(sessions)
+        controller.setSelection(toSessionID: "selected")
+
+        let shortcutAction = controller.performContextAction(.editNote, on: sessions[1], sessionManager: manager)
+
+        #expect(controller.selectedSessionID == "clicked")
+        #expect(controller.sessionToEditNote?.id == "clicked")
+        #expect(shortcutAction == .editNote)
     }
 
     @Test @MainActor func contextBackburner_selectsAndChangesOnlyClickedSession() {

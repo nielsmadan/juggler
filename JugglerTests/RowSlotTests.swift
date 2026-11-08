@@ -7,7 +7,7 @@ private let now = Date(timeIntervalSince1970: 1_000_000)
 
 private func populatedSession(projectPath: String = "/work/org/app") -> Session {
     var session = Session(
-        claudeSessionID: "native",
+        agentSessionID: "native",
         terminalSessionID: "w0t0p0:abc",
         terminalType: .iterm2,
         agent: "codex",

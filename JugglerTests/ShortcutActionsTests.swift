@@ -8,6 +8,11 @@ import Testing
 @Suite("Shortcut actions")
 @MainActor
 struct ShortcutActionsTests {
+    @Test func noteActionsUseMatchingDefaultShortcuts() {
+        #expect(GlobalAction.editNote.definition.defaultShortcuts == [Shortcut("cmd+shift+m")])
+        #expect(SessionListAction.editNote.definition.defaultShortcuts == [Shortcut("m")])
+    }
+
     @Test func sessionListContext_usesShortcutsTitle() {
         #expect(String(localized: ShortcutCenter.shared.sessionListContext.displayName) == "Shortcuts")
     }
@@ -28,6 +33,7 @@ struct ShortcutActionsTests {
             .reactivateSelected,
             .reactivateAll,
             .rename,
+            .editNote,
             .cycleModeForward,
             .cycleModeBackward
         ])
@@ -63,6 +69,7 @@ struct ShortcutActionsTests {
     @Test func rowContextActions_mapToMatchingShortcuts() {
         #expect(SessionRowContextAction.allCases.map(\.shortcutAction) == [
             .rename,
+            .editNote,
             .backburner,
             .reactivateSelected
         ])

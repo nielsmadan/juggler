@@ -357,7 +357,7 @@ actor HookServer {
         guard let pane = status.tmux?.pane, !pane.isEmpty, !status.session.id.isEmpty else { return [] }
         return sessionManager.sessions
             .filter {
-                $0.tmuxPane == pane && $0.claudeSessionID == status.session.id && $0.agent == status.jugglerAgent
+                $0.tmuxPane == pane && $0.agentSessionID == status.session.id && $0.agent == status.jugglerAgent
             }
             .map(\.id)
     }
@@ -451,7 +451,7 @@ actor HookServer {
             suppressedCodexPermissionBindings.remove(status.bindingId)
             await removeSessionIfCurrent(
                 compositeID: compositeID,
-                agentSessionID: status.session.id,
+                incoming: AgentSessionIdentity(agent: status.jugglerAgent, agentSessionID: status.session.id),
                 event: status.event
             )
             return
@@ -481,10 +481,10 @@ actor HookServer {
             )
         }
 
-        let enteredState = await MainActor.run {
+        let result = await MainActor.run {
             let before = self.sessionManager.sessions.first(where: { $0.id == compositeID })?.state
-            self.sessionManager.addOrUpdateSession(
-                claudeSessionID: status.session.id,
+            let accepted = self.sessionManager.addOrUpdateSession(
+                agentSessionID: status.session.id,
                 terminalSessionID: terminalSessionID,
                 tmuxPane: status.tmux?.pane,
                 tmuxSessionName: status.tmux?.sessionName,
@@ -502,11 +502,12 @@ actor HookServer {
                 detailsChange: detailsChange
             )
             let after = self.sessionManager.sessions.first(where: { $0.id == compositeID })?.state
-            return Self.enteredState(before: before, after: after)
+            return (accepted: accepted, enteredState: Self.enteredState(before: before, after: after))
         }
+        guard result.accepted else { return }
 
         // Restoring a snapshot is not a state change the user needs to hear about.
-        if source == .live, let enteredState {
+        if source == .live, let enteredState = result.enteredState {
             await notifyOnEntering(enteredState, sessionID: compositeID)
         }
 
@@ -555,7 +556,7 @@ actor HookServer {
 
     private func handleUnifiedHookEvent(_ payload: UnifiedHookPayload) async {
         let terminalSessionID = payload.terminal?.sessionId ?? ""
-        let claudeSessionID = payload.hookInput?.sessionId ?? ""
+        let agentSessionID = payload.hookInput?.sessionId ?? ""
         let cwd = payload.terminal?.cwd ?? ""
         let gitBranch = payload.git?.branch
         let gitRepo = payload.git?.repo
@@ -596,10 +597,10 @@ actor HookServer {
                 model: payload.hookInput?.model,
                 terminationReason: payload.hookInput?.terminationReason
             ) : nil
-            let enteredState = await MainActor.run {
+            let result = await MainActor.run {
                 let before = self.sessionManager.sessions.first(where: { $0.id == compositeID })?.state
-                self.sessionManager.addOrUpdateSession(
-                    claudeSessionID: claudeSessionID,
+                let accepted = self.sessionManager.addOrUpdateSession(
+                    agentSessionID: agentSessionID,
                     terminalSessionID: terminalSessionID,
                     tmuxPane: tmuxPane,
                     tmuxSessionName: tmuxSessionName,
@@ -615,9 +616,10 @@ actor HookServer {
                     detailsChange: detailsChange
                 )
                 let after = self.sessionManager.sessions.first(where: { $0.id == compositeID })?.state
-                return Self.enteredState(before: before, after: after)
+                return (accepted: accepted, enteredState: Self.enteredState(before: before, after: after))
             }
-            if let enteredState {
+            guard result.accepted else { return }
+            if let enteredState = result.enteredState {
                 await notifyOnEntering(enteredState, sessionID: compositeID)
             }
 
@@ -631,7 +633,7 @@ actor HookServer {
         case .removeSession:
             await removeSessionIfCurrent(
                 compositeID: compositeID,
-                agentSessionID: claudeSessionID,
+                incoming: AgentSessionIdentity(agent: payload.agent, agentSessionID: agentSessionID),
                 event: payload.event
             )
 
@@ -722,17 +724,22 @@ actor HookServer {
 
     /// A Codex thread abandoned via `/new` keeps firing its own SessionEnd at idle-unload, long
     /// after a newer thread took over the pane. Sessions are keyed by pane, so removing
-    /// unconditionally would delete the live row. Only skip when both ids are known and disagree —
-    /// agents that send no session id keep the unconditional behaviour.
+    /// unconditionally would delete the live row. Agent namespaces must match; when the event has
+    /// a session id, it must match too. Same-agent events without an id retain their legacy behavior.
     @MainActor
-    private func removeSessionIfCurrent(compositeID: String, agentSessionID: String, event: String) {
+    private func removeSessionIfCurrent(
+        compositeID: String,
+        incoming: AgentSessionIdentity,
+        event: String
+    ) {
         let current = sessionManager.sessions.first { $0.id == compositeID }
-        if let current, !agentSessionID.isEmpty, !current.claudeSessionID.isEmpty,
-           current.claudeSessionID != agentSessionID {
+        if let currentIdentity = current?.agentSessionIdentity,
+           currentIdentity.agent != incoming.agent
+           || (!incoming.agentSessionID.isEmpty && currentIdentity.agentSessionID != incoming.agentSessionID) {
             logDebug(
                 .hooks,
-                "Ignoring \(event) from stale session \(agentSessionID) "
-                    + "(pane holds \(current.claudeSessionID))"
+                "Ignoring \(event) from stale session \(incoming.agentSessionID) "
+                    + "(pane holds \(currentIdentity.agentSessionID))"
             )
             return
         }

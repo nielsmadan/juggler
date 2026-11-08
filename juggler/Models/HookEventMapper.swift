@@ -26,6 +26,19 @@ enum HookEventMapper {
         }
     }
 
+    nonisolated static func establishesSessionIdentity(event: String, agent: String) -> Bool {
+        switch agent {
+        case "opencode":
+            event == "session.created"
+        case "pi":
+            event == "session_start"
+        case "antigravity":
+            event == "PreInvocation"
+        default:
+            event == "SessionStart" || event == "UserPromptSubmit"
+        }
+    }
+
     private nonisolated static func mapClaudeCode(event: String) -> MappedAction {
         switch event {
         case "SessionStart", "Stop", "StopFailure":

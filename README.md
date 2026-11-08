@@ -77,6 +77,7 @@ Upgrades and ordinary reinstalls preserve integrations. Other tools' hooks and s
 - **Queue modes** - Fair (round-robin), Priority (most recent first), Static (creation order), or Grouped (by window)
 - **Permission-first queue** - Optionally keep quick permission decisions ahead of ordinary idle sessions
 - **Backburner** - Park sessions you don't need right now. They stay tracked but won't appear in your cycle
+- **Session notes** - Add a short note to a conversation and see it in the monitor and beacon when you return
 - **Idle time stats** - Per-session and global idle vs. working time
 - **Guided setup** - Onboarding walks you through permissions, terminal integration, and hook installation
 
@@ -90,6 +91,7 @@ Upgrades and ordinary reinstalls preserve integrations. Other tools' hooks and s
 | `⇧⌘O` | Send current session to back of queue |
 | `⇧⌘H` | Reactivate all backburnered sessions |
 | `⇧⌘E` | Activate session from last notification |
+| `⇧⌘M` | Edit note for the focused tracked session |
 | `⇧⌘;` | Toggle popover / open monitor |
 
 All shortcuts are customizable in Settings.

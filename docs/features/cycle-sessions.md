@@ -9,11 +9,22 @@ The core feature of Juggler: cycling through agent sessions (Claude Code, OpenCo
 | `⇧⌘K` | Cycle forward through sessions |
 | `⇧⌘J` | Cycle backward through sessions |
 | `⇧⌘L` | Backburner current session |
+| `⇧⌘O` | Send current session to the back of its queue |
 | `⇧⌘H` | Reactivate all backburnered sessions |
 | `⇧⌘E` | Activate session from last notification |
+| `⇧⌘M` | Edit note for the focused tracked session |
 | `⇧⌘;` | Show session monitor window |
 
 All shortcuts are customizable in **Settings > Shortcuts**.
+
+## Session Notes
+
+Press `⇧⌘M` from any app to edit the note for the uniquely focused tracked session in an active terminal. Juggler does not guess or fall back to another session: if no active terminal has exactly one focused tracked session, it shows **"No Active Session"**.
+
+Notes use a compact single-line editor. Press `Return` to save or `Escape` to cancel. They are stored with the coding-agent conversation, so resuming the same conversation restores its note. Starting a new conversation in the same terminal pane does not inherit the old note.
+
+If the editor is already visible and the shortcut is invoked from a different focused session, it retargets to that
+session. Invoking it again for the same conversation keeps the current draft.
 
 ## Cycling Behavior
 

@@ -74,15 +74,30 @@ enum BusyStatsCornerLayout {
 enum StateBadgeLayout {
     static let frameWidth: CGFloat = 70
     static let trailingPadding: CGFloat = 4
-    /// Distance from a right-anchored badge's center to the row's right edge,
-    /// excluding the row's outer horizontal padding.
-    static var centerXFromRight: CGFloat { trailingPadding + frameWidth / 2 }
+}
+
+enum SessionRowActionLayout {
+    static let buttonSize: CGFloat = 16
+    static let iconSize: CGFloat = 11
+    static let verticalSpacing: CGFloat = 2
+    static let trailingPadding: CGFloat = 4
+
+    static func width(showsActions: Bool) -> CGFloat {
+        showsActions ? buttonSize + trailingPadding : 0
+    }
 }
 
 /// Geometry constants for session rows in the monitor window.
 enum SessionMonitorRowLayout {
+    struct Insets {
+        let horizontal: CGFloat
+        let vertical: CGFloat
+    }
+
     /// Floors every row's content height so a row stays aligned with its
     /// neighbors when its slot rows are hidden.
     static let contentMinHeight: CGFloat = 56
     static let titleToSlotsSpacing: CGFloat = 8
+    static let listInsets = Insets(horizontal: 0, vertical: 4)
+    static let scrollInsets = Insets(horizontal: 16, vertical: 8)
 }

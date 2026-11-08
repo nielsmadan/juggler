@@ -20,6 +20,7 @@ enum GlobalAction: String, ShortcutAction {
     case sendToBack
     case reactivateAll
     case goToLastNotification
+    case editNote
     case showMonitor
 
     var definition: ShortcutActionDefinition {
@@ -39,6 +40,12 @@ enum GlobalAction: String, ShortcutAction {
                 "Last Notification:",
                 Shortcut("cmd+shift+e"),
                 description: "Activates the session from the most recent notification."
+            )
+        case .editNote:
+            .init(
+                "Edit Current Note:",
+                Shortcut("cmd+shift+m"),
+                description: "Edits the note for the tracked session focused in an active terminal."
             )
         case .showMonitor:
             .init(
@@ -61,6 +68,7 @@ enum SessionListAction: String, ShortcutAction {
     case reactivateSelected
     case reactivateAll
     case rename
+    case editNote
     case cycleModeForward
     case cycleModeBackward
     case toggleBeacon
@@ -78,6 +86,7 @@ enum SessionListAction: String, ShortcutAction {
         case .reactivateSelected: .init("Reactivate Selected", Shortcut("shift+l"))
         case .reactivateAll: .init("Reactivate All", Shortcut("h"))
         case .rename: .init("Rename", Shortcut("r"))
+        case .editNote: .init("Edit Note", Shortcut("m"))
         case .cycleModeForward: .init("Cycle Mode Forward", Shortcut("tab"))
         case .cycleModeBackward: .init("Cycle Mode Backward", Shortcut("shift+tab"))
         case .toggleBeacon: .init("Toggle Beacon", Shortcut("b"))
@@ -100,6 +109,7 @@ enum SessionListAction: String, ShortcutAction {
         switch self {
         case .activate, .moveDown, .moveUp, .backburner, .sendToBack,
              .reactivateSelected, .reactivateAll, .rename,
+             .editNote,
              .cycleModeForward, .cycleModeBackward:
             true
         case .toggleBeacon, .toggleAutoNext, .toggleAutoRestart, .togglePermissionFirst:
@@ -110,12 +120,14 @@ enum SessionListAction: String, ShortcutAction {
 
 enum SessionRowContextAction: CaseIterable {
     case rename
+    case editNote
     case backburner
     case reactivate
 
     var shortcutAction: SessionListAction {
         switch self {
         case .rename: .rename
+        case .editNote: .editNote
         case .backburner: .backburner
         case .reactivate: .reactivateSelected
         }

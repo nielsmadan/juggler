@@ -53,7 +53,7 @@ struct BeaconMetadataTests {
         state: SessionState = .idle
     ) -> Session {
         Session(
-            claudeSessionID: id,
+            agentSessionID: id,
             terminalSessionID: id,
             terminalType: terminalType,
             agent: agent,

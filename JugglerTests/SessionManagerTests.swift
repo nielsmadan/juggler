@@ -19,6 +19,19 @@ private func overrideQueueOrderMode(_ mode: QueueOrderMode) -> () -> Void {
     return restore
 }
 
+@MainActor
+private func freshNoteManager() -> (SessionManager, SessionNoteStore, () -> Void) {
+    let suite = "SessionManagerNotes-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defaults.removePersistentDomain(forName: suite)
+    let noteStore = SessionNoteStore(defaults: defaults)
+    return (
+        SessionManager(noteStore: noteStore),
+        noteStore,
+        { defaults.removePersistentDomain(forName: suite) }
+    )
+}
+
 @Suite("SessionManager")
 struct SessionManagerTests {
     // MARK: - reorderForMode Tests
@@ -270,7 +283,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "claude-1",
+            agentSessionID: "claude-1",
             terminalSessionID: "w0t0p0:abc",
             projectPath: "/test/project",
             state: .idle
@@ -280,6 +293,287 @@ struct SessionManagerTests {
         #expect(manager.sessions[0].terminalSessionID == "w0t0p0:abc")
         #expect(manager.sessions[0].projectPath == "/test/project")
         #expect(manager.sessions[0].state == .idle)
+    }
+
+    @Test @MainActor func addSession_hydratesPersistedConversationNote() {
+        let (manager, store, cleanup) = freshNoteManager()
+        defer { cleanup() }
+        let key = SessionNoteKey(agent: "codex", agentSessionID: "conversation-1")
+        store.setNote("Fix parser", for: key)
+
+        manager.addOrUpdateSession(
+            agentSessionID: "conversation-1", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+
+        #expect(manager.sessions[0].note == "Fix parser")
+    }
+
+    @Test @MainActor func sameConversationInAnotherPaneRestoresNote() {
+        let (manager, store, cleanup) = freshNoteManager()
+        defer { cleanup() }
+        store.setNote("Resume this", for: .init(agent: "pi", agentSessionID: "conversation-1"))
+
+        manager.addOrUpdateSession(
+            agentSessionID: "conversation-1", terminalSessionID: "other-pane",
+            agent: "pi", projectPath: "/project", state: .idle
+        )
+
+        #expect(manager.sessions[0].note == "Resume this")
+    }
+
+    @Test @MainActor func newConversationInSamePaneDoesNotInheritOldNote() {
+        let (manager, store, cleanup) = freshNoteManager()
+        defer { cleanup() }
+        manager.addOrUpdateSession(
+            agentSessionID: "old", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+        _ = manager.updateNote(for: manager.sessions[0], note: "Old task")
+
+        manager.addOrUpdateSession(
+            agentSessionID: "new", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+
+        #expect(manager.sessions[0].agentSessionID == "new")
+        #expect(manager.sessions[0].note == nil)
+        #expect(store.note(for: .init(agent: "codex", agentSessionID: "old")) == "Old task")
+    }
+
+    @Test @MainActor func newConversationInSamePaneLoadsItsOwnStoredNote() {
+        let (manager, store, cleanup) = freshNoteManager()
+        defer { cleanup() }
+        store.setNote("New task", for: .init(agent: "codex", agentSessionID: "new"))
+        manager.addOrUpdateSession(
+            agentSessionID: "old", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+        _ = manager.updateNote(for: manager.sessions[0], note: "Old task")
+
+        manager.addOrUpdateSession(
+            agentSessionID: "new", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+
+        #expect(manager.sessions[0].note == "New task")
+    }
+
+    @Test @MainActor func transientIDLessNotePersistsWhenIdentityArrives() {
+        let (manager, store, cleanup) = freshNoteManager()
+        defer { cleanup() }
+        manager.addOrUpdateSession(
+            agentSessionID: "", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+        _ = manager.updateNote(for: manager.sessions[0], note: "Transient task")
+
+        manager.addOrUpdateSession(
+            agentSessionID: "conversation-1", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+
+        #expect(manager.sessions[0].note == "Transient task")
+        #expect(store.note(for: .init(agent: "codex", agentSessionID: "conversation-1")) == "Transient task")
+    }
+
+    @Test @MainActor func differentAgentInSamePaneDoesNotInheritEqualConversationIDNote() {
+        let (manager, store, cleanup) = freshNoteManager()
+        defer { cleanup() }
+        manager.addOrUpdateSession(
+            agentSessionID: "shared-id", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+        _ = manager.updateNote(for: manager.sessions[0], note: "Codex task")
+
+        manager.addOrUpdateSession(
+            agentSessionID: "shared-id", terminalSessionID: "pane-1",
+            agent: "pi", projectPath: "/project", state: .idle
+        )
+
+        #expect(manager.sessions[0].agent == "pi")
+        #expect(manager.sessions[0].agentSessionID == "shared-id")
+        #expect(manager.sessions[0].note == nil)
+        #expect(store.note(for: .init(agent: "codex", agentSessionID: "shared-id")) == "Codex task")
+    }
+
+    @Test @MainActor func delayedLifecycleEventDoesNotReclaimPaneFromCurrentConversation() {
+        let (manager, store, cleanup) = freshNoteManager()
+        defer { cleanup() }
+        store.setNote("Old task", for: .init(agent: "codex", agentSessionID: "old"))
+        store.setNote("Current task", for: .init(agent: "pi", agentSessionID: "current"))
+        manager.addOrUpdateSession(
+            agentSessionID: "old", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle, event: "SessionStart"
+        )
+        manager.addOrUpdateSession(
+            agentSessionID: "current", terminalSessionID: "pane-1",
+            agent: "pi", projectPath: "/project", state: .working, event: "session_start"
+        )
+
+        manager.addOrUpdateSession(
+            agentSessionID: "old", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle, event: "Stop"
+        )
+
+        #expect(manager.sessions[0].agentSessionIdentity == .init(agent: "pi", agentSessionID: "current"))
+        #expect(manager.sessions[0].state == .working)
+        #expect(manager.sessions[0].note == "Current task")
+    }
+
+    @Test @MainActor func transientIDLessNoteDoesNotMigrateAcrossAgentChange() {
+        let (manager, store, cleanup) = freshNoteManager()
+        defer { cleanup() }
+        manager.addOrUpdateSession(
+            agentSessionID: "", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+        _ = manager.updateNote(for: manager.sessions[0], note: "Codex task")
+
+        manager.addOrUpdateSession(
+            agentSessionID: "pi-conversation", terminalSessionID: "pane-1",
+            agent: "pi", projectPath: "/project", state: .idle
+        )
+
+        #expect(manager.sessions[0].agent == "pi")
+        #expect(manager.sessions[0].note == nil)
+        #expect(store.notes.isEmpty)
+    }
+
+    @Test @MainActor func clearingNoteUpdatesLiveDuplicatesAndStore() {
+        let (manager, store, cleanup) = freshNoteManager()
+        defer { cleanup() }
+        manager.addOrUpdateSession(
+            agentSessionID: "shared", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+        manager.addOrUpdateSession(
+            agentSessionID: "shared", terminalSessionID: "pane-2",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+        _ = manager.updateNote(for: manager.sessions[0], note: "Shared task")
+        #expect(manager.sessions.map(\.note) == ["Shared task", "Shared task"])
+        _ = manager.updateNote(for: manager.sessions[1], note: "  ")
+
+        #expect(manager.sessions.allSatisfy { $0.note == nil })
+        #expect(store.note(for: .init(agent: "codex", agentSessionID: "shared")) == nil)
+    }
+
+    @Test @MainActor func idlessNoteDoesNotCreatePersistentTerminalKey() {
+        let (manager, store, cleanup) = freshNoteManager()
+        defer { cleanup() }
+        manager.addOrUpdateSession(
+            agentSessionID: "", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+
+        #expect(manager.updateNote(for: manager.sessions[0], note: "Transient") == true)
+        #expect(manager.sessions[0].note == "Transient")
+        #expect(store.notes.isEmpty)
+    }
+
+    @Test @MainActor func disappearedDurableTargetCanStillSaveForResume() {
+        let (manager, store, cleanup) = freshNoteManager()
+        defer { cleanup() }
+        manager.addOrUpdateSession(
+            agentSessionID: "conversation-1", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+        let target = manager.sessions[0]
+        manager.removeSession(sessionID: target.id)
+
+        #expect(manager.updateNote(for: target, note: "Resume later") == true)
+        let key = SessionNoteKey(agent: "codex", agentSessionID: "conversation-1")
+        #expect(store.note(for: key) == "Resume later")
+    }
+
+    @Test @MainActor func disappearedIDLessTargetCannotSave() {
+        let (manager, store, cleanup) = freshNoteManager()
+        defer { cleanup() }
+        manager.addOrUpdateSession(
+            agentSessionID: "", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+        let target = manager.sessions[0]
+        manager.removeSession(sessionID: target.id)
+
+        #expect(manager.updateNote(for: target, note: "Unavailable") == false)
+        #expect(store.notes.isEmpty)
+    }
+
+    @Test @MainActor func durableEditorTargetDoesNotOverwriteReplacementConversation() {
+        let (manager, store, cleanup) = freshNoteManager()
+        defer { cleanup() }
+        manager.addOrUpdateSession(
+            agentSessionID: "old", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+        let oldTarget = manager.sessions[0]
+        manager.addOrUpdateSession(
+            agentSessionID: "new", terminalSessionID: "pane-1",
+            agent: "codex", projectPath: "/project", state: .idle
+        )
+
+        #expect(manager.updateNote(for: oldTarget, note: "Old conversation") == true)
+        #expect(manager.sessions[0].agentSessionID == "new")
+        #expect(manager.sessions[0].note == nil)
+        #expect(store.note(for: .init(agent: "codex", agentSessionID: "old")) == "Old conversation")
+    }
+
+    @Test(arguments: [SessionState.working, .backburner])
+    @MainActor
+    func focusedTrackedSessionReturnsTrackedSessionInAnyState(state: SessionState) {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("focused", state: state)])
+        manager.isTerminalAppActive = true
+        manager.testSetFocusedSessionID("focused")
+        manager.frontmostTerminalTypeProvider = { .iterm2 }
+
+        #expect(manager.focusedTrackedSession?.id == "focused")
+    }
+
+    @Test @MainActor func focusedTrackedSessionRequiresActiveTerminal() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("focused")])
+        manager.testSetFocusedSessionID("focused")
+        manager.isTerminalAppActive = false
+
+        #expect(manager.focusedTrackedSession == nil)
+    }
+
+    @Test @MainActor func focusedTrackedSessionDoesNotFallBackWhenFocusIsUnknown() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("available")])
+        manager.testSetLastActiveSessionID("available")
+        manager.testSetFocusedSessionID("unknown")
+        manager.isTerminalAppActive = true
+        manager.frontmostTerminalTypeProvider = { .iterm2 }
+
+        #expect(manager.focusedTrackedSession == nil)
+    }
+
+    @Test @MainActor func focusedTrackedSessionReturnsNilForAmbiguousTerminalIdentity() {
+        let manager = SessionManager()
+        var first = makeSession("shared-terminal")
+        first.tmuxPane = "%1"
+        var second = makeSession("shared-terminal")
+        second.tmuxPane = "%2"
+        manager.testSetSessions([first, second])
+        manager.testSetFocusedSessionID("shared-terminal")
+        manager.isTerminalAppActive = true
+        manager.frontmostTerminalTypeProvider = { .iterm2 }
+
+        #expect(manager.focusedTrackedSession == nil)
+    }
+
+    @Test @MainActor func focusedTrackedSessionRequiresFocusFromFrontmostTerminal() {
+        let manager = SessionManager()
+        manager.testSetSessions([makeSession("focused")])
+        manager.testSetFocusedSessionID("focused")
+        manager.isTerminalAppActive = true
+        manager.frontmostTerminalTypeProvider = { .wezterm }
+
+        #expect(manager.focusedTrackedSession == nil)
     }
 
     /// The skip-bug fix: navigation uses `orderedVisibleSessions()` (the rendered
@@ -362,10 +656,10 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
         )
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle,
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle,
             gitBranch: "feature-x", gitRepoName: "my-repo"
         )
 
@@ -378,11 +672,11 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .backburner
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .backburner
         )
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p",
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p",
             state: .working, event: "PreToolUse", gitBranch: "new-branch"
         )
 
@@ -394,10 +688,10 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .backburner
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .backburner
         )
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p",
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p",
             state: .working, event: "UserPromptSubmit"
         )
 
@@ -410,14 +704,14 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", agent: "antigravity",
+            agentSessionID: "c1", terminalSessionID: "s1", agent: "antigravity",
             projectPath: "/p", state: .idle
         )
         manager.backburnerSession(terminalSessionID: "s1")
         #expect(manager.sessions[0].state == .backburner)
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", agent: "antigravity",
+            agentSessionID: "c1", terminalSessionID: "s1", agent: "antigravity",
             projectPath: "/p", state: .working, event: "PreInvocation"
         )
 
@@ -428,14 +722,14 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", agent: "antigravity",
+            agentSessionID: "c1", terminalSessionID: "s1", agent: "antigravity",
             projectPath: "/p", state: .working
         )
         manager.backburnerSession(terminalSessionID: "s1")
         #expect(manager.sessions[0].state == .backburner)
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", agent: "antigravity",
+            agentSessionID: "c1", terminalSessionID: "s1", agent: "antigravity",
             projectPath: "/p", state: .working, event: "PreInvocation"
         )
 
@@ -447,14 +741,14 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", agent: "claude-code",
+            agentSessionID: "c1", terminalSessionID: "s1", agent: "claude-code",
             projectPath: "/p", state: .idle
         )
         manager.backburnerSession(terminalSessionID: "s1")
         #expect(manager.sessions[0].state == .backburner)
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", agent: "claude-code",
+            agentSessionID: "c1", terminalSessionID: "s1", agent: "claude-code",
             projectPath: "/p", state: .working, event: "PreToolUse"
         )
 
@@ -465,7 +759,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "w0t0p0:abc",
+            agentSessionID: "c1", terminalSessionID: "w0t0p0:abc",
             tmuxPane: "%1", projectPath: "/p", state: .idle
         )
 
@@ -479,10 +773,10 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/project-a", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/project-a", state: .idle
         )
         manager.addOrUpdateSession(
-            claudeSessionID: "c2", terminalSessionID: "s2", projectPath: "/project-b", state: .idle
+            agentSessionID: "c2", terminalSessionID: "s2", projectPath: "/project-b", state: .idle
         )
 
         let name = manager.disambiguatedDisplayName(for: manager.sessions[0])
@@ -493,10 +787,10 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/same-project", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/same-project", state: .idle
         )
         manager.addOrUpdateSession(
-            claudeSessionID: "c2", terminalSessionID: "s2", projectPath: "/same-project", state: .idle
+            agentSessionID: "c2", terminalSessionID: "s2", projectPath: "/same-project", state: .idle
         )
 
         manager.updateSessionTerminalInfo(terminalSessionID: "s1", tabName: nil, paneIndex: 0, paneCount: 2)
@@ -514,10 +808,10 @@ struct SessionManagerTests {
 
         // Different paths but same folder name
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/a/project", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/a/project", state: .idle
         )
         manager.addOrUpdateSession(
-            claudeSessionID: "c2", terminalSessionID: "s2", projectPath: "/b/project", state: .idle
+            agentSessionID: "c2", terminalSessionID: "s2", projectPath: "/b/project", state: .idle
         )
 
         manager.updateSessionTerminalInfo(terminalSessionID: "s1", tabName: "tab-a", paneIndex: 0, paneCount: 1)
@@ -534,10 +828,10 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/a/project", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/a/project", state: .idle
         )
         manager.addOrUpdateSession(
-            claudeSessionID: "c2", terminalSessionID: "s2", projectPath: "/b/project", state: .idle
+            agentSessionID: "c2", terminalSessionID: "s2", projectPath: "/b/project", state: .idle
         )
 
         let name1 = manager.disambiguatedDisplayName(for: manager.sessions[0], titleMode: .parentAndFolderName)
@@ -554,10 +848,10 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
         )
         manager.addOrUpdateSession(
-            claudeSessionID: "c2", terminalSessionID: "s2", projectPath: "/p", state: .idle
+            agentSessionID: "c2", terminalSessionID: "s2", projectPath: "/p", state: .idle
         )
 
         manager.removeSession(sessionID: "s1")
@@ -570,7 +864,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
         )
 
         manager.removeSession(sessionID: "s1")
@@ -582,7 +876,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
         )
 
         manager.removeSession(sessionID: "nonexistent")
@@ -596,7 +890,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
         )
 
         manager.renameSession(terminalSessionID: "s1", customName: "My Session")
@@ -609,7 +903,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/project", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/project", state: .idle
         )
         manager.renameSession(terminalSessionID: "s1", customName: "Custom")
         manager.renameSession(terminalSessionID: "s1", customName: "")
@@ -663,7 +957,7 @@ struct SessionManagerTests {
 
         var session = makeSession("w0t0p0:abc-123")
         session = Session(
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "w0t0p0:abc-123",
             terminalType: .iterm2,
             agent: "claude-code",
@@ -713,7 +1007,7 @@ struct SessionManagerTests {
 
         // Simulate multiple tmux panes sharing the same iTerm2 session UUID
         let s1 = Session(
-            claudeSessionID: "c1",
+            agentSessionID: "c1",
             terminalSessionID: "w0t0p0:shared-uuid",
             tmuxPane: "%1",
             terminalType: .iterm2,
@@ -726,7 +1020,7 @@ struct SessionManagerTests {
             startedAt: Date()
         )
         let s2 = Session(
-            claudeSessionID: "c2",
+            agentSessionID: "c2",
             terminalSessionID: "w0t0p0:shared-uuid",
             tmuxPane: "%2",
             terminalType: .iterm2,
@@ -793,7 +1087,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
         )
 
         manager.updateSessionTerminalInfo(
@@ -819,7 +1113,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
         )
 
         manager.updateSessionTerminalInfo(
@@ -835,12 +1129,12 @@ struct SessionManagerTests {
 
         // Two tmux panes sharing the same terminal session
         let s1 = Session(
-            claudeSessionID: "c1", terminalSessionID: "w0t0p0:abc",
+            agentSessionID: "c1", terminalSessionID: "w0t0p0:abc",
             tmuxPane: "%1", terminalType: .iterm2, agent: "claude-code",
             projectPath: "/test/a", state: .idle, startedAt: Date()
         )
         let s2 = Session(
-            claudeSessionID: "c2", terminalSessionID: "w0t0p0:abc",
+            agentSessionID: "c2", terminalSessionID: "w0t0p0:abc",
             tmuxPane: "%2", terminalType: .iterm2, agent: "claude-code",
             projectPath: "/test/b", state: .idle, startedAt: Date()
         )
@@ -860,7 +1154,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1",
+            agentSessionID: "c1", terminalSessionID: "s1",
             tmuxPane: "%1", tmuxSessionName: "dev",
             terminalType: .kitty, agent: "opencode",
             projectPath: "/test/project", state: .working,
@@ -884,7 +1178,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1",
+            agentSessionID: "c1", terminalSessionID: "s1",
             tmuxSessionName: "", projectPath: "/p", state: .idle,
             gitBranch: "", gitRepoName: "", transcriptPath: ""
         )
@@ -900,10 +1194,10 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
         )
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle,
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle,
             transcriptPath: "/new/transcript.jsonl"
         )
 
@@ -914,11 +1208,11 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p",
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p",
             state: .backburner
         )
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1",
+            agentSessionID: "c1", terminalSessionID: "s1",
             tmuxSessionName: "dev",
             projectPath: "/p", state: .working, event: "Stop",
             gitBranch: "main", gitRepoName: "repo", transcriptPath: "/path"
@@ -1019,7 +1313,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
         )
 
         manager.renameSession(terminalSessionID: "nonexistent", customName: "Test")
@@ -1031,7 +1325,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
+            agentSessionID: "c1", terminalSessionID: "s1", projectPath: "/p", state: .idle
         )
         manager.renameSession(terminalSessionID: "s1", customName: "Custom")
         #expect(manager.sessions[0].customName == "Custom")
@@ -1586,7 +1880,7 @@ struct SessionManagerTests {
     @Test func updateFocusedSession_bareUUID_normalizedToComposite() {
         let manager = SessionManager()
         let session = Session(
-            claudeSessionID: "c1", terminalSessionID: "w0t0p0:abc-uuid",
+            agentSessionID: "c1", terminalSessionID: "w0t0p0:abc-uuid",
             terminalType: .iterm2, agent: "claude-code",
             projectPath: "/test", state: .idle, startedAt: Date()
         )
@@ -1768,7 +2062,7 @@ struct SessionManagerTests {
     @Test func updateFocusedSession_matchesRemoteTmuxViaLiveHostPane() {
         let manager = SessionManager()
         var session = Session(
-            claudeSessionID: "c1", terminalSessionID: "w4t1p0:STALE-UUID",
+            agentSessionID: "c1", terminalSessionID: "w4t1p0:STALE-UUID",
             tmuxPane: "%11", terminalType: .iterm2, agent: "claude-code",
             projectPath: "/test", state: .idle, startedAt: Date()
         )
@@ -1791,7 +2085,7 @@ struct SessionManagerTests {
         manager.updateFocusedSession(terminalSessionID: "LIVE-UUID", focusTerminalType: .iterm2)
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
+            agentSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
             tmuxPane: "%11", projectPath: "/test", state: .idle,
             event: "UserPromptSubmit", remoteHost: "user@host"
         )
@@ -1806,7 +2100,7 @@ struct SessionManagerTests {
         manager.updateFocusedSession(terminalSessionID: "kitty-win-9", focusTerminalType: .kitty)
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "stale-kitty-id",
+            agentSessionID: "c1", terminalSessionID: "stale-kitty-id",
             tmuxPane: "%3", terminalType: .kitty, projectPath: "/test", state: .idle,
             event: "UserPromptSubmit", remoteHost: "user@host"
         )
@@ -1822,7 +2116,7 @@ struct SessionManagerTests {
         manager.updateFocusedSession(terminalSessionID: "kitty-win-9", focusTerminalType: .kitty)
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
+            agentSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
             tmuxPane: "%11", terminalType: .iterm2, projectPath: "/test", state: .idle,
             event: "UserPromptSubmit", remoteHost: "user@host"
         )
@@ -1838,7 +2132,7 @@ struct SessionManagerTests {
 
         // Remote but no tmux → plain ssh, whose terminalSessionID already tracks the pane.
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "w4t1p0:REAL",
+            agentSessionID: "c1", terminalSessionID: "w4t1p0:REAL",
             projectPath: "/test", state: .idle,
             event: "UserPromptSubmit", remoteHost: "user@host"
         )
@@ -1854,7 +2148,7 @@ struct SessionManagerTests {
 
         // Local tmux (no remoteHost) keeps its existing composite-id / select-pane path.
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "w4t1p0:LOCAL",
+            agentSessionID: "c1", terminalSessionID: "w4t1p0:LOCAL",
             tmuxPane: "%2", projectPath: "/test", state: .idle,
             event: "UserPromptSubmit"
         )
@@ -1869,7 +2163,7 @@ struct SessionManagerTests {
         manager.updateFocusedSession(terminalSessionID: "LIVE-UUID", focusTerminalType: .iterm2)
 
         manager.addOrUpdateSession(
-            claudeSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
+            agentSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
             tmuxPane: "%11", projectPath: "/test", state: .idle,
             event: "UserPromptSubmit", remoteHost: "user@host"
         )
@@ -1881,7 +2175,7 @@ struct SessionManagerTests {
     @Test func updateFocusedSession_remoteTmux_acceptsActivationTargetViaLiveHostPane() {
         let manager = SessionManager()
         var session = Session(
-            claudeSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
+            agentSessionID: "c1", terminalSessionID: "w4t1p0:STALE",
             tmuxPane: "%11", terminalType: .iterm2, agent: "claude-code",
             projectPath: "/test", state: .idle, startedAt: Date()
         )
@@ -1902,7 +2196,7 @@ struct SessionManagerTests {
         let manager = SessionManager()
         func remoteTmux(_ pane: String) -> Session {
             var session = Session(
-                claudeSessionID: "c-\(pane)", terminalSessionID: "w4t1p0:STALE",
+                agentSessionID: "c-\(pane)", terminalSessionID: "w4t1p0:STALE",
                 tmuxPane: pane, terminalType: .iterm2, agent: "claude-code",
                 projectPath: "/test", state: .idle, startedAt: Date()
             )
@@ -1917,6 +2211,28 @@ struct SessionManagerTests {
         manager.updateFocusedSession(terminalSessionID: "LIVE-UUID", focusTerminalType: .iterm2)
 
         #expect(manager.focusedSessionID == "w4t1p0:STALE:%11")
+    }
+
+    @MainActor
+    @Test func focusedTrackedSession_multipleSessionsShareLiveHostPane_returnsNil() {
+        let manager = SessionManager()
+        func remoteTmux(_ pane: String) -> Session {
+            var session = Session(
+                agentSessionID: "c-\(pane)", terminalSessionID: "w4t1p0:STALE",
+                tmuxPane: pane, terminalType: .iterm2, agent: "claude-code",
+                projectPath: "/test", state: .idle, startedAt: Date()
+            )
+            session.remoteHost = "user@host"
+            session.liveHostPaneID = "LIVE-UUID"
+            return session
+        }
+        manager.testSetSessions([remoteTmux("%11"), remoteTmux("%12")])
+        manager.isTerminalAppActive = true
+        manager.frontmostTerminalTypeProvider = { .iterm2 }
+
+        manager.updateFocusedSession(terminalSessionID: "LIVE-UUID", focusTerminalType: .iterm2)
+
+        #expect(manager.focusedTrackedSession == nil)
     }
 
     // MARK: - isSessionFocused with isTerminalAppActive Tests
@@ -2058,13 +2374,13 @@ struct SessionManagerTests {
 
         let manager = SessionManager()
         manager.addOrUpdateSession(
-            claudeSessionID: "idle",
+            agentSessionID: "idle",
             terminalSessionID: "idle",
             projectPath: "/idle",
             state: .idle
         )
         manager.addOrUpdateSession(
-            claudeSessionID: "permission",
+            agentSessionID: "permission",
             terminalSessionID: "permission",
             projectPath: "/permission",
             state: .permission
@@ -2114,7 +2430,7 @@ struct SessionManagerTests {
 
     private func makeKittySession(_ id: String, state: SessionState = .idle) -> Session {
         Session(
-            claudeSessionID: id,
+            agentSessionID: id,
             terminalSessionID: id,
             terminalType: .kitty,
             agent: "claude-code",
@@ -2639,7 +2955,7 @@ struct SessionManagerTests {
         manager.moveSessionToBackOfQueue(sessionID: "permission1")
 
         manager.addOrUpdateSession(
-            claudeSessionID: "permission3",
+            agentSessionID: "permission3",
             terminalSessionID: "permission3",
             projectPath: "/permission3",
             state: .permission
@@ -2954,22 +3270,80 @@ struct SessionManagerTests {
 
     @Test func commitInProgressBusyTime_commitsAndClearsWorkingSessions() {
         let (manager, store) = freshStatsManager()
-        let tenMinutesAgo = Date().addingTimeInterval(-600)
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let now = start.addingTimeInterval(600)
 
         var working = makeSession("s1", state: .working)
-        working.lastBecameWorking = tenMinutesAgo
+        working.lastBecameWorking = start
         var idle = makeSession("s2", state: .idle)
         idle.lastBecameWorking = nil
         manager.testSetSessions([working, idle])
 
-        manager.commitInProgressBusyTime()
+        manager.commitInProgressBusyTime(now: now)
 
-        // ~600s committed to today's bucket and to the session's counter.
-        #expect(store.todayBusySeconds >= 590 && store.todayBusySeconds <= 610)
-        #expect(manager.sessions[0].busyTimeToday >= 590 && manager.sessions[0].busyTimeToday <= 610)
+        #expect(store.busySeconds(for: now) == 600)
+        #expect(manager.sessions[0].busyTimeToday == 600)
         #expect(manager.sessions[0].lastBecameWorking == nil)
         // Idle session untouched.
         #expect(manager.sessions[1].busyTimeToday == 0)
+    }
+
+    @Test(arguments: [SessionState.working, .compacting])
+    @MainActor
+    func removeSession_busyState_commitsOpenStretch(state: SessionState) {
+        let (manager, store) = freshStatsManager()
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let end = start.addingTimeInterval(10)
+        var session = makeSession("s1", state: state)
+        session.lastBecameWorking = start
+        manager.testSetSessions([session])
+
+        manager.removeSession(sessionID: "s1", now: end)
+
+        #expect(manager.sessions.isEmpty)
+        #expect(store.busySeconds(for: end) == 10)
+    }
+
+    @Test @MainActor func removeAfterWorkingToIdle_doesNotDoubleCount() {
+        let (manager, store) = freshStatsManager()
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let end = start.addingTimeInterval(10)
+        var session = makeSession("s1", state: .working)
+        session.lastBecameWorking = start
+        manager.testSetSessions([session])
+
+        manager.testApplyStateChange(sessionID: "s1", from: .working, to: .idle, now: end)
+        manager.removeSession(sessionID: "s1", now: end.addingTimeInterval(5))
+
+        #expect(store.busySeconds(for: end) == 10)
+    }
+
+    @Test @MainActor func removeSessionsByTerminalID_commitsEveryOpenPaneOnce() {
+        let (manager, store) = freshStatsManager()
+        let end = Date(timeIntervalSince1970: 1_700_000_100)
+        var first = makeSession("terminal", state: .working)
+        first.tmuxPane = "%1"
+        first.lastBecameWorking = end.addingTimeInterval(-10)
+        var second = makeSession("terminal", state: .compacting)
+        second.tmuxPane = "%2"
+        second.lastBecameWorking = end.addingTimeInterval(-20)
+        manager.testSetSessions([first, second])
+
+        manager.removeSessionsByTerminalID("terminal", now: end)
+
+        #expect(manager.sessions.isEmpty)
+        #expect(store.busySeconds(for: end) == 30)
+    }
+
+    @Test @MainActor func removeSession_idleDoesNotAddBusyTime() {
+        let (manager, store) = freshStatsManager()
+        let now = Date(timeIntervalSince1970: 1_700_000_100)
+        manager.testSetSessions([makeSession("s1", state: .idle)])
+
+        manager.removeSession(sessionID: "s1", now: now)
+
+        #expect(manager.sessions.isEmpty)
+        #expect(store.busySeconds(for: now) == 0)
     }
 
     @Test @MainActor func stateTransition_leaveWorking_commitsToBothCounters() {
@@ -3064,7 +3438,7 @@ struct SessionManagerDismissalTests {
         binding: String
     ) {
         manager.addOrUpdateSession(
-            claudeSessionID: agentSession,
+            agentSessionID: agentSession,
             terminalSessionID: terminal,
             projectPath: "/test/project",
             state: state,

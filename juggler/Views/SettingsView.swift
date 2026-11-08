@@ -1,10 +1,3 @@
-//
-//  SettingsView.swift
-//  Juggler
-//
-//  Created by Niels Madan on 22.01.26.
-//
-
 import ServiceManagement
 import ShortcutKit
 import ShortcutKitUI
@@ -72,6 +65,7 @@ struct GeneralSettingsView: View {
     private var rowSlotSettings = RowSlotSettings()
     @AppStorage(AppStorageKeys.monitorReplaceHomeWithTilde) private var monitorReplaceHomeWithTilde = false
     @AppStorage(AppStorageKeys.monitorShowRenameButton) private var monitorShowRenameButton = true
+    @AppStorage(AppStorageKeys.monitorShowNoteButton) private var monitorShowNoteButton = true
 
     @State private var showingUninstallConfirm = false
     @State private var showingUninstallSummary = false
@@ -174,6 +168,7 @@ struct GeneralSettingsView: View {
             Section("Session Monitor") {
                 rowDetailsPickers
                 Toggle("Show rename button", isOn: $monitorShowRenameButton)
+                Toggle("Show note button", isOn: $monitorShowNoteButton)
                 SettingWithDescription(
                     description: "Replace the home directory with ~ in project paths, e.g. ~/Projects/app"
                 ) {
@@ -1139,10 +1134,8 @@ struct ShortcutsSettingsView: View {
     @AppStorage(AppStorageKeys.showShortcutHelper) private var showShortcutHelper = true
 
     var body: some View {
-        // Juggler's "Display" section sits above the per-context shortcut lists in
-        // one native grouped Form. `.embedded` emits one Section per context
-        // (Global, Session List) with no scroll/card of its own, so it reads as a
-        // native macOS settings pane — matching the pre-ShortcutKit layout.
+        // `.embedded` keeps ShortcutKit's per-context sections in this grouped Form without a nested card or scroll
+        // view.
         Form {
             Section("Display") {
                 Toggle("Show Shortcut Helper", isOn: $showShortcutHelper)

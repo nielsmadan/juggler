@@ -42,14 +42,19 @@ Two derived accessors (`Session.swift:121-130`):
 
 ## Accrual: how busy time is measured
 
-All accrual happens in `SessionManager.handleStateTransition` (`SessionManager.swift:161-175`), driven off the `working`/`compacting` membership of the old vs. new state:
+Normal state-transition accrual happens in `SessionManager.handleStateTransition` (`SessionManager.swift:227`), driven off the `working`/`compacting` membership of the old vs. new state:
 
 - **Entering busy** (`!wasWorking && isWorking`): stamp `lastBecameWorking = now`. Nothing is committed yet - the stretch is only counted once it closes.
 - **Leaving busy** (`wasWorking && !isWorking`): compute `now - lastBecameWorking`, add it to both `session.busyTimeToday` *and* `dailyStats.addBusyTime(...)`, then clear `lastBecameWorking`.
 
 So a delta is committed exactly once, at the moment the session stops being busy. `working ↔ compacting` transitions are *not* boundaries - both are busy, so the membership check is false on both sides and the open stretch carries across without a commit. The initial `lastBecameWorking` is also set when a session is first created busy (`SessionManager.swift:655`).
 
-`commitInProgressBusyTime` (`SessionManager.swift:319-330`) is a best-effort flush for in-progress stretches at app termination - called from `applicationShouldTerminate` (`JugglerApp.swift:21`). It commits the elapsed turn for every still-busy session and clears `lastBecameWorking` to prevent double-counting. Because it runs synchronously before the async teardown, a clean quit doesn't lose the open turn. A *crash* loses the uncommitted stretch - there is no incremental persistence of the open turn.
+`commitInProgressBusyTime` (`SessionManager.swift:420`) is a best-effort flush for in-progress stretches at app termination - called from `applicationShouldTerminate` (`JugglerApp.swift:21`). It commits the elapsed turn for every still-busy session and clears `lastBecameWorking` to prevent double-counting. Because it runs synchronously before the async teardown, a clean quit doesn't lose the open turn. A *crash* loses the uncommitted stretch - there is no incremental persistence of the open turn.
+
+Removing a session while it is `working` or `compacting` closes and persists its open busy stretch before deleting the
+live row. If an earlier Stop/idle transition already closed the stretch, it also cleared `lastBecameWorking`, so the
+later removal has nothing to commit and cannot double-count it. Removing the row never subtracts completed time from
+the persisted daily totals; historical days and today's already-committed total remain intact.
 
 ### Why commit-on-close rather than tick-on-interval
 
@@ -83,7 +88,7 @@ Then `lastSeenDay = newDay`.
 
 Rollover is **not** driven by a background timer in `SessionManager`. It's driven by the monitor window: `StatsChartView` owns a 5-second `Timer.publish` (`StatsChartView.swift:20`) and calls `sessionManager.handleDayRolloverIfNeeded(now:)` from `.onReceive` (`:37-39`).
 
-**Implication**: rollover only fires while the monitor window is open and rendering. If the window is closed across midnight, the split doesn't happen at midnight - it happens whenever the window next renders (or never, if the app quits first, in which case the termination flush commits the whole stretch to whatever day `now` is). The `lastSeenDay` guard makes this idempotent: a late tick still correctly splits at the *true* boundary because `lastBecameWorking` and `lastSeenDay` carry the real timestamps. But intervening fully-elapsed days that were never observed don't get their own buckets - the catch-up commits only the one pre-`newDay` slice to `lastSeenDay`.
+**Implication**: rollover only fires while the monitor window is open and rendering. If the window is closed across midnight, the split doesn't happen at midnight - it happens whenever the window next renders (or never, if the app quits or the session is removed first, in which case that flush commits the whole stretch to whatever day `now` is). Removal does not add a new rollover trigger, so this delayed-rollover behavior is unchanged. The `lastSeenDay` guard makes a later rollover tick idempotent: it still correctly splits at the *true* boundary because `lastBecameWorking` and `lastSeenDay` carry the real timestamps. But intervening fully-elapsed days that were never observed don't get their own buckets - the catch-up commits only the one pre-`newDay` slice to `lastSeenDay`.
 
 ## Chart rendering: StatsChartView
 
@@ -109,19 +114,19 @@ Today's bar "growing live" is purely the height path (live `seconds` → normali
 
 ## Per-row tabs: BusyStatsCorner
 
-`BusyStatsCorner` (`BusyStatsCorner.swift`) renders the two trapezoid tabs at the bottom-right of a session row (`SessionMonitorView.swift:403`, `:450`). Also wrapped in a 5s `TimelineView` (`:22`) for live ticking.
+`BusyStatsCorner` (`BusyStatsCorner.swift`) renders the two trapezoid tabs at the bottom-right of a session row (`SessionMonitorView.swift:478`, `:523`). It is wrapped in a 5s `TimelineView` (`BusyStatsCorner.swift:18`) for live ticking.
 
-- **Turn tab**: shown *only* while busy: gated on `session.currentWorkingDuration != nil` (`:24`), which is `nil` unless `working`/`compacting`. Displays the live current-turn duration. Transitions in/out via a move+opacity animation keyed on `currentWorkingDuration != nil` (`:50`).
-- **Today tab**: *always* present (`:36`): displays `session.busyTimeTodayLive` (committed today + open turn).
+- **Turn tab**: shown *only* while busy: gated on `session.currentWorkingDuration != nil` (`BusyStatsCorner.swift:20`), which is `nil` unless `working`/`compacting`. Displays the live current-turn duration. Transitions in/out via a move+opacity animation keyed on `currentWorkingDuration != nil` (`:30`, `:49`).
+- **Today tab**: *always* present (`BusyStatsCorner.swift:32`): displays `session.busyTimeTodayLive` (committed today + open turn).
 
-Both format via `SessionStatsCalculator.formatDuration`. The Today tab is rendered last so its diagonal left edge cleanly overlays the Turn tab tucked beneath it; the negative `HStack` spacing (`-tabOverlap`) and `tabDiagonalOffset` (`AppConstants.swift:69-77`) make the two slants kiss without a gap. Today's rendered width and the whole corner's width are reported up via `BusyStatsCornerWidthsKey`, so the row's state badge can center-align on the tab's apex and the slot grid can keep clear of the corner. Shape geometry: `TabShape` (filled trapezoid) and `TabBorderShape` (open diagonal+top "shelf" outline) at `:105` / `:122`.
+Both format via `SessionStatsFormatter.formatDuration`. The Today tab is rendered last so its diagonal left edge cleanly overlays the Turn tab tucked beneath it; the negative `HStack` spacing (`-tabOverlap`) and `tabDiagonalOffset` (`AppConstants.swift:62-70`) make the two slants kiss without a gap. The whole corner's rendered width is reported via `BusyStatsCornerWidthKey`, so the slot grid can keep clear of it. The state badge is centered in the space above the tabs while the adjacent vertical action stack is top-aligned. Shape geometry: `TabShape` (filled trapezoid) and `TabBorderShape` (open diagonal+top "shelf" outline) at `BusyStatsCorner.swift:104` / `:120`.
 
 ## Gotchas
 
 - **A day total can exceed 24h.** Busy time is summed across *concurrent* sessions, so N sessions busy for an hour each contribute N hours to the same bucket. The chart, the today total, and per-day persistence all reflect this - it's intentional, not a bug.
 - **Zero-busy days are never stored.** `addBusyTime` drops non-positive deltas, so an unworked day has no map entry. `recentDays` therefore returns a *gapless* list of only worked days - **there is no calendar gap-filling**. Adjacent bars in the chart can be non-consecutive calendar days. The only synthesized entry is today, which `displayEntries` always forces in (even at 0) as the right anchor.
-- **Rollover depends on the monitor window.** The 5s rollover tick lives in `StatsChartView`, not in `SessionManager`. With the window closed across midnight, the split is deferred until the next render; if the app quits first, the termination flush attributes the whole open stretch to the quit-time day. The `lastSeenDay` + real-timestamp design keeps the eventual split correct, but un-observed intermediate days get no buckets.
-- **Open turns are never persisted incrementally.** Only closed stretches (state-leave, rollover split, termination flush) write to the store. A crash loses the current in-progress turn.
+- **Rollover depends on the monitor window.** The 5s rollover tick lives in `StatsChartView`, not in `SessionManager`. With the window closed across midnight, the split is deferred until the next render; if the app quits or the session is removed first, that flush attributes the whole open stretch to the flush-time day. The `lastSeenDay` + real-timestamp design keeps an eventual rollover split correct, but un-observed intermediate days get no buckets.
+- **Open turns are never persisted incrementally.** Only closed stretches (state-leave, rollover split, termination flush, or busy-session removal) write to the store. A crash loses the current in-progress turn.
 - **Live arithmetic lives in the views, not the store.** `DailyStatsStore` holds only committed totals. `liveTodaySeconds` (chart) and `busyTimeTodayLive` (row) each independently add open turns. Don't expect `todayBusySeconds` to match what's on screen while sessions are busy.
 
 ---

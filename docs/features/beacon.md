@@ -24,15 +24,15 @@ When the user requests an activation that **fails** for any reason - a missing/u
 
 ### What it shows
 
-The session's display name appears as the title. Successful activations add a centered subtitle when the tracked sessions need disambiguation:
+The session's display name appears as the title. If the session has a note, it appears on its own single-line row below the title. Successful activations then add centered terminal and harness metadata when the tracked sessions need disambiguation:
 
 - More than one terminal application: the target terminal name, such as `iTerm2` or `Kitty`.
 - More than one coding harness: the target harness name, such as `Claude Code` or `Codex`.
 - Both vary: terminal first, as in `iTerm2 · Claude Code`.
 
-These conditions are independent and count every tracked session, including backburnered sessions. Fallback beacons such as "All At Work," "No Notification," and "Activation Failed" remain title-only. "Only 1 Session" is the exception: it pairs the reason with the session's display name as the subtitle.
+These conditions are independent and count every tracked session, including backburnered sessions. The hierarchy is title → note → metadata when a note exists, and title → metadata otherwise. Fallback beacons such as "All At Work," "No Notification," and "Activation Failed" remain title-only. "Only 1 Session" is the exception: it uses the reason as the title, includes the note when present, and shows the session's display name as the final line.
 
-The title uses medium white text. The subtitle uses regular white text at half the configured title size, with a 10 pt minimum. Both are single-line, centered, and truncate in the middle on a solid black panel with a 2 px white border.
+The title uses medium white text. The note and metadata use smaller regular white text. All rows are single-line and centered; the note truncates at the tail, while the title and metadata truncate in the middle. The panel is solid black with a 2 px white border.
 
 ### Duration
 
@@ -59,7 +59,7 @@ The beacon is enabled or disabled from the Session Monitor control bar (the `lig
 
 ### Size
 
-Size scales title and subtitle fonts, padding, and minimum width. XS uses a 16 pt title and 10 pt subtitle with a 100 px min width; XL uses a 52 pt title and 26 pt subtitle with a 320 px min width; S / M / L scale between. Max width is capped at 600 px; height auto-fits content.
+Size scales title, note, and metadata fonts, padding, and minimum width. XS uses a 16 pt title with a 100 px min width; XL uses a 52 pt title with a 320 px min width; S / M / L scale between. Max width is capped at 600 px; height auto-fits content.
 
 ### Position and anchor
 

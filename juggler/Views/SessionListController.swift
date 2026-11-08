@@ -8,6 +8,7 @@ final class SessionListController {
     /// the raw `sessions` array index.
     var selectedSessionID: String?
     var sessionToRename: Session?
+    var sessionToEditNote: Session?
 
     /// The window hosting this controller's view. Set by `WindowAccessor`; used
     /// by the view to gate session-list shortcut activation on key-window state.
@@ -127,6 +128,12 @@ final class SessionListController {
         sessionToRename = session
     }
 
+    func editNoteSelected(sessions: [Session]) {
+        guard let id = selectedSessionID,
+              let session = sessions.first(where: { $0.id == id }) else { return }
+        sessionToEditNote = session
+    }
+
     @discardableResult
     func performContextAction(
         _ action: SessionRowContextAction,
@@ -137,6 +144,8 @@ final class SessionListController {
         switch action {
         case .rename:
             sessionToRename = session
+        case .editNote:
+            sessionToEditNote = session
         case .backburner:
             sessionManager.backburnerSession(terminalSessionID: session.id)
         case .reactivate:

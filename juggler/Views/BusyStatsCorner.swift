@@ -1,18 +1,10 @@
 import SwiftUI
 
-nonisolated struct BusyStatsCornerWidths: Equatable, Sendable {
-    var todayTab: CGFloat = 0
-    var corner: CGFloat = 0
-}
-
-/// Reports the rendered widths of the Today tab and the whole corner, so the row's state badge
-/// can align with the Today tab's diagonal apex and the slot grid can clear the corner.
-struct BusyStatsCornerWidthsKey: PreferenceKey {
-    static let defaultValue = BusyStatsCornerWidths()
-    static func reduce(value: inout BusyStatsCornerWidths, nextValue: () -> BusyStatsCornerWidths) {
+struct BusyStatsCornerWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         let next = nextValue()
-        if next.todayTab > 0 { value.todayTab = next.todayTab }
-        if next.corner > 0 { value.corner = next.corner }
+        if next > 0 { value = next }
     }
 }
 
@@ -45,20 +37,12 @@ struct BusyStatsCorner: View {
                     foreground: textColor,
                     borderColor: borderColor
                 )
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: BusyStatsCornerWidthsKey.self,
-                            value: BusyStatsCornerWidths(todayTab: geo.size.width)
-                        )
-                    }
-                )
             }
             .background(
                 GeometryReader { geo in
                     Color.clear.preference(
-                        key: BusyStatsCornerWidthsKey.self,
-                        value: BusyStatsCornerWidths(corner: geo.size.width)
+                        key: BusyStatsCornerWidthKey.self,
+                        value: geo.size.width
                     )
                 }
             )

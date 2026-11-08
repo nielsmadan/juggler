@@ -9,7 +9,9 @@ First-launch flow that walks new users through the setup required for Juggler to
    installation (Claude Code, OpenCode, Codex, Pi, Antigravity). Codex setup includes an option to ignore permission
    events so Auto Review does not briefly put sessions in the permission queue. It is preselected when Auto Review is
    detected in the global Codex config.
-3. **Global Shortcuts**: Recorders for the six global hotkeys (Cycle Forward/Backward, Backburner Current, Reactivate All, Show Monitor, Last Notification). Users can accept defaults or customize.
+3. **Global Shortcuts**: ShortcutKit recorders for the eight global hotkeys (Cycle Forward/Backward, Backburner Current,
+   Send to Back, Reactivate All, Last Notification, Edit Current Note, Show Monitor). Edit Current Note defaults to ⇧⌘M;
+   users can accept the defaults or customize every binding.
 4. **Finish**: Options to enable "Launch at Login" and "Automatically download and install updates".
 
 ## Behavior

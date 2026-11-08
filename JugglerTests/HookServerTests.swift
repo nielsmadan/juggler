@@ -685,7 +685,7 @@ struct HookServerTests {
 
         #expect(response.status == 200)
         #expect(manager.sessions.count == 1)
-        #expect(manager.sessions[0].claudeSessionID == "claude-1")
+        #expect(manager.sessions[0].agentSessionID == "claude-1")
         #expect(manager.sessions[0].terminalSessionID == "s1")
         #expect(manager.sessions[0].projectPath == "/test/project")
         #expect(manager.sessions[0].gitBranch == "main")
@@ -696,7 +696,7 @@ struct HookServerTests {
     @Test @MainActor func processRequest_postHook_updatesExistingSessionState() async {
         let manager = SessionManager()
         manager.addOrUpdateSession(
-            claudeSessionID: "claude-1",
+            agentSessionID: "claude-1",
             terminalSessionID: "s1",
             projectPath: "/test/project",
             state: .idle
@@ -717,7 +717,7 @@ struct HookServerTests {
     @Test @MainActor func processRequest_codexRequestUserInput_marksSessionIdle() async {
         let manager = SessionManager()
         manager.addOrUpdateSession(
-            claudeSessionID: "thread-1",
+            agentSessionID: "thread-1",
             terminalSessionID: "s1",
             agent: "codex",
             projectPath: "/test/project",
@@ -785,7 +785,7 @@ struct HookServerTests {
     @Test @MainActor func processRequest_postHook_removeEvent_removesCompositeTmuxSession() async {
         let manager = SessionManager()
         manager.addOrUpdateSession(
-            claudeSessionID: "claude-1",
+            agentSessionID: "claude-1",
             terminalSessionID: "s1",
             tmuxPane: "%1",
             projectPath: "/test/project",
@@ -802,6 +802,73 @@ struct HookServerTests {
 
         #expect(response.status == 200)
         #expect(manager.sessions.isEmpty)
+    }
+
+    @Test @MainActor func processRequest_staleSessionEnd_doesNotRemoveCurrentConversation() async {
+        let manager = SessionManager()
+        manager.addOrUpdateSession(
+            agentSessionID: "new-conversation",
+            terminalSessionID: "pane-1",
+            agent: "codex",
+            projectPath: "/test/project",
+            state: .idle
+        )
+        let server = HookServer(sessionManager: manager)
+        let body = """
+        {"agent":"codex","event":"SessionEnd","hookInput":{"session_id":"old-conversation"},\
+        "terminal":{"sessionId":"pane-1","cwd":"/test/project","terminalType":"iterm2"}}
+        """
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 200)
+        #expect(manager.sessions.map(\.agentSessionID) == ["new-conversation"])
+    }
+
+    @Test @MainActor func processRequest_staleSessionEndFromDifferentAgent_doesNotRemoveCurrentConversation() async {
+        let manager = SessionManager()
+        manager.addOrUpdateSession(
+            agentSessionID: "shared-id",
+            terminalSessionID: "pane-1",
+            agent: "pi",
+            projectPath: "/test/project",
+            state: .idle
+        )
+        let server = HookServer(sessionManager: manager)
+        let body = """
+        {"agent":"codex","event":"SessionEnd","hookInput":{"session_id":"shared-id"},\
+        "terminal":{"sessionId":"pane-1","cwd":"/test/project","terminalType":"iterm2"}}
+        """
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 200)
+        #expect(manager.sessions.map(\.agentSessionIdentity) == [
+            .init(agent: "pi", agentSessionID: "shared-id")
+        ])
+    }
+
+    @Test @MainActor func processRequest_staleSessionEndFromDifferentAgent_doesNotRemoveIDLessCurrentSession() async {
+        let manager = SessionManager()
+        manager.addOrUpdateSession(
+            agentSessionID: "",
+            terminalSessionID: "pane-1",
+            agent: "pi",
+            projectPath: "/test/project",
+            state: .idle
+        )
+        let server = HookServer(sessionManager: manager)
+        let body = """
+        {"agent":"codex","event":"SessionEnd","hookInput":{"session_id":"old-conversation"},\
+        "terminal":{"sessionId":"pane-1","cwd":"/test/project","terminalType":"iterm2"}}
+        """
+
+        let response = await server.processRequest(HTTPRequest(method: "POST", path: "/hook", body: body))
+
+        #expect(response.status == 200)
+        #expect(manager.sessions.map(\.agentSessionIdentity) == [
+            .init(agent: "pi", agentSessionID: "")
+        ])
     }
 
     @Test func processRequest_postKittyEvent_invalidJSON_returns400() async {
@@ -1144,7 +1211,7 @@ struct HookServerTests {
     }
 
     @Test @MainActor func processRequest_postHook_emptyHookInput_treatedAsAbsent() async {
-        // hookInput: {} decodes to a non-nil HookInput with all nil fields, so claudeSessionID
+        // hookInput: {} decodes to a non-nil HookInput with all nil fields, so agentSessionID
         // ends up as "" — equivalent to the missing-hookInput case for session creation.
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)
@@ -1157,7 +1224,7 @@ struct HookServerTests {
 
         #expect(response.status == 200)
         #expect(manager.sessions.count == 1)
-        #expect(manager.sessions[0].claudeSessionID == "")
+        #expect(manager.sessions[0].agentSessionID == "")
         #expect(manager.sessions[0].terminalSessionID == "s1")
     }
 
@@ -1302,7 +1369,7 @@ struct HookServerStatusTests {
         #expect(response.status == 400)
         #expect(manager.sessions.count == 1)
         #expect(manager.sessions[0].state == .working)
-        #expect(manager.sessions[0].claudeSessionID == "native-session")
+        #expect(manager.sessions[0].agentSessionID == "native-session")
         #expect(manager.sessions[0].projectPath == "/test/project")
     }
 
@@ -1340,7 +1407,7 @@ struct HookServerStatusTests {
         #expect(manager.sessions[0].terminalSessionID == "s1")
         #expect(manager.sessions[0].tmuxPane == "%1")
         #expect(manager.sessions[0].tmuxSessionName == "dev")
-        #expect(manager.sessions[0].claudeSessionID == "native-session")
+        #expect(manager.sessions[0].agentSessionID == "native-session")
         #expect(manager.sessions[0].projectPath == "/test/project")
         #expect(manager.sessions[0].gitBranch == "main")
         #expect(manager.sessions[0].gitRepoName == "juggler")
@@ -1432,7 +1499,7 @@ struct HookServerStatusTests {
         )
 
         #expect(manager.sessions.count == 1)
-        #expect(manager.sessions[0].claudeSessionID == "thread-2")
+        #expect(manager.sessions[0].agentSessionID == "thread-2")
     }
 
     @Test @MainActor func statusWithoutATerminalSessionIDIsDropped() async {
@@ -1466,7 +1533,7 @@ struct HookServerStatusTests {
             TestFixtures.statusJSON(phase: "working", terminalSessionID: nil, tmuxPane: "%5")
         )
 
-        #expect(manager.sessions.map(\.claudeSessionID) == ["other"])
+        #expect(manager.sessions.map(\.agentSessionID) == ["other"])
     }
 
     @Test @MainActor func tmuxStatusWithoutATerminalOrMatchingRowWarns() async {
