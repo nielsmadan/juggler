@@ -36,3 +36,12 @@ Carthage/Build/
 docs/tmp
 docs/superpowers
 .superpowers/
+/AGENTS.md
+/CLAUDE.md
+/.claude/settings.json
+/.claude/skills/integrate-coding-agent/
+/.claude/skills/integrate-terminal/
+/.claude/skills/review-swift/
+/.agents/skills/review-swift/
+/.claude/skills/review-swiftui/
+/.agents/skills/review-swiftui/

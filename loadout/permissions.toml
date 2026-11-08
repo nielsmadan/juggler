@@ -1,0 +1,15 @@
+[shell]
+allow = []
+ask = []
+deny = []
+
+[mcp]
+allow = []
+ask = []
+deny = []
+
+[claude.extra]
+allow = []
+deny = []
+
+[opencode.extra]

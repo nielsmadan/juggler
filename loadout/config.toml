@@ -1,0 +1,14 @@
+harnesses = ["claude", "codex"]
+instructions = ["main"]
+kits = ["macos"]
+
+[skills.integrate-coding-agent]
+agents = ["claude"]
+render = false
+
+[skills.integrate-terminal]
+agents = ["claude"]
+render = false
+
+[kit.macos]
+vendored = "sha256:a9b7c2b8c24fcb7f1cc415cbf5d3a336d930295915862ee2197424c88f93e2e6"
