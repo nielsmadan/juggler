@@ -38,8 +38,11 @@ installer revision pins pointing to that version commit. This gives the installe
 source revision containing the new version. Curtains atomically pushes `main` and its annotated
 tag, then prints workflow and release links and finishes. Publication runs asynchronously; local
 success confirms the Git push. GitHub builds, signs, notarizes, publishes the ZIP/DMG, updates the
-Homebrew cask, and updates the Sparkle appcast. CI uses `gh` to create the GitHub release record and
-upload artifacts, which Git cannot do. Check the linked workflow for publication success or failure.
+Homebrew cask, and updates the Sparkle appcast. The workflow installs curtains through the
+`nielsmadan/curtaincall` action: `curtains ci validate-tag` checks that the pushed tag is annotated
+and on `main` before the build, `curtains ci previous-tag` picks the tag the release notes compare
+against, and `curtains ci publish` creates the GitHub release as a draft, uploads the ZIP/DMG and
+publishes it. Check the linked workflow for publication success or failure.
 The appcast update adds a remote commit; incorporate it before the next release.
 
 `scripts/release.json` declares the checks and two preparation stages. A failed preparation or push

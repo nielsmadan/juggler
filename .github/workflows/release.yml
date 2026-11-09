@@ -15,6 +15,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+      - uses: nielsmadan/curtaincall@970d648bc9aaf685b4c924e05c7edf359948b209 # v1.2.0
+
+      - name: Validate annotated tag and ancestry
+        if: github.event_name == 'push'
+        run: |
+          RELEASE_COMMIT=$(curtains ci validate-tag "$GITHUB_REF_NAME" "$GITHUB_SHA")
+          echo "RELEASE_COMMIT=$RELEASE_COMMIT" >> "$GITHUB_ENV"
 
       - name: Select release or rehearsal version
         env:
@@ -184,8 +191,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PREV_TAG=$(git tag --sort=-v:refname | grep -v "^${GITHUB_REF_NAME}$" | head -1)
-          NOTES=$(git log --pretty=format:"- %s" "${PREV_TAG}..${GITHUB_REF_NAME}" \
+          PREV_TAG=$(curtains ci previous-tag "$GITHUB_REF_NAME")
+          RANGE="${PREV_TAG:+${PREV_TAG}..}${GITHUB_REF_NAME}"
+          NOTES=$(git log --pretty=format:"- %s" "$RANGE" \
             | grep -v "^- chore:" \
             | grep -v "^- Merge ")
 
@@ -193,13 +201,16 @@ jobs:
             echo "## What's Changed"
             echo ""
             echo "$NOTES"
-            echo ""
-            echo "**Full Changelog**: https://github.com/nielsmadan/juggler/compare/${PREV_TAG}...${GITHUB_REF_NAME}"
-          } > /tmp/release-notes.md
+            if [ -n "$PREV_TAG" ]; then
+              echo ""
+              echo "**Full Changelog**: https://github.com/nielsmadan/juggler/compare/${PREV_TAG}...${GITHUB_REF_NAME}"
+            fi
+          } > "$RUNNER_TEMP/release-notes.md"
 
-          gh release create "$GITHUB_REF_NAME" release/Juggler.zip release/Juggler.dmg \
+          curtains ci publish "$GITHUB_REF_NAME" "$RELEASE_COMMIT" \
+            --notes "$RUNNER_TEMP/release-notes.md" \
             --title "Juggler $VERSION" \
-            --notes-file /tmp/release-notes.md
+            release/Juggler.zip release/Juggler.dmg
 
       - name: Update Homebrew tap
         if: github.event_name == 'push'
