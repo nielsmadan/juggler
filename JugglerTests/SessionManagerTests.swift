@@ -2,24 +2,6 @@ import Foundation
 @testable import Juggler
 import Testing
 
-func preserveDefaults(_ keys: String...) -> () -> Void {
-    let snapshot = keys.map { ($0, UserDefaults.standard.object(forKey: $0)) }
-    return {
-        for (key, value) in snapshot {
-            if let value { UserDefaults.standard.set(value, forKey: key) } else {
-                UserDefaults.standard.removeObject(forKey: key)
-            }
-        }
-    }
-}
-
-@MainActor
-private func overrideQueueOrderMode(_ mode: QueueOrderMode) -> () -> Void {
-    let restore = preserveDefaults(AppStorageKeys.queueOrderMode)
-    UserDefaults.standard.set(mode.rawValue, forKey: AppStorageKeys.queueOrderMode)
-    return restore
-}
-
 @MainActor
 private func freshNoteManager() -> (SessionManager, SessionNoteStore, () -> Void) {
     let suite = "SessionManagerNotes-\(UUID().uuidString)"
@@ -1484,6 +1466,23 @@ struct SessionManagerTests {
 
             let current = manager.currentSession
             #expect(current?.id != "s1")
+        }
+
+        @Test @MainActor func backburner_anchoredBusySession_clearsAnchor() {
+            let manager = SessionManager()
+            let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy)
+            defer { restore() }
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
+
+            manager.testSetSessions([
+                makeSession("s1", state: .working),
+                makeSession("s2", state: .idle)
+            ])
+            manager.testSetLastActiveSessionID("s1")
+
+            manager.backburnerSession(terminalSessionID: "s1")
+
+            #expect(manager.currentSession?.id == "s2")
         }
 
         @Test @MainActor func cycleForward_withAnchor_usesAnchorAsEffectiveFocus() {
@@ -3053,7 +3052,7 @@ struct SessionManagerTests {
 
     // MARK: - sendToBackOfQueue Tests
 
-    @Test @MainActor func sendToBack_middleSession_returnsNextAndMoves() {
+    @Test @MainActor func sendToBack_middleSession_returnsHeadAndMoves() {
         let manager = SessionManager()
         let restore = overrideQueueOrderMode(.fair)
         defer { restore() }
@@ -3066,11 +3065,11 @@ struct SessionManagerTests {
 
         let next = manager.sendToBackOfQueue(sessionID: "s2")
 
-        #expect(next?.terminalSessionID == "s3")
+        #expect(next?.terminalSessionID == "s1")
         #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s3", "s2"])
     }
 
-    @Test @MainActor func sendToBack_lastSession_wrapsToTop() {
+    @Test @MainActor func sendToBack_lastSession_returnsHead() {
         let manager = SessionManager()
         let restore = overrideQueueOrderMode(.fair)
         defer { restore() }
@@ -3116,11 +3115,74 @@ struct SessionManagerTests {
             makeSession("s4", state: .backburner)
         ])
 
-        // s2 is the last idle → wraps to the top idle (s1), not the busy/backburner rows.
         let next = manager.sendToBackOfQueue(sessionID: "s2")
 
         #expect(next?.terminalSessionID == "s1")
         #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3", "s4"])
+    }
+
+    @Test @MainActor func sendToBack_repeatedFromMiddle_rotatesFromTop() {
+        let manager = SessionManager()
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle),
+            makeSession("s4", state: .idle),
+            makeSession("s5", state: .idle)
+        ])
+
+        var visited: [String] = []
+        var current = "s3"
+        for _ in 0 ..< 4 {
+            guard let next = manager.sendToBackOfQueue(sessionID: current) else { break }
+            visited.append(next.terminalSessionID)
+            current = next.id
+        }
+
+        #expect(visited == ["s1", "s2", "s4", "s5"])
+    }
+
+    @Test(arguments: [QueueOrderMode.fair, .prio])
+    @MainActor func sendToBack_middleIdle_permissionFirst_returnsPermissionAtTop(mode: QueueOrderMode) {
+        let manager = SessionManager()
+        let restore = preserveDefaults(AppStorageKeys.queueOrderMode, AppStorageKeys.prioritizePermissionSessions)
+        defer { restore() }
+        UserDefaults.standard.set(mode.rawValue, forKey: AppStorageKeys.queueOrderMode)
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        manager.testSetSessions([
+            makeSession("p1", state: .permission),
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+
+        let next = manager.sendToBackOfQueue(sessionID: "s2")
+
+        #expect(next?.terminalSessionID == "p1")
+        #expect(manager.sessions.map(\.terminalSessionID) == ["p1", "s1", "s3", "s2"])
+    }
+
+    @Test @MainActor func sendToBack_lastPermission_permissionFirst_returnsFirstIdle() {
+        let manager = SessionManager()
+        let restore = preserveDefaults(AppStorageKeys.queueOrderMode, AppStorageKeys.prioritizePermissionSessions)
+        defer { restore() }
+        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: AppStorageKeys.queueOrderMode)
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.prioritizePermissionSessions)
+
+        manager.testSetSessions([
+            makeSession("p1", state: .permission),
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle)
+        ])
+
+        let next = manager.sendToBackOfQueue(sessionID: "p1")
+
+        #expect(next?.terminalSessionID == "s1")
+        #expect(manager.sessions.map(\.terminalSessionID) == ["p1", "s1", "s2"])
     }
 
     @Test @MainActor func sendToBack_singleSession_returnsItself() {
@@ -3164,7 +3226,7 @@ struct SessionManagerTests {
         #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
     }
 
-    @Test @MainActor func sendToBack_prioMode_returnsNextAndMoves() {
+    @Test @MainActor func sendToBack_prioMode_returnsHeadAndMoves() {
         let manager = SessionManager()
         let restore = overrideQueueOrderMode(.prio)
         defer { restore() }
@@ -3177,7 +3239,7 @@ struct SessionManagerTests {
 
         let next = manager.sendToBackOfQueue(sessionID: "s2")
 
-        #expect(next?.terminalSessionID == "s3")
+        #expect(next?.terminalSessionID == "s1")
         #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s3", "s2"])
     }
 
@@ -3224,6 +3286,129 @@ struct SessionManagerTests {
         manager.sendToBackOfQueue(sessionID: "s1")
 
         #expect(manager.activeColorIndex == before)
+    }
+
+    // MARK: - nextSession(afterSendingOff:) Tests
+
+    @MainActor
+    private func makeManagerWithFocusedMiddleBackburnered() -> SessionManager {
+        let manager = SessionManager()
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle),
+            makeSession("s3", state: .idle)
+        ])
+        manager.updateFocusedSession(terminalSessionID: "s2")
+        manager.backburnerSession(terminalSessionID: "s2")
+        return manager
+    }
+
+    @Test @MainActor func nextSessionAfterSendingOff_fair_backburneredMiddle_returnsHeadOfQueue() {
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
+        let manager = makeManagerWithFocusedMiddleBackburnered()
+
+        #expect(manager.nextSession(afterSendingOff: "s2")?.terminalSessionID == "s1")
+    }
+
+    @Test @MainActor func focusNextSessionAfterSendingOff_recordsHeadAsCurrentSession() {
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
+        let manager = makeManagerWithFocusedMiddleBackburnered()
+
+        let next = manager.focusNextSession(afterSendingOff: "s2")
+
+        #expect(next?.terminalSessionID == "s1")
+        #expect(manager.currentSession?.terminalSessionID == "s1")
+    }
+
+    @Test @MainActor func focusNextSessionAfterSendingOff_staleHeadRemoved_recordsNewHead() {
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
+        let manager = makeManagerWithFocusedMiddleBackburnered()
+        _ = manager.focusNextSession(afterSendingOff: "s2")
+
+        manager.removeSession(sessionID: "s1")
+        let retry = manager.focusNextSession(afterSendingOff: "s2")
+
+        #expect(retry?.terminalSessionID == "s3")
+        #expect(manager.currentSession?.terminalSessionID == "s3")
+    }
+
+    @Test @MainActor func prepareJumpAfterSendingOff_backburneredMiddle_advancesColorIndex() {
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
+        let manager = makeManagerWithFocusedMiddleBackburnered()
+        let before = manager.activeColorIndex
+
+        let next = manager.prepareJump(afterSendingOff: "s2")
+
+        #expect(next?.terminalSessionID == "s1")
+        #expect(manager.activeColorIndex != before)
+    }
+
+    @Test @MainActor func prepareJumpAfterSendingOff_onlyCyclableIsSentOff_keepsColorIndex() {
+        let manager = SessionManager()
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .working)
+        ])
+        let before = manager.activeColorIndex
+
+        let next = manager.prepareJump(afterSendingOff: "s1")
+
+        #expect(next?.terminalSessionID == "s1")
+        #expect(manager.activeColorIndex == before)
+    }
+
+    @Test @MainActor func nextSessionAfterSendingOff_prio_skipsSentOffSessionAtHead() {
+        let manager = SessionManager()
+        let restore = overrideQueueOrderMode(.prio)
+        defer { restore() }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .idle)
+        ])
+
+        #expect(manager.nextSession(afterSendingOff: "s1")?.terminalSessionID == "s2")
+    }
+
+    @Test @MainActor func nextSessionAfterSendingOff_onlyCyclableIsSentOff_returnsItself() {
+        let manager = SessionManager()
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .idle),
+            makeSession("s2", state: .working)
+        ])
+
+        #expect(manager.nextSession(afterSendingOff: "s1")?.terminalSessionID == "s1")
+    }
+
+    @Test @MainActor func nextSessionAfterSendingOff_noneCyclable_returnsNil() {
+        let manager = SessionManager()
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
+
+        manager.testSetSessions([
+            makeSession("s1", state: .backburner),
+            makeSession("s2", state: .working)
+        ])
+
+        #expect(manager.nextSession(afterSendingOff: "s1") == nil)
+    }
+
+    @Test @MainActor func nextSessionAfterSendingOff_static_keepsPositionalCursor() {
+        let restore = overrideQueueOrderMode(.static)
+        defer { restore() }
+        let manager = makeManagerWithFocusedMiddleBackburnered()
+
+        #expect(manager.nextSession(afterSendingOff: "s2")?.terminalSessionID == "s3")
     }
 
     // MARK: - Daily stats: rollover & terminate-commit

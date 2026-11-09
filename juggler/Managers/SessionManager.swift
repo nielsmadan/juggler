@@ -408,7 +408,7 @@ final class SessionManager {
             sessions[index].lastBecameWorking = now
         }
 
-        guard queueOrderMode != .static, queueOrderMode != .grouped else { return }
+        guard queueOrderMode.reordersQueue else { return }
 
         let wasBusy = oldState == .working || oldState == .compacting
         let isBusy = newState == .working || newState == .compacting
@@ -494,7 +494,7 @@ final class SessionManager {
         }
 
         let isCyclable = sessions.first(where: { $0.id == sessionID })?.isCycleEligible == true
-        if isCyclable, lastActiveSessionID == sessionID {
+        if isCyclable || newState == .backburner, lastActiveSessionID == sessionID {
             lastActiveSessionID = nil
         }
         guard allowsAutomation, !isHidden else { return }
@@ -629,7 +629,7 @@ final class SessionManager {
     }
 
     func reorderForMode(_ mode: QueueOrderMode) {
-        guard mode != .static, mode != .grouped else {
+        guard mode.reordersQueue else {
             sessions.sort { $0.startedAt < $1.startedAt }
             return
         }
@@ -683,7 +683,7 @@ final class SessionManager {
     }
 
     private func reorderNewSessionForPermissionPriorityIfNeeded() {
-        guard prioritizePermissionSessions, queueOrderMode == .fair || queueOrderMode == .prio else { return }
+        guard prioritizePermissionSessions, queueOrderMode.supportsPermissionPriority else { return }
         let index = sessions.count - 1
         let targetIdx = targetIndex(for: positionForNewSession(sessions[index].state), in: sessions, excluding: index)
         let insertIdx = index < targetIdx ? targetIdx - 1 : targetIdx
@@ -1567,7 +1567,7 @@ final class SessionManager {
     @discardableResult
     @MainActor
     func moveSessionToBackOfQueue(sessionID: String) -> Bool {
-        guard queueOrderMode == .fair || queueOrderMode == .prio else { return false }
+        guard queueOrderMode.reordersQueue else { return false }
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return false }
         guard sessions[index].isCycleEligible else { return false }
 
@@ -1587,19 +1587,38 @@ final class SessionManager {
         return true
     }
 
-    /// Sends `sessionID` to the back of the idle queue and returns the session that
-    /// followed it in cycle order — the one to jump to next — wrapping to the top of
-    /// the queue when it was already last. Returns nil when the move doesn't apply
-    /// (static/grouped mode, or the session isn't cyclable).
+    /// Fair/Prio: the head of the queue other than `sessionID`; Static/Grouped: `currentCyclableSession`.
+    func nextSession(afterSendingOff sessionID: String) -> Session? {
+        guard queueOrderMode.reordersQueue else { return currentCyclableSession }
+        let cyclable = cyclableSessions
+        return cyclable.first { $0.id != sessionID } ?? cyclable.first
+    }
+
+    /// Records the result as focused, since some terminals (WezTerm) send no focus event.
+    @MainActor
+    func focusNextSession(afterSendingOff sessionID: String) -> Session? {
+        guard let next = nextSession(afterSendingOff: sessionID) else { return nil }
+        updateFocusedSession(terminalSessionID: next.id)
+        return next
+    }
+
+    /// Advances the cycling colour when the jump leaves `sessionID`; nil when there is nowhere to jump.
+    @discardableResult
+    @MainActor
+    func prepareJump(afterSendingOff sessionID: String) -> Session? {
+        guard let next = nextSession(afterSendingOff: sessionID) else { return nil }
+        if next.id != sessionID {
+            advanceColorIndex(by: 1)
+        }
+        return next
+    }
+
+    /// Returns the session to jump to next, or nil when the move doesn't apply (static/grouped, not cyclable).
     @discardableResult
     @MainActor
     func sendToBackOfQueue(sessionID: String) -> Session? {
-        let cyclable = cyclableSessions
-        guard let currentIdx = cyclable.firstIndex(where: { $0.id == sessionID }) else { return nil }
-        let next = cyclable[(currentIdx + 1) % cyclable.count]
         guard moveSessionToBackOfQueue(sessionID: sessionID) else { return nil }
-        if next.id != sessionID { advanceColorIndex(by: 1) }
-        return next
+        return prepareJump(afterSendingOff: sessionID)
     }
 
     func reactivateSession(terminalSessionID: String) {

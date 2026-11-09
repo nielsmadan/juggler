@@ -148,9 +148,13 @@ When cycling to a session, Juggler can highlight the terminal tab/pane (iTerm2 a
 
 A single "Use cycling colors" toggle governs both tab and pane; highlighting can also be enabled/disabled per trigger (hotkey cycling, session select, notification click). Settings in **Settings > Highlighting**.
 
+## Send to Back
+
+`⇧⌘O` (or `o` in the session window) moves the current session to the bottom of its queue and jumps to the top of the queue: the longest-waiting session in Fair, the freshest in Prio, and permission prompts first when Permission First is on (oldest first in Fair, newest first in Prio). Working from the top therefore steps through the queue in order, and sending off a session you picked from the middle takes you back to the top instead of further down. Available in Fair and Prio only.
+
 ## Go to Next on Backburner
 
-When enabled (default), backburnering automatically cycles to the next idle session. This allows rapid triage: backburner current, immediately see next.
+When enabled (default), backburnering jumps to the next waiting session. In Fair and Prio that is the top of the queue, as with Send to Back; in Static and Grouped it is the next session in list order. This allows rapid triage: backburner current, immediately see next.
 
 Setting in **Settings > General > Backburner**.
 

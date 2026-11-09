@@ -8,8 +8,12 @@ enum QueueOrderMode: String, CaseIterable {
 
     static let `default`: QueueOrderMode = .fair
 
-    var supportsPermissionPriority: Bool {
+    var reordersQueue: Bool {
         self == .fair || self == .prio
+    }
+
+    var supportsPermissionPriority: Bool {
+        reordersQueue
     }
 
     var displayName: String {

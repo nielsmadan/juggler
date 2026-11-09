@@ -236,3 +236,23 @@ extension TestFixtures {
         )
     }
 }
+
+func preserveDefaults(_ keys: String...) -> () -> Void {
+    let snapshot = keys.map { ($0, UserDefaults.standard.object(forKey: $0)) }
+    return {
+        for (key, value) in snapshot {
+            if let value {
+                UserDefaults.standard.set(value, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+    }
+}
+
+@MainActor
+func overrideQueueOrderMode(_ mode: QueueOrderMode) -> () -> Void {
+    let restore = preserveDefaults(AppStorageKeys.queueOrderMode)
+    UserDefaults.standard.set(mode.rawValue, forKey: AppStorageKeys.queueOrderMode)
+    return restore
+}

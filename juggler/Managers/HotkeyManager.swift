@@ -172,13 +172,11 @@ final class HotkeyManager {
         sessionManager.backburnerSession(terminalSessionID: session.id)
 
         let goToNext = UserDefaults.standard.bool(forKey: AppStorageKeys.goToNextOnBackburner)
-        guard goToNext else { return }
-        guard sessionManager.currentCyclableSession != nil else { return }
-        sessionManager.advanceColorIndex(by: 1)
+        guard goToNext, sessionManager.prepareJump(afterSendingOff: session.id) != nil else { return }
         let outcome = await activator.activateFirstAvailable(
             trigger: .hotkey,
             presentation: .failureOnly,
-            nextSession: { self.sessionManager.currentCyclableSession }
+            nextSession: { self.sessionManager.focusNextSession(afterSendingOff: session.id) }
         )
         if case let .failed(error) = outcome {
             logError(.hotkey, "Backburner go-to-next failed: \(error)")
@@ -192,14 +190,13 @@ final class HotkeyManager {
             logDebug(.hotkey, "No cyclable current session to send to back")
             return
         }
-        guard let next = sessionManager.sendToBackOfQueue(sessionID: current.id) else {
+        guard sessionManager.sendToBackOfQueue(sessionID: current.id) != nil else {
             logDebug(.hotkey, "Send to back not applicable in current queue mode")
             return
         }
-        sessionManager.updateFocusedSession(terminalSessionID: next.id)
         await activateWithRetry(
             direction: "send-to-back",
-            cycle: { self.sessionManager.currentCyclableSession }
+            cycle: { self.sessionManager.focusNextSession(afterSendingOff: current.id) }
         )
     }
 

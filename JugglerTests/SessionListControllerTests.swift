@@ -66,8 +66,7 @@ struct SessionListControllerTests {
         let previous = UserDefaults.standard.string(forKey: key)
         UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: key)
         defer {
-            if let previous { UserDefaults.standard.set(previous, forKey: key) }
-            else { UserDefaults.standard.removeObject(forKey: key) }
+            if let previous { UserDefaults.standard.set(previous, forKey: key) } else { UserDefaults.standard.removeObject(forKey: key) }
         }
 
         let controller = SessionListController()
@@ -231,11 +230,11 @@ struct SessionListControllerTests {
 
     // MARK: - sendToBackSelected Tests
 
-    @Test @MainActor func sendToBackSelected_middleSelection_movesAndSelectsNext() {
+    @Test @MainActor func sendToBackSelected_middleSelection_movesAndSelectsHead() {
         let controller = SessionListController()
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),
@@ -246,14 +245,14 @@ struct SessionListControllerTests {
         controller.sendToBackSelected(sessionManager: manager)
 
         #expect(manager.sessions.map(\.id) == ["s1", "s3", "s2"])
-        #expect(controller.selectedSessionID == "s3")
+        #expect(controller.selectedSessionID == "s1")
     }
 
-    @Test @MainActor func sendToBackSelected_lastSelection_wrapsSelectionToTop() {
+    @Test @MainActor func sendToBackSelected_lastSelection_selectsHead() {
         let controller = SessionListController()
         let manager = SessionManager()
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: "queueOrderMode")
-        defer { UserDefaults.standard.removeObject(forKey: "queueOrderMode") }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
         manager.testSetSessions([
             makeSession("s1", state: .idle),
             makeSession("s2", state: .idle),

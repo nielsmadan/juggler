@@ -182,6 +182,20 @@ State-driven insertions retain the selected mode's `lastBecameIdle` ordering wit
 preference stable-partitions the current order, preserving manual Send to Back placement within each queue.
 Static and Grouped ignore this preference.
 
+### Sending a Session Off
+
+Send to Back and Backburner with "Go to next session on backburner" both land on
+`SessionManager.nextSession(afterSendingOff:)`. In Fair and Prio that is the head of the queue — the first
+cyclable session other than the one sent off — rather than the session that followed it. Following the old
+position let the cursor settle mid-list: repeated Send to Back rotated only the sessions below it, so the ones at
+the top (permission sessions, under Permission First) were never reached. Static and Grouped have no queue and
+fall back to `currentSession`. `prepareJump(afterSendingOff:)` checks there is a target and advances the cycling
+colour for both actions. Both hotkeys then resolve the target through `focusNextSession(afterSendingOff:)`, which
+records it as the focused session per activation attempt, so the cursor follows the jump even for terminals that
+send no focus event (WezTerm), and a stale head is skipped by the retry loop. Backburnering a busy session also
+clears the `lastActiveSessionID` anchor, so later hotkeys don't keep targeting the backburnered session. The
+session window's `o` key uses the same rule for its selection.
+
 ## Hotkeys
 
 `ShortcutCenter` (`Managers/ShortcutCenter.swift`) registers global bindings through ShortcutKitGlobal and
@@ -191,7 +205,7 @@ delegates fired actions to `HotkeyManager` (`Managers/HotkeyManager.swift`), whi
 |---|---|
 | `⌘⇧K` / `⌘⇧J` | Cycle forward / backward through cyclable sessions |
 | `⌘⇧L` | Backburner the current session |
-| `⌘⇧O` | Send the current session to the back of its queue |
+| `⌘⇧O` | Send the current session to the back of its queue (Fair/Prio only) |
 | `⌘⇧H` | Reactivate all backburnered sessions |
 | `⌘⇧;` | Show monitor (popover → main window → dismiss cycle) |
 | `⌘⇧E` | Jump to the session from the most recent delivered notification |
