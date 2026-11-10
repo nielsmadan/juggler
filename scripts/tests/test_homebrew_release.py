@@ -39,7 +39,7 @@ class HomebrewReleaseTests(unittest.TestCase):
 
     def test_renders_the_release_artifact_version_checksum_and_os_requirement(self):
         output = self.directory / "juggler.rb"
-        result = subprocess.run(["python3", str(SCRIPT), "1.7.3", str(self.app), str(self.dmg), str(output)],
+        result = subprocess.run(["python3", str(SCRIPT), "render", "1.7.3", str(self.app), str(self.dmg), str(output)],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         cask = output.read_text()
@@ -74,6 +74,39 @@ class HomebrewReleaseTests(unittest.TestCase):
         self.helper.unlink()
         with self.assertRaisesRegex(ValueError, "Missing executable embedded hooklinesinker"):
             renderer.render_cask("1.7.3", self.app, self.dmg)
+
+    def cask_for(self, version):
+        self.info["CFBundleShortVersionString"] = version
+        self.write_info()
+        return renderer.render_cask(version, self.app, self.dmg)
+
+    def test_publish_never_downgrades_the_tap(self):
+        cask = self.directory / "juggler.rb"
+        cask.write_text(self.cask_for("1.7.3"))
+        for existing, action, published in ((None, "updated", "1.7.3"),
+                                            ("1.7.2", "updated", "1.7.3"),
+                                            ("1.7.3", "updated", "1.7.3"),
+                                            ("1.10.0", "skipped-newer", "1.10.0")):
+            with self.subTest(existing=existing):
+                tap_cask = self.directory / f"tap-{existing}/Casks/juggler.rb"
+                if existing is not None:
+                    tap_cask.parent.mkdir(parents=True)
+                    tap_cask.write_text(self.cask_for(existing))
+                result = subprocess.run(["python3", str(SCRIPT), "publish", str(cask), str(tap_cask)],
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(result.stdout, f"{action}\n")
+                self.assertEqual(tap_cask.read_text(), self.cask_for(published))
+
+    def test_publish_rejects_an_unrecognised_tap_cask(self):
+        cask = self.directory / "juggler.rb"
+        cask.write_text(self.cask_for("1.7.3"))
+        tap_cask = self.directory / "tap.rb"
+        unrecognised = 'cask "juggler" do\n  version :latest\nend\n'
+        tap_cask.write_text(unrecognised)
+        with self.assertRaisesRegex(ValueError, "one Juggler release version"):
+            renderer.publish_cask(cask, tap_cask)
+        self.assertEqual(tap_cask.read_text(), unrecognised)
 
 
 if __name__ == "__main__":

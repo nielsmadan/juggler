@@ -6,39 +6,55 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
+  build:
     runs-on: macos-26
+    timeout-minutes: 120
+    outputs:
+      release-commit: ${{ steps.identity.outputs.release-commit }}
+      version: ${{ steps.version.outputs.version }}
+      ed-signature: ${{ steps.sparkle.outputs.ed-signature }}
+      zip-length: ${{ steps.sparkle.outputs.zip-length }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: nielsmadan/curtaincall@970d648bc9aaf685b4c924e05c7edf359948b209 # v1.2.0
 
       - name: Validate annotated tag and ancestry
+        id: identity
         if: github.event_name == 'push'
         run: |
           RELEASE_COMMIT=$(curtains ci validate-tag "$GITHUB_REF_NAME" "$GITHUB_SHA")
-          echo "RELEASE_COMMIT=$RELEASE_COMMIT" >> "$GITHUB_ENV"
+          echo "release-commit=$RELEASE_COMMIT" >> "$GITHUB_OUTPUT"
 
-      - name: Select release or rehearsal version
+      - name: Check the app version
+        id: version
         env:
           IS_RELEASE: ${{ github.event_name == 'push' }}
         run: |
-          if [ "$IS_RELEASE" = "true" ]; then
-            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-          else
-            python3 - <<'PYVERSION' >> "$GITHUB_ENV"
+          VERSION=$(python3 - <<'PYVERSION'
           import re
           from pathlib import Path
           versions = set(re.findall(r"MARKETING_VERSION = ([^;]+);", Path("Juggler.xcodeproj/project.pbxproj").read_text()))
           if len(versions) != 1:
-              raise SystemExit("Expected one app version for the release rehearsal")
-          print("VERSION=" + versions.pop())
+              raise SystemExit("Expected one app version")
+          print(versions.pop())
           PYVERSION
+          )
+          if [ "$IS_RELEASE" = "true" ] && [ "$VERSION" != "${GITHUB_REF_NAME#v}" ]; then
+            echo "MARKETING_VERSION $VERSION does not match $GITHUB_REF_NAME" >&2
+            exit 1
           fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Test packaging and integration cleanup
         run: |
@@ -161,123 +177,170 @@ jobs:
 
       - name: Validate app and generate Homebrew cask
         run: |
-          python3 scripts/render-homebrew-cask.py "$VERSION" \
-            release/export/Juggler.app release/Juggler.dmg "$RUNNER_TEMP/juggler.rb"
-          ruby -c "$RUNNER_TEMP/juggler.rb"
+          python3 scripts/render-homebrew-cask.py render "$VERSION" \
+            release/export/Juggler.app release/Juggler.dmg release/juggler.rb
+          ruby -c release/juggler.rb
 
       - name: Download Sparkle tools
         run: |
           SPARKLE_VERSION="2.8.1"
-          curl -L -o /tmp/Sparkle.tar.xz \
+          SPARKLE_SHA256="5cddb7695674ef7704268f38eccaee80e3accbf19e61c1689efff5b6116d85be"
+          curl --fail --location --retry 3 -o "$RUNNER_TEMP/Sparkle.tar.xz" \
             "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
-          mkdir -p /tmp/sparkle
-          tar -xf /tmp/Sparkle.tar.xz -C /tmp/sparkle
+          echo "$SPARKLE_SHA256  $RUNNER_TEMP/Sparkle.tar.xz" | shasum -a 256 -c -
+          mkdir -p "$RUNNER_TEMP/sparkle"
+          tar -xf "$RUNNER_TEMP/Sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
 
       - name: Sign update with EdDSA
+        id: sparkle
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
-          ED_SIGNATURE=$(echo "$SPARKLE_PRIVATE_KEY" | /tmp/sparkle/bin/sign_update --ed-key-file - -p release/Juggler.zip)
-          echo "ED_SIGNATURE=$ED_SIGNATURE" >> "$GITHUB_ENV"
-
+          ED_SIGNATURE=$(echo "$SPARKLE_PRIVATE_KEY" | "$RUNNER_TEMP/sparkle/bin/sign_update" --ed-key-file - -p release/Juggler.zip)
           ZIP_LENGTH=$(stat -f%z release/Juggler.zip)
-          echo "ZIP_LENGTH=$ZIP_LENGTH" >> "$GITHUB_ENV"
-
+          echo "ed-signature=$ED_SIGNATURE" >> "$GITHUB_OUTPUT"
+          echo "zip-length=$ZIP_LENGTH" >> "$GITHUB_OUTPUT"
           echo "EdDSA signature: $ED_SIGNATURE"
           echo "ZIP length: $ZIP_LENGTH"
 
-      - name: Create GitHub Release
+      - name: Write release notes
         if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PREV_TAG=$(curtains ci previous-tag "$GITHUB_REF_NAME")
           RANGE="${PREV_TAG:+${PREV_TAG}..}${GITHUB_REF_NAME}"
-          NOTES=$(git log --pretty=format:"- %s" "$RANGE" \
-            | grep -v "^- chore:" \
-            | grep -v "^- Merge ")
+          NOTES=$(git log --no-merges --pretty=format:"- %s" "$RANGE" \
+            | { grep -Ev '^- chore(\([^)]*\))?!?:' || true; })
 
           {
             echo "## What's Changed"
             echo ""
-            echo "$NOTES"
+            echo "${NOTES:-- Maintenance updates}"
             if [ -n "$PREV_TAG" ]; then
               echo ""
               echo "**Full Changelog**: https://github.com/nielsmadan/juggler/compare/${PREV_TAG}...${GITHUB_REF_NAME}"
             fi
-          } > "$RUNNER_TEMP/release-notes.md"
+          } > release/release-notes.md
 
-          curtains ci publish "$GITHUB_REF_NAME" "$RELEASE_COMMIT" \
-            --notes "$RUNNER_TEMP/release-notes.md" \
-            --title "Juggler $VERSION" \
-            release/Juggler.zip release/Juggler.dmg
-
-      - name: Update Homebrew tap
-        if: github.event_name == 'push'
-        env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: |
-          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/nielsmadan/homebrew-tap.git" \
-            "$RUNNER_TEMP/homebrew-tap"
-
-          cp "$RUNNER_TEMP/juggler.rb" "$RUNNER_TEMP/homebrew-tap/Casks/juggler.rb"
-
-          cd "$RUNNER_TEMP/homebrew-tap"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Casks/juggler.rb
-          git commit -m "Update Juggler to $VERSION"
-          git push
-
-      - name: Update Sparkle appcast
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          DOWNLOAD_URL="https://github.com/nielsmadan/juggler/releases/download/${GITHUB_REF_NAME}/Juggler.zip"
-          PUB_DATE=$(date -u "+%a, %d %b %Y %H:%M:%S +0000")
-
-          git clone --branch main --single-branch \
-            "https://x-access-token:${GH_TOKEN}@github.com/nielsmadan/juggler.git" \
-            "$RUNNER_TEMP/appcast-repo"
-
-          python3 <<PYEOF
-          import os
-          new_item = (
-              '        <item>\n'
-              '            <title>Version $VERSION</title>\n'
-              '            <sparkle:version>$VERSION</sparkle:version>\n'
-              '            <pubDate>$PUB_DATE</pubDate>\n'
-              '            <enclosure url="$DOWNLOAD_URL"'
-              ' length="$ZIP_LENGTH" type="application/octet-stream"'
-              ' sparkle:edSignature="$ED_SIGNATURE" />\n'
-              '        </item>\n'
-          )
-          path = os.path.join("$RUNNER_TEMP", "appcast-repo", "appcast.xml")
-          with open(path) as f:
-              content = f.read()
-          content = content.replace("    </channel>", new_item + "    </channel>")
-          with open(path, "w") as f:
-              f.write(content)
-          PYEOF
-
-          cd "$RUNNER_TEMP/appcast-repo"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add appcast.xml
-          git commit -m "chore: update appcast for v${VERSION}"
-          git push
-
-      - name: Save rehearsal artifacts
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v7
+      - name: Save release bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: juggler-release-rehearsal
+          name: juggler-release
           path: |
             release/Juggler.zip
             release/Juggler.dmg
+            release/juggler.rb
+            release/release-notes.md
           if-no-files-found: error
 
       - name: Cleanup keychain
         if: always()
         run: security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
+
+  publish:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: nielsmadan/curtaincall@970d648bc9aaf685b4c924e05c7edf359948b209 # v1.2.0
+
+      - name: Revalidate release tag
+        env:
+          RELEASE_COMMIT: ${{ needs.build.outputs.release-commit }}
+        run: test "$(curtains ci validate-tag "$GITHUB_REF_NAME" "$RELEASE_COMMIT")" = "$RELEASE_COMMIT"
+
+      - name: Download release bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: juggler-release
+          path: release
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_COMMIT: ${{ needs.build.outputs.release-commit }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          curtains ci publish "$GITHUB_REF_NAME" "$RELEASE_COMMIT" \
+            --notes release/release-notes.md \
+            --title "Juggler $VERSION" \
+            release/Juggler.zip release/Juggler.dmg
+
+  homebrew:
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          path: release-tools
+
+      - name: Download release bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: juggler-release
+          path: release
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: nielsmadan/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update Homebrew tap
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          CASK_ACTION=$(python3 release-tools/scripts/render-homebrew-cask.py publish \
+            release/juggler.rb homebrew-tap/Casks/juggler.rb)
+          if [ "$CASK_ACTION" = "skipped-newer" ]; then
+            echo "A newer Homebrew cask is already published"
+            exit 0
+          fi
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/juggler.rb
+          if git diff --cached --quiet; then
+            echo "Homebrew cask is current"
+            exit 0
+          fi
+          git commit -m "Update Juggler to $VERSION"
+          git push origin HEAD:main
+
+  appcast:
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: main
+
+      - name: Update Sparkle appcast
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          ZIP_LENGTH: ${{ needs.build.outputs.zip-length }}
+          ED_SIGNATURE: ${{ needs.build.outputs.ed-signature }}
+        run: |
+          PUB_DATE=$(date -u "+%a, %d %b %Y %H:%M:%S +0000")
+          APPCAST_ACTION=$(python3 scripts/update_appcast.py appcast.xml \
+            "$VERSION" "$ZIP_LENGTH" "$ED_SIGNATURE" "$PUB_DATE")
+          if [ "$APPCAST_ACTION" = "present" ]; then
+            echo "The appcast already lists $VERSION"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "chore: update appcast for v${VERSION}"
+          git push origin HEAD:main

@@ -45,10 +45,20 @@ against, and `curtains ci publish` creates the GitHub release as a draft, upload
 publishes it. Check the linked workflow for publication success or failure.
 The appcast update adds a remote commit; incorporate it before the next release.
 
+The workflow runs as four jobs. `build` checks that the Xcode marketing version matches the tag,
+then signs, notarizes and saves the ZIP, DMG, rendered cask and release notes as the
+`juggler-release` artifact. Only `build` holds the signing secrets, and its token is read-only.
+`publish` revalidates the tag and publishes that artifact. `homebrew` and `appcast` follow it:
+the cask update leaves a newer published cask alone and commits only on change, and
+`scripts/update_appcast.py` skips a version the feed already lists. Release notes list the
+non-`chore` commits since the previous tag.
+
 `scripts/release.json` declares the checks and two preparation stages. A failed preparation or push
 leaves local changes/commits/tags for inspection. A failed GitHub workflow leaves the published tag
-in place; inspect its URL and resume or rerun the failed workflow after fixing the cause. Never
-replace a public tag. Curtains does not automatically resume.
+in place; inspect its URL and use **Re-run failed jobs** after fixing the cause. A failed `publish`,
+`homebrew` or `appcast` job then reuses the signed build, so `curtains ci publish` finds identical
+assets. Re-running `build` produces new signatures, which an already-published release refuses.
+Never replace a public tag. Curtains does not automatically resume.
 
 ## Embedded Hooklinesinker
 

@@ -4,7 +4,7 @@ The canonical tap is `nielsmadan/tap` (`nielsmadan/homebrew-tap` on GitHub). The
 
 ## Cask source and releases
 
-[`homebrew/juggler.rb.in`](../../homebrew/juggler.rb.in) is the cask source. The release workflow renders it with [`scripts/render-homebrew-cask.py`](../../scripts/render-homebrew-cask.py), then copies the complete result to the tap's `Casks/juggler.rb`. Changes to uninstall or dependency rules therefore ship with the matching app release.
+[`homebrew/juggler.rb.in`](../../homebrew/juggler.rb.in) is the cask source. The release workflow renders it with [`scripts/render-homebrew-cask.py`](../../scripts/render-homebrew-cask.py), then copies the complete result to the tap's `Casks/juggler.rb` with its `publish` mode, which leaves a newer published cask in place. Changes to uninstall or dependency rules therefore ship with the matching app release.
 
 The cask declares `auto_updates true` for Sparkle. Homebrew can then compare the installed app's version when its receipt still records an older version, avoiding an unnecessary quit and replacement after a Sparkle update.
 

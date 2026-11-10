@@ -133,10 +133,11 @@ raw `appcast.xml` on the default branch; `SUPublicEDKey` embeds the public EdDSA
 app. The matching private key exists only as a CI secret.
 
 **Gotcha — the appcast is assembled by string splicing, not by Sparkle's tooling.** The release
-workflow pulls the Sparkle release tarball solely to obtain `sign_update`, then inserts a new
-`<item>` into `appcast.xml` by locating `</channel>` in the raw text. No XML parser and no
-`generate_appcast` are involved, so any change to the file's formatting can break the splice
-silently. Sparkle's own [publishing guide](https://sparkle-project.org/documentation/publishing/)
+workflow pulls the checksum-pinned Sparkle release tarball solely to obtain `sign_update`, then
+`scripts/update_appcast.py` inserts a new `<item>` into `appcast.xml` before the single
+`    </channel>` line, skipping a version that is already listed. No XML parser and no
+`generate_appcast` are involved, so a formatting change to the file can break the splice;
+`scripts/tests/test_appcast.py` re-renders the newest published item to catch that. Sparkle's own [publishing guide](https://sparkle-project.org/documentation/publishing/)
 describes the supported path.
 
 **Gotcha — signature verification at release time is informational.** `codesign -dv` output is
