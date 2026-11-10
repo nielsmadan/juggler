@@ -148,7 +148,7 @@ struct IntegrationHubView: View {
                             IntegrationCard(
                                 icon: setup.icon,
                                 title: setup.title,
-                                description: "Install hooks for session tracking",
+                                description: setup.cardDescription,
                                 isConfigured: configuredHookAgents.contains(setup.agent),
                                 action: { hookAgentSetup = setup }
                             )

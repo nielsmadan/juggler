@@ -5,10 +5,19 @@ struct HookAgentSetup: Identifiable {
     let icon: String
     let configPath: String
     let reportsPermission: Bool
+    let isExperimental: Bool
     let startupHint: String?
 
     var id: HooklinesinkerAgent { agent }
     var title: String { agent.displayName }
+
+    var cardDescription: String {
+        isExperimental ? "Install hooks for session tracking (experimental)" : "Install hooks for session tracking"
+    }
+
+    var permissionHint: String? {
+        reportsPermission ? nil : "No permission events: a session waiting for approval shows as working."
+    }
 
     var setupSummary: String {
         let states = reportsPermission ? "become idle or need input" : "become idle"
@@ -18,18 +27,22 @@ struct HookAgentSetup: Identifiable {
     static let all: [HookAgentSetup] = [
         HookAgentSetup(
             agent: .droid, icon: "cpu", configPath: "~/.factory/hooks.json", reportsPermission: true,
+            isExperimental: false,
             startupHint: "Droid reads hooks at startup — restart a running droid session for it to take effect."
         ),
         HookAgentSetup(
             agent: .qwen, icon: "atom", configPath: "~/.qwen/settings.json", reportsPermission: true,
+            isExperimental: false,
             startupHint: nil
         ),
         HookAgentSetup(
             agent: .kimi, icon: "moon.stars", configPath: "~/.kimi-code/config.toml", reportsPermission: true,
+            isExperimental: false,
             startupHint: nil
         ),
         HookAgentSetup(
             agent: .cursor, icon: "cursorarrow.rays", configPath: "~/.cursor/hooks.json", reportsPermission: false,
+            isExperimental: true,
             startupHint: nil
         )
     ]
@@ -155,6 +168,12 @@ struct HookAgentSettingsSection: View {
             .disabled(isInstalling)
 
             if isInstalled, let hint = setup.startupHint {
+                Text(hint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let hint = setup.permissionHint {
                 Text(hint)
                     .font(.caption)
                     .foregroundStyle(.secondary)

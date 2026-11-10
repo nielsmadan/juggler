@@ -8,6 +8,9 @@ the one agent still on Juggler's own hooks; see [Antigravity Hooks](antigravity-
 Per-agent specifics: [OpenCode Plugin](opencode-plugin.md), [Codex Hooks](codex-hooks.md),
 [Pi Extension](pi-extension.md).
 
+Cursor CLI support is experimental: Cursor has no hook that fires when it opens a permission
+prompt, so a waiting Cursor session stays `working` until the tool call finishes.
+
 ## Installation
 
 `HooklinesinkerClient` (`Services/HooklinesinkerClient.swift`) runs the bundled binary:
