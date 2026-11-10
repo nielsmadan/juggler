@@ -19,4 +19,8 @@ struct QueueOrderModeTests {
         #expect(!QueueOrderMode.static.supportsPermissionPriority)
         #expect(!QueueOrderMode.grouped.supportsPermissionPriority)
     }
+
+    @Test func supportsPrioritizedSessions_onlyForFair() {
+        #expect(QueueOrderMode.allCases.filter(\.supportsPrioritizedSessions) == [.fair])
+    }
 }

@@ -542,6 +542,11 @@ struct SessionMonitorView: View {
         .onPreferenceChange(BusyStatsCornerWidthKey.self) { width in
             recordCornerWidth(width, for: session.id)
         }
+        .overlay(alignment: .leading) {
+            if showsPrioMarker(session) {
+                PrioMarker()
+            }
+        }
         .contentShape(Rectangle())
         .opacity(session.isHidden ? 0.55 : 1)
         .onTapGesture {
@@ -650,8 +655,14 @@ struct SessionMonitorView: View {
     private func sessionActions(_ session: Session, height: CGFloat) -> some View {
         let metrics = SessionRowActionLayout.metrics(actionCount: rowActions.count, availableHeight: height)
         return VStack(spacing: metrics.spacing) {
-            ForEach(rowActions, id: \.self) { action in
-                rowActionButton(icon: action.icon(for: session), label: action.label(for: session), metrics: metrics) {
+            ForEach(Array(rowActions.enumerated()), id: \.offset) { _, action in
+                rowActionButton(
+                    icon: action.icon(for: session),
+                    label: action.label(for: session),
+                    metrics: metrics,
+                    isEnabled: action.isAvailable(in: currentQueueOrderMode),
+                    disabledHelp: "Prio only applies in Fair mode"
+                ) {
                     performRowAction(action, session: session)
                 }
             }
@@ -663,6 +674,8 @@ struct SessionMonitorView: View {
         icon: String,
         label: String,
         metrics: SessionRowActionLayout.Metrics,
+        isEnabled: Bool,
+        disabledHelp: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -673,7 +686,9 @@ struct SessionMonitorView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
-        .help(label)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.4)
+        .help(isEnabled ? label : disabledHelp)
         .accessibilityLabel(label)
     }
 
@@ -688,6 +703,10 @@ struct SessionMonitorView: View {
         case .hide:
             controller.toggleHidden(sessionID: session.id, sessionManager: sessionManager)
             ShortcutCenter.shared.sessionMonitorContext.notify(.toggleSelectedHidden)
+        case .prio:
+            controller.togglePrioritized(sessionID: session.id, mode: currentQueueOrderMode,
+                                         sessionManager: sessionManager)
+            ShortcutCenter.shared.sessionMonitorContext.notify(.toggleSelectedPrioritized)
         }
     }
 
@@ -698,6 +717,10 @@ struct SessionMonitorView: View {
             controller.toggleHidden(sessionID: session.id, sessionManager: sessionManager)
         case .toggleHiddenVisibility:
             controller.toggleHiddenVisibility(sessionManager: sessionManager)
+        case .toggleSelectedPrioritized:
+            guard let session = controller.selectedSession(in: sessionManager.listedSessions) else { return }
+            controller.togglePrioritized(sessionID: session.id, mode: currentQueueOrderMode,
+                                         sessionManager: sessionManager)
         }
     }
 
@@ -744,6 +767,14 @@ struct SessionMonitorView: View {
         QueueOrderMode(rawValue: queueOrderMode)?.supportsPermissionPriority == true
     }
 
+    private var currentQueueOrderMode: QueueOrderMode? {
+        QueueOrderMode(rawValue: queueOrderMode)
+    }
+
+    private func showsPrioMarker(_ session: Session) -> Bool {
+        PrioMarker.isShown(for: session, mode: currentQueueOrderMode)
+    }
+
     private func activateSelected() {
         guard let session = controller.selectedSession(in: sessionManager.listedSessions) else { return }
         activateSession(session)
@@ -764,10 +795,10 @@ struct SessionMonitorView: View {
 
     @ViewBuilder
     private var shortcutsReference: some View {
-        KeyBindingsLegendView(
+        CombinedShortcutLegend(
             registry: ShortcutCenter.shared.registry,
-            style: .embedded,
             contextIDs: ["sessionList", "sessionMonitor"],
+            displayName: "Shortcuts",
             options: LegendOptions(
                 columns: .fixed(3),
                 size: .medium,

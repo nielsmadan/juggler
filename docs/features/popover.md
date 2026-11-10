@@ -42,6 +42,7 @@ Each row shows:
 - **Display name**: Project folder name or custom name
 - **SSH badge**: an "SSH" tag for remote sessions (hover shows user@host)
 - **State label**: "idle", "working", "backburner", etc.
+- **Prio marker**: a thin orange bar on the leading edge for [prio sessions](main-window.md#prio-sessions), in Fair mode only
 
 The currently active / keyboard-selected row is shown with a highlight background rather than a separate marker.
 

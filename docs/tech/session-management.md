@@ -79,11 +79,11 @@ from hook and terminal events after every app launch.
 
 ## Conversation Dispositions
 
-`SessionDispositionStore` persists Hide and backburner intent under `(agent, agentSessionID)`, independently of
+`SessionDispositionStore` persists Hide, Prio and backburner intent under `(agent, agentSessionID)`, independently of
 `SessionNoteStore` and `HiddenBindingStore`. `SessionManager.shared` injects a UserDefaults-backed store;
 ordinary `SessionManager()` instances use an in-memory disposition store. A row's terminal/pane ID identifies
-its live location, while its conversation identity owns durable intent. Duplicate live rows synchronize both
-disposition fields, with one persistence update and automation effects only for the initiating row. A new
+its live location, while its conversation identity owns durable intent. Duplicate live rows synchronize every
+disposition field, with one persistence update and automation effects only for the initiating row. A new
 conversation in the same pane loads its own disposition, never the old conversation's.
 
 Until a stable nonempty conversation identity arrives, choices remain on the live row. Per-field transient
@@ -172,7 +172,7 @@ Sessions are reordered based on mode when state changes:
 
 | Mode | Behavior |
 |------|----------|
-| Fair | Return-to-idle → bottom of list |
+| Fair | Return-to-idle → bottom of list; prio sessions → bottom of the prio group at the top |
 | Prio | Return-to-idle → top of list |
 | Static | No reordering |
 | Grouped | Static order, grouped by terminal window |
@@ -181,6 +181,16 @@ When Permission First is enabled, Fair and Prio partition their cyclable session
 State-driven insertions retain the selected mode's `lastBecameIdle` ordering within each queue. Enabling the
 preference stable-partitions the current order, preserving manual Send to Back placement within each queue.
 Static and Grouped ignore this preference.
+
+Only Fair honours the per-conversation Prio flag (`QueueOrderMode.supportsPrioritizedSessions`). A prio session
+entering its waiting band uses `QueuePosition.bottomOfPrioritized(WaitingBand)`: just above the band's first plain
+session, or the band's end when it has none. The band is permission or idle under Permission First, otherwise the
+shared waiting band, and is resolved before `targetIndex` so the index lookup stays a pure function of the array.
+`synchronizeDisposition` and the identity-update path in `addOrUpdateSession` both call
+`reconcilePrioritizedPlacement` when a row's flag flips: turning prio on resets `lastBecameIdle` and moves the row
+to the bottom of the prio group, which keeps a later `reorderForMode` sort (prio first, then `lastBecameIdle`) in
+agreement; turning it off moves the row just below the remaining prio group, unless it already sits lower. Send to
+Back ignores the flag and puts the row at the bottom of its band.
 
 ### Sending a Session Off
 
@@ -219,8 +229,9 @@ The jump-to-latest shortcut resolves `SessionManager.lastNotificationTarget`, in
 
 ShortcutKit 0.8.0 binds local dispatch handlers per activation. `keyWindowShortcutContext` mounts only for the
 receiving key window. The monitor composes the shared `sessionList` context with its own `sessionMonitor`
-context (`E` Hide/Unhide, `⌘E` Show Hidden, no key repeat); the popover mounts only `sessionList`.
-The monitor legend and Settings expose both contexts. These bindings are independent of row-action visibility.
+context (`E` Hide/Unhide, `⌘E` Show Hidden, `Y` Prio, no key repeat); the popover mounts only `sessionList`.
+The monitor legend merges both contexts into one "Shortcuts" group (`CombinedShortcutLegend`); Settings lists them
+separately. These bindings are independent of which row actions the Settings slots show.
 
 Capture whether a terminal is frontmost **synchronously** in `HotkeyManager.dispatch`, before any
 asynchronous work starts; the answer changes as soon as activation begins.

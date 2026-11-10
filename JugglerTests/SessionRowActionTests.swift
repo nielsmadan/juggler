@@ -7,19 +7,68 @@ import Testing
 @MainActor
 struct SessionRowActionTests {
     @Test(arguments: 0 ..< 8)
-    func everyActionVisibilityCombinationRetainsItsOrder(mask: Int) {
-        let actions = SessionRowAction.visible(rename: mask & 1 != 0, note: mask & 2 != 0, hide: mask & 4 != 0)
-        let expected: [SessionRowAction] = switch mask {
-        case 0: []
-        case 1: [.rename]
-        case 2: [.note]
-        case 3: [.rename, .note]
-        case 4: [.hide]
-        case 5: [.rename, .hide]
-        case 6: [.note, .hide]
-        default: [.rename, .note, .hide]
+    func legacyVisibilityTogglesMigrateIntoSlots(mask: Int) {
+        let legacy: [String: Any] = [
+            "monitorShowRenameButton": mask & 1 != 0,
+            "monitorShowNoteButton": mask & 2 != 0,
+            "monitorShowHideButton": mask & 4 != 0
+        ]
+        let values = RowActionMigration.pendingValues(stored: { legacy[$0] })
+        let expected: [String?] = [
+            mask & 1 != 0 ? "rename" : "none",
+            mask & 2 != 0 ? "note" : "none",
+            mask & 4 != 0 ? "hide" : "none"
+        ]
+        #expect(["monitorRowActionFirst", "monitorRowActionSecond", "monitorRowActionThird"].map { values[$0] }
+            == expected)
+    }
+
+    @Test func freshInstallMigratesToTheDefaultActions() {
+        let values = RowActionMigration.pendingValues(stored: { _ in nil })
+        #expect(values == [
+            "monitorRowActionFirst": "rename", "monitorRowActionSecond": "note", "monitorRowActionThird": "hide"
+        ])
+    }
+
+    @Test func anyWrittenSlotSkipsTheMigration() {
+        let stored: [String: Any] = ["monitorShowRenameButton": false, "monitorRowActionThird": "prio"]
+        #expect(RowActionMigration.pendingValues(stored: { stored[$0] }).isEmpty)
+    }
+
+    @Test func migratedValuesLoadIntoTheSettings() {
+        let defaults = TestDefaults.fresh()
+        let legacy: [String: Any] = ["monitorShowNoteButton": false]
+        for (key, value) in RowActionMigration.pendingValues(stored: { legacy[$0] }) {
+            defaults.set(value, forKey: key)
         }
-        #expect(actions == expected)
+        #expect(RowActionSettings(defaults: defaults).actions == [.rename, .hide])
+    }
+
+    @Test func slotsDefaultToRenameNoteHideAndAcceptAnyAction() {
+        let defaults = TestDefaults.fresh()
+        let settings = RowActionSettings(defaults: defaults)
+        #expect(settings.actions == [.rename, .note, .hide])
+
+        settings.binding(for: .first).wrappedValue = .prio
+        settings.binding(for: .third).wrappedValue = .prio
+        #expect(settings.actions == [.prio, .note, .prio])
+        #expect(defaults.string(forKey: "monitorRowActionFirst") == "prio")
+    }
+
+    @Test func clearingEverySlotLeavesNoActions() {
+        let defaults = TestDefaults.fresh()
+        let settings = RowActionSettings(defaults: defaults)
+        for position in RowActionPosition.allCases {
+            settings.binding(for: position).wrappedValue = nil
+        }
+        #expect(settings.actions == [])
+        #expect(defaults.string(forKey: "monitorRowActionSecond") == "none")
+        #expect(RowActionSettings(defaults: defaults).actions == [])
+    }
+
+    @Test func prioIsAvailableOnlyInFair() {
+        #expect(QueueOrderMode.allCases.filter { SessionRowAction.prio.isAvailable(in: $0) } == [.fair])
+        #expect(QueueOrderMode.allCases.allSatisfy { SessionRowAction.hide.isAvailable(in: $0) })
     }
 
     @Test func actionLabelsAndIconsReflectTheSession() {
@@ -30,27 +79,17 @@ struct SessionRowActionTests {
         #expect(SessionRowAction.note.icon(for: session) == "text.bubble")
         #expect(SessionRowAction.hide.label(for: session) == "Hide session")
         #expect(SessionRowAction.hide.icon(for: session) == "eye.slash")
+        #expect(SessionRowAction.prio.label(for: session) == "Prioritize session")
+        #expect(SessionRowAction.prio.icon(for: session) == "flag")
         session.note = "A note"
         session.disposition.isHidden = true
+        session.disposition.isPrioritized = true
         #expect(SessionRowAction.note.label(for: session) == "Edit note")
         #expect(SessionRowAction.note.icon(for: session) == "text.bubble.fill")
         #expect(SessionRowAction.hide.label(for: session) == "Unhide session")
         #expect(SessionRowAction.hide.icon(for: session) == "eye")
-    }
-
-    @Test func hideSettingDefaultsOnAndPersistsIndependently() {
-        let defaults = TestDefaults.fresh()
-        defaults.set(false, forKey: AppStorageKeys.monitorShowRenameButton)
-        let settings = RowActionSettings(defaults: defaults)
-        #expect(AppStorageKeys.monitorShowHideButton == "monitorShowHideButton")
-        #expect(settings.actions == [.note, .hide])
-        settings.binding(for: .hide).wrappedValue = false
-        #expect(defaults.bool(forKey: AppStorageKeys.monitorShowHideButton) == false)
-        #expect(settings.actions == [.note])
-        settings.binding(for: .rename).wrappedValue = true
-        #expect(settings.actions == [.rename, .note])
-        settings.binding(for: .hide).wrappedValue = true
-        #expect(settings.actions == [.rename, .note, .hide])
+        #expect(SessionRowAction.prio.label(for: session) == "Unprioritize session")
+        #expect(SessionRowAction.prio.icon(for: session) == "flag.fill")
     }
 
     @Test(arguments: 0 ... 3, [false, true])

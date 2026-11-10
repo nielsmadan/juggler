@@ -15,6 +15,7 @@ struct SessionRowView: View {
     var onActivate: (() -> Void)?
     @Environment(SessionManager.self) private var sessionManager
     @AppStorage(AppStorageKeys.useCyclingColors) private var useCyclingColors = true
+    @AppStorage(AppStorageKeys.queueOrderMode) private var queueOrderMode: String = QueueOrderMode.default.rawValue
     @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleModeRaw: String = SessionTitleMode
         .default.rawValue
 
@@ -81,6 +82,11 @@ struct SessionRowView: View {
             RoundedRectangle(cornerRadius: 4)
                 .stroke(isKeyboardSelected ? highlightColor : Color.clear, lineWidth: 1)
         )
+        .overlay(alignment: .leading) {
+            if PrioMarker.isShown(for: session, mode: QueueOrderMode(rawValue: queueOrderMode)) {
+                PrioMarker()
+            }
+        }
         .contentShape(Rectangle())
         .opacity(session.isHidden ? 0.55 : 1)
         .onTapGesture {

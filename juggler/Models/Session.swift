@@ -106,6 +106,7 @@ struct Session: Identifiable, Codable, Equatable {
     var transientDispositionOverrides = TransientDispositionOverrides()
 
     var isHidden: Bool { disposition.isHidden }
+    var isPrioritized: Bool { disposition.isPrioritized }
     var isCycleEligible: Bool { state.isIncludedInCycle && !isHidden }
     var notificationToken = UUID()
     var automationToken = UUID()

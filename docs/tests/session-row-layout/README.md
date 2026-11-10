@@ -187,9 +187,9 @@ reset_defaults() {
   W=480 H=920
   tart exec "$vm" /usr/bin/defaults write com.nielsmadan.Juggler sessionTitleMode -string parentAndFolderName
   tart exec "$vm" /usr/bin/defaults write com.nielsmadan.Juggler enableStats -bool true
-  tart exec "$vm" /usr/bin/defaults write com.nielsmadan.Juggler monitorShowRenameButton -bool true
-  tart exec "$vm" /usr/bin/defaults write com.nielsmadan.Juggler monitorShowNoteButton -bool true
-  tart exec "$vm" /usr/bin/defaults write com.nielsmadan.Juggler monitorShowHideButton -bool true
+  tart exec "$vm" /usr/bin/defaults write com.nielsmadan.Juggler monitorRowActionFirst -string rename
+  tart exec "$vm" /usr/bin/defaults write com.nielsmadan.Juggler monitorRowActionSecond -string note
+  tart exec "$vm" /usr/bin/defaults write com.nielsmadan.Juggler monitorRowActionThird -string hide
 }
 ```
 
@@ -267,14 +267,14 @@ each filename is the case id below plus `.png`.
 | `16-stats-on` | `enableStats -bool true` | same as `00` for comparison |
 | `17-static-list-long` | `queueOrderMode -string static`, long slots | `List` row variant (row padding 0) |
 | `18-bottom-trailing-long` | `slots folderPath model gitBranch agentTitle` | long value beside the stats corner |
-| `19-settings` | Settings > General (`cmd-,`) | "Row details" 2 x 2 pickers; read the picker's 17 items; rename, note and hide visibility toggles |
+| `19-settings` | Settings > General (`cmd-,`) | "Row details" 2 x 2 pickers; read the picker's 17 items; three "Action" slot pickers (Rename, Note, Hide, Prio, None) |
 | `20-settings-live` | pick Current Tool for Top left in Settings | row updates live; "Replace home path" disabled |
 | `21-tilde` | Folder Path back, enable "Replace home path with ~" | paths show `~/...` |
 | `22-migration` | quit, delete the four slot keys, `monitorShowFolderPath false`, `monitorShowBranch true`, relaunch | slots migrate to Git Branch / Model / None / Effort, once |
 | `23-backburner-details` | backburner the Antigravity row (`l`), POST a `Stop` with a new model | details update on the backburnered row |
-| `24-rename-hidden` | `monitorShowRenameButton -bool false` | note and hide actions remain |
-| `25-note-hidden` | `monitorShowNoteButton -bool false` | rename and hide actions remain |
-| `26-actions-hidden` | all three action visibility keys `false` | no action gap; the state badge owns the right edge |
+| `24-rename-hidden` | `monitorRowActionFirst -string none` | note and hide actions remain |
+| `25-note-hidden` | `monitorRowActionSecond -string none` | rename and hide actions remain |
+| `26-actions-hidden` | all three `monitorRowAction*` keys `none` | no action gap; the state badge owns the right edge |
 | `27-note-present` | select the first row, press `M`, enter `Layout note`, then press `Return` | run last; note line appears and the note action uses the filled bubble |
 
 All 17 options appear across cases 00 to 09 (`none` in 01 to 03). `reset_defaults` restores the 480 x 920 window; record the size used per screenshot. Dark mode:
@@ -373,9 +373,10 @@ no other consumer or real agent should be running there.
 
 Run the action sweep once at default slots and once with all slots None and Stats on (the shortest control
 rail), at narrow and default widths. Use all eight `(rename, note, hide)` combinations: `000`, `001`, `010`,
-`011`, `100`, `101`, `110`, `111`. Change the three Settings toggles live and record each combination.
+`011`, `100`, `101`, `110`, `111`, where `0` sets that slot to None. Change the three Settings slot pickers live
+and record each combination.
 For `001` specifically, confirm the eye action alone fits; for `000`, confirm no reserved action gap;
-for `111`, hit each action independently with empty/present note and hidden/unhidden rows. "Show hide button"
+for `111`, hit each action independently with empty/present note and hidden/unhidden rows. Clearing the Hide slot
 must not affect rename/note, the top-bar eye, `E`, or `⌘E`.
 
 Compare row heights before/after enabling the third action: the content minimum is still 56 pt, with existing

@@ -114,6 +114,35 @@ struct GeneralSettingsView: View {
         }
     }
 
+    private var rowActionPickers: some View {
+        SettingWithDescription(description: "Set a slot to None to remove its button. Shortcuts keep working.") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Row actions")
+                HStack(spacing: 16) {
+                    ForEach(RowActionPosition.allCases, id: \.self) { position in
+                        rowActionPicker(position)
+                    }
+                }
+            }
+        }
+    }
+
+    private func rowActionPicker(_ position: RowActionPosition) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(position.title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Picker(position.title, selection: rowActionSettings.binding(for: position)) {
+                Text("None").tag(SessionRowAction?.none)
+                ForEach(SessionRowAction.allCases, id: \.self) { action in
+                    Text(action.displayName).tag(SessionRowAction?.some(action))
+                }
+            }
+            .labelsHidden()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func rowSlotPicker(_ position: RowSlotPosition) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(position.title)
@@ -166,9 +195,7 @@ struct GeneralSettingsView: View {
 
             Section("Session Monitor") {
                 rowDetailsPickers
-                Toggle("Show rename button", isOn: rowActionSettings.binding(for: .rename))
-                Toggle("Show note button", isOn: rowActionSettings.binding(for: .note))
-                Toggle("Show hide button", isOn: rowActionSettings.binding(for: .hide))
+                rowActionPickers
                 SettingWithDescription(
                     description: "Replace the home directory with ~ in project paths, e.g. ~/Projects/app"
                 ) {

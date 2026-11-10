@@ -9,9 +9,11 @@ import Testing
 @MainActor
 struct ShortcutActionsTests {
     @Test func monitorVisibilityActionsHaveStableIDsAndNonrepeatingDefaults() {
-        #expect(SessionMonitorAction.allCases.map(\.rawValue) == ["toggleSelectedHidden", "toggleHiddenVisibility"])
+        #expect(SessionMonitorAction.allCases.map(\.rawValue)
+            == ["toggleSelectedHidden", "toggleHiddenVisibility", "toggleSelectedPrioritized"])
         #expect(SessionMonitorAction.toggleSelectedHidden.definition.defaultShortcuts == [Shortcut("e")])
         #expect(SessionMonitorAction.toggleHiddenVisibility.definition.defaultShortcuts == [Shortcut("cmd+e")])
+        #expect(SessionMonitorAction.toggleSelectedPrioritized.definition.defaultShortcuts == [Shortcut("y")])
         #expect(SessionMonitorAction.allCases.allSatisfy { !$0.definition.allowsKeyRepeat })
     }
 
@@ -20,7 +22,7 @@ struct ShortcutActionsTests {
         #expect(center.sessionMonitorContext.id == "sessionMonitor")
         let group = try #require(center.registry.keyBindings.groups.first { $0.contextID == "sessionMonitor" })
         #expect(String(localized: group.displayName) == "Session Monitor")
-        #expect(group.entries.map(\.actionID) == ["toggleSelectedHidden", "toggleHiddenVisibility"])
+        #expect(group.entries.map(\.actionID) == SessionMonitorAction.allCases.map(\.rawValue))
         let shared = try #require(center.registry.keyBindings.groups.first { $0.contextID == "sessionList" })
         #expect(shared.entries.map(\.actionID) == SessionListAction.allCases.map(\.rawValue))
     }
@@ -111,5 +113,18 @@ struct ShortcutActionsTests {
             .toggleAutoRestart,
             .toggleBeacon
         ])
+    }
+
+    @Test func monitorLegendMergesEveryContextIntoOneShortcutsGroup() throws {
+        let registry = ShortcutCenter.shared.registry
+        let bindings = registry.bindings(for: ["sessionList", "sessionMonitor"])
+        let merged = bindings.mergedIntoSingleGroup(displayName: "Shortcuts")
+
+        let group = try #require(merged.groups.first)
+        #expect(merged.groups.count == 1)
+        #expect(String(localized: group.displayName) == "Shortcuts")
+        #expect(group.entries.map(\.actionID)
+            == SessionListAction.allCases.map(\.rawValue) + SessionMonitorAction.allCases.map(\.rawValue))
+        #expect(KeyBindings().mergedIntoSingleGroup(displayName: "Shortcuts").groups == [])
     }
 }

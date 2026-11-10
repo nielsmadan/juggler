@@ -16,6 +16,10 @@ enum QueueOrderMode: String, CaseIterable {
         reordersQueue
     }
 
+    var supportsPrioritizedSessions: Bool {
+        self == .fair
+    }
+
     var displayName: String {
         switch self {
         case .fair: "Fair"

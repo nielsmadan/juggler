@@ -153,6 +153,12 @@ final class SessionListController {
         syncMonitorSelection(sessionManager: sessionManager)
     }
 
+    func togglePrioritized(sessionID: String, mode: QueueOrderMode?, sessionManager: SessionManager) {
+        guard SessionRowAction.prio.isAvailable(in: mode),
+              sessionManager.listedSessions.contains(where: { $0.id == sessionID }) else { return }
+        sessionManager.toggleSessionPrioritized(sessionID: sessionID)
+    }
+
     func toggleHiddenVisibility(sessionManager: SessionManager) {
         syncMonitorSelection(sessionManager: sessionManager)
         sessionManager.showsHiddenSessions.toggle()

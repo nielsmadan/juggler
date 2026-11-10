@@ -31,18 +31,21 @@ nonisolated struct BackburnerDisposition: Codable, Equatable {
 
 nonisolated struct SessionDisposition: Codable, Equatable {
     var isHidden: Bool
+    var isPrioritized: Bool
     var backburner: BackburnerDisposition?
 
     static let empty = SessionDisposition(isHidden: false, backburner: nil)
 
-    init(isHidden: Bool, backburner: BackburnerDisposition? = nil) {
+    init(isHidden: Bool, isPrioritized: Bool = false, backburner: BackburnerDisposition? = nil) {
         self.isHidden = isHidden
+        self.isPrioritized = isPrioritized
         self.backburner = backburner
     }
 
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         isHidden = try container.decode(Bool.self, forKey: .isHidden)
+        isPrioritized = try container.decodeIfPresent(Bool.self, forKey: .isPrioritized) ?? false
         backburner = try container.decodeIfPresent(BackburnerDisposition.self, forKey: .backburner)
     }
 }
@@ -54,11 +57,13 @@ nonisolated struct TransientDispositionOverrides: Equatable {
     }
 
     var isHidden: Bool?
+    var isPrioritized: Bool?
     var backburner: Backburner = .unchanged
 
     func applying(to stored: SessionDisposition) -> SessionDisposition {
         var result = stored
         if let isHidden { result.isHidden = isHidden }
+        if let isPrioritized { result.isPrioritized = isPrioritized }
         if case let .set(backburner) = backburner { result.backburner = backburner }
         return result
     }

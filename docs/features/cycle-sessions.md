@@ -59,6 +59,7 @@ Juggler offers four queue ordering modes, selectable via the segmented control i
 ### Fair
 
 - Return-to-idle session goes to the **bottom**
+- Prio sessions (`Y` in the Session Monitor) instead go to the bottom of a prio group at the **top**, oldest first; see [Prio sessions](main-window.md#prio-sessions)
 - Cycling starts from the top
 - Best for: Fair rotation across sessions
 
@@ -150,7 +151,7 @@ A single "Use cycling colors" toggle governs both tab and pane; highlighting can
 
 ## Send to Back
 
-`⇧⌘O` (or `o` in the session window) moves the current session to the bottom of its queue and jumps to the top of the queue: the longest-waiting session in Fair, the freshest in Prio, and permission prompts first when Permission First is on (oldest first in Fair, newest first in Prio). Working from the top therefore steps through the queue in order, and sending off a session you picked from the middle takes you back to the top instead of further down. Available in Fair and Prio only.
+`⇧⌘O` (or `o` in the session window) moves the current session to the bottom of its queue and jumps to the top of the queue: the longest-waiting session in Fair, the freshest in Prio, and permission prompts first when Permission First is on (oldest first in Fair, newest first in Prio). Working from the top therefore steps through the queue in order, and sending off a session you picked from the middle takes you back to the top instead of further down. A prio session sent back stays at the back of its band until it next goes idle. Available in Fair and Prio only.
 
 ## Go to Next on Backburner
 

@@ -96,15 +96,29 @@ Each session row shows:
 | **Agent column** | Terminal-type icon, agent initials, and an "SSH" badge for remote sessions (hover shows user@host) |
 | **State icon + label** | Visual state indicator and its text label, centered in the area above the stats tabs |
 | **Display name** | Name per the Session Title setting (default: parent / folder name) or a custom name |
-| **Row actions** | Compact, top-aligned vertical rename, note and Hide/Unhide buttons at the row's right edge; each can be hidden independently |
+| **Row actions** | Up to three compact, top-aligned buttons at the row's right edge, chosen in Settings (default rename, note, Hide/Unhide) |
+| **Prio marker** | A thin orange bar on the row's leading edge for prio sessions, shown only in Fair mode |
 | **Row details** | Up to four small labelled values in a 2x2 grid under the name; see below |
 | **Note** | One tail-truncated line below the row details, shown only when a note exists |
 
 The note button uses an outlined text bubble when empty and a filled bubble when a note exists. It opens a single-line editor; press `Return` to save or `Escape` to cancel. Rows without a note reserve no empty space.
 
-All three actions are enabled by default and can each be hidden from Settings > General > Session Monitor.
-The stack sizes its buttons to the available height without making the row taller; the same section chooses the
-four row details and can shorten project paths under your home directory to `~/...`.
+Settings > General > Session Monitor has three action slots, each set to Rename, Note, Hide, Prio or None. None
+removes that button; with all three None the column disappears and the row gets its width back. Keyboard shortcuts
+work whatever the slots show. The stack sizes its buttons to the available height without making the row taller;
+the same section chooses the four row details and can shorten project paths under your home directory to `~/...`.
+
+### Prio sessions
+
+Press `Y` or use a Prio row action (`flag` / `flag.fill`) to mark a conversation as prio. In Fair mode a prio
+session jumps the queue whenever it starts waiting: it lands below the other prio sessions at the top of its
+waiting band, and above every plain session. With Permission First on, that happens separately in the permission
+band and the idle band. Marking a waiting session moves it there at once; unmarking moves it just below the
+remaining prio sessions. Send to Back still puts a prio session at the back of its band until it next goes idle.
+
+Like Hide, prio follows the conversation across duplicate rows and relaunches. Other queue modes keep the flag
+but ignore it: the marker is hidden, `Y` does nothing, and the Prio button is dimmed with a "Prio only applies in
+Fair mode" tooltip.
 
 ### Hide and Show Hidden
 
@@ -156,6 +170,7 @@ When window is focused (defaults shown; all configurable in Settings > Shortcuts
 | `M` | Edit note for selected |
 | `E` | Hide/Unhide selected |
 | `⌘E` | Toggle Show Hidden |
+| `Y` | Toggle prio for selected (Fair mode) |
 | `Shift+L` | Reactivate selected |
 | `H` | Reactivate all |
 | `B` | Toggle beacon |
@@ -163,8 +178,9 @@ When window is focused (defaults shown; all configurable in Settings > Shortcuts
 | `A` | Toggle auto-advance |
 | `Q` | Toggle auto-restart |
 
-Hide/Unhide and Show Hidden use a monitor-only shortcut context with key repeat disabled. They are not consumed
-in the popover; the other Session List bindings are shared. Buttons show the corresponding transient shortcut hints.
+Hide/Unhide, Show Hidden and Prio use a monitor-only shortcut context with key repeat disabled. They are not consumed
+in the popover; the other Session List bindings are shared. The monitor's shortcut helper lists both sets in one
+"Shortcuts" section. Buttons show the corresponding transient shortcut hints.
 
 ## Interactions
 

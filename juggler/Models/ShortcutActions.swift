@@ -121,6 +121,7 @@ enum SessionListAction: String, ShortcutAction {
 enum SessionMonitorAction: String, ShortcutAction {
     case toggleSelectedHidden
     case toggleHiddenVisibility
+    case toggleSelectedPrioritized
 
     var definition: ShortcutActionDefinition {
         switch self {
@@ -128,6 +129,8 @@ enum SessionMonitorAction: String, ShortcutAction {
             .init("Hide / Unhide", Shortcut("e"), allowsKeyRepeat: false)
         case .toggleHiddenVisibility:
             .init("Show Hidden", Shortcut("cmd+e"), allowsKeyRepeat: false)
+        case .toggleSelectedPrioritized:
+            .init("Prio", Shortcut("y"), allowsKeyRepeat: false)
         }
     }
 }

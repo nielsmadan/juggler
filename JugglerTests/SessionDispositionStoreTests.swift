@@ -6,13 +6,13 @@ import Testing
 struct SessionDispositionStoreTests {
     private let key = AgentSessionIdentity(agent: "codex", agentSessionID: "conversation")
 
-    @Test func roundTripPreservesBothIndependentFieldsAndClearsEmptyRecords() throws {
+    @Test func roundTripPreservesEveryIndependentFieldAndClearsEmptyRecords() throws {
         let defaults = TestDefaults.fresh()
         let store = SessionDispositionStore(defaults: defaults)
         let backburner = BackburnerDisposition(
             wasAwaitingUser: true, backburneredAt: Date(timeIntervalSince1970: 1234), turnsByBinding: ["binding": 7]
         )
-        let expected = SessionDisposition(isHidden: true, backburner: backburner)
+        let expected = SessionDisposition(isHidden: true, isPrioritized: true, backburner: backburner)
         store.setDisposition(expected, for: key)
         #expect(SessionDispositionStore(defaults: defaults).disposition(for: key) == expected)
 
@@ -22,6 +22,12 @@ struct SessionDispositionStoreTests {
         #expect(SessionDispositionStore(defaults: defaults).dispositions.isEmpty)
         let data = try #require(defaults.data(forKey: AppStorageKeys.sessionDispositions))
         #expect(try JSONDecoder().decode(SessionDispositionEnvelope.self, from: data).records.isEmpty)
+    }
+
+    @Test func recordsWithoutThePrioFieldReadAsNotPrioritized() throws {
+        let legacy = #"{"isHidden":true}"#
+        let decoded = try JSONDecoder().decode(SessionDisposition.self, from: Data(legacy.utf8))
+        #expect(decoded == SessionDisposition(isHidden: true, isPrioritized: false))
     }
 
     @Test func encodingIsVersionedSortedAndIndependentOfInsertionOrder() throws {

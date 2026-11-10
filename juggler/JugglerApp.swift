@@ -197,6 +197,10 @@ struct JugglerApp: App {
             UserDefaults.standard.set(value, forKey: key)
         }
         UserDefaults.standard.register(defaults: RowSlotPosition.registrationDefaults)
+        for (key, value) in RowActionMigration.pendingValues(stored: UserDefaults.standard.object(forKey:)) {
+            UserDefaults.standard.set(value, forKey: key)
+        }
+        UserDefaults.standard.register(defaults: RowActionPosition.registrationDefaults)
         UserDefaults.standard.register(defaults: [
             "highlightOnHotkey": true,
             "highlightOnGuiSelect": true,

@@ -62,12 +62,8 @@ struct SessionListControllerTests {
     /// `orderedVisibleSessions()` walks the *rendered* (grouped) order — so it never
     /// skips the trailing idle row the way raw-index navigation did.
     @Test @MainActor func moveSelection_followsVisibleOrder_notRawArrayOrder() {
-        let key = "queueOrderMode"
-        let previous = UserDefaults.standard.string(forKey: key)
-        UserDefaults.standard.set(QueueOrderMode.fair.rawValue, forKey: key)
-        defer {
-            if let previous { UserDefaults.standard.set(previous, forKey: key) } else { UserDefaults.standard.removeObject(forKey: key) }
-        }
+        let restore = overrideQueueOrderMode(.fair)
+        defer { restore() }
 
         let controller = SessionListController()
         let manager = SessionManager()
