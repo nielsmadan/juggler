@@ -287,6 +287,7 @@ struct JugglerApp: App {
         Window("Juggler", id: "main") {
             SessionMonitorView()
                 .environment(sessionManager)
+                .allowsWindowActivationEvents()
         }
         .defaultSize(width: 480, height: screenHeight)
         .defaultPosition(.topTrailing)
