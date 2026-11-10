@@ -303,8 +303,7 @@ final class SessionManager {
     let animationController = SectionAnimationController()
 
     private var queueOrderMode: QueueOrderMode {
-        let rawValue = UserDefaults.standard.string(forKey: "queueOrderMode") ?? QueueOrderMode.fair.rawValue
-        return QueueOrderMode(rawValue: rawValue) ?? .fair
+        QueueOrderMode.stored()
     }
 
     private var prioritizePermissionSessions: Bool {

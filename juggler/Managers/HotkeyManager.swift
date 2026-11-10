@@ -85,9 +85,14 @@ final class HotkeyManager {
             handleShowMonitor()
         case .goToLastNotification:
             Task { await self.handleGoToLastNotification() }
-        case .editNote:
-            SessionNoteEditorManager.shared.editFocusedSession()
+        case .sessionMenu:
+            handleSessionMenu()
         }
+    }
+
+    private func handleSessionMenu() {
+        logDebug(.hotkey, "Session menu triggered")
+        SessionMenuManager.shared.toggleForFocusedSession()
     }
 
     private func handleCycleForward(wasTerminalFrontmost: Bool) async {

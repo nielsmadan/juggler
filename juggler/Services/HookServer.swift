@@ -772,9 +772,7 @@ actor HookServer {
         if shouldNotify {
             notificationManager.sendNotification(
                 title: title,
-                body: session.title(for: SessionTitleMode(
-                    rawValue: UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
-                ) ?? .default),
+                body: session.title(for: .stored()),
                 target: target
             )
         }

@@ -62,6 +62,7 @@ Juggler/
 │   ├── LogManager.swift          # In-app logging system
 │   ├── NotificationManager.swift # macOS notifications for idle/permission states
 │   ├── SessionManager.swift      # Session list, cycling logic; rows are not persisted
+│   ├── SessionMenuManager.swift  # ⌘⇧M session menu panel over the frontmost window
 │   ├── StatusBarManager.swift    # Menu bar icon (NSStatusItem + NSPopover)
 │   └── UpdateManager.swift       # Sparkle auto-updates
 ├── Models/
@@ -81,7 +82,7 @@ Juggler/
 │   ├── WezTermBridge.swift       # WezTerm integration via wezterm cli (activation + gone-cleanup only)
 │   ├── TerminalBridge.swift      # Terminal abstraction protocol + TerminalActivation
 │   ├── TerminalBridgeRegistry.swift  # Bridge registration and lifecycle
-│   └── ...                       # CodexHooksInstaller, AntigravityHooksInstaller, OpenCodePluginInstaller, PiExtensionInstaller, ScriptInstaller, ConfigFileWriter (agent integration installers), HooklinesinkerClient, SessionReset
+│   └── ...                       # CodexHooksInstaller, AntigravityHooksInstaller, OpenCodePluginInstaller, PiExtensionInstaller, ScriptInstaller, ConfigFileWriter (agent integration installers), HooklinesinkerClient, SessionReset, FrontmostWindow
 ├── Views/
 │   ├── AboutView.swift           # About window
 │   ├── BeaconContentView.swift   # Beacon overlay content
@@ -96,6 +97,7 @@ Juggler/
 │   ├── SessionSlotGrid.swift     # 2x2 row detail grid (Session Monitor)
 │   ├── SessionRowGeometry.swift  # Row column widths, control alignment and trailing reserves
 │   ├── SettingsView.swift        # Preferences window
+│   ├── SessionMenuView.swift     # Session menu content; SessionMenuController holds its state
 │   └── ...                       # BeaconSettingsView, RowSlotSettings, SessionListController, SettingWithDescription, CodexSetupController, AntigravitySetupController, BusyStatsCorner, StatsChartView, WindowAccessor
 └── Resources/
     ├── iterm2_daemon.py          # Python daemon for iTerm2 API

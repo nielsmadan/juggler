@@ -10,6 +10,10 @@ enum SessionTitleMode: String, CaseIterable {
 
     static let `default`: SessionTitleMode = .parentAndFolderName
 
+    static func stored(in defaults: UserDefaults = .standard) -> SessionTitleMode {
+        defaults.string(forKey: AppStorageKeys.sessionTitleMode).flatMap(SessionTitleMode.init(rawValue:)) ?? .default
+    }
+
     var displayName: String {
         switch self {
         case .tabTitle: "Tab Title"

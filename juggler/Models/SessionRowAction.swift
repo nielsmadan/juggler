@@ -12,6 +12,10 @@ enum SessionRowAction: String, CaseIterable {
         self != .prio || mode?.supportsPrioritizedSessions == true
     }
 
+    var unavailableHelp: String? {
+        self == .prio ? "Prio only applies in Fair mode" : nil
+    }
+
     var displayName: String {
         switch self {
         case .rename: "Rename"

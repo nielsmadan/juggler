@@ -8,6 +8,10 @@ enum QueueOrderMode: String, CaseIterable {
 
     static let `default`: QueueOrderMode = .fair
 
+    static func stored(in defaults: UserDefaults = .standard) -> QueueOrderMode {
+        defaults.string(forKey: AppStorageKeys.queueOrderMode).flatMap(QueueOrderMode.init(rawValue:)) ?? .default
+    }
+
     var reordersQueue: Bool {
         self == .fair || self == .prio
     }

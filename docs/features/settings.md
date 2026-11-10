@@ -55,9 +55,10 @@ The beacon is enabled/disabled from the Session Monitor control bar and the "Tog
 - **Show Shortcut Helper**: Toggle the persistent shortcut reference in the popover and monitor.
 - **Show shortcut hints / Hint frequency**: Control transient shortcut hints shown after using shortcut-backed UI.
 - **Global hotkeys**: ShortcutKit recorders for all eight global shortcuts (see
-  [Cycle Sessions](cycle-sessions.md#global-shortcuts) and [Notifications](notification.md)). Edit Current Note
+  [Cycle Sessions](cycle-sessions.md#global-shortcuts) and [Notifications](notification.md)). Session Menu
   defaults to ⇧⌘M; every binding is customizable.
-- **Session List shortcuts**: Configurable ShortcutKit bindings for the popover and monitor window: Activate, Move Down,
+- **Session List shortcuts**: Configurable ShortcutKit bindings for the popover, the monitor window and the
+  [session menu](cycle-sessions.md#session-menu): Activate, Move Down,
   Move Up, Backburner, Send to Back, Reactivate Selected, Reactivate All, Rename, Edit Note (default M), Cycle Mode
   Forward, Cycle Mode Backward, Toggle Beacon, Permission First, Auto Next, Auto Restart.
 - **Session Monitor shortcuts**: Hide/Unhide selected (`E`), Show Hidden (`⌘E`) and Prio (`Y`), all without key repeat.

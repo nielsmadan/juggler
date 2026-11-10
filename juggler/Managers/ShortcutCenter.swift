@@ -3,8 +3,8 @@
 //  Juggler
 //
 //  Owns the single shared ShortcutKit registry: the global hotkey context and
-//  the local session-list context, plus the Carbon activator that registers the
-//  global bindings system-wide. The registry is the one object the settings UI,
+//  the local session-list and session-monitor contexts, plus the Carbon activator
+//  that registers the global bindings system-wide. The registry is the one object the settings UI,
 //  legends, and hint HUD observe.
 //
 
@@ -39,6 +39,10 @@ final class ShortcutCenter {
         displayName: "Session Monitor"
     )
 
+    static let migrations: [ShortcutMigration] = [
+        .renameAction(context: "global", from: "editNote", to: "sessionMenu")
+    ]
+
     let registry: ShortcutRegistry
     let hintPresenter: ShortcutHintPresenter
     let hintOptions = HintHUDOptions(placement: .top, presentation: .window)
@@ -47,7 +51,10 @@ final class ShortcutCenter {
     private var didStart = false
 
     private init() {
-        let registry = ShortcutRegistry(contexts: [globalContext, sessionListContext, sessionMonitorContext])
+        let registry = ShortcutRegistry(
+            contexts: [globalContext, sessionListContext, sessionMonitorContext],
+            migrations: Self.migrations
+        )
         self.registry = registry
         hintPresenter = ShortcutHintPresenter(registry: registry)
     }

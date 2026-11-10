@@ -20,7 +20,7 @@ enum GlobalAction: String, ShortcutAction {
     case sendToBack
     case reactivateAll
     case goToLastNotification
-    case editNote
+    case sessionMenu
     case showMonitor
 
     var definition: ShortcutActionDefinition {
@@ -41,11 +41,11 @@ enum GlobalAction: String, ShortcutAction {
                 Shortcut("cmd+shift+e"),
                 description: "Activates the session from the most recent notification."
             )
-        case .editNote:
+        case .sessionMenu:
             .init(
-                "Edit Current Note:",
+                "Session Menu:",
                 Shortcut("cmd+shift+m"),
-                description: "Edits the note for the tracked session focused in an active terminal."
+                description: "Opens a menu to prioritize, hide, rename or note the focused tracked session."
             )
         case .showMonitor:
             .init(
@@ -57,8 +57,8 @@ enum GlobalAction: String, ShortcutAction {
     }
 }
 
-/// Session-list shortcuts, active only while the monitor window or the menu-bar
-/// popover is the key window (see `ShortcutCenter.keyWindowShortcutContext`).
+/// Session-list shortcuts, active while the monitor window, the menu-bar popover
+/// or the session menu is the key window (see `ShortcutCenter.keyWindowShortcutContext`).
 enum SessionListAction: String, ShortcutAction {
     case activate
     case moveDown
@@ -171,5 +171,37 @@ extension ShortcutContext where Action == SessionListAction {
     func notifyHint(for action: SessionListAction) {
         guard action != .activate else { return }
         notify(action)
+    }
+}
+
+enum RowActionShortcut: Equatable {
+    case list(SessionListAction)
+    case monitor(SessionMonitorAction)
+}
+
+extension SessionRowAction {
+    var shortcut: RowActionShortcut {
+        switch self {
+        case .rename: .list(.rename)
+        case .note: .list(.editNote)
+        case .hide: .monitor(.toggleSelectedHidden)
+        case .prio: .monitor(.toggleSelectedPrioritized)
+        }
+    }
+
+    init?(_ shortcut: RowActionShortcut) {
+        guard let action = Self.allCases.first(where: { $0.shortcut == shortcut }) else { return nil }
+        self = action
+    }
+
+    @MainActor
+    func shortcutDisplayString(
+        list: ShortcutContext<SessionListAction>,
+        monitor: ShortcutContext<SessionMonitorAction>
+    ) -> String? {
+        switch shortcut {
+        case let .list(action): list.displayStrings(for: action).first
+        case let .monitor(action): monitor.displayStrings(for: action).first
+        }
     }
 }

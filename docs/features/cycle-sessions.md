@@ -12,19 +12,42 @@ The core feature of Juggler: cycling through agent sessions (Claude Code, OpenCo
 | `⇧⌘O` | Send current session to the back of its queue |
 | `⇧⌘H` | Reactivate all backburnered sessions |
 | `⇧⌘E` | Activate session from last notification |
-| `⇧⌘M` | Edit note for the focused tracked session |
+| `⇧⌘M` | Session menu for the focused tracked session |
 | `⇧⌘;` | Show session monitor window |
 
 All shortcuts are customizable in **Settings > Shortcuts**.
 
-## Session Notes
+## Session Menu
 
-Press `⇧⌘M` from any app to edit the note for the uniquely focused tracked session in an active terminal. Juggler does not guess or fall back to another session: if no active terminal has exactly one focused tracked session, it shows **"No Active Session"**.
+Press `⇧⌘M` from any app to open the session menu for the uniquely focused tracked session in an active terminal.
+Juggler does not guess or fall back to another session: if no active terminal has exactly one focused tracked
+session, it shows **"No Active Session"**.
 
-Notes use a compact single-line editor. Press `Return` to save or `Escape` to cancel. They are stored with the coding-agent conversation, so resuming the same conversation restores its note. Starting a new conversation in the same terminal pane does not inherit the old note.
+The menu appears over the centre of the frontmost window, styled like the beacon. It shows the session's name, agent,
+state, prio and hidden markers, note, and the details the monitor's row slots can show (folder, branch, titles, model,
+effort, permission mode, current tool, last problem, subagents, context, turns, run time). Juggler stays in the
+background, so the terminal keeps focus once the menu closes.
 
-If the editor is already visible and the shortcut is invoked from a different focused session, it retargets to that
-session. Invoking it again for the same conversation keeps the current draft.
+| Action | Default key | Effect |
+|--------|-------------|--------|
+| Prio | `Y` | Toggles prio and closes. Fair mode only; disabled in the other modes. |
+| Hide | `E` | Toggles hidden and closes. |
+| Rename | `R` | Opens a name field; `Return` saves, **Clear** removes the custom name. |
+| Note | `M` | Opens a note field; `Return` saves. |
+
+The keys are the Session List and Session Monitor shortcuts, so rebinding them in **Settings > Shortcuts** changes
+the menu too. Other monitor shortcuts do nothing while the menu is open. One change closes the menu. `Escape` steps
+back from a name or note field to the menu and closes the menu itself; `Control-C` or clicking elsewhere closes it
+from anywhere. Command shortcuts such as `⌘Q` are ignored while it is open, apart from cut, copy, paste, select all,
+undo and redo in a field.
+
+Notes are stored with the coding-agent conversation, so resuming the same conversation restores its note. Starting a
+new conversation in the same terminal pane does not inherit the old note. If a new conversation takes over the pane
+while the menu is open, a note still saves to the conversation the menu was opened for; the other actions report
+**"Session No Longer Available"**.
+
+Pressing the shortcut again for the same conversation closes the menu; pressing it from a different focused session
+retargets the menu to that session.
 
 ## Cycling Behavior
 

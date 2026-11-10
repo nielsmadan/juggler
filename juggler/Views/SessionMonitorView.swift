@@ -661,7 +661,7 @@ struct SessionMonitorView: View {
                     label: action.label(for: session),
                     metrics: metrics,
                     isEnabled: action.isAvailable(in: currentQueueOrderMode),
-                    disabledHelp: "Prio only applies in Fair mode"
+                    disabledHelp: action.unavailableHelp
                 ) {
                     performRowAction(action, session: session)
                 }
@@ -675,7 +675,7 @@ struct SessionMonitorView: View {
         label: String,
         metrics: SessionRowActionLayout.Metrics,
         isEnabled: Bool,
-        disabledHelp: String,
+        disabledHelp: String?,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -688,7 +688,7 @@ struct SessionMonitorView: View {
         .foregroundStyle(.secondary)
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.4)
-        .help(isEnabled ? label : disabledHelp)
+        .help(isEnabled ? label : disabledHelp ?? label)
         .accessibilityLabel(label)
     }
 
@@ -696,17 +696,17 @@ struct SessionMonitorView: View {
         switch action {
         case .rename:
             controller.sessionToRename = session
-            ShortcutCenter.shared.sessionListContext.notifyHint(for: .rename)
         case .note:
             controller.sessionToEditNote = session
-            ShortcutCenter.shared.sessionListContext.notifyHint(for: .editNote)
         case .hide:
             controller.toggleHidden(sessionID: session.id, sessionManager: sessionManager)
-            ShortcutCenter.shared.sessionMonitorContext.notify(.toggleSelectedHidden)
         case .prio:
             controller.togglePrioritized(sessionID: session.id, mode: currentQueueOrderMode,
                                          sessionManager: sessionManager)
-            ShortcutCenter.shared.sessionMonitorContext.notify(.toggleSelectedPrioritized)
+        }
+        switch action.shortcut {
+        case let .list(shortcut): ShortcutCenter.shared.sessionListContext.notifyHint(for: shortcut)
+        case let .monitor(shortcut): ShortcutCenter.shared.sessionMonitorContext.notify(shortcut)
         }
     }
 

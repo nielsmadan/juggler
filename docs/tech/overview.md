@@ -119,7 +119,7 @@ Juggler works with this by letting the activation complete, then yielding focus 
 
 ### Beacon Active-Window Positioning
 
-The `.activeWindow` beacon anchor converts the frontmost window's CoreGraphics (top-left origin) frame to AppKit (bottom-left origin) coordinates. The flip must use the **primary** screen height - `NSScreen.screens.first` (`screens[0]`), not `NSScreen.main` (which is the screen holding keyboard focus). Using `NSScreen.main` mispositions the beacon on multi-monitor setups. See `BeaconManager.frontmostWindowFrame()`.
+The `.activeWindow` beacon anchor converts the frontmost window's CoreGraphics (top-left origin) frame to AppKit (bottom-left origin) coordinates. The flip must use the **primary** screen height - `NSScreen.screens.first` (`screens[0]`), not `NSScreen.main` (which is the screen holding keyboard focus). Using `NSScreen.main` mispositions the beacon on multi-monitor setups. See `FrontmostWindow.frame()`.
 
 ## Recurring gotchas
 

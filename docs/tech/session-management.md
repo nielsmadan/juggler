@@ -219,9 +219,9 @@ delegates fired actions to `HotkeyManager` (`Managers/HotkeyManager.swift`), whi
 | `⌘⇧H` | Reactivate all backburnered sessions |
 | `⌘⇧;` | Show monitor (popover → main window → dismiss cycle) |
 | `⌘⇧E` | Jump to the session from the most recent delivered notification |
-| `⌘⇧M` | Edit the note for the focused tracked session |
+| `⌘⇧M` | Open the session menu for the focused tracked session |
 
-The note shortcut requires one unambiguous focus match. When multiple remote tmux sessions share the same live local
+The session menu shortcut requires one unambiguous focus match. When multiple remote tmux sessions share the same live local
 host pane and no unique session can be established, the shortcut reports that there is no active session.
 
 The jump-to-latest shortcut resolves `SessionManager.lastNotificationTarget`, independent of cycle order, and shows
@@ -230,6 +230,12 @@ The jump-to-latest shortcut resolves `SessionManager.lastNotificationTarget`, in
 ShortcutKit 0.8.0 binds local dispatch handlers per activation. `keyWindowShortcutContext` mounts only for the
 receiving key window. The monitor composes the shared `sessionList` context with its own `sessionMonitor`
 context (`E` Hide/Unhide, `⌘E` Show Hidden, `Y` Prio, no key repeat); the popover mounts only `sessionList`.
+The session menu (`SessionMenuManager`) mounts both contexts while its panel is key and its name or note field is
+closed, so the same bindings drive it; `SessionRowAction.shortcut` maps its four actions to their shortcut actions
+and it ignores the rest. Its panel is a non-activating key `NSPanel`, so the terminal stays the active app and
+`focusedTrackedSession` stays valid while it is open. It handles `Escape` and `Control-C` in `sendEvent` and consumes
+Command key equivalents so they never reach Juggler's main menu. It resolves its session by pane and conversation
+(`noteKey`), and saves notes to the conversation it opened for.
 The monitor legend merges both contexts into one "Shortcuts" group (`CombinedShortcutLegend`); Settings lists them
 separately. These bindings are independent of which row actions the Settings slots show.
 
@@ -237,7 +243,7 @@ Capture whether a terminal is frontmost **synchronously** in `HotkeyManager.disp
 asynchronous work starts; the answer changes as soon as activation begins.
 
 `ShortcutAction` raw values are persistence identifiers. Renaming a case requires migrating saved
-bindings.
+bindings: add a `ShortcutMigration` to `ShortcutCenter.migrations` (`editNote` became `sessionMenu`).
 
 ## Activation and Notifications
 

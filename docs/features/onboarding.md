@@ -10,7 +10,7 @@ First-launch flow that walks new users through the setup required for Juggler to
    events so Auto Review does not briefly put sessions in the permission queue. It is preselected when Auto Review is
    detected in the global Codex config.
 3. **Global Shortcuts**: ShortcutKit recorders for the eight global hotkeys (Cycle Forward/Backward, Backburner Current,
-   Send to Back, Reactivate All, Last Notification, Edit Current Note, Show Monitor). Edit Current Note defaults to ⇧⌘M;
+   Send to Back, Reactivate All, Last Notification, Session Menu, Show Monitor). Session Menu defaults to ⇧⌘M;
    users can accept the defaults or customize every binding.
 4. **Finish**: Options to enable "Launch at Login" and "Automatically download and install updates".
 

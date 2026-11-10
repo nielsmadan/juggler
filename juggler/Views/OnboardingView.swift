@@ -102,7 +102,7 @@ struct ShortcutsStep: View {
                     ShortcutBindingEditor(.sendToBack, in: global)
                     ShortcutBindingEditor(.reactivateAll, in: global)
                     ShortcutBindingEditor(.goToLastNotification, in: global, showsDescription: true)
-                    ShortcutBindingEditor(.editNote, in: global, showsDescription: true)
+                    ShortcutBindingEditor(.sessionMenu, in: global, showsDescription: true)
                     ShortcutBindingEditor(.showMonitor, in: global, showsDescription: true)
                 }
             }

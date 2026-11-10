@@ -78,7 +78,7 @@ Upgrades and ordinary reinstalls preserve integrations. Other tools' hooks and s
 - **Permission-first queue** - Optionally keep quick permission decisions ahead of ordinary idle sessions
 - **Backburner** - Park sessions you don't need right now. They stay tracked but won't appear in your cycle
 - **Hide sessions** - Keep a conversation tracked without showing it in the list, cycling to it, or notifying you. Hide and backburner choices survive restarts
-- **Session notes** - Add a short note to a conversation and see it in the monitor and beacon when you return
+- **Session notes** - Add a short note to a conversation, from the monitor or the `⇧⌘M` session menu, and see it in the monitor and beacon when you return
 - **Idle time stats** - Per-session and global idle vs. working time
 - **Guided setup** - Onboarding walks you through permissions, terminal integration, and hook installation
 
@@ -92,7 +92,7 @@ Upgrades and ordinary reinstalls preserve integrations. Other tools' hooks and s
 | `⇧⌘O` | Send current session to back of queue |
 | `⇧⌘H` | Reactivate all backburnered sessions |
 | `⇧⌘E` | Activate session from last notification |
-| `⇧⌘M` | Edit note for the focused tracked session |
+| `⇧⌘M` | Session menu for the focused tracked session: prio, hide, rename, note |
 | `⇧⌘;` | Toggle popover / open monitor |
 
 All shortcuts are customizable in Settings.
@@ -103,6 +103,9 @@ Revealed hidden rows are dimmed with an eye-slash marker and can still be opened
 Show Hidden also affects the popover, and starts off each time Juggler launches. These two shortcuts apply only
 in the monitor. `Y` marks the selected conversation as prio: in Fair mode it then jumps the queue whenever it starts
 waiting. Settings lets you pick up to three row action buttons (Rename, Note, Hide, Prio) or none.
+
+From any app, `⇧⌘M` opens a session menu over the focused terminal with the session's details and the same four
+actions, using the same keys. One change closes it; `Escape` or `Control-C` closes it without changes.
 
 Hiding keeps state updates and busy time running. The stats footer always counts all tracked rows:
 `X/Y busy, Z hidden`. Hide follows the agent conversation, so a new conversation in the same pane starts clean.

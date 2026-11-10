@@ -228,8 +228,6 @@ final class SessionActivator {
     }
 
     private func displayName(for session: Session) -> String {
-        let rawTitleMode = UserDefaults.standard.string(forKey: AppStorageKeys.sessionTitleMode) ?? ""
-        let titleMode = SessionTitleMode(rawValue: rawTitleMode) ?? .default
-        return sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode)
+        sessionManager.disambiguatedDisplayName(for: session, titleMode: .stored())
     }
 }

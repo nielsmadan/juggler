@@ -39,9 +39,18 @@ struct ShortcutActionsTests {
         withExtendedLifetime(cancellable) {}
     }
 
-    @Test func noteActionsUseMatchingDefaultShortcuts() {
-        #expect(GlobalAction.editNote.definition.defaultShortcuts == [Shortcut("cmd+shift+m")])
+    @Test func sessionMenuAndNoteActionsUseMatchingDefaultShortcuts() {
+        #expect(GlobalAction.sessionMenu.definition.defaultShortcuts == [Shortcut("cmd+shift+m")])
         #expect(SessionListAction.editNote.definition.defaultShortcuts == [Shortcut("m")])
+    }
+
+    @Test func savedEditNoteBindingMigratesToTheSessionMenu() {
+        let store = MemoryShortcutStore(RawState(overrides: ["global": ["editNote": [Shortcut("cmd+shift+n")]]]))
+        let context = ShortcutContext<GlobalAction>("global")
+        let registry = ShortcutRegistry(contexts: [context], migrations: ShortcutCenter.migrations, store: store)
+
+        #expect(context.shortcuts(for: .sessionMenu) == [Shortcut("cmd+shift+n")])
+        withExtendedLifetime(registry) {}
     }
 
     @Test func sessionListContext_usesShortcutsTitle() {
@@ -126,5 +135,22 @@ struct ShortcutActionsTests {
         #expect(group.entries.map(\.actionID)
             == SessionListAction.allCases.map(\.rawValue) + SessionMonitorAction.allCases.map(\.rawValue))
         #expect(KeyBindings().mergedIntoSingleGroup(displayName: "Shortcuts").groups == [])
+    }
+}
+
+@MainActor
+final class MemoryShortcutStore: ShortcutBindingsStore {
+    private(set) var state: RawState
+
+    init(_ state: RawState = RawState()) {
+        self.state = state
+    }
+
+    func load() -> RawState {
+        state
+    }
+
+    func save(_ state: RawState) {
+        self.state = state
     }
 }
