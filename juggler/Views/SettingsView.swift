@@ -392,18 +392,6 @@ struct IntegrationSettingsView: View {
     @State private var isInstallingPiExtension = false
     @State private var piInstallError: String?
 
-    @State private var droidHooksInstalled = false
-    @State private var isInstallingDroidHooks = false
-    @State private var droidInstallError: String?
-
-    @State private var qwenHooksInstalled = false
-    @State private var isInstallingQwenHooks = false
-    @State private var qwenInstallError: String?
-
-    @State private var kimiHooksInstalled = false
-    @State private var isInstallingKimiHooks = false
-    @State private var kimiInstallError: String?
-
     @State private var antigravityController = AntigravitySetupController()
 
     @State private var showingSSHSheet = false
@@ -452,9 +440,6 @@ struct IntegrationSettingsView: View {
         hooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .claude)
         openCodePluginInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .opencode)
         piExtensionInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .pi)
-        droidHooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .droid)
-        qwenHooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .qwen)
-        kimiHooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .kimi)
     }
 
     private func categoryHeader(_ title: String) -> some View {
@@ -757,85 +742,8 @@ struct IntegrationSettingsView: View {
                 }
             }
 
-            Section("Factory Droid") {
-                HStack {
-                    Text("Hook Script")
-                    Spacer()
-                    if droidHooksInstalled {
-                        Label("Installed", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                    } else {
-                        Label("Not Installed", systemImage: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if let error = droidInstallError {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                }
-
-                Button(droidHooksInstalled ? "Reinstall Hooks" : "Install Hooks") {
-                    installDroidHooks()
-                }
-                .disabled(isInstallingDroidHooks)
-
-                if droidHooksInstalled {
-                    Text("Droid reads hooks at startup — restart a running droid session for it to take effect.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section("Qwen Code") {
-                HStack {
-                    Text("Hook Script")
-                    Spacer()
-                    if qwenHooksInstalled {
-                        Label("Installed", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                    } else {
-                        Label("Not Installed", systemImage: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if let error = qwenInstallError {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                }
-
-                Button(qwenHooksInstalled ? "Reinstall Hooks" : "Install Hooks") {
-                    installQwenHooks()
-                }
-                .disabled(isInstallingQwenHooks)
-            }
-
-            Section("Kimi Code") {
-                HStack {
-                    Text("Hook Script")
-                    Spacer()
-                    if kimiHooksInstalled {
-                        Label("Installed", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                    } else {
-                        Label("Not Installed", systemImage: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if let error = kimiInstallError {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                }
-
-                Button(kimiHooksInstalled ? "Reinstall Hooks" : "Install Hooks") {
-                    installKimiHooks()
-                }
-                .disabled(isInstallingKimiHooks)
+            ForEach(HookAgentSetup.all) { setup in
+                HookAgentSettingsSection(setup: setup)
             }
 
             Section("Antigravity") {
@@ -1082,54 +990,6 @@ struct IntegrationSettingsView: View {
             }
             piExtensionInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .pi)
             isInstallingPiExtension = false
-        }
-    }
-
-    // MARK: - Factory Droid Hooks
-
-    private func installDroidHooks() {
-        isInstallingDroidHooks = true
-        droidInstallError = nil
-
-        Task {
-            let result = await HooklinesinkerClient.shared.installHooks(agent: .droid)
-            if !result.isSuccess {
-                droidInstallError = result.failureMessage
-            }
-            droidHooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .droid)
-            isInstallingDroidHooks = false
-        }
-    }
-
-    // MARK: - Qwen Code Hooks
-
-    private func installQwenHooks() {
-        isInstallingQwenHooks = true
-        qwenInstallError = nil
-
-        Task {
-            let result = await HooklinesinkerClient.shared.installHooks(agent: .qwen)
-            if !result.isSuccess {
-                qwenInstallError = result.failureMessage
-            }
-            qwenHooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .qwen)
-            isInstallingQwenHooks = false
-        }
-    }
-
-    // MARK: - Kimi Code Hooks
-
-    private func installKimiHooks() {
-        isInstallingKimiHooks = true
-        kimiInstallError = nil
-
-        Task {
-            let result = await HooklinesinkerClient.shared.installHooks(agent: .kimi)
-            if !result.isSuccess {
-                kimiInstallError = result.failureMessage
-            }
-            kimiHooksInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .kimi)
-            isInstallingKimiHooks = false
         }
     }
 }
@@ -1443,7 +1303,7 @@ struct SSHSettingsView: View {
                         + "checksum-verified hooklinesinker release for the remote's "
                         + "architecture, points it back at this Juggler through the tunnel, and "
                         + "installs hooks for whichever agents are there (Claude Code, Codex, "
-                        + "OpenCode, Pi, Factory Droid, Qwen Code, Kimi Code). Codex "
+                        + "OpenCode, Pi, Factory Droid, Qwen Code, Kimi Code, Cursor CLI). Codex "
                         + "additionally needs its hooks trusted on that host, and Droid needs a "
                         + "restart — the script prints those steps.",
                     code: installOneLiner

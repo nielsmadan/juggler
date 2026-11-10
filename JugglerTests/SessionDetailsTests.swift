@@ -197,6 +197,12 @@ struct TurnCountingTests {
         #expect(!SessionManager.isNewTurn(old: .backburner, new: .working, event: "PreToolUse"))
     }
 
+    @Test func cursorPromptSubmitIsATurnFromIdleAndBackburner() {
+        #expect(SessionManager.isNewTurn(old: .idle, new: .working, event: "beforeSubmitPrompt"))
+        #expect(SessionManager.isNewTurn(old: .backburner, new: .working, event: "beforeSubmitPrompt"))
+        #expect(!SessionManager.isNewTurn(old: .backburner, new: .working, event: "PreInvocation"))
+    }
+
     @Test @MainActor func workingPermissionWorkingCountsOneTurn() async {
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)

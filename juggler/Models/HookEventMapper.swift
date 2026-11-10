@@ -26,6 +26,21 @@ enum HookEventMapper {
         }
     }
 
+    private nonisolated static let promptSubmitEvents: Set<String> = ["UserPromptSubmit", "beforeSubmitPrompt"]
+    private nonisolated static let turnStartEvents = promptSubmitEvents.union([
+        "TurnStarted",
+        "agent_start",
+        "PreInvocation"
+    ])
+
+    nonisolated static func isPromptSubmit(_ event: String?) -> Bool {
+        event.map(promptSubmitEvents.contains) ?? false
+    }
+
+    nonisolated static func isTurnStart(_ event: String?) -> Bool {
+        event.map(turnStartEvents.contains) ?? false
+    }
+
     nonisolated static func establishesSessionIdentity(event: String, agent: String) -> Bool {
         switch agent {
         case "opencode":
@@ -34,6 +49,8 @@ enum HookEventMapper {
             event == "session_start"
         case "antigravity":
             event == "PreInvocation"
+        case "cursor":
+            event == "sessionStart" || event == "beforeSubmitPrompt"
         default:
             event == "SessionStart" || event == "UserPromptSubmit"
         }

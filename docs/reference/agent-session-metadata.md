@@ -5,7 +5,7 @@ permission mode) each coding agent exposes **on its hook or plugin surface**, fo
 the session list.
 
 Juggler takes everything it knows about a session from hooks: hooklinesinker's status sink for
-Claude Code, Codex, OpenCode, Pi, Droid, Qwen and Kimi, and its own notify script for
+Claude Code, Codex, OpenCode, Pi, Droid, Qwen, Kimi and Cursor, and its own notify script for
 Antigravity. It never reads agent transcripts, session files, databases or logs, even though
 `transcriptPath` arrives on the wire. Every field below is a hook input or an adapter API, not a
 transcript field.
@@ -112,14 +112,14 @@ Summary by item:
 Two slots come from no agent field:
 
 - **Turns**: hooklinesinker counts a binding's turn starts (`UserPromptSubmit`; Kimi
-  `TurnStarted`; Pi `agent_start`) and sends the count as `activity.turns`, so a turn that
+  `TurnStarted`; Pi `agent_start`; Cursor `beforeSubmitPrompt`) and sends the count as `activity.turns`, so a turn that
   starts while the session is still held working by background work counts too, and a new
   conversation (including after `/clear`) starts at 0. Juggler shows that count whenever the
   record carries `activity`. For Antigravity, and for records from a hooklinesinker too old to
   send `activity`, Juggler counts itself in `Session.turnCount` (`SessionManager.isNewTurn`): a
-  turn-start event (`UserPromptSubmit`, `TurnStarted`, `agent_start` or Antigravity's
-  `PreInvocation`) that takes the row from `idle` to `working`, creates the row already
-  `working`, or, on `UserPromptSubmit` only, wakes a backburnered row. Launch hydration does not
+  turn-start event (`UserPromptSubmit`, Cursor's `beforeSubmitPrompt`, `TurnStarted`,
+  `agent_start` or Antigravity's `PreInvocation`) that takes the row from `idle` to `working`,
+  creates the row already `working`, or, on a prompt submit only, wakes a backburnered row. Launch hydration does not
   count, and rows are not persisted, so that count is turns since Juggler first saw the session.
 - **Run time**: the time since `process.startedAt` on the status record, the owning agent process's
   start time. For OpenCode and Pi it marks the start of the process, not of the conversation; one

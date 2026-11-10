@@ -1428,7 +1428,8 @@ struct HookServerStatusTests {
     @Test(arguments: [
         ("droid", "DR"),
         ("qwen", "QW"),
-        ("kimi", "KM")
+        ("kimi", "KM"),
+        ("cursor", "CU")
     ])
     @MainActor
     func newAgentsPassThroughUnchanged(wireAgent: String, shortName: String) async {
@@ -1440,6 +1441,17 @@ struct HookServerStatusTests {
         #expect(manager.sessions.count == 1)
         #expect(manager.sessions[0].agent == wireAgent)
         #expect(manager.sessions[0].agentShortName == shortName)
+    }
+
+    @Test(arguments: ["goose", "devin", "copilot", "kilo"])
+    @MainActor
+    func statusesFromAgentsJugglerDoesNotSupportCreateNoRow(wireAgent: String) async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await server.handleStatusForTesting(TestFixtures.statusJSON(agent: wireAgent))
+
+        #expect(manager.sessions.isEmpty)
     }
 
     @Test(arguments: [

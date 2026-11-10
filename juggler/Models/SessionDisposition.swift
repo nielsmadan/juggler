@@ -97,10 +97,10 @@ extension BackburnerDisposition {
     func shouldWake(agent: String, state: SessionState, event: String?, source: StatusSource,
                     details: SessionDetails, bindingID: String?) -> Bool {
         let isAntigravityResume = agent == "antigravity" && wasAwaitingUser && state == .working
-        if source == .live { return event == "UserPromptSubmit" || isAntigravityResume }
+        if source == .live { return HookEventMapper.isPromptSubmit(event) || isAntigravityResume }
         guard let observedAt = details.observedAt, observedAt > backburneredAt else { return false }
         if let bindingID, let baseline = turnsByBinding[bindingID],
            let turns = details.reportedTurns, turns > baseline { return true }
-        return event == "UserPromptSubmit" || isAntigravityResume
+        return HookEventMapper.isPromptSubmit(event) || isAntigravityResume
     }
 }

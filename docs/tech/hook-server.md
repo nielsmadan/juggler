@@ -172,8 +172,8 @@ allow. See [Antigravity Hooks](antigravity-hooks.md) for the full mechanism.
 
 ## Backburner Protection
 
-Backburnered rows still merge metadata while preserving their shelved state. Live `UserPromptSubmit` or explicit
-Reactivate wakes them; Antigravity can wake on a working event only when it was awaiting the user when shelved.
+Backburnered rows still merge metadata while preserving their shelved state. Live `UserPromptSubmit` (Cursor: `beforeSubmitPrompt`) or
+explicit Reactivate wakes them; Antigravity can wake on a working event only when it was awaiting the user when shelved.
 Conversation dispositions persist across launch hydration, which requires strictly newer wake evidence.
 Hidden rows continue receiving hooks and busy-time updates while notifications and automation remain suppressed.
 See [conversation dispositions](session-management.md#conversation-dispositions) and

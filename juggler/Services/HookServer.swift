@@ -420,12 +420,18 @@ actor HookServer {
         bindingsHandledLive.insert(bindingID)
     }
 
+    private func logUnsupportedAgent(_ status: HooklinesinkerStatus) async {
+        let agent = logSafe(status.agent)
+        await MainActor.run { logDebug(.hooks, "Ignoring status from unsupported agent: \(agent)") }
+    }
+
     func handleStatusForTesting(_ body: String) async {
         guard let status = decodeStatusPayload(body) else { return }
         await handleStatus(status)
     }
 
     func handleStatus(_ status: HooklinesinkerStatus, source: StatusSource = .live) async {
+        guard status.isFromSupportedAgent else { return await logUnsupportedAgent(status) }
         let terminalSessionID = status.terminalSessionID
 
         // No terminal session ID means no activation address: the row could never be

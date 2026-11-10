@@ -9,6 +9,8 @@ struct HookEventMapperTests {
         #expect(HookEventMapper.establishesSessionIdentity(event: "session.created", agent: "opencode"))
         #expect(HookEventMapper.establishesSessionIdentity(event: "session_start", agent: "pi"))
         #expect(HookEventMapper.establishesSessionIdentity(event: "PreInvocation", agent: "antigravity"))
+        #expect(HookEventMapper.establishesSessionIdentity(event: "sessionStart", agent: "cursor"))
+        #expect(HookEventMapper.establishesSessionIdentity(event: "beforeSubmitPrompt", agent: "cursor"))
     }
 
     @Test func delayedLifecycleEvents_doNotEstablishSessionIdentity() {
@@ -17,6 +19,7 @@ struct HookEventMapperTests {
         #expect(!HookEventMapper.establishesSessionIdentity(event: "session.status.idle", agent: "opencode"))
         #expect(!HookEventMapper.establishesSessionIdentity(event: "agent_settled", agent: "pi"))
         #expect(!HookEventMapper.establishesSessionIdentity(event: "Stop", agent: "antigravity"))
+        #expect(!HookEventMapper.establishesSessionIdentity(event: "stop", agent: "cursor"))
     }
 
     // MARK: - Idle State Mappings

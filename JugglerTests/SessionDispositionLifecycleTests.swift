@@ -225,6 +225,17 @@ struct SessionDispositionLifecycleTests {
         #expect(manager.dispositionStore.disposition(for: key) == .init(isHidden: true))
     }
 
+    @Test func newerHydratedCursorPromptWakesWithoutATurnBaseline() {
+        let manager = TestFixtures.isolatedSessionManager()
+        let identity = AgentSessionIdentity(agent: "cursor", agentSessionID: "conversation")
+        let backburner = BackburnerDisposition(wasAwaitingUser: false, backburneredAt: shelvedAt)
+        manager.dispositionStore.setDisposition(.init(isHidden: false, backburner: backburner), for: identity)
+        receive(manager, agent: "cursor", state: .working, event: "beforeSubmitPrompt", source: .hydration,
+                observedAt: shelvedAt.addingTimeInterval(1))
+        #expect(manager.sessions[0].state == .working)
+        #expect(manager.dispositionStore.dispositions.isEmpty)
+    }
+
     @Test func increasedExternalTurnsProveOfflineWakeEvenAfterThePromptHasCompleted() {
         let manager = TestFixtures.isolatedSessionManager()
         manager.dispositionStore.setDisposition(.init(isHidden: false, backburner: storedBackburner), for: key)

@@ -1611,7 +1611,7 @@ struct StatusIngressIntegrationTests {
         #expect(manager.sessions.isEmpty)
     }
 
-    /// Droid, Qwen and Kimi speak the protocol-v1 route exclusively — their phase mapping lives
+    /// Droid, Qwen, Kimi and Cursor speak the protocol-v1 route exclusively — their phase mapping lives
     /// entirely in hooklinesinker, so Juggler only needs to trust the agent and phase fields.
     @Test @MainActor func droidSessionEndRemovesTheSession() async {
         let manager = SessionManager()
@@ -1662,6 +1662,26 @@ struct StatusIngressIntegrationTests {
 
         #expect(manager.sessions.count == 1)
         #expect(manager.sessions[0].agent == "kimi")
+        #expect(manager.sessions[0].state == .working)
+    }
+
+    @Test @MainActor func cursorPromptSubmitWakesABackburneredSession() async {
+        let manager = SessionManager()
+        let server = HookServer(sessionManager: manager)
+
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "cu", agent: "cursor", event: "sessionStart", phase: "idle", terminalSessionID: "s1"
+        ))
+        manager.backburnerSession(terminalSessionID: "s1")
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "cu", agent: "cursor", event: "preToolUse", phase: "working", terminalSessionID: "s1"
+        ))
+        #expect(manager.sessions[0].state == .backburner)
+
+        await post(server, TestFixtures.statusJSON(
+            bindingId: "cu", agent: "cursor", event: "beforeSubmitPrompt", phase: "working", terminalSessionID: "s1"
+        ))
+        #expect(manager.sessions[0].agent == "cursor")
         #expect(manager.sessions[0].state == .working)
     }
 

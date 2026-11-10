@@ -302,14 +302,14 @@ signal for cross-section movement: animating the state change, the reorder, or
 turn-count baselines by hooklinesinker binding. Backburnered rows continue merging metadata and binding observations
 while retaining `.backburner`. Hide is independent: waking or explicitly reactivating does not unhide a conversation.
 
-Live `UserPromptSubmit` wakes it. Antigravity, which has no such event, wakes on a working event only if it was
+Live `UserPromptSubmit` (Cursor: `beforeSubmitPrompt`) wakes it. Antigravity, which has no such event, wakes on a working event only if it was
 awaiting the user when shelved. Explicit Reactivate clears the persisted backburner field across duplicate rows.
 
 Launch hydration is more conservative. The incoming `observedAt` must be strictly newer than `backburneredAt`,
 and one of these must prove activity while Juggler was offline:
 
 - An explicitly supplied nonnegative integer turn count exceeds the saved baseline for the **same binding**.
-- The snapshot event is `UserPromptSubmit`.
+- The snapshot event is `UserPromptSubmit` (Cursor: `beforeSubmitPrompt`).
 - It is a qualifying Antigravity working event and the saved awaiting-user flag is true.
 
 Missing, malformed or negative counts, unknown bindings, unchanged counts and older/equal timestamps do not prove

@@ -127,6 +127,7 @@ struct Session: Identifiable, Codable, Equatable {
         case "droid": "DR"
         case "qwen": "QW"
         case "kimi": "KM"
+        case "cursor": "CU"
         default: "CC"
         }
     }
@@ -141,6 +142,7 @@ struct Session: Identifiable, Codable, Equatable {
         case "droid": "Factory Droid"
         case "qwen": "Qwen Code"
         case "kimi": "Kimi Code"
+        case "cursor": "Cursor CLI"
         default: agent
         }
     }

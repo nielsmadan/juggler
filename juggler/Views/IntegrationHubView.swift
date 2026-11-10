@@ -22,10 +22,8 @@ struct IntegrationHubView: View {
     @State private var showingOpenCodeSetup = false
     @State private var showingCodexSetup = false
     @State private var showingPiSetup = false
-    @State private var showingDroidSetup = false
-    @State private var showingQwenSetup = false
-    @State private var showingKimiSetup = false
     @State private var showingAntigravitySetup = false
+    @State private var hookAgentSetup: HookAgentSetup?
 
     @State private var iterm2Configured = false
     @State private var kittyConfigured = false
@@ -35,10 +33,8 @@ struct IntegrationHubView: View {
     @State private var openCodeConfigured = false
     @State private var codexConfigured = false
     @State private var piConfigured = false
-    @State private var droidConfigured = false
-    @State private var qwenConfigured = false
-    @State private var kimiConfigured = false
     @State private var antigravityConfigured = false
+    @State private var configuredHookAgents: Set<HooklinesinkerAgent> = []
 
     @State private var showingIncompleteAlert = false
 
@@ -48,7 +44,7 @@ struct IntegrationHubView: View {
 
     var hasAnyAgent: Bool {
         claudeCodeConfigured || openCodeConfigured || codexConfigured || piConfigured
-            || droidConfigured || qwenConfigured || kimiConfigured || antigravityConfigured
+            || !configuredHookAgents.isEmpty || antigravityConfigured
     }
 
     var body: some View {
@@ -148,29 +144,15 @@ struct IntegrationHubView: View {
                             action: { showingPiSetup = true }
                         )
 
-                        IntegrationCard(
-                            icon: "cpu",
-                            title: "Factory Droid",
-                            description: "Install hooks for session tracking",
-                            isConfigured: droidConfigured,
-                            action: { showingDroidSetup = true }
-                        )
-
-                        IntegrationCard(
-                            icon: "atom",
-                            title: "Qwen Code",
-                            description: "Install hooks for session tracking",
-                            isConfigured: qwenConfigured,
-                            action: { showingQwenSetup = true }
-                        )
-
-                        IntegrationCard(
-                            icon: "moon.stars",
-                            title: "Kimi Code",
-                            description: "Install hooks for session tracking",
-                            isConfigured: kimiConfigured,
-                            action: { showingKimiSetup = true }
-                        )
+                        ForEach(HookAgentSetup.all) { setup in
+                            IntegrationCard(
+                                icon: setup.icon,
+                                title: setup.title,
+                                description: "Install hooks for session tracking",
+                                isConfigured: configuredHookAgents.contains(setup.agent),
+                                action: { hookAgentSetup = setup }
+                            )
+                        }
 
                         IntegrationCard(
                             icon: "arrow.up.circle",
@@ -236,22 +218,29 @@ struct IntegrationHubView: View {
             PiSetupView(isConfigured: $piConfigured)
                 .frame(width: 540, height: 420)
         }
-        .sheet(isPresented: $showingDroidSetup) {
-            DroidSetupView(isConfigured: $droidConfigured)
-                .frame(width: 540, height: 420)
-        }
-        .sheet(isPresented: $showingQwenSetup) {
-            QwenSetupView(isConfigured: $qwenConfigured)
-                .frame(width: 540, height: 420)
-        }
-        .sheet(isPresented: $showingKimiSetup) {
-            KimiSetupView(isConfigured: $kimiConfigured)
+        .sheet(item: $hookAgentSetup) { setup in
+            HookAgentSetupView(setup: setup, isConfigured: hookAgentConfigured(setup.agent))
                 .frame(width: 540, height: 420)
         }
         .sheet(isPresented: $showingAntigravitySetup) {
             AntigravitySetupView(isConfigured: $antigravityConfigured, isEnabled: $antigravityEnabled)
                 .frame(width: 540, height: 460)
         }
+    }
+}
+
+extension IntegrationHubView {
+    private func hookAgentConfigured(_ agent: HooklinesinkerAgent) -> Binding<Bool> {
+        Binding(
+            get: { configuredHookAgents.contains(agent) },
+            set: { isConfigured in
+                if isConfigured {
+                    configuredHookAgents.insert(agent)
+                } else {
+                    configuredHookAgents.remove(agent)
+                }
+            }
+        )
     }
 }
 
@@ -850,267 +839,6 @@ struct PiSetupView: View {
                 errorMessage = error.localizedDescription
             }
             isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .pi)
-            isInstalling = false
-        }
-    }
-}
-
-// MARK: - Factory Droid Setup
-
-struct DroidSetupView: View {
-    @Binding var isConfigured: Bool
-    @Environment(\.dismiss) private var dismiss
-    @State private var isInstalling = false
-    @State private var isInstalled = false
-    @State private var errorMessage: String?
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Factory Droid Setup")
-                .font(.title2)
-                .fontWeight(.bold)
-
-            Text(
-                "Juggler needs to register hooks in ~/.factory/hooks.json to detect when Droid sessions become idle or need input."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-
-            VStack(alignment: .leading, spacing: 16) {
-                SetupStep(
-                    number: 1,
-                    isComplete: isInstalled,
-                    title: "Install Hooks",
-                    detail: "Registers Juggler's hook events in ~/.factory/hooks.json"
-                )
-            }
-            .padding()
-            .background(Color.secondary.opacity(0.1))
-            .cornerRadius(8)
-
-            if isInstalled {
-                Label("Hooks Installed", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                Text("Droid reads hooks at startup — restart a running droid session for it to take effect.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if let error = errorMessage {
-                Text(error)
-                    .foregroundStyle(.red)
-                    .font(.caption)
-            }
-
-            if !isInstalled {
-                Button("Install Hooks") {
-                    installHooks()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isInstalling)
-            }
-
-            Spacer()
-
-            if isInstalled {
-                Button("Done") {
-                    isConfigured = true
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-            } else {
-                Button("Cancel") {
-                    dismiss()
-                }
-            }
-        }
-        .padding()
-        .task {
-            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .droid)
-        }
-    }
-
-    private func installHooks() {
-        isInstalling = true
-        errorMessage = nil
-
-        Task {
-            let result = await HooklinesinkerClient.shared.installHooks(agent: .droid)
-            if !result.isSuccess {
-                errorMessage = result.failureMessage
-            }
-            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .droid)
-            isInstalling = false
-        }
-    }
-}
-
-// MARK: - Qwen Code Setup
-
-struct QwenSetupView: View {
-    @Binding var isConfigured: Bool
-    @Environment(\.dismiss) private var dismiss
-    @State private var isInstalling = false
-    @State private var isInstalled = false
-    @State private var errorMessage: String?
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Qwen Code Setup")
-                .font(.title2)
-                .fontWeight(.bold)
-
-            Text(
-                "Juggler needs to register hooks in ~/.qwen/settings.json to detect when Qwen Code sessions become idle or need input."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-
-            VStack(alignment: .leading, spacing: 16) {
-                SetupStep(
-                    number: 1,
-                    isComplete: isInstalled,
-                    title: "Install Hooks",
-                    detail: "Registers Juggler's hook events in ~/.qwen/settings.json"
-                )
-            }
-            .padding()
-            .background(Color.secondary.opacity(0.1))
-            .cornerRadius(8)
-
-            if isInstalled {
-                Label("Hooks Installed", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else if let error = errorMessage {
-                Text(error)
-                    .foregroundStyle(.red)
-                    .font(.caption)
-            }
-
-            if !isInstalled {
-                Button("Install Hooks") {
-                    installHooks()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isInstalling)
-            }
-
-            Spacer()
-
-            if isInstalled {
-                Button("Done") {
-                    isConfigured = true
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-            } else {
-                Button("Cancel") {
-                    dismiss()
-                }
-            }
-        }
-        .padding()
-        .task {
-            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .qwen)
-        }
-    }
-
-    private func installHooks() {
-        isInstalling = true
-        errorMessage = nil
-
-        Task {
-            let result = await HooklinesinkerClient.shared.installHooks(agent: .qwen)
-            if !result.isSuccess {
-                errorMessage = result.failureMessage
-            }
-            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .qwen)
-            isInstalling = false
-        }
-    }
-}
-
-// MARK: - Kimi Code Setup
-
-struct KimiSetupView: View {
-    @Binding var isConfigured: Bool
-    @Environment(\.dismiss) private var dismiss
-    @State private var isInstalling = false
-    @State private var isInstalled = false
-    @State private var errorMessage: String?
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Kimi Code Setup")
-                .font(.title2)
-                .fontWeight(.bold)
-
-            Text(
-                "Juggler needs to register hooks in ~/.kimi-code/config.toml to detect when Kimi Code sessions become idle or need input."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-
-            VStack(alignment: .leading, spacing: 16) {
-                SetupStep(
-                    number: 1,
-                    isComplete: isInstalled,
-                    title: "Install Hooks",
-                    detail: "Registers Juggler's hook events in ~/.kimi-code/config.toml"
-                )
-            }
-            .padding()
-            .background(Color.secondary.opacity(0.1))
-            .cornerRadius(8)
-
-            if isInstalled {
-                Label("Hooks Installed", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else if let error = errorMessage {
-                Text(error)
-                    .foregroundStyle(.red)
-                    .font(.caption)
-            }
-
-            if !isInstalled {
-                Button("Install Hooks") {
-                    installHooks()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isInstalling)
-            }
-
-            Spacer()
-
-            if isInstalled {
-                Button("Done") {
-                    isConfigured = true
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-            } else {
-                Button("Cancel") {
-                    dismiss()
-                }
-            }
-        }
-        .padding()
-        .task {
-            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .kimi)
-        }
-    }
-
-    private func installHooks() {
-        isInstalling = true
-        errorMessage = nil
-
-        Task {
-            let result = await HooklinesinkerClient.shared.installHooks(agent: .kimi)
-            if !result.isSuccess {
-                errorMessage = result.failureMessage
-            }
-            isInstalled = await HooklinesinkerClient.shared.isInstalled(agent: .kimi)
             isInstalling = false
         }
     }

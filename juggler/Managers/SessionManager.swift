@@ -373,15 +373,11 @@ final class SessionManager {
 
     // MARK: - State Transitions
 
-    nonisolated static let turnStartEvents: Set<String> = [
-        "UserPromptSubmit", "TurnStarted", "agent_start", "PreInvocation"
-    ]
-
     nonisolated static func isNewTurn(old: SessionState?, new: SessionState, event: String?) -> Bool {
-        guard new == .working, let event, turnStartEvents.contains(event) else { return false }
+        guard new == .working, HookEventMapper.isTurnStart(event) else { return false }
         switch old {
         case nil, .idle: return true
-        case .backburner: return event == "UserPromptSubmit"
+        case .backburner: return HookEventMapper.isPromptSubmit(event)
         case .working, .permission, .compacting: return false
         }
     }
@@ -992,7 +988,7 @@ final class SessionManager {
         }
     }
 
-    /// `UserPromptSubmit` fires in the pane the user is typing in, so it always (re)binds;
+    /// A prompt submit fires in the pane the user is typing in, so it always (re)binds;
     /// other events only bootstrap an unbound session so they can't clobber a good binding.
     static func resolveLiveHostPaneBinding(
         current: String?,
@@ -1004,7 +1000,7 @@ final class SessionManager {
         guard needsBinding, isHostTerminalFrontmost, let uuid = lastFocusedPaneUUID else {
             return current
         }
-        if event == "UserPromptSubmit" {
+        if HookEventMapper.isPromptSubmit(event) {
             return uuid
         }
         return current ?? uuid

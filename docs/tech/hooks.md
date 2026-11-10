@@ -1,7 +1,7 @@
 # Claude Code Hooks
 
 Juggler learns what Claude Code is doing from **hooklinesinker**, a small shared binary that
-owns the status hooks for Claude Code, Codex, OpenCode, Pi, Factory Droid, Qwen Code and Kimi Code. Juggler ships it inside the app
+owns the status hooks for Claude Code, Codex, OpenCode, Pi, Factory Droid, Qwen Code, Kimi Code and Cursor CLI. Juggler ships it inside the app
 bundle — there is **no separate Brew (or npm, or pip) dependency to install**. Antigravity is
 the one agent still on Juggler's own hooks; see [Antigravity Hooks](antigravity-hooks.md).
 
@@ -90,9 +90,10 @@ Notes that matter when reading Juggler's code:
 - The Turns slot shows `activity.turns`, hooklinesinker's per-binding count of turn starts,
   whenever the record carries `activity`. Juggler still keeps its own `Session.turnCount`, which
   the slot falls back to for Antigravity and for records without `activity`:
-  `SessionManager.isNewTurn` counts a turn-start event (`UserPromptSubmit`, `TurnStarted`,
-  `agent_start`, `PreInvocation`) that moves a row from `idle` to `working` or creates it
-  `working`, and for a backburnered row only `UserPromptSubmit`. Hydration replays do not count.
+  `SessionManager.isNewTurn` counts a turn-start event (`UserPromptSubmit`, `beforeSubmitPrompt`,
+  `TurnStarted`, `agent_start`, `PreInvocation`) that moves a row from `idle` to `working` or
+  creates it `working`, and for a backburnered row only a prompt submit (`UserPromptSubmit`, or
+  Cursor's `beforeSubmitPrompt`). Hydration replays do not count.
   See [Agent Session Metadata in Hooks](../reference/agent-session-metadata.md#turns-and-run-time).
 - A record can arrive with the same `phase` as the row already has, for example a `child:` or
   `resend:` event that only changes `activity`. `handleStatus` compares the row's state before and

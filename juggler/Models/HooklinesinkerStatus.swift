@@ -2,8 +2,7 @@ import Foundation
 
 /// Hooklinesinker's protocol-v1 status event. Both the HTTP sink (`POST /hook`) and
 /// `hooklinesinker sessions --json` speak this shape; `HookServer` maps it straight to a
-/// `SessionState` without going through `HookEventMapper`, which now only serves the legacy
-/// `UnifiedHookPayload` path.
+/// `SessionState` from `phase`; `HookEventMapper` only classifies its raw `event` names.
 nonisolated struct HooklinesinkerStatus: Sendable {
     static let supportedProtocol = 1
 
@@ -78,6 +77,10 @@ nonisolated struct HooklinesinkerStatus: Sendable {
     /// spelled it `claude-code`, and display names and stats keys are derived from it.
     var jugglerAgent: String {
         agent == "claude" ? "claude-code" : agent
+    }
+
+    var isFromSupportedAgent: Bool {
+        HooklinesinkerAgent(rawValue: agent) != nil
     }
 
     var terminalSessionID: String {

@@ -466,6 +466,19 @@ struct SessionTests {
         #expect(session.agentShortName == "KM")
     }
 
+    @Test func agentShortName_cursor() {
+        let session = Session(
+            agentSessionID: "test",
+            terminalSessionID: "w0t0p0:abc",
+            terminalType: .iterm2,
+            agent: "cursor",
+            projectPath: "/test",
+            state: .idle,
+            startedAt: Date()
+        )
+        #expect(session.agentShortName == "CU")
+    }
+
     @Test func agentDisplayName_supportedHarnesses() {
         #expect(makeSession(agent: "claude-code").agentDisplayName == "Claude Code")
         #expect(makeSession(agent: "opencode").agentDisplayName == "OpenCode")
@@ -475,6 +488,7 @@ struct SessionTests {
         #expect(makeSession(agent: "droid").agentDisplayName == "Factory Droid")
         #expect(makeSession(agent: "qwen").agentDisplayName == "Qwen Code")
         #expect(makeSession(agent: "kimi").agentDisplayName == "Kimi Code")
+        #expect(makeSession(agent: "cursor").agentDisplayName == "Cursor CLI")
     }
 
     @Test func agentDisplayName_unknownHarnessPreservesIdentifier() {

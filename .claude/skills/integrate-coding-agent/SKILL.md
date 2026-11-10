@@ -24,8 +24,9 @@ accepts it / it appears in hooklinesinker's README agent table.)
 
 ## Path A: agent already in hooklinesinker
 
-No notify script, no installer, no `HookEventMapper` entry, no `AppStorageKeys` flag (only
-opt-in agents — Codex, Antigravity — have one), no `uninstall.sh` block. The full set:
+No notify script, no installer, no `AppStorageKeys` flag (only opt-in agents — Codex,
+Antigravity — have one), no `uninstall.sh` block. `HookEventMapper` needs entries only when the
+agent's event names differ from Claude's (see Behavior checks). The full set:
 
 ### Code
 
@@ -33,19 +34,23 @@ opt-in agents — Codex, Antigravity — have one), no `uninstall.sh` block. The
 |---|---|
 | `juggler/Services/HooklinesinkerClient.swift` | Add the `HooklinesinkerAgent` case. Raw value **must equal the wire name** (kebab-case, from hooklinesinker's `src/protocol.rs`); the argv test over `allCases` then pins it automatically. |
 | `juggler/Models/Session.swift` | Add `agentShortName` (2 letters, e.g. `DR`) and `agentDisplayName` cases. |
-| `juggler/Views/IntegrationHubView.swift` | Add an `IntegrationCard` + a `<Agent>SetupView` (clone the Droid one), and extend `hasAnyAgent`. |
-| `juggler/Views/SettingsView.swift` | Add a `Section` with the install button calling `HooklinesinkerClient.shared.installHooks(agent:)`. |
+| `juggler/Views/HookAgentSetup.swift` | Add a `HookAgentSetup` entry to `all` (icon, config path, whether it reports permission, optional startup hint). The integration hub card, its setup sheet and the Settings section all come from this list. |
 | `scripts/install-remote.sh` | Add a detection block (config dir from hooklinesinker's `src/hooks.rs` roots, plus the CLI on `$PATH`) and extend the "Looked for:" line. Remote hosts get hooks from this script, not from the UI; `theInstallerInstallsEveryAgentJugglerSupports` fails until it is there. |
 
-Quirk hints in the UI: if the agent only reads hooks at startup (Droid does), add the restart
-hint under the install button, mirroring the existing Droid/Pi hints.
+Quirk hints in the UI: if the agent only reads hooks at startup (Droid does), set the entry's
+`startupHint`. Set `reportsPermission: false` when the agent has no permission hook (Cursor).
+
+`HookServer` drops statuses from agents that are not `HooklinesinkerAgent` cases, so a new
+agent shows nothing until its case exists.
 
 ### Behavior checks
 
-- **Backburner**: `SessionManager` exits backburner only on the literal event name
-  `UserPromptSubmit` (`SessionManager.swift`, "Preserve backburner state" comment). Confirm the
-  agent's turn-start event is named exactly that in hooklinesinker's normalize table; if not,
-  extend the guard.
+- **Event names**: Juggler reads the raw `event` for backburner wake, pane re-binding, turn
+  counting and session identity. Look up the agent's table in hooklinesinker's `src/events.rs`.
+  If its prompt-submit event is not `UserPromptSubmit`, add it to
+  `HookEventMapper.promptSubmitEvents` (Cursor: `beforeSubmitPrompt`). Any other turn-start event
+  goes in `turnStartEvents`. If its session-start or prompt event differs from `SessionStart` /
+  `UserPromptSubmit`, add a case to `HookEventMapper.establishesSessionIdentity`.
 - **Trust/consent**: hooklinesinker never touches trust state. If the agent has a Codex-style
   trust or feature-flag gate, Juggler must own it — stop and design that with the user.
 
@@ -65,6 +70,12 @@ free.
   installer covers.
 - `docs/overview.md` and `docs/tech/overview.md`: agent lists.
 - `docs/tech/hooks.md`: the "owns the status hooks for …" sentence.
+- `docs/reference/agent-session-metadata.md`: the agent list in the intro, and the turn-start
+  list if the agent's turn event is new. Its per-agent slot tables need research into which
+  fields the agent sends.
+- If you added event names to `HookEventMapper`, the wake rules in `docs/tech/hooks.md`,
+  `docs/tech/hook-server.md` (Backburner Protection) and `docs/tech/session-management.md`
+  (backburner handling).
 - `site/index.html`: both meta descriptions, the JSON-LD description, the "Open your sessions"
   copy, the Coding agents compat grid, and the footer platform line.
 

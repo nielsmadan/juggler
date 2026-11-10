@@ -2,7 +2,7 @@
 # Juggler remote hook installer.
 # Installs hooklinesinker — the shared status binary Juggler bundles — on a host you ssh
 # to, and registers Juggler's hooks for whichever coding agents live there (Claude Code,
-# Codex, OpenCode, Pi, Factory Droid, Qwen Code, Kimi Code). Intended to be piped from curl:
+# Codex, OpenCode, Pi, Factory Droid, Qwen Code, Kimi Code, Cursor CLI). Intended to be piped from curl:
 #
 #   curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/<revision>/scripts/install-remote.sh |
 #       JUGGLER_SINK=http://127.0.0.1:7483/hook bash
@@ -18,7 +18,7 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 REVISION="${JUGGLER_REVISION:-6d026e111028689b0b9cbd5a849678916a66203c}"
-HLS_VERSION="${HOOKLINESINKER_VERSION:-v1.3.0}"
+HLS_VERSION="${HOOKLINESINKER_VERSION:-v1.5.1}"
 HLS_BASE="${HOOKLINESINKER_BASE_URL:-https://github.com/nielsmadan/hooklinesinker/releases/download/$HLS_VERSION}"
 SINK="${JUGGLER_SINK:-http://127.0.0.1:7483/hook}"
 
@@ -127,6 +127,11 @@ if [ -d "$kimi_dir" ] || command -v kimi >/dev/null 2>&1 || command -v kimi-code
     install_agent kimi
 fi
 
+cursor_dir="$HOME/.local/share/cursor-agent"
+if [ -d "$cursor_dir" ] || command -v cursor-agent >/dev/null 2>&1; then
+    install_agent cursor
+fi
+
 if [ "$installed_any" -eq 0 ]; then
     if [ "$failed_any" -eq 1 ]; then
         echo "All detected agents failed to install." >&2
@@ -134,7 +139,7 @@ if [ "$installed_any" -eq 0 ]; then
     fi
     echo "No supported coding agents detected on this host."
     echo "Looked for: ~/.claude, ~/.codex, $opencode_dir, $pi_dir, $factory_dir, $qwen_dir,"
-    echo "            $kimi_dir (or the agent CLIs on \$PATH)."
+    echo "            $kimi_dir, $cursor_dir (or the agent CLIs on \$PATH)."
     echo "Install one of them, then re-run this script."
     exit 1
 fi

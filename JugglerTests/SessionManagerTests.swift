@@ -1997,10 +1997,11 @@ struct SessionManagerTests {
         #expect(result == "existing")
     }
 
-    @Test func resolveLiveHostPaneBinding_promptSubmit_rebindsToFocusedPane() {
+    @Test(arguments: ["UserPromptSubmit", "beforeSubmitPrompt"])
+    func resolveLiveHostPaneBinding_promptSubmit_rebindsToFocusedPane(event: String) {
         let result = SessionManager.resolveLiveHostPaneBinding(
             current: "stale-pane", lastFocusedPaneUUID: "live-pane",
-            isHostTerminalFrontmost: true, event: "UserPromptSubmit", needsBinding: true
+            isHostTerminalFrontmost: true, event: event, needsBinding: true
         )
         #expect(result == "live-pane")
     }
