@@ -9,7 +9,7 @@ import Foundation
 actor KittyBridge: TerminalBridge {
     static let shared = KittyBridge()
 
-    // Populated from hook payloads
+    // windowID → control socket, from hook payloads or local socket discovery
     private var socketPaths: [String: String] = [:]
     private var originalColors: [String: String] = [:]
     private var activeTabResetTasks: [String: Task<Void, Never>] = [:]
@@ -63,10 +63,9 @@ actor KittyBridge: TerminalBridge {
         }
     }
 
-    /// Maps a locally-discovered kitty control socket to `windowID`. Used for live window
-    /// ids reported by the local watcher and for remote sessions, whose hook-supplied
-    /// `KITTY_LISTEN_ON` is a remote, unusable path. With multiple kitty instances, picks
-    /// the instance that actually owns the window so activation can't hit the wrong one.
+    /// Maps a locally discovered kitty control socket to `windowID`, for watcher-reported windows
+    /// and remote sessions. With multiple kitty instances, picks the one that owns the window so
+    /// activation can't hit the wrong one.
     func registerLocalSocket(forWindowID windowID: String) async {
         let candidates = socketCandidatesProvider()
         guard !candidates.isEmpty else {

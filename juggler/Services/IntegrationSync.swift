@@ -105,10 +105,10 @@ enum IntegrationSync {
         }
     }
 
-    /// The trust hash covers the event name, command and timeout — never the hook's bytes.
-    /// Re-apply it because a newly registered event has no trust key yet, and because the
-    /// re-merge can shift a group index (which is part of the key). Only when the hooks
-    /// feature flag is on, so we never newly trust hooks for a partial or abandoned install.
+    /// The trust hash covers the event name, command and timeout — never the hook's bytes — so
+    /// a newly registered event still needs its trust key written, and a re-merge can shift a
+    /// group index, which is part of the key. Only when the hooks feature flag is on, so we
+    /// never newly trust hooks for a partial or abandoned install.
     private static func retrustCodex(wasTrusted: Bool, client: HooklinesinkerClient) async {
         guard CodexHooksInstaller.isFeatureFlagEnabled() else {
             await MainActor.run {

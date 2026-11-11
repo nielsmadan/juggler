@@ -9,7 +9,7 @@ struct HooklinesinkerStub {
     let client: HooklinesinkerClient
 
     /// Writes a stub that prints `stdout`, prints `stderr` on fd 2, and exits with `status`.
-    /// The data root points at an empty directory, so every command falls back to the stub
+    /// The data root points at a nonexistent directory, so every command falls back to the stub
     /// instead of needing a second promoted copy on disk.
     static func make(
         stdout: String = "",

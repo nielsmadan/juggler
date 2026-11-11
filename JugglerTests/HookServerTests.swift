@@ -969,7 +969,7 @@ struct HookServerTests {
         #expect(payload?.tmux?.sessionName == "dev")
     }
 
-    // Pins the payload shape the Pi `juggler-pi.ts` extension emits against the server's decoder.
+    // Pins the legacy Pi payload shape against the server's decoder.
     @Test func decodeUnifiedPayload_piPayload_succeeds() async {
         let server = HookServer(sessionManager: SessionManager())
         let body = """
@@ -993,7 +993,7 @@ struct HookServerTests {
         #expect(payload == nil)
     }
 
-    // Pins the payload shape `codex-notify.sh` emits against the server's decoder.
+    // Pins the legacy Codex payload shape against the server's decoder.
     @Test func decodeUnifiedPayload_codexPayload_succeeds() async {
         let server = HookServer(sessionManager: SessionManager())
         let body = """
@@ -1086,9 +1086,8 @@ struct HookServerTests {
     // MARK: - processRequest error & missing-field branches
 
     @Test @MainActor func processRequest_postHook_missingTerminalSessionID_isDropped() async {
-        // A missing terminal.sessionId has no activation address, so the event is dropped
-        // and no session is created — creating one minted a phantom row that could never
-        // be activated or removed. Still 200.
+        // Without terminal.sessionId there is no activation address, so the event is dropped
+        // (still 200).
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)
         let body = """
@@ -1159,8 +1158,7 @@ struct HookServerTests {
     }
 
     @Test @MainActor func processRequest_postHook_missingAgent_returns400() async {
-        // Surprise: `agent` is required by the decoder (not optional), so a missing agent
-        // does NOT default to "claude-code" — the payload fails to decode and returns 400.
+        // `agent` is required by the decoder, so its absence fails decoding.
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)
         let body = """

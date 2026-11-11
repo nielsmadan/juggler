@@ -12,8 +12,8 @@ struct StatsChartView: View {
     /// Fixed anchor for stable per-date color assignment.
     private static let referenceDate = Date(timeIntervalSince1970: 0)
 
-    /// Drives midnight-rollover detection. `@State` so it is created once and
-    /// survives view re-renders; mutation happens in `.onReceive`, never in `body`.
+    /// Drives midnight-rollover detection. `@State` so the publisher is created once, not on every
+    /// view re-init.
     @State private var rolloverTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     private struct DisplayBar: Identifiable {

@@ -413,8 +413,6 @@ actor HookServer {
         }
     }
 
-    /// Only matters until hydration has run, so the set is dropped afterwards rather than
-    /// growing for the life of the process.
     private func recordHandledLive(_ bindingID: String) {
         guard !hasHydrated else { return }
         bindingsHandledLive.insert(bindingID)
@@ -576,8 +574,6 @@ actor HookServer {
         let remoteHost = payload.remoteHost
         let compositeID = tmuxPane.map { "\(terminalSessionID):\($0)" } ?? terminalSessionID
 
-        // No terminal session ID means no activation address: the row could never be
-        // activated or auto-removed.
         guard !terminalSessionID.isEmpty else {
             await warnOnceAboutEmptySessionID(agent: payload.agent, cwd: cwd, remoteHost: remoteHost)
             return

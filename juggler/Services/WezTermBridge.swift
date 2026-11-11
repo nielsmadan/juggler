@@ -119,8 +119,7 @@ actor WezTermBridge: TerminalBridge {
     }
 
     /// Decodes `wezterm cli list --format json` into the raw pane array, or `nil` if the output
-    /// is not a decodable JSON array. `getSessionInfo` relies on the `nil` case to tell
-    /// "couldn't determine" (throw) apart from a valid-but-paneless list ("confirmed gone").
+    /// is not a decodable JSON array.
     nonisolated static func decodeWezTermPanes(_ output: String) -> [[String: Any]]? {
         guard let data = output.data(using: .utf8),
               let panes = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]

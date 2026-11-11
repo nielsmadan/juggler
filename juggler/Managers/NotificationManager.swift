@@ -24,7 +24,6 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         pendingTerminalBundleID != nil
     }
 
-    /// The terminal bundle ID to activate after notification click.
     var pendingTerminalBundleID: String? {
         clickHandoff.flatMap { terminalBundleID(for: $0) }
     }

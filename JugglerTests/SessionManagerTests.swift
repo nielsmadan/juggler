@@ -559,10 +559,7 @@ struct SessionManagerTests {
         #expect(manager.focusedTrackedSession == nil)
     }
 
-    /// The skip-bug fix: navigation uses `orderedVisibleSessions()` (the rendered
-    /// order), so even when the raw `sessions` array is NOT section-grouped, the
-    /// visible order groups idle → working → backburner — matching what the
-    /// Fair/Prio monitor renders. No raw-index/visible-order divergence.
+    /// Navigation follows the rendered section order, not the raw array order.
     @Test func orderedVisibleSessions_fairMode_groupsBySectionFromUngroupedArray() {
         let key = "queueOrderMode"
         let previous = UserDefaults.standard.string(forKey: key)
@@ -681,7 +678,6 @@ struct SessionManagerTests {
             state: .working, event: "UserPromptSubmit"
         )
 
-        // UserPromptSubmit bypasses backburner guard — state changes synchronously via @MainActor
         #expect(manager.sessions.count == 1)
         #expect(manager.sessions[0].state == .working)
     }
@@ -1727,8 +1723,7 @@ struct SessionManagerTests {
         }
 
         @Test @MainActor func autoAdvance_off_anchorCleared_whenAnchoredSessionReturnsIdle_viaPermission() {
-            // Variant of anchorCleared_*: the anchored session first transitions to permission
-            // (still cyclable), which should clear the anchor just like idle does.
+            // Permission is cyclable, so it clears the anchor like idle does.
             let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy)
             defer { restore() }
             UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
@@ -2649,7 +2644,6 @@ struct SessionManagerTests {
             makeSession("s3", state: .backburner)
         ])
 
-        // Prio mode: idle returns go to top
         manager.testApplyStateChange(sessionID: "s3", from: .backburner, to: .idle)
 
         #expect(manager.sessions.map(\.terminalSessionID) == ["s3", "s1", "s2"])
@@ -2700,7 +2694,6 @@ struct SessionManagerTests {
             makeSession("s3", state: .working)
         ])
 
-        // Prio mode: idle returns go to top
         manager.testApplyStateChange(sessionID: "s3", from: .working, to: .idle)
 
         #expect(manager.sessions.map(\.terminalSessionID) == ["s3", "s1", "s2"])
@@ -2782,7 +2775,6 @@ struct SessionManagerTests {
             makeSession("s3", state: .idle)
         ])
 
-        // Static mode: no reorder on state change — order preserved
         manager.testApplyStateChange(sessionID: "s1", from: .idle, to: .working)
 
         #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])
@@ -2799,7 +2791,6 @@ struct SessionManagerTests {
             makeSession("s3", state: .backburner)
         ])
 
-        // Grouped mode: no reorder on state change — order preserved
         manager.testApplyStateChange(sessionID: "s3", from: .backburner, to: .idle)
 
         #expect(manager.sessions.map(\.terminalSessionID) == ["s1", "s2", "s3"])

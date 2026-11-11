@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// Pure geometry for beacon panel positioning — extracted from BeaconManager for testability.
+/// Pure geometry for beacon panel positioning.
 enum BeaconPositionCalculator {
     static func calculateOrigin(
         position: BeaconPosition,

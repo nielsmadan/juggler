@@ -553,7 +553,6 @@ actor ITerm2Bridge: TerminalBridge {
             return
         }
         if bytesRead < 0 {
-            // EAGAIN/EWOULDBLOCK = no data available (normal for non-blocking recv)
             if errno == EAGAIN || errno == EWOULDBLOCK { return }
             Task { await self.cancelEventListener(listenerID: listenerID) }
             return
@@ -705,7 +704,8 @@ actor ITerm2Bridge: TerminalBridge {
         }
     }
 
-    // KERN_PROCARGS2 includes the environment, so match both the script name and socket path.
+    // KERN_PROCARGS2 also returns the environment, so a lone substring could match an env value;
+    // require both the script name and this build's socket path.
     private nonisolated func isOrphanedDaemon(pid: Int32) -> Bool {
         var info = kinfo_proc()
         var size = MemoryLayout<kinfo_proc>.stride
@@ -851,7 +851,6 @@ actor ITerm2Bridge: TerminalBridge {
                 try await self.sendRequest(request)
             }
         } catch {
-            // Silent fail for highlight - cosmetic only
             await MainActor.run { logDebug(.daemon, "Highlight failed (cosmetic): \(error)") }
         }
     }

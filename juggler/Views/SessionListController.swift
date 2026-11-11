@@ -41,9 +41,8 @@ final class SessionListController {
 
     // MARK: - Selection
 
-    /// Move the selection within the given visible (rendered) session order.
-    /// Selection is tracked by id, so it follows what's on screen rather than the
-    /// raw `sessions` array index (the two diverge — see `orderedVisibleSessions`).
+    /// Move the selection within the given visible (rendered) session order (see
+    /// `orderedVisibleSessions`).
     func moveSelection(by delta: Int, in visible: [Session]) {
         let previousID = selectedSessionID
         guard !visible.isEmpty else {

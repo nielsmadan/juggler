@@ -384,10 +384,8 @@ struct TerminalActivationTests {
             let registry = TerminalBridgeRegistry()
             await registry.register(bridge, for: .iterm2)
 
-            // A phantom session with no terminal session ID — historically minted
-            // when a hook arrived without ITERM_SESSION_ID/KITTY_WINDOW_ID. It must
-            // be removed before reaching the bridge (an empty id makes the iTerm2
-            // daemon assert and leaves the row stuck).
+            // An empty id makes the iTerm2 daemon assert and leaves the row stuck, so it must be
+            // removed before reaching the bridge.
             let manager = SessionManager()
             let session = makeSession("")
             manager.testSetSessions([session])

@@ -156,7 +156,6 @@ struct AntigravityNotifyScriptTests {
         throw CancellationError()
     }
 
-    // cwd comes from workspacePaths[0], not $PWD.
     @Test func workspacePaths_drivesReportedCwd() throws {
         let ws = "/tmp/ag-workspace-\(UUID().uuidString)"
         let payload = try capturePayload(

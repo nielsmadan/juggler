@@ -32,8 +32,7 @@ struct RemoteInstallerRevisionTests {
 
     /// The one-liner and the script live in different files and are edited for different
     /// reasons. This pins that every knob the one-liner sets is one the script actually
-    /// reads — the check that would have caught `JUGGLER_BASE_URL` outliving the script
-    /// that consumed it.
+    /// reads.
     @Test func everyEnvVarTheOneLinerSetsIsReadByTheScript() throws {
         let installer = try Self.installerScript()
         let oneLiner = RemoteSetupSnippets.installOneLiner(
@@ -53,8 +52,6 @@ struct RemoteInstallerRevisionTests {
     }
 
     /// The SSH tab hands the remote the same agent lineup the local integration UI offers.
-    /// Droid, Qwen and Kimi were added to `HooklinesinkerAgent` long after the installer was
-    /// written, and the installer never learned to detect them.
     @Test func theInstallerInstallsEveryAgentJugglerSupports() throws {
         let installer = try Self.installerScript()
 

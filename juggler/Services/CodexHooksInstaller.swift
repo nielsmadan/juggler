@@ -19,8 +19,8 @@ enum CodexHooksError: LocalizedError, Equatable {
 }
 
 enum CodexHooksInstaller {
-    /// Default hook timeout (seconds). Per-event values go through `timeoutSeconds(for:)`,
-    /// which both the hooks.json writer and the trust hash use — they cannot drift apart.
+    /// Default hook timeout (seconds). `timeoutSeconds(for:)` gives the per-event value the
+    /// trust hash uses.
     static let hookTimeoutSeconds = 5
 
     // Codex fingerprints Interrupt and SessionEnd with their clamped 3s timeout.
@@ -45,8 +45,8 @@ enum CodexHooksInstaller {
         codexDirectory + "/config.toml"
     }
 
-    /// Registering hook events in hooks.json is hooklinesinker's job; the feature flag and
-    /// trust steps below stay here because no other agent needs them.
+    /// hooklinesinker registers the hook events; the feature flag and trust live in config.toml,
+    /// which hooklinesinker never edits.
     /// Returns nil on success, or the CLI's own failure text.
     static func installHooks(client: HooklinesinkerClient = .shared) async -> String? {
         let result = await client.installHooks(agent: .codex)
@@ -120,7 +120,7 @@ enum CodexHooksInstaller {
     /// Computes the `trusted_hash` Codex stores in `[hooks.state]` for a command hook.
     /// Mirrors Codex's canonical fingerprint: SHA-256 over sorted-key, compact JSON of
     /// `{"event_name":...,"hooks":[{"async":false,"command":...,"timeout":N,"type":"command"}]}`,
-    /// where N is the event's `timeoutSeconds(for:)` — Codex hashes the clamped value.
+    /// where N is the event's `timeoutSeconds(for:)`.
     static func computeTrustedHash(event: String, command: String) -> String {
         let handler: [String: Any] = [
             "async": false,
@@ -283,7 +283,7 @@ enum CodexHooksInstaller {
     }
 
     /// Codex's `[hooks.state]` key: `<hooksJSONPath>:<snake_event>:<groupIndex>:<handlerIndex>`.
-    /// The handler index is always 0 — Juggler registers a single-handler matcher group per event.
+    /// The handler index is always 0 — hooklinesinker registers a single-handler matcher group per event.
     private static func trustEntryKey(event: String, groupIndex: Int, hooksJSONPath: String) -> String {
         "\(hooksJSONPath):\(snakeCaseEvent(event)):\(groupIndex):0"
     }
@@ -297,7 +297,7 @@ enum CodexHooksInstaller {
     /// block, once Juggler moves to index 1, is the *user's* slot, not a stale Juggler key —
     /// deleting it un-trusts the user's hook. The only genuine orphan (Juggler moving 1→0,
     /// leaving a dead `:1:0`) is harmless: Codex never computes a key for a group index that
-    /// no longer exists in hooks.json. `uninstall.sh` garbage-collects orphans on reset.
+    /// no longer exists in hooks.json.
     private static func upsertTrustEntries(
         original: String,
         entries: [HooklinesinkerHookEntry],

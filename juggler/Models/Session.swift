@@ -97,9 +97,9 @@ struct Session: Identifiable, Codable, Equatable {
     var transcriptPath: String?
     var remoteHost: String?
 
-    // Bare UUID of the live local iTerm2 pane, learned from focus events. Set only for
-    // remote tmux sessions, whose captured `terminalSessionID` is stale (tmux caches
-    // `ITERM_SESSION_ID`). Takes precedence over `terminalSessionID` when set.
+    // Live local pane handle (iTerm2 pane UUID / kitty window id), learned from focus events.
+    // Set only for remote tmux sessions, whose captured `terminalSessionID` is stale (tmux
+    // caches the terminal's session env var). Takes precedence over `terminalSessionID` when set.
     var liveHostPaneID: String?
 
     var disposition = SessionDisposition.empty
@@ -195,8 +195,8 @@ struct Session: Identifiable, Codable, Equatable {
         case paneIndex, paneCount, gitBranch, gitRepoName, transcriptPath, remoteHost
     }
 
-    // Excludes the volatile timing fields so .onChange(of: sessions) doesn't fire on
-    // every hook event.
+    // Compares only displayed identity fields (no timing or bookkeeping) so
+    // .onChange(of: sessions) doesn't fire on every hook event.
     static func == (lhs: Session, rhs: Session) -> Bool {
         lhs.agentSessionID == rhs.agentSessionID &&
             lhs.terminalSessionID == rhs.terminalSessionID &&

@@ -113,8 +113,7 @@ def sanitize(value):
     return "".join(kept).strip() or None
 
 
-# Antigravity's stdin uses camelCase. Normalize the fields Juggler needs to the
-# snake_case keys HookServer decodes (session_id, transcript_path).
+# Antigravity's stdin uses camelCase; map the fields Juggler needs to the keys HookServer decodes.
 hook_input = {}
 raw = os.environ.get("JUGGLER_HOOK_INPUT", "")
 if raw.strip():
@@ -177,8 +176,7 @@ if remote_host:
 print(json.dumps(payload))
 PYTHON
 
-# Emit the response Antigravity reads from stdout. Unconditional — independent of the
-# POST above — so Juggler being down never blocks or traps the agent.
+# Emit the response Antigravity reads from stdout.
 case "$EVENT" in
     Stop)
         printf '{"decision":"stop"}\n'

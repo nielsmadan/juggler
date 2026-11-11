@@ -5,10 +5,8 @@
 
 import SwiftUI
 
-/// Reports the `NSWindow` hosting this SwiftUI view back to the caller. Used to
-/// scope a view's local key-event monitor to its own window so the menu-bar
-/// popover and the main window don't steal each other's keystrokes. Mirrors the
-/// hosting-window access ShortcutField's `BeepSuppressor` relies on.
+/// Reports the `NSWindow` hosting this SwiftUI view, so a view can gate its shortcut context
+/// on its own window being key.
 struct WindowAccessor: NSViewRepresentable {
     let onResolve: (NSWindow?) -> Void
 

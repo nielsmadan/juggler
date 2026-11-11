@@ -73,8 +73,7 @@ enum AntigravityHooksInstaller {
     }
 
     /// Installs notify.sh and registers the Juggler events in hooks.json.
-    /// Returns nil on success, or an error message on failure. Paths and the bundled-script
-    /// URL are injectable for testing; production callers omit them.
+    /// Returns nil on success, or an error message on failure.
     static func installHooks(
         bundledScriptURL: URL? = Bundle.main.url(forResource: "antigravity-notify", withExtension: "sh"),
         hooksDirectory: String = Self.hooksDirectory,
@@ -103,7 +102,7 @@ enum AntigravityHooksInstaller {
     /// Sets the top-level `"juggler"` key in hooks.json to Juggler's handlers, preserving
     /// every other top-level key. `PreInvocation`/`Stop` take a flat handler list (no
     /// matcher/hooks wrapper). Backs up a pre-existing file once (to <path>.juggler-backup).
-    /// Throws if an existing file isn't a JSON object — rather than silently overwriting it.
+    /// Throws if a non-blank existing file isn't a JSON object, rather than overwriting it.
     static func mergeHooksJSON(at path: String, notifyScriptPath: String) throws {
         let fm = FileManager.default
         let existed = fm.fileExists(atPath: path)
@@ -111,10 +110,8 @@ enum AntigravityHooksInstaller {
         var root: [String: Any] = [:]
         if existed {
             let data = try Data(contentsOf: URL(fileURLWithPath: path))
-            // An empty / whitespace-only file (e.g. a `touch`ed placeholder, or an
-            // interrupted write to this IDE-shared file) has nothing to preserve — treat it
-            // as `{}` rather than blocking install. Only non-empty-but-unparseable content
-            // throws, so a real config is never silently clobbered.
+            // A blank file (a `touch`ed placeholder or an interrupted write) has nothing to
+            // preserve, so it reads as `{}`.
             let isBlank = String(bytes: data, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? false
             if !isBlank {
@@ -149,7 +146,6 @@ enum AntigravityHooksInstaller {
             }
         }
 
-        // hooks.json lives in ~/.gemini/config, which may not exist yet.
         try fm.createDirectory(
             atPath: (path as NSString).deletingLastPathComponent,
             withIntermediateDirectories: true

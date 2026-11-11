@@ -2,9 +2,8 @@ import Foundation
 @testable import Juggler
 import Testing
 
-// `TerminalSessionInfo` and the bridge singleton are main-actor-isolated (the app target
-// defaults actor isolation to MainActor), so the whole suite runs on the main actor to read
-// results and touch the bridge without cross-actor warnings.
+// `TerminalSessionInfo` is main-actor-isolated (the app target defaults actor isolation to
+// MainActor), so the suite runs on the main actor to read results without cross-actor warnings.
 @Suite("WezTermBridge")
 @MainActor
 struct WezTermBridgeTests {

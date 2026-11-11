@@ -145,8 +145,8 @@ struct HooklinesinkerClient: Sendable {
         sinkURLOverride = sinkURL
     }
 
-    /// Task 6 ships the binary into the bundle; until then this path may not exist in dev
-    /// builds and every command reports the missing binary rather than crashing.
+    /// Falls back to `Contents/MacOS` when the auxiliary-executable lookup fails; a missing
+    /// binary surfaces as a command error, not a crash.
     static var defaultBundledExecutablePath: String {
         Bundle.main.url(forAuxiliaryExecutable: "hooklinesinker")?.path
             ?? Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/hooklinesinker").path

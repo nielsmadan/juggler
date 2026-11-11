@@ -2,7 +2,6 @@ import Foundation
 @testable import Juggler
 import Testing
 
-/// Seed range each property is run over.
 private nonisolated let propertySeeds = 0 ..< 500
 
 /// Deterministic SplitMix64 generator so a failing property case is reproducible

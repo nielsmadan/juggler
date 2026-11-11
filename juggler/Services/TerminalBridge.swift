@@ -77,7 +77,7 @@ enum TerminalActivation {
 
         // No activation address means the session can never be reached by any bridge.
         // Remove it rather than letting an empty id route into the iTerm2 daemon (which
-        // asserts). This also self-heals any phantom row created before this guard existed.
+        // asserts).
         guard !activationID.isEmpty else {
             await MainActor.run {
                 logWarning(.session, "Session '\(session.id)' has no terminal session ID, removing")
