@@ -4,14 +4,14 @@ import Testing
 
 @Suite("StatsBarLayout")
 struct StatsBarLayoutTests {
-    // gap 6, min 56, max 80 — same constants the chart uses.
+    // Mirrors StatsChart.barMinWidth/barMaxWidth/barGap; the arithmetic below assumes these values.
     private func layout(width: CGFloat, days: Int) -> (count: Int, barWidth: CGFloat) {
         StatsBarLayout.layout(availableWidth: width, dayCount: days, minWidth: 56, maxWidth: 80, gap: 6)
     }
 
     @Test func emptyData_returnsZeroBars() {
-        let result = layout(width: 400, days: 0)
-        #expect(result.count == 0)
+        let (barCount, _) = layout(width: 400, days: 0)
+        #expect(barCount == 0)
     }
 
     @Test func tinyWidth_stillShowsOneBar() {

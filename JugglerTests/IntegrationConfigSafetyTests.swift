@@ -2,9 +2,8 @@ import Foundation
 @testable import Juggler
 import Testing
 
-/// Guards the configuration surfaces Juggler still writes itself. Claude and Codex hook
-/// registration moved to hooklinesinker, which carries its own safety tests; what stays here
-/// is the Codex trust-entry cleanup Juggler's reset flow runs.
+/// Guards the Codex trust-entry cleanup Juggler's reset flow runs; hook registration safety is
+/// tested in hooklinesinker.
 @Suite("Integration configuration safety")
 struct IntegrationConfigSafetyTests {
     private static var resourcesDirectory: URL {
@@ -138,6 +137,6 @@ struct IntegrationConfigSafetyTests {
         try process.run()
         process.waitUntilExit()
         let data = output.fileHandleForReading.readDataToEndOfFile()
-        return (process.terminationStatus, String(decoding: data, as: UTF8.self))
+        return (process.terminationStatus, String(bytes: data, encoding: .utf8) ?? "")
     }
 }

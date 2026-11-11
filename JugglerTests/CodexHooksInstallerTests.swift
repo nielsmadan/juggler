@@ -6,17 +6,17 @@ import Testing
 
 /// Creates a unique temp directory, runs `body`, and removes the directory afterward —
 /// so tests never leak temp files. `body` receives the directory URL.
-private func withTempDir(_ body: (URL) throws -> Void) rethrows {
+private func withTempDir(_ body: (URL) throws -> Void) throws {
     let dir = FileManager.default.temporaryDirectory
         .appendingPathComponent("codex-test-\(UUID().uuidString)")
-    try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: dir) }
     try body(dir)
 }
 
 /// Creates a temp directory containing `config.toml` (written with `contents` when non-nil),
 /// runs `body` with the file path, and removes the directory afterward.
-private func withTempFile(contents: String? = nil, _ body: (String) throws -> Void) rethrows {
+private func withTempFile(contents: String? = nil, _ body: (String) throws -> Void) throws {
     try withTempDir { dir in
         let path = dir.appendingPathComponent("config.toml").path
         if let contents {
@@ -416,8 +416,7 @@ struct CodexEnableInCodexTests {
         }
     }
 
-    // The state that motivated this check: the user enabled the feature flag but chose Codex's
-    // own /hooks review over Juggler's button, so no Juggler trust entry exists to refresh.
+    // Feature flag on, but no trust entry has been written yet, by Juggler or by Codex's /hooks review.
     @Test func hasExistingTrustEntries_featureFlagOnButNeverTrusted_false() throws {
         try withCodexFixture(config: "[features]\nhooks = true\n") { config, hooksJSON, entries in
             #expect(CodexHooksInstaller.hasExistingTrustEntries(
@@ -621,9 +620,8 @@ struct CodexEnableInCodexTests {
         }
     }
 
-    // The core bug this guards: when the user already has a hook for an event, ours is
-    // appended at group index ≥ 1 and the trust key must reflect that real index — which is
-    // now the index the CLI reports rather than one Juggler re-derives.
+    // When the user already hooks an event, ours sits at group index ≥ 1; the trust key must
+    // use the index the CLI reports.
     @Test func enableInCodex_userHasPreexistingHook_usesRealGroupIndex() throws {
         let entries = codexEntries(groupIndex: 1)
         try withCodexFixture(entries: entries) { config, hooksJSON, _ in
@@ -732,9 +730,8 @@ struct CodexEnableInCodexTests {
         }
     }
 
-    // A genuine orphan (a Juggler key at a group index that no longer exists) is harmless and
-    // is deliberately left untouched — exact-key matching never prefix-matches. This pins the
-    // design decision so it isn't "fixed" by reintroducing prefix cleanup.
+    // A Juggler key at a group index that no longer exists is harmless and left untouched —
+    // exact-key matching never prefix-matches.
     @Test func enableInCodex_leavesGenuineOrphanUntouched() throws {
         try withCodexFixture { config, hooksJSON, entries in
             // Entries resolve to index 0. Seed a stale `:1:0` orphan.
