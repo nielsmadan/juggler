@@ -58,16 +58,14 @@ struct ITerm2StderrDrainTests {
         // Let teardown settle, then measure CPU used across a 1s idle window. One
         // spinning EOF handler burns ~1 core-second per idle second; 80 of them would
         // burn dozens. Correct teardown consumes ~0. The threshold leaves wide margin
-        // for scheduler/test-runner noise. `pipes` stays retained through this window
-        // because the cleanup loop below references it after the measurement.
+        // for scheduler/test-runner noise.
         try? await Task.sleep(nanoseconds: 300_000_000)
         let before = processCPUSeconds()
         try? await Task.sleep(nanoseconds: 1_000_000_000)
         let consumed = processCPUSeconds() - before
+        withExtendedLifetime(pipes) {}
 
-        // Stop any leaked spinners before the process moves on to other tests. This
-        // also keeps `pipes` alive across the measurement above (production retains
-        // the reader via the daemon Process's terminationHandler).
+        // Stop any leaked spinners before the process moves on to other tests.
         for pipe in pipes {
             pipe.fileHandleForReading.readabilityHandler = nil
             try? pipe.fileHandleForReading.close()

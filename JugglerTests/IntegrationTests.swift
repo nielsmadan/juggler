@@ -478,25 +478,23 @@ struct IntegrationTests {
 
     // MARK: - Timestamp Tracking
 
-    @Test @MainActor func integration_timestamps_setOnStateTransitions() async {
+    @Test @MainActor func integration_timestamps_setOnStateTransitions() async throws {
         let manager = SessionManager()
         let server = HookServer(sessionManager: manager)
 
         await simulateHook(server: server, event: "SessionStart", terminalSessionID: "s1")
         let session0 = manager.sessions[0]
-        // New session starts idle — lastBecameIdle should be set by handleStateTransition
-        #expect(session0.lastBecameIdle != nil || session0.state == .idle)
+        #expect(session0.state == .idle)
+        #expect(session0.lastBecameIdle != nil)
 
-        // Transition to working
         await simulateHook(server: server, event: "UserPromptSubmit", terminalSessionID: "s1")
         let session1 = manager.sessions[0]
-        #expect(session1.lastBecameWorking != nil)
+        let becameWorking = try #require(session1.lastBecameWorking)
 
-        // Transition back to idle
         await simulateHook(server: server, event: "Stop", terminalSessionID: "s1")
         let session2 = manager.sessions[0]
-        #expect(session2.lastBecameIdle != nil)
-        #expect(session2.busyTimeToday >= 0)
+        let becameIdle = try #require(session2.lastBecameIdle)
+        #expect(becameIdle >= becameWorking)
     }
 
     // MARK: - Queue Reordering

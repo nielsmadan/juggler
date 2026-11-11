@@ -48,8 +48,10 @@ The currently active / keyboard-selected row is shown with a highlight backgroun
 
 The list shares [Show Hidden](main-window.md#hide-and-show-hidden) with the monitor. It defaults off each launch;
 when on, hidden rows retain their order, render dimmed with a passive eye-slash marker, and permit explicit click
-or `Return` activation. Opening the popover prefers the actual focused listed row for selection. Hide/Unhide
+or `Return` activation. Each time the popover opens it selects the actual focused listed row when there is one. Hide/Unhide
 (`E`) and Show Hidden (`⌘E`) are monitor-only; the popover has no controls or bindings for them.
+
+The popover grows with its rows up to `MenuBarLayout.sessionListMaxHeight`, then the list scrolls. Opening the popover, keyboard navigation and reordering scroll the selected row into view.
 
 ### Row Coloring
 

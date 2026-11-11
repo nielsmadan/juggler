@@ -11,10 +11,11 @@ import ShortcutKitUI
 import SwiftUI
 
 struct MenuBarView: View {
+    let presentation: PopoverPresentation
     @Environment(SessionManager.self) private var sessionManager
-    @Environment(\.dismiss) private var dismiss
     @State private var controller = SessionListController()
     @State private var isPopoverKey = false
+    @State private var listContentHeight: CGFloat = 0
     @AppStorage(AppStorageKeys.queueOrderMode) private var queueOrderMode: String = QueueOrderMode.default.rawValue
     @AppStorage(AppStorageKeys.showShortcutHelper) private var showShortcutHelper = true
     @AppStorage(AppStorageKeys.beaconEnabled) private var beaconEnabled = true
@@ -34,21 +35,25 @@ struct MenuBarView: View {
                     .font(.headline)
                 Spacer()
                 Button {
-                    openSettings()
+                    WindowManager.shared.openSettings()
                 } label: {
                     Image(systemName: "gear")
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
+                .help("Settings")
+                .accessibilityLabel("Settings")
                 Button {
-                    openMainWindow()
+                    WindowManager.shared.openMainWindow()
                 } label: {
                     Image(systemName: "list.bullet.rectangle")
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
+                .help("Open Session Monitor")
+                .accessibilityLabel("Open Session Monitor")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -71,14 +76,28 @@ struct MenuBarView: View {
                 .frame(maxWidth: .infinity)
                 .padding()
             } else {
-                ForEach(sessionManager.listedSessions) { session in
-                    SessionRowView(
-                        session: session,
-                        controller: controller,
-                        isKeyboardSelected: controller.selectedSessionID == session.id,
-                        onActivate: { dismiss() }
-                    )
-                    .id(session.id)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(sessionManager.listedSessions) { session in
+                                SessionRowView(
+                                    session: session,
+                                    controller: controller,
+                                    isKeyboardSelected: controller.selectedSessionID == session.id,
+                                    onActivate: { StatusBarManager.shared.hidePopover() }
+                                )
+                                .id(session.id)
+                            }
+                        }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listContentHeight = $0 }
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .frame(height: min(listContentHeight, MenuBarLayout.sessionListMaxHeight))
+                    .onAppear { scrollToSelection(proxy) }
+                    .onChange(of: presentation.showCount) { scrollToSelection(proxy) }
+                    .onChange(of: listContentHeight == 0) { scrollToSelection(proxy) }
+                    .onChange(of: controller.selectedSessionID) { scrollToSelection(proxy) }
+                    .onChange(of: sessionManager.listedSessions.map(\.id)) { scrollToSelection(proxy) }
                 }
             }
 
@@ -147,10 +166,12 @@ struct MenuBarView: View {
             controller.syncSelection(sessions: newSessions)
         }
         .onAppear {
-            // `syncColor: false` — opening the popover must not retint the global cycling color.
             controller.ownerLabel = "MenuBar"
             controller.syncPopoverSelection(sessionManager: sessionManager)
             isPopoverKey = controller.ownWindow?.isKeyWindow ?? true
+        }
+        .onChange(of: presentation.showCount) {
+            controller.syncPopoverSelection(sessionManager: sessionManager)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
             if let window = notification.object as? NSWindow, window === controller.ownWindow {
@@ -174,15 +195,16 @@ struct MenuBarView: View {
         }
     }
 
+    private func scrollToSelection(_ proxy: ScrollViewProxy) {
+        if let id = controller.selectedSessionID { proxy.scrollTo(id) }
+    }
+
     private var permissionFirstAvailable: Bool {
         QueueOrderMode(rawValue: queueOrderMode)?.supportsPermissionPriority == true
     }
 
-    /// Dispatch a session-list shortcut while the popover is key. The toggle
-    /// actions flip the same app-global settings the monitor's control-bar
-    /// buttons do; since the popover has no button to reflect the new state, each
-    /// confirms via a forced beacon message (shown regardless of the beacon
-    /// setting itself).
+    /// Dispatch a session-list shortcut while the popover is key. The popover has no control-bar
+    /// buttons to reflect toggled settings, so each toggle confirms via `showToggleBeacon`.
     private func handleSessionListAction(_ action: SessionListAction) {
         switch action {
         case .activate: activateSelected()
@@ -197,19 +219,19 @@ struct MenuBarView: View {
         case .cycleModeBackward: queueOrderMode = controller.cycleMode(forward: false, currentMode: queueOrderMode)
         case .toggleBeacon:
             beaconEnabled.toggle()
-            showToggleBeacon("Beacon", enabled: beaconEnabled)
+            showToggleBeacon(MonitorControlAction.beacon.title, enabled: beaconEnabled)
         case .toggleAutoNext:
             autoAdvanceOnBusy.toggle()
-            showToggleBeacon("Auto Next", enabled: autoAdvanceOnBusy)
+            showToggleBeacon(MonitorControlAction.autoNext.title, enabled: autoAdvanceOnBusy)
         case .toggleAutoRestart:
             autoRestartOnIdle.toggle()
-            showToggleBeacon("Auto Restart", enabled: autoRestartOnIdle)
+            showToggleBeacon(MonitorControlAction.autoRestart.title, enabled: autoRestartOnIdle)
         case .togglePermissionFirst:
             if permissionFirstAvailable {
                 prioritizePermissionSessions.toggle()
-                showToggleBeacon("Permission First", enabled: prioritizePermissionSessions)
+                showToggleBeacon(MonitorControlAction.permissionFirst.title, enabled: prioritizePermissionSessions)
             } else {
-                BeaconManager.shared.show(sessionName: "Permission First N/A", force: true)
+                BeaconManager.shared.show(sessionName: "\(MonitorControlAction.permissionFirst.title) N/A", force: true)
             }
         }
     }
@@ -225,7 +247,9 @@ struct MenuBarView: View {
     /// Flash a beacon confirming a toggle's new state. Forced so it appears even
     /// when the beacon overlay is itself disabled.
     private func showToggleBeacon(_ name: String, enabled: Bool) {
-        BeaconManager.shared.show(sessionName: "\(name) \(enabled ? "Enabled" : "Disabled")", force: true)
+        let message = "\(name) \(enabled ? "Enabled" : "Disabled")"
+        BeaconManager.shared.show(sessionName: message, force: true)
+        AccessibilityNotification.Announcement(message).post()
     }
 
     private func activateSelected() {
@@ -233,20 +257,7 @@ struct MenuBarView: View {
         Task {
             _ = await SessionActivator.shared.activate(session: session, trigger: .guiSelect, policy: .explicit)
         }
-        dismiss()
-    }
-
-    private func openMainWindow() {
-        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" }) {
-            window.makeKeyAndOrderFront(nil)
-        } else {
-            NotificationCenter.default.post(name: .openMainWindow, object: nil)
-        }
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    private func openSettings() {
-        StatusBarManager.shared.openSettings()
+        StatusBarManager.shared.hidePopover()
     }
 }
 
@@ -279,9 +290,12 @@ struct QueueModePicker: View {
                         .help(mode.helpText)
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(selection == mode.rawValue ? .isSelected : [])
             }
         }
         .background(Color.gray.opacity(0.2))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Queue Order")
     }
 
     static func shortcutAction(from current: QueueOrderMode, to target: QueueOrderMode) -> SessionListAction? {
@@ -295,8 +309,4 @@ struct QueueModePicker: View {
         let backwardDistance = (currentIndex - targetIndex + count) % count
         return forwardDistance <= backwardDistance ? .cycleModeForward : .cycleModeBackward
     }
-}
-
-extension Notification.Name {
-    static let openMainWindow = Notification.Name("openMainWindow")
 }

@@ -25,27 +25,9 @@ struct IntegrationHubView: View {
     @State private var showingAntigravitySetup = false
     @State private var hookAgentSetup: HookAgentSetup?
 
-    @State private var iterm2Configured = false
-    @State private var kittyConfigured = false
-    @State private var wezTermConfigured = false
-    @State private var tmuxConfigured = false
-    @State private var claudeCodeConfigured = false
-    @State private var openCodeConfigured = false
-    @State private var codexConfigured = false
-    @State private var piConfigured = false
-    @State private var antigravityConfigured = false
-    @State private var configuredHookAgents: Set<HooklinesinkerAgent> = []
+    @Bindable var progress: IntegrationSetupProgress
 
     @State private var showingIncompleteAlert = false
-
-    var hasAnyTerminal: Bool {
-        iterm2Configured || kittyConfigured || wezTermConfigured
-    }
-
-    var hasAnyAgent: Bool {
-        claudeCodeConfigured || openCodeConfigured || codexConfigured || piConfigured
-            || !configuredHookAgents.isEmpty || antigravityConfigured
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -72,7 +54,7 @@ struct IntegrationHubView: View {
                             icon: "terminal.fill",
                             title: "iTerm2",
                             description: "macOS terminal with Python API",
-                            isConfigured: iterm2Configured,
+                            isConfigured: progress.iterm2,
                             action: { showingITerm2Setup = true }
                         )
 
@@ -80,7 +62,7 @@ struct IntegrationHubView: View {
                             icon: "cat.fill",
                             title: "Kitty",
                             description: "GPU-accelerated terminal with remote control",
-                            isConfigured: kittyConfigured,
+                            isConfigured: progress.kitty,
                             action: { showingKittySetup = true }
                         )
 
@@ -88,7 +70,7 @@ struct IntegrationHubView: View {
                             icon: "w.square.fill",
                             title: "WezTerm",
                             description: "GPU-accelerated terminal, controlled via wezterm cli",
-                            isConfigured: wezTermConfigured,
+                            isConfigured: progress.wezTerm,
                             action: { showingWezTermSetup = true }
                         )
                     }
@@ -102,7 +84,7 @@ struct IntegrationHubView: View {
                             icon: "rectangle.split.3x1",
                             title: "tmux",
                             description: "Env forwarding for terminal session tracking",
-                            isConfigured: tmuxConfigured,
+                            isConfigured: progress.tmux,
                             action: { showingTmuxSetup = true }
                         )
                     }
@@ -116,7 +98,7 @@ struct IntegrationHubView: View {
                             icon: "brain",
                             title: "Claude Code",
                             description: "Install hooks for session tracking",
-                            isConfigured: claudeCodeConfigured,
+                            isConfigured: progress.claudeCode,
                             action: { showingClaudeCodeSetup = true }
                         )
 
@@ -124,7 +106,7 @@ struct IntegrationHubView: View {
                             icon: "hammer",
                             title: "OpenCode",
                             description: "Install plugin for session tracking",
-                            isConfigured: openCodeConfigured,
+                            isConfigured: progress.openCode,
                             action: { showingOpenCodeSetup = true }
                         )
 
@@ -132,7 +114,7 @@ struct IntegrationHubView: View {
                             icon: "barcode",
                             title: "Codex",
                             description: "Install hooks for session tracking",
-                            isConfigured: codexConfigured,
+                            isConfigured: progress.codex,
                             action: { showingCodexSetup = true }
                         )
 
@@ -140,7 +122,7 @@ struct IntegrationHubView: View {
                             icon: "circle.hexagongrid",
                             title: "Pi",
                             description: "Install extension for session tracking",
-                            isConfigured: piConfigured,
+                            isConfigured: progress.pi,
                             action: { showingPiSetup = true }
                         )
 
@@ -149,7 +131,7 @@ struct IntegrationHubView: View {
                                 icon: setup.icon,
                                 title: setup.title,
                                 description: setup.cardDescription,
-                                isConfigured: configuredHookAgents.contains(setup.agent),
+                                isConfigured: progress.hookAgents.contains(setup.agent),
                                 action: { hookAgentSetup = setup }
                             )
                         }
@@ -158,7 +140,7 @@ struct IntegrationHubView: View {
                             icon: "arrow.up.circle",
                             title: "Antigravity",
                             description: "Install hooks for session tracking (experimental)",
-                            isConfigured: antigravityConfigured,
+                            isConfigured: progress.antigravity,
                             action: { showingAntigravitySetup = true }
                         )
                     }
@@ -169,7 +151,7 @@ struct IntegrationHubView: View {
             Divider()
 
             Button("Continue") {
-                if hasAnyTerminal, hasAnyAgent {
+                if progress.isComplete {
                     onContinue()
                 } else {
                     showingIncompleteAlert = true
@@ -187,35 +169,35 @@ struct IntegrationHubView: View {
             Text("Juggler needs at least one terminal and one agent integration to function correctly.")
         }
         .sheet(isPresented: $showingITerm2Setup) {
-            ITerm2SetupView(isConfigured: $iterm2Configured, isEnabled: $iterm2Enabled)
+            ITerm2SetupView(isConfigured: $progress.iterm2, isEnabled: $iterm2Enabled)
                 .frame(width: 540, height: 480)
         }
         .sheet(isPresented: $showingKittySetup) {
-            KittySetupView(isConfigured: $kittyConfigured, isEnabled: $kittyEnabled)
+            KittySetupView(isConfigured: $progress.kitty, isEnabled: $kittyEnabled)
                 .frame(width: 540, height: 540)
         }
         .sheet(isPresented: $showingWezTermSetup) {
-            WezTermSetupView(isConfigured: $wezTermConfigured, isEnabled: $wezTermEnabled)
+            WezTermSetupView(isConfigured: $progress.wezTerm, isEnabled: $wezTermEnabled)
                 .frame(width: 540, height: 460)
         }
         .sheet(isPresented: $showingTmuxSetup) {
-            TmuxSetupView(isConfigured: $tmuxConfigured)
+            TmuxSetupView(isConfigured: $progress.tmux)
                 .frame(width: 540, height: 420)
         }
         .sheet(isPresented: $showingClaudeCodeSetup) {
-            ClaudeCodeSetupView(isConfigured: $claudeCodeConfigured)
+            ClaudeCodeSetupView(isConfigured: $progress.claudeCode)
                 .frame(width: 540, height: 420)
         }
         .sheet(isPresented: $showingOpenCodeSetup) {
-            OpenCodeSetupView(isConfigured: $openCodeConfigured)
+            OpenCodeSetupView(isConfigured: $progress.openCode)
                 .frame(width: 540, height: 420)
         }
         .sheet(isPresented: $showingCodexSetup) {
-            CodexSetupView(isConfigured: $codexConfigured, isEnabled: $codexEnabled)
+            CodexSetupView(isConfigured: $progress.codex, isEnabled: $codexEnabled)
                 .frame(width: 540, height: 620)
         }
         .sheet(isPresented: $showingPiSetup) {
-            PiSetupView(isConfigured: $piConfigured)
+            PiSetupView(isConfigured: $progress.pi)
                 .frame(width: 540, height: 420)
         }
         .sheet(item: $hookAgentSetup) { setup in
@@ -223,7 +205,7 @@ struct IntegrationHubView: View {
                 .frame(width: 540, height: 420)
         }
         .sheet(isPresented: $showingAntigravitySetup) {
-            AntigravitySetupView(isConfigured: $antigravityConfigured, isEnabled: $antigravityEnabled)
+            AntigravitySetupView(isConfigured: $progress.antigravity, isEnabled: $antigravityEnabled)
                 .frame(width: 540, height: 460)
         }
     }
@@ -232,12 +214,12 @@ struct IntegrationHubView: View {
 extension IntegrationHubView {
     private func hookAgentConfigured(_ agent: HooklinesinkerAgent) -> Binding<Bool> {
         Binding(
-            get: { configuredHookAgents.contains(agent) },
+            get: { progress.hookAgents.contains(agent) },
             set: { isConfigured in
                 if isConfigured {
-                    configuredHookAgents.insert(agent)
+                    progress.hookAgents.insert(agent)
                 } else {
-                    configuredHookAgents.remove(agent)
+                    progress.hookAgents.remove(agent)
                 }
             }
         )
@@ -305,6 +287,32 @@ struct ITerm2SetupView: View {
     @State private var runtimeInstalled = false
     @State private var isITerm2Running = false
     @State private var pollTimer: Timer?
+    @State private var checkFailure: CheckFailure?
+
+    enum CheckFailure: Equatable {
+        case automationDenied
+        case noResponse
+        case failed(String)
+
+        init(errorNumber: Int?, errorMessage: String?) {
+            if errorNumber == Int(errAEEventNotPermitted) {
+                self = .automationDenied
+            } else if let errorMessage {
+                self = .failed(errorMessage)
+            } else {
+                self = .noResponse
+            }
+        }
+
+        var message: String {
+            switch self {
+            case .automationDenied: "Juggler isn't allowed to control iTerm2. Allow it in Automation settings."
+            case .noResponse:
+                "iTerm2 didn't respond. Check that the Python runtime is installed and the Python API is enabled."
+            case let .failed(detail): "Check failed: \(detail)"
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -337,6 +345,18 @@ struct ITerm2SetupView: View {
             .padding()
             .background(Color.secondary.opacity(0.1))
             .cornerRadius(8)
+
+            if let checkFailure {
+                Text(checkFailure.message)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                if checkFailure == .automationDenied {
+                    Button("Open Automation Settings") {
+                        NSWorkspace.shared.open(SystemSettingsURL.automation)
+                    }
+                }
+            }
 
             if isITerm2Running {
                 Button("Check") {
@@ -393,11 +413,22 @@ struct ITerm2SetupView: View {
         tell application "iTerm2" to request cookie and key for app named "Juggler"
         """
 
-        Task { @MainActor in
-            var error: NSDictionary?
-            if let appleScript = NSAppleScript(source: script) {
-                let result = appleScript.executeAndReturnError(&error)
-                runtimeInstalled = (error == nil && result.stringValue != nil)
+        Task {
+            let outcome = await Task.detached { () -> (succeeded: Bool, errorNumber: Int?, errorMessage: String?) in
+                var error: NSDictionary?
+                let result = NSAppleScript(source: script)?.executeAndReturnError(&error)
+                return (
+                    error == nil && result?.stringValue != nil,
+                    error?[NSAppleScript.errorNumber] as? Int,
+                    error?[NSAppleScript.errorMessage] as? String
+                )
+            }.value
+            runtimeInstalled = outcome.succeeded
+            checkFailure = outcome.succeeded
+                ? nil
+                : CheckFailure(errorNumber: outcome.errorNumber, errorMessage: outcome.errorMessage)
+            if let checkFailure {
+                AccessibilityNotification.Announcement(checkFailure.message).post()
             }
         }
     }
@@ -1074,5 +1105,32 @@ struct SetupStep: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+@MainActor
+@Observable
+final class IntegrationSetupProgress {
+    var iterm2 = false
+    var kitty = false
+    var wezTerm = false
+    var tmux = false
+    var claudeCode = false
+    var openCode = false
+    var codex = false
+    var pi = false
+    var antigravity = false
+    var hookAgents: Set<HooklinesinkerAgent> = []
+
+    var hasAnyTerminal: Bool {
+        iterm2 || kitty || wezTerm
+    }
+
+    var hasAnyAgent: Bool {
+        claudeCode || openCode || codex || pi || !hookAgents.isEmpty || antigravity
+    }
+
+    var isComplete: Bool {
+        hasAnyTerminal && hasAnyAgent
     }
 }

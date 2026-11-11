@@ -60,6 +60,13 @@ struct SectionAnimationTests {
         #expect(controller.isDownAnimating(sessionID: "s1") == false)
     }
 
+    @Test func animateTransition_reduceMotion_showsNewSectionImmediately() {
+        let controller = SectionAnimationController(reducesMotion: { true })
+        controller.animateTransition(sessionID: "s1", from: .idle, to: .working)
+
+        #expect(controller.effectiveSection(for: makeSession("s1", state: .working)) == .working)
+    }
+
     // MARK: - AnimationDirection Tests
 
     @Test func animationDirection_sameSection_isNone() {

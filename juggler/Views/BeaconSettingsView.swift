@@ -9,7 +9,7 @@ struct BeaconSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Beacon HUD") {
+            Section {
                 Picker("Position", selection: $beaconPosition) {
                     ForEach(BeaconPosition.allCases, id: \.rawValue) { position in
                         Text(position.displayName).tag(position.rawValue)
@@ -39,6 +39,16 @@ struct BeaconSettingsView: View {
                     Text("3 seconds").tag(3.0)
                 }
                 .disabled(!beaconEnabled)
+            } header: {
+                Text("Beacon HUD")
+            } footer: {
+                if !beaconEnabled {
+                    Text(
+                        "The beacon is off. Turn it on from the Session Monitor control bar or with the Toggle Beacon shortcut."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)

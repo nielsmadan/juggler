@@ -188,8 +188,7 @@ class iTerm2Daemon:
                             })
             except Exception as e:
                 consecutive_failures += 1
-                # Retry instead of killing the daemon: a transient FocusMonitor
-                # failure recurs after a restart and just loops (cf. run_layout_monitor).
+                # Retry rather than exit: a daemon restart hits the same FocusMonitor failure and just loops.
                 print(f"Focus monitor error (attempt {consecutive_failures}): {e}, retrying in 5s...",
                       file=sys.stderr, flush=True)
                 if self.running:
@@ -518,7 +517,7 @@ CONNECTION_TIMEOUT_SECONDS = 30
 
 
 def _emit_structured_error(phase: str, detail: str) -> None:
-    """Write a single JSON line to stderr that Swift can parse and surface."""
+    """Write a single JSON line to stderr; Juggler shows the stderr tail in its failure reason."""
     print(json.dumps({"phase": phase, "detail": detail}), file=sys.stderr, flush=True)
 
 

@@ -13,12 +13,12 @@ struct BundleResourcesTests {
         // Looked up directly via Bundle.main in Swift:
         ("install_kitty_watcher", "sh"), // ScriptInstaller.installKittyWatcher
         ("uninstall", "sh"), // SettingsView reset / ScriptInstaller
-        ("integration_cleanup", "py"),
         ("antigravity-notify", "sh"), // AntigravityHooksInstaller.installHooks
-        ("codex_config_cleanup", "py"), // uninstall.sh removes only Juggler trust entries
         ("iterm2_daemon", "py"), // iTerm2Bridge
-        // Sibling resources copied by the install scripts above:
-        ("juggler_watcher", "py") // install_kitty_watcher.sh copies it to kitty config
+        ("juggler_watcher", "py"), // IntegrationSync staleness check; install_kitty_watcher.sh copies it
+        // Sibling resources used only by the bundled scripts above:
+        ("integration_cleanup", "py"), // run by uninstall.sh
+        ("codex_config_cleanup", "py") // imported by integration_cleanup.py
     ])
     func resourceIsBundled(resource: String, ext: String) {
         let url = Bundle.main.url(forResource: resource, withExtension: ext)
@@ -28,8 +28,7 @@ struct BundleResourcesTests {
         #expect(url != nil, Comment(rawValue: hint))
     }
 
-    /// Only the hooks Juggler still ships itself. Claude, Codex, OpenCode and Pi delivery now
-    /// lives in hooklinesinker, which pins its own timeouts.
+    /// Hook delivery Juggler ships itself; hooklinesinker pins its own timeouts.
     @Test(arguments: [
         ("antigravity-notify", "sh", "--max-time 2 \\"),
         ("juggler_watcher", "py", "\"--max-time\", \"2\",")

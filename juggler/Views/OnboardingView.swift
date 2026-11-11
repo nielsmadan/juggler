@@ -14,6 +14,9 @@ import SwiftUI
 struct OnboardingView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var currentStep = 0
+    @State private var integrationProgress = IntegrationSetupProgress()
+    private let stepCount = 4
+    private let integrationsStep = 1
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,8 +24,8 @@ struct OnboardingView: View {
                 switch currentStep {
                 case 0:
                     WelcomeStep()
-                case 1:
-                    IntegrationHubView(onContinue: { currentStep += 1 })
+                case integrationsStep:
+                    IntegrationHubView(onContinue: { currentStep += 1 }, progress: integrationProgress)
                 case 2:
                     ShortcutsStep()
                 case 3:
@@ -45,16 +48,18 @@ struct OnboardingView: View {
                 Spacer()
 
                 HStack(spacing: 8) {
-                    ForEach(0 ..< 4) { index in
+                    ForEach(0 ..< stepCount, id: \.self) { index in
                         Circle()
                             .fill(index == currentStep ? Color.accentColor : Color.secondary.opacity(0.3))
                             .frame(width: 8, height: 8)
                     }
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Step \(currentStep + 1) of \(stepCount)")
 
                 Spacer()
 
-                if currentStep < 3, currentStep != 1 {
+                if currentStep < stepCount - 1, currentStep != integrationsStep {
                     Button("Continue") {
                         currentStep += 1
                     }
@@ -118,11 +123,19 @@ struct ShortcutsStep: View {
 
 struct FinishStep: View {
     let dismiss: DismissAction
-    @Environment(\.openWindow) private var openWindow
     @State private var enableLaunchAtLogin = false
     @State private var enableAutoUpdate = true
     @AppStorage(AppStorageKeys.launchAtLogin) private var launchAtLogin = false
     @AppStorage(AppStorageKeys.hasCompletedOnboarding) private var hasCompletedOnboarding = false
+
+    private var defaultCycleInstruction: String {
+        Self.cycleInstruction(keys: ShortcutCenter.shared.globalContext.displayStrings(for: .cycleForward).first)
+    }
+
+    static func cycleInstruction(keys: String?) -> String {
+        guard let keys else { return "use the Cycle Forward shortcut to cycle through them" }
+        return "use \(keys) to cycle through them"
+    }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -134,11 +147,9 @@ struct FinishStep: View {
                 .font(.title)
                 .fontWeight(.bold)
 
-            Text(
-                "Juggler lives in your menu bar. Start some Claude Code sessions and use Shift+Cmd+J to cycle through them!"
-            )
-            .multilineTextAlignment(.center)
-            .foregroundStyle(.secondary)
+            Text("Juggler lives in your menu bar. Start some Claude Code sessions and \(defaultCycleInstruction)!")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
 
             Toggle("Launch Juggler at Login", isOn: $enableLaunchAtLogin)
                 .toggleStyle(.checkbox)
@@ -170,8 +181,7 @@ struct FinishStep: View {
                         try? await TerminalBridgeRegistry.shared.start(.wezterm)
                     }
                 }
-                openWindow(id: "main")
-                NSApp.setActivationPolicy(.regular)
+                WindowManager.shared.openMainWindow()
                 dismiss()
             }
             .buttonStyle(.borderedProminent)

@@ -14,7 +14,7 @@ final class StatusBarManager {
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
     private var menu: NSMenu?
-    private var settingsWindow: NSWindow?
+    private let popoverPresentation = PopoverPresentation()
 
     private init() {}
 
@@ -29,27 +29,37 @@ final class StatusBarManager {
             let icon = NSImage(named: "juggling")
             icon?.isTemplate = true
             button.image = icon
+            button.setAccessibilityTitle("Juggler")
             button.action = #selector(handleClick)
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
-        popover = NSPopover()
-        popover?.contentSize = NSSize(width: 280, height: 400)
-        popover?.behavior = .transient
-        popover?.contentViewController = NSHostingController(
-            rootView: MenuBarView()
+        let hostingController = NSHostingController(
+            rootView: MenuBarView(presentation: popoverPresentation)
                 .environment(SessionManager.shared)
         )
+        hostingController.sizingOptions = .preferredContentSize
+        popover = NSPopover()
+        popover?.behavior = .transient
+        popover?.contentViewController = hostingController
 
         menu = NSMenu()
 
-        let showItem = NSMenuItem(title: "Open Juggler", action: #selector(openMainWindow), keyEquivalent: "")
-        showItem.target = self
+        let showItem = NSMenuItem(
+            title: "Open Juggler",
+            action: #selector(WindowManager.openMainWindow),
+            keyEquivalent: ""
+        )
+        showItem.target = WindowManager.shared
         menu?.addItem(showItem)
 
-        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
-        settingsItem.target = self
+        let settingsItem = NSMenuItem(
+            title: "Settings...",
+            action: #selector(WindowManager.openSettings),
+            keyEquivalent: ","
+        )
+        settingsItem.target = WindowManager.shared
         menu?.addItem(settingsItem)
 
         let updateItem = NSMenuItem(
@@ -69,8 +79,7 @@ final class StatusBarManager {
         observeDaemonStatus()
     }
 
-    /// Reactively reflect ITerm2DaemonStatus in the menu bar button. Re-arms itself
-    /// on every observable change via withObservationTracking.
+    /// Reactively reflect ITerm2DaemonStatus in the menu bar button.
     private func observeDaemonStatus() {
         withObservationTracking {
             applyDaemonStatus(
@@ -91,7 +100,7 @@ final class StatusBarManager {
         case .stopped, .ready:
             button.alphaValue = 1.0
             button.contentTintColor = nil
-            button.toolTip = nil
+            button.toolTip = "Juggler"
         case .starting:
             button.alphaValue = 1.0
             button.contentTintColor = nil
@@ -120,8 +129,7 @@ final class StatusBarManager {
 
     private func showMenu() {
         if let menuItem = menu?.items.first {
-            let isWindowVisible = NSApp.windows.contains { $0.identifier?.rawValue == "main" && $0.isVisible }
-            menuItem.title = isWindowVisible ? "Show Juggler" : "Open Juggler"
+            menuItem.title = WindowManager.shared.isMainWindowVisible ? "Show Juggler" : "Open Juggler"
         }
 
         statusItem?.menu = menu
@@ -130,18 +138,18 @@ final class StatusBarManager {
     }
 
     @objc func togglePopover() {
-        guard let button = statusItem?.button, let popover else { return }
+        guard let popover else { return }
 
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
+            showPopover()
         }
     }
 
     func showPopover() {
         guard let button = statusItem?.button, let popover, !popover.isShown else { return }
+        popoverPresentation.willShow()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
     }
@@ -150,47 +158,21 @@ final class StatusBarManager {
         popover?.performClose(nil)
     }
 
-    @objc func openMainWindow() {
-        NSApp.activate(ignoringOtherApps: true)
-
-        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" || $0.title == "Juggler" }) {
-            // Restore saved frame before showing to avoid flicker
-            if let appDelegate = NSApp.delegate as? AppDelegate {
-                appDelegate.restoreSavedFrame(for: window)
-            }
-            window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
-        } else {
-            NotificationCenter.default.post(name: .openMainWindow, object: nil)
-        }
-    }
-
-    @objc func openSettings() {
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-
-        if settingsWindow == nil {
-            let hostingController = NSHostingController(
-                rootView: SettingsView()
-                    .environment(SessionManager.shared)
-            )
-
-            let window = NSWindow(contentViewController: hostingController)
-            window.title = "Settings"
-            window.styleMask = [.titled, .closable]
-            window.setContentSize(hostingController.view.fittingSize)
-            window.center()
-            settingsWindow = window
-        }
-
-        settingsWindow?.makeKeyAndOrderFront(nil)
-    }
-
     @objc private func checkForUpdates() {
         UpdateManager.shared.checkForUpdates()
     }
 
     @objc private func quit() {
         NSApp.terminate(nil)
+    }
+}
+
+@MainActor
+@Observable
+final class PopoverPresentation {
+    private(set) var showCount = 0
+
+    func willShow() {
+        showCount += 1
     }
 }

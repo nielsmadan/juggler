@@ -59,9 +59,14 @@ final class SectionAnimationController {
     @ObservationIgnored private var downTask: Task<Void, Never>?
     @ObservationIgnored private var upTask: Task<Void, Never>?
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
+    @ObservationIgnored private let reducesMotion: () -> Bool
 
-    init(sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    init(
+        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        reducesMotion: @escaping () -> Bool = { false }
+    ) {
         self.sleep = sleep
+        self.reducesMotion = reducesMotion
     }
 
     func cancel(sessionID: String) {
@@ -105,6 +110,7 @@ final class SectionAnimationController {
     ) {
         let direction = Self.direction(from: fromState, to: toState)
         if direction != .none { cancel(sessionID: sessionID) }
+        guard !reducesMotion() else { return }
 
         switch direction {
         case .down:

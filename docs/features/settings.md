@@ -1,12 +1,12 @@
 # Settings
 
-The Settings window is organized into tabs, each covering a distinct configuration area.
+The Settings window is organized into tabs, each covering a distinct configuration area. The popover gear, the status-item menu and App menu > Settings… (⌘,) all open the same window. It opens at most 760 pt tall and no taller than the screen, and can be resized.
 
 ## General
 
 - **Launch at Login**: Start Juggler automatically when the Mac boots.
 - **Show Juggler in Dock**: Toggle the Dock icon (regular vs. accessory activation policy).
-- **Quit when Session Monitor is closed**: Quit the app when the monitor window closes.
+- **Quit when Session Monitor is closed**: Quit the app when the user closes the monitor window. Closes made by the app itself do not quit: the Show Monitor hotkey's hide step, and the monitor window opened by a notification click and closed again as focus moves to the terminal.
 - **Session Title**: How session names are derived: Tab Title, Window Title, Window / Tab Title, Folder Name, Parent / Folder Name, or Agent Session Title (the title the agent reports, falling back to Parent / Folder Name). The name is global: the monitor, popover, beacon and notifications all use it.
 - **Session Monitor**: Pick what each of the four row detail slots shows (top left, top right, bottom left, bottom right; see [Row details](main-window.md#row-details)), choose what each of the three trailing row action slots shows (Rename, Note, Hide, Prio or None; default rename, note, hide), and optionally replace the home directory prefix in shown folder paths with `~` (for example `~/Projects/app`). A None slot removes only the button; `E`, `Y`, `R`, `M` and the top-bar Show Hidden control remain available. Upgrading from the old "Show rename/note/hide button" toggles maps them to slots once at launch: a toggle that was off becomes None. The old `monitorShowRenameButton`, `monitorShowNoteButton` and `monitorShowHideButton` keys stay in `AppStorageKeys` only so this migration can read them. The `~` option applies only while a slot is set to Folder Path. Upgrading from the old "Show folder path" and "Show git branch" toggles maps them to slots once: with both on, Folder Path top left and Git Branch bottom left; with one off, the other takes the top left; with both off, both left slots are None. Model and Effort fill the right slots. The old `monitorShowFolderPath` and `monitorShowBranch` keys stay in `AppStorageKeys` only so this migration can read them; no view uses them.
 - **Notifications**: Toggle idle notifications, permission notifications, and sound (see [Notifications](notification.md)).
@@ -48,7 +48,7 @@ Beacon overlay that briefly shows the session name when cycling. When tracked se
 
 - **Position**, **Relative to** (screen or active window), **Size** (XS-XL), **Duration** (0.5-3 s).
 
-The beacon is enabled/disabled from the Session Monitor control bar and the "Toggle Beacon" Session List shortcut, not from this tab.
+The beacon is enabled/disabled from the Session Monitor control bar and the "Toggle Beacon" Session List shortcut, not from this tab. While it is off, the other beacon options are disabled and a footer says where to turn it back on.
 
 ## Shortcuts
 

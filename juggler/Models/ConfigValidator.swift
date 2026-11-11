@@ -10,8 +10,11 @@ enum XDGPaths {
     }
 }
 
-/// Kitty config file parsing — extracted from SettingsView for testability.
+/// Kitty config file parsing.
 enum KittyConfigParser {
+    static let remoteControlDirective = "allow_remote_control socket-only"
+    static let listenOnDirective = "listen_on unix:/tmp/kitty-{kitty_pid}"
+
     // Mirrors kitty's own config search order.
     static var configDirectory: String {
         if let kittyDir = ProcessInfo.processInfo.environment["KITTY_CONFIG_DIRECTORY"],
@@ -71,7 +74,6 @@ enum KittyConfigParser {
     }
 }
 
-/// tmux config validation — extracted from SettingsView for testability.
 enum TmuxConfigValidator {
     static func isConfigured(contents: String) -> Bool {
         contents.contains("update-environment")

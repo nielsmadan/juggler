@@ -17,7 +17,7 @@ First-launch flow that walks new users through the setup required for Juggler to
 ## Behavior
 
 - Triggered automatically on first launch.
-- Can be re-opened later from the Help menu (for reconfiguration or testing).
+- Can be re-opened later from Window > Welcome to Juggler while Juggler is shown in the Dock (for reconfiguration or testing).
 - All shortcuts chosen here are also customizable in Settings > Shortcuts.
 
 ---

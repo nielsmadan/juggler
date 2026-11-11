@@ -4,8 +4,8 @@
 //
 //  Declares the app's keyboard-shortcut actions for ShortcutKit. Each enum's
 //  raw value is the stable persistence id (never rename a case — migrate
-//  instead). The default shortcut literals reproduce Juggler's historical
-//  defaults exactly.
+//  instead). Default shortcut literals are what users who never customised a
+//  binding get, so changing one rebinds them.
 //
 
 import Foundation
@@ -156,6 +156,13 @@ enum MonitorControlAction: CaseIterable {
     case autoNext
     case autoRestart
     case beacon
+
+    var title: String {
+        switch self {
+        case .beacon: "Beacon"
+        default: String(localized: shortcutAction.definition.displayName)
+        }
+    }
 
     var shortcutAction: SessionListAction {
         switch self {

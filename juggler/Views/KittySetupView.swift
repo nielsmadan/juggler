@@ -10,18 +10,11 @@ struct KittySetupView: View {
     @Binding var isEnabled: Bool
     @Environment(\.dismiss) private var dismiss
 
-    @State private var remoteControlEnabled = false
-    @State private var listenOnConfigured = false
-    @State private var watcherInstalled = false
+    @State private var kitty = KittySetupController()
     @State private var connectionTested = false
-    @State private var isInstallingWatcher = false
-    @State private var watcherInstallError: String?
-    @State private var configError: String?
     @State private var testError: String?
 
-    var allReady: Bool {
-        remoteControlEnabled && listenOnConfigured
-    }
+    private let stepActionIndent: CGFloat = 28
 
     var body: some View {
         VStack(spacing: 16) {
@@ -32,38 +25,57 @@ struct KittySetupView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     SetupStep(
-                        isComplete: remoteControlEnabled,
+                        isComplete: kitty.status.remoteControlEnabled,
                         title: "Remote Control Enabled",
-                        detail: "allow_remote_control socket-only in kitty.conf"
+                        detail: "\(KittyConfigParser.remoteControlDirective) in kitty.conf"
                     )
+                    if !kitty.status.remoteControlEnabled {
+                        Button("Add to kitty.conf") {
+                            kitty.append(KittyConfigParser.remoteControlDirective)
+                        }
+                        .accessibilityLabel("Add remote control to kitty.conf")
+                        .padding(.leading, stepActionIndent)
+                    }
 
                     SetupStep(
-                        isComplete: listenOnConfigured,
+                        isComplete: kitty.status.listenOnConfigured,
                         title: "Listen Socket Configured",
-                        detail: "listen_on unix:/tmp/kitty-{kitty_pid} in kitty.conf"
+                        detail: "\(KittyConfigParser.listenOnDirective) in kitty.conf"
                     )
+                    if !kitty.status.listenOnConfigured {
+                        Button("Add to kitty.conf") {
+                            kitty.append(KittyConfigParser.listenOnDirective)
+                        }
+                        .accessibilityLabel("Add listen socket to kitty.conf")
+                        .padding(.leading, stepActionIndent)
+                    }
+
+                    if let error = kitty.configError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
 
                     Divider()
 
                     SetupStep(
-                        isComplete: watcherInstalled,
+                        isComplete: kitty.status.watcherInstalled,
                         title: "Install Watcher",
                         detail: "Enables focus tracking and session termination detection."
                     )
+                    Button(kitty.status.watcherInstalled ? "Reinstall Watcher" : "Install Watcher") {
+                        Task { await kitty.installWatcher() }
+                    }
+                    .disabled(kitty.isInstallingWatcher)
+                    .padding(.leading, stepActionIndent)
 
-                    if let error = watcherInstallError {
+                    if let error = kitty.watcherError {
                         Text(error)
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
 
                     Divider()
-
-                    if let error = configError {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
 
                     SetupStep(
                         isComplete: connectionTested,
@@ -81,7 +93,7 @@ struct KittySetupView: View {
                 .background(Color.secondary.opacity(0.1))
                 .cornerRadius(8)
 
-                if allReady {
+                if kitty.canTestConnection {
                     Button("Test Connection") {
                         testConnection()
                     }
@@ -97,12 +109,6 @@ struct KittySetupView: View {
                         .foregroundStyle(.orange)
                         .padding(.top, 4)
                     }
-                } else {
-                    Button("Setup Kitty") {
-                        setupIntegration()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .padding(.top, 8)
                 }
             }
 
@@ -123,47 +129,7 @@ struct KittySetupView: View {
         }
         .padding()
         .onAppear {
-            refreshStatus()
-        }
-    }
-
-    private func setupIntegration() {
-        if !remoteControlEnabled {
-            configError = KittyConfigParser.appendToConf("allow_remote_control socket-only")
-            refreshStatus()
-            if configError != nil { return }
-        }
-        if !listenOnConfigured {
-            configError = KittyConfigParser.appendToConf("listen_on unix:/tmp/kitty-{kitty_pid}")
-            refreshStatus()
-            if configError != nil { return }
-        }
-        if !watcherInstalled {
-            installWatcher()
-        }
-    }
-
-    private func refreshStatus() {
-        let status = KittyConfigParser.status()
-        remoteControlEnabled = status.remoteControlEnabled
-        listenOnConfigured = status.listenOnConfigured
-        watcherInstalled = status.watcherInstalled
-    }
-
-    private func installWatcher() {
-        isInstallingWatcher = true
-        watcherInstallError = nil
-
-        Task {
-            let result = await ScriptInstaller.installKittyWatcher()
-            await MainActor.run {
-                if let error = result {
-                    watcherInstallError = error
-                } else {
-                    watcherInstalled = true
-                }
-                isInstallingWatcher = false
-            }
+            kitty.refresh()
         }
     }
 
@@ -175,8 +141,10 @@ struct KittySetupView: View {
                 try await KittyBridge.shared.testConnection()
                 connectionTested = true
             } catch {
-                testError = "Could not connect to Kitty: \(error.localizedDescription)"
+                let message = "Could not connect to Kitty: \(error.localizedDescription)"
+                testError = message
                 connectionTested = false
+                AccessibilityNotification.Announcement(message).post()
             }
         }
     }

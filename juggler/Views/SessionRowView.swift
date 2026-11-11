@@ -89,9 +89,7 @@ struct SessionRowView: View {
         }
         .contentShape(Rectangle())
         .opacity(session.isHidden ? 0.55 : 1)
-        .onTapGesture {
-            activateSession()
-        }
+        .activatableSessionRow(isSelected: isKeyboardSelected, children: .combine) { activateSession() }
         .contextMenu {
             Button("Rename...") {
                 performContextAction(.rename)
@@ -132,5 +130,18 @@ struct SessionRowView: View {
     private func performContextAction(_ action: SessionRowContextAction) {
         let shortcutAction = controller.performContextAction(action, on: session, sessionManager: sessionManager)
         ShortcutCenter.shared.sessionListContext.notifyHint(for: shortcutAction)
+    }
+}
+
+extension View {
+    func activatableSessionRow(
+        isSelected: Bool,
+        children: AccessibilityChildBehavior,
+        activate: @escaping () -> Void
+    ) -> some View {
+        onTapGesture(perform: activate)
+            .accessibilityElement(children: children)
+            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction(.default, activate)
     }
 }

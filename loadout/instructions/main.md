@@ -64,7 +64,8 @@ Juggler/
 │   ├── SessionManager.swift      # Session list, cycling logic; rows are not persisted
 │   ├── SessionMenuManager.swift  # ⌘⇧M session menu panel over the frontmost window
 │   ├── StatusBarManager.swift    # Menu bar icon (NSStatusItem + NSPopover)
-│   └── UpdateManager.swift       # Sparkle auto-updates
+│   ├── UpdateManager.swift       # Sparkle auto-updates
+│   └── WindowManager.swift       # Session Monitor and Settings windows, Dock icon policy, quit-on-close
 ├── Models/
 │   ├── CyclingEngine.swift       # Session cycling protocol and implementation
 │   ├── HookEventMapper.swift     # Hook event → state mapping (Claude Code + OpenCode + Codex + Pi + Antigravity)
@@ -74,7 +75,7 @@ Juggler/
 │   ├── Session.swift             # Session data model
 │   ├── SessionState.swift        # idle, working, permission, backburner, compacting
 │   ├── TerminalType.swift        # Terminal app abstraction (iTerm2, Kitty, WezTerm, Ghostty - Ghostty recognized but no bridge yet)
-│   └── ...                       # AppConstants, AppStorageKeys, BeaconPosition/PositionCalculator/Size/Anchor, ConfigValidator, DailyStatsStore, HiddenBindingStore, SessionStatsCalculator, SessionTitleMode, StatsBarLayout
+│   └── ...                       # AppConstants, AppStorageKeys, BeaconPosition/PositionCalculator/Size/Anchor, ConfigValidator, DailyStatsStore, DockPolicy, HiddenBindingStore, SessionStatsCalculator, SessionTitleMode, StatsBarLayout
 ├── Services/
 │   ├── HookServer.swift          # HTTP server receiving hooks (/hook, /kitty-event)
 │   ├── iTerm2Bridge.swift        # Unix socket communication with Python daemon
@@ -124,7 +125,7 @@ See [docs/tech/release.md](docs/tech/release.md) for pins, development builds an
 **Menu bar app quirks:**
 - Uses `NSStatusItem` + `NSPopover` managed by `StatusBarManager` (not SwiftUI MenuBarExtra)
 - `OnboardingView` window triggers first-run setup
-- `NSApp.setActivationPolicy(.regular)` shows dock icon; `.accessory` hides it
+- `NSApp.setActivationPolicy(.regular)` shows dock icon; `.accessory` hides it. Only `WindowManager` changes it; close the monitor with `WindowManager.closeMainWindow()`, since a plain `close()` counts as the user closing it and can quit the app
 
 **Recurring trap (full post-mortems in `docs/log/`):** iTerm2 session IDs are prefixed
 `w1t0p0:UUID`, but iTerm2's FocusMonitor sends the bare `UUID`. Match with `hasSuffix`, never

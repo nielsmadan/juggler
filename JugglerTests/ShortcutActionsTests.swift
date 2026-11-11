@@ -115,6 +115,15 @@ struct ShortcutActionsTests {
         ])
     }
 
+    @Test func monitorControls_haveDisplayTitles() {
+        #expect(MonitorControlAction.allCases.map(\.title) == [
+            "Permission First",
+            "Auto Next",
+            "Auto Restart",
+            "Beacon"
+        ])
+    }
+
     @Test func monitorControls_mapToMatchingShortcuts() {
         #expect(MonitorControlAction.allCases.map(\.shortcutAction) == [
             .togglePermissionFirst,

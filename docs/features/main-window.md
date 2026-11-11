@@ -212,6 +212,13 @@ across restart. It does not set the conversation's durable Hide choice. See [hyd
 - Hidden title bar; content-sized window with standard close/minimize controls.
 - Optionally quits the app when closed (Settings > General > "Quit when Session Monitor is closed").
 
+### Dock icon
+
+With "Show Juggler in Dock" on, the Dock icon shows while any Juggler window is open (the monitor, Settings,
+About or onboarding), including a minimized one. It hides about 0.1 s after the last of them closes; reopening a
+window within that delay keeps it. With the setting off, no window shows the Dock icon. The popover, beacon and
+session menu are panels and never affect it.
+
 ---
 
 [← Back to Overview](overview.md)

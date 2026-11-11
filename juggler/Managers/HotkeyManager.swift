@@ -63,10 +63,8 @@ final class HotkeyManager {
         }
     }
 
-    /// Entry point for a global hotkey firing. Called from `ShortcutCenter`'s
-    /// global context handler (which runs synchronously on key-down via the
-    /// Carbon activator), so terminal-frontmost state is captured here before
-    /// any async hop — mirroring the old `KeyboardShortcuts.onKeyDown` path.
+    /// Entry point for a global hotkey firing. Runs synchronously on key-down via the Carbon
+    /// activator, so terminal-frontmost state is captured here before any async hop.
     func dispatch(_ action: GlobalAction) {
         switch action {
         case .cycleForward:
@@ -212,20 +210,16 @@ final class HotkeyManager {
 
     private func handleShowMonitor() {
         logDebug(.hotkey, "Show monitor triggered")
-        let mainWindowVisible = NSApp.windows.contains {
-            $0.identifier?.rawValue == "main" && $0.isVisible
-        }
+        let mainWindowVisible = WindowManager.shared.isMainWindowVisible
 
         if StatusBarManager.shared.isPopoverShown {
             // Step 2: popover visible → hide popover, open main window
             StatusBarManager.shared.hidePopover()
-            StatusBarManager.shared.openMainWindow()
+            WindowManager.shared.openMainWindow()
             monitorCycleActive = true
         } else if monitorCycleActive, mainWindowVisible {
             // Step 3: main window visible (opened by this cycle) → close, return
-            if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" }) {
-                window.close()
-            }
+            WindowManager.shared.closeMainWindow()
             previousApp?.activate()
             previousApp = nil
             monitorCycleActive = false

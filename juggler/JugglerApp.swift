@@ -30,11 +30,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     fileprivate static let duplicateInstance: NSRunningApplication? =
         allowsDuplicateTestInstance() ? nil : otherRunningInstance()
 
-    private var mainWindowNeedsRestore = true
-    private var hideAccessoryWorkItem: DispatchWorkItem?
-
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
-        false // Keep running when window closes (menu bar app stays active)
+        false
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -47,10 +44,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return .terminateLater
     }
 
-    private var showInDock: Bool {
-        UserDefaults.standard.bool(forKey: AppStorageKeys.showInDock)
-    }
-
     func applicationDidFinishLaunching(_: Notification) {
         if let existing = AppDelegate.duplicateInstance {
             existing.activate()
@@ -58,129 +51,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        if showInDock {
-            NSApp.setActivationPolicy(.regular)
-        } else {
-            NSApp.setActivationPolicy(.accessory)
-        }
-        NSApp.activate()
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(windowWillClose),
-            name: NSWindow.willCloseNotification,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(windowDidBecomeKey),
-            name: NSWindow.didBecomeKeyNotification,
-            object: nil
-        )
-
-        // Restore saved window position on launch (avoids flicker at default position)
-        if UserDefaults.standard.string(forKey: AppStorageKeys.mainWindowFrame) != nil {
-            DispatchQueue.main.async { [weak self] in
-                if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" }) {
-                    window.alphaValue = 0
-                    self?.restoreSavedFrame(for: window)
-                    window.alphaValue = 1
-                }
-            }
-        }
-    }
-
-    func restoreSavedFrame(for window: NSWindow) {
-        mainWindowNeedsRestore = false
-        guard let frameString = UserDefaults.standard.string(forKey: AppStorageKeys.mainWindowFrame) else { return }
-        let savedFrame = NSRectFromString(frameString)
-        let onScreen = NSScreen.screens.contains(where: { $0.visibleFrame.intersects(savedFrame) })
-        if savedFrame.width > 100, savedFrame.height > 100, onScreen {
-            window.setFrame(savedFrame, display: false)
-        }
-    }
-
-    @objc func windowWillClose(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow,
-              window.identifier?.rawValue == "main"
-        else { return }
-        // Must save before window deallocs
-        UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: AppStorageKeys.mainWindowFrame)
-        mainWindowNeedsRestore = true
-
-        if UserDefaults.standard.bool(forKey: AppStorageKeys.quitOnMonitorClose) {
-            NSApp.terminate(nil)
-            return
-        }
-
-        // Cancel any pending hide and schedule a new one. Using a cancellable
-        // work item prevents a race where the user reopens the window within
-        // the 0.1s delay, causing the dock icon to disappear while visible.
-        hideAccessoryWorkItem?.cancel()
-        let workItem = DispatchWorkItem {
-            NSApp.setActivationPolicy(.accessory)
-        }
-        hideAccessoryWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
-    }
-
-    @objc func windowDidBecomeKey(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow,
-              window.identifier?.rawValue == "main"
-        else { return }
-
-        let wasInAccessoryMode = NSApp.activationPolicy() == .accessory
-
-        hideAccessoryWorkItem?.cancel()
-        hideAccessoryWorkItem = nil
-
-        // When a notification click activated us, yield focus to the terminal
-        // after the system's activation lifecycle has settled (see comment in
-        // NotificationManager.didReceive for details).
-        if let bundleID = notificationTerminalBundleID() {
-            scheduleTerminalActivation(bundleID: bundleID)
-            return
-        }
-
-        if showInDock {
-            NSApp.setActivationPolicy(.regular)
-        }
-
-        if mainWindowNeedsRestore {
-            mainWindowNeedsRestore = false
-            restoreSavedFrame(for: window)
-        }
-
-        // Window was auto-created from accessory mode. Hide it immediately to
-        // prevent a flash, then decide on the next run loop (didReceive fires
-        // after windowDidBecomeKey, so the notification flag isn't set yet).
-        if wasInAccessoryMode {
-            window.alphaValue = 0
-            DispatchQueue.main.async {
-                if let bundleID = self.notificationTerminalBundleID() {
-                    self.scheduleTerminalActivation(bundleID: bundleID)
-                    window.close()
-                } else {
-                    window.alphaValue = 1
-                }
-            }
-        }
-    }
-
-    private func notificationTerminalBundleID() -> String? {
-        guard NotificationManager.shared.isHandlingNotificationClick else { return nil }
-        return NotificationManager.shared.pendingTerminalBundleID
-    }
-
-    private func scheduleTerminalActivation(bundleID: String) {
-        guard let handoff = NotificationManager.shared.pendingClickHandoff else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            guard NotificationManager.shared.terminalBundleID(for: handoff) == bundleID else { return }
-            NSApp.yieldActivation(toApplicationWithBundleIdentifier: bundleID)
-            if let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
-                app.activate()
-            }
-        }
+        WindowManager.shared.start()
     }
 }
 
@@ -224,7 +95,6 @@ struct JugglerApp: App {
             AppStorageKeys.prioritizePermissionSessions: false,
             "useCyclingColors": true,
             "useTerminalCyclingColors": true,
-            // Terminal enablement (iTerm2 on by default for existing users)
             AppStorageKeys.iterm2Enabled: true,
             AppStorageKeys.kittyEnabled: false,
             AppStorageKeys.showInDock: true,
@@ -240,7 +110,6 @@ struct JugglerApp: App {
             AppStorageKeys.statsBarColorBlue: 0.0
         ])
 
-        // Skip heavy service startup when running as a test host
         guard !isUnitTestHost else { return }
 
         guard AppDelegate.duplicateInstance == nil else { return }
@@ -284,7 +153,7 @@ struct JugglerApp: App {
         let screenHeight = NSScreen.main?.visibleFrame.height ?? 800
         let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: AppStorageKeys.hasCompletedOnboarding)
 
-        Window("Juggler", id: "main") {
+        Window("Juggler", id: WindowManager.SceneID.main) {
             SessionMonitorView()
                 .environment(sessionManager)
                 .allowsWindowActivationEvents()
@@ -293,24 +162,20 @@ struct JugglerApp: App {
         .defaultPosition(.topTrailing)
         .defaultLaunchBehavior(hasCompletedOnboarding ? .presented : .suppressed)
         .commands {
-            AboutCommands()
+            AppCommands()
         }
 
-        Window("Welcome to Juggler", id: "onboarding") {
+        Window("Welcome to Juggler", id: WindowManager.SceneID.onboarding) {
             OnboardingView()
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(hasCompletedOnboarding ? .suppressed : .presented)
 
-        Window("About Juggler", id: "about") {
+        Window("About Juggler", id: WindowManager.SceneID.about) {
             AboutView()
         }
         .windowResizability(.contentSize)
-
-        Settings {
-            SettingsView()
-        }
     }
 }
 
@@ -351,14 +216,23 @@ private func hydrateRunningSessions() async {
     }
 }
 
-struct AboutCommands: Commands {
+struct AppCommands: Commands {
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
+        // swiftlint:disable:next redundant_discardable_let
+        let _ = WindowManager.shared.registerMainWindowOpener { openWindow(id: WindowManager.SceneID.main) }
+
         CommandGroup(replacing: .appInfo) {
             Button("About Juggler") {
-                openWindow(id: "about")
+                openWindow(id: WindowManager.SceneID.about)
             }
+        }
+        CommandGroup(replacing: .appSettings) {
+            Button("Settings...") {
+                WindowManager.shared.openSettings()
+            }
+            .keyboardShortcut(",")
         }
     }
 }

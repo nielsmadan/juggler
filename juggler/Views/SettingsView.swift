@@ -43,7 +43,7 @@ struct SettingsView: View {
                     Label("Logs", systemImage: "doc.text")
                 }
         }
-        .frame(minWidth: 480, minHeight: 640)
+        .frame(minWidth: 480, minHeight: 400)
     }
 }
 
@@ -177,11 +177,7 @@ struct GeneralSettingsView: View {
 
                 Toggle("Show Juggler in Dock", isOn: $showInDock)
                     .onChange(of: showInDock) { _, newValue in
-                        if newValue {
-                            NSApp.setActivationPolicy(.regular)
-                        } else {
-                            NSApp.setActivationPolicy(.accessory)
-                        }
+                        WindowManager.shared.applyShowInDock(newValue)
                     }
 
                 Toggle("Quit when Session Monitor is closed", isOn: $quitOnMonitorClose)
@@ -369,12 +365,7 @@ struct IntegrationSettingsView: View {
     @State private var isInstallingHooks = false
     @State private var hookInstallError: String?
 
-    @State private var kittyRemoteControl = false
-    @State private var kittyListenOn = false
-    @State private var kittyWatcherInstalled = false
-    @State private var isInstallingKittyWatcher = false
-    @State private var kittyWatcherError: String?
-    @State private var kittyConfigError: String?
+    @State private var kitty = KittySetupController()
 
     @State private var wezTermCliFound = false
 
@@ -424,7 +415,7 @@ struct IntegrationSettingsView: View {
         }
         .onAppear {
             checkPermissions()
-            checkKittyStatus()
+            kitty.refresh()
             checkWezTermStatus()
             checkTmuxConfigured()
             codexController.initializePermissionEventPreference()
@@ -455,7 +446,7 @@ struct IntegrationSettingsView: View {
             Section("Permissions") {
                 PermissionRow(label: "Notifications", granted: hasNotifications) {
                     NSWorkspace.shared.open(
-                        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Notifications")!
+                        SystemSettingsURL.notifications
                     )
                 }
                 Button("Refresh") {
@@ -476,7 +467,7 @@ struct IntegrationSettingsView: View {
                     HStack {
                         Text("Remote Control")
                         Spacer()
-                        if kittyRemoteControl {
+                        if kitty.status.remoteControlEnabled {
                             Label("Enabled", systemImage: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
                         } else {
@@ -484,12 +475,12 @@ struct IntegrationSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    if !kittyRemoteControl {
-                        Text("Adds allow_remote_control socket-only to kitty.conf")
+                    if !kitty.status.remoteControlEnabled {
+                        Text("Adds \(KittyConfigParser.remoteControlDirective) to kitty.conf")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Button("Add to kitty.conf") {
-                            configureKittyRemoteControl()
+                            kitty.append(KittyConfigParser.remoteControlDirective)
                         }
                     }
                 }
@@ -498,7 +489,7 @@ struct IntegrationSettingsView: View {
                     HStack {
                         Text("Listen Socket")
                         Spacer()
-                        if kittyListenOn {
+                        if kitty.status.listenOnConfigured {
                             Label("Configured", systemImage: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
                         } else {
@@ -506,12 +497,12 @@ struct IntegrationSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    if !kittyListenOn {
-                        Text("Adds listen_on unix:/tmp/kitty-{kitty_pid} to kitty.conf")
+                    if !kitty.status.listenOnConfigured {
+                        Text("Adds \(KittyConfigParser.listenOnDirective) to kitty.conf")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Button("Add to kitty.conf") {
-                            configureKittyListenOn()
+                            kitty.append(KittyConfigParser.listenOnDirective)
                         }
                     }
                 }
@@ -519,7 +510,7 @@ struct IntegrationSettingsView: View {
                 HStack {
                     Text("Watcher Script")
                     Spacer()
-                    if kittyWatcherInstalled {
+                    if kitty.status.watcherInstalled {
                         Label("Installed", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                     } else {
@@ -528,24 +519,25 @@ struct IntegrationSettingsView: View {
                     }
                 }
 
-                if let error = kittyConfigError {
+                if let error = kitty.configError {
                     Text(error)
                         .foregroundStyle(.red)
                         .font(.caption)
                 }
 
-                if let error = kittyWatcherError {
+                if let error = kitty.watcherError {
                     Text(error)
                         .foregroundStyle(.red)
                         .font(.caption)
                 }
 
-                Button(kittyWatcherInstalled ? "Reinstall Watcher" : "Install Watcher") {
-                    installKittyWatcher()
+                Button(kitty.status.watcherInstalled ? "Reinstall Watcher" : "Install Watcher") {
+                    Task { await kitty.installWatcher() }
                 }
-                .disabled(isInstallingKittyWatcher)
+                .disabled(kitty.isInstallingWatcher)
 
-                if !kittyRemoteControl || !kittyListenOn || kittyWatcherInstalled {
+                if !kitty.status.remoteControlEnabled || !kitty.status.listenOnConfigured || kitty.status
+                    .watcherInstalled {
                     Text("Restart Kitty after changes for them to take effect.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -555,7 +547,7 @@ struct IntegrationSettingsView: View {
             Section("iTerm2") {
                 PermissionRow(label: "Automation Permission", granted: hasAutomation) {
                     NSWorkspace.shared.open(
-                        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!
+                        SystemSettingsURL.automation
                     )
                 }
             }
@@ -887,51 +879,12 @@ struct IntegrationSettingsView: View {
         }
     }
 
-    // MARK: - Kitty
-
-    private func checkKittyStatus() {
-        let status = KittyConfigParser.status()
-        kittyRemoteControl = status.remoteControlEnabled
-        kittyListenOn = status.listenOnConfigured
-        kittyWatcherInstalled = status.watcherInstalled
-    }
-
-    private func appendToKittyConf(_ line: String) {
-        kittyConfigError = KittyConfigParser.appendToConf(line)
-        checkKittyStatus()
-    }
-
     // MARK: - WezTerm
 
     private func checkWezTermStatus() {
         // Use the bridge's own resolution (fixed paths + PATH) so the status can't disagree
         // with what the bridge would actually run.
         wezTermCliFound = WezTermBridge.locateCLI() != nil
-    }
-
-    private func configureKittyRemoteControl() {
-        appendToKittyConf("allow_remote_control socket-only")
-    }
-
-    private func configureKittyListenOn() {
-        appendToKittyConf("listen_on unix:/tmp/kitty-{kitty_pid}")
-    }
-
-    private func installKittyWatcher() {
-        isInstallingKittyWatcher = true
-        kittyWatcherError = nil
-
-        Task {
-            let result = await ScriptInstaller.installKittyWatcher()
-            await MainActor.run {
-                if let error = result {
-                    kittyWatcherError = error
-                } else {
-                    checkKittyStatus()
-                }
-                isInstallingKittyWatcher = false
-            }
-        }
     }
 
     // MARK: - tmux Configuration

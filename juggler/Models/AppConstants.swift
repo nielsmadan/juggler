@@ -119,3 +119,24 @@ enum SessionMonitorRowLayout {
     static let listInsets = Insets(horizontal: 0, vertical: 4)
     static let scrollInsets = Insets(horizontal: 16, vertical: 8)
 }
+
+enum MenuBarLayout {
+    static let sessionListMaxHeight: CGFloat = 480
+}
+
+enum SettingsLayout {
+    static let windowMaxInitialHeight: CGFloat = 760
+    static let screenMargin: CGFloat = 40
+
+    static func initialContentHeight(fitting: CGFloat, screenVisibleHeight: CGFloat?) -> CGFloat {
+        let available = screenVisibleHeight.map { $0 - screenMargin } ?? .infinity
+        return min(fitting, windowMaxInitialHeight, available)
+    }
+}
+
+enum SystemSettingsURL {
+    static let automation = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!
+    static let notifications = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Notifications"
+    )!
+}

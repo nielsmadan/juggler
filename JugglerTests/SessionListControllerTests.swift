@@ -59,17 +59,15 @@ struct SessionListControllerTests {
 
     /// The core regression, end-to-end: the raw `sessions` array is deliberately
     /// NOT section-grouped (idle, working, idle), but driving `moveSelection` with
-    /// `orderedVisibleSessions()` walks the *rendered* (grouped) order — so it never
-    /// skips the trailing idle row the way raw-index navigation did.
+    /// `orderedVisibleSessions()` walks the *rendered* (grouped) order rather than the raw
+    /// array order.
     @Test @MainActor func moveSelection_followsVisibleOrder_notRawArrayOrder() {
         let restore = overrideQueueOrderMode(.fair)
         defer { restore() }
 
         let controller = SessionListController()
         let manager = SessionManager()
-        // Ungrouped raw order: idle, working, idle. Raw-index nav would visit
-        // idleA → work1 → idleB (skipping idleB visually); visible order is
-        // idleA → idleB → work1.
+        // Raw order: idle, working, idle.
         manager.testSetSessions([
             makeSession("idleA", state: .idle),
             makeSession("work1", state: .working),
@@ -82,8 +80,8 @@ struct SessionListControllerTests {
             seen.append(controller.selectedSessionID ?? "nil")
         }
 
+        #expect(manager.sessions.map(\.terminalSessionID) == ["idleA", "work1", "idleB"])
         #expect(seen == ["idleA", "idleB", "work1"])
-        #expect(seen != manager.sessions.map(\.terminalSessionID)) // not raw order
     }
 
     /// When the selected session is temporarily absent from the visible list (e.g.

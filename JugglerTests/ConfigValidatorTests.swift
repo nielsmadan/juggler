@@ -6,6 +6,11 @@ import Testing
 struct ConfigValidatorTests {
     // MARK: - KittyConfigParser Tests
 
+    @Test func kittyConfig_appendedDirectivesSatisfyTheParser() {
+        #expect(KittyConfigParser.hasRemoteControl(in: KittyConfigParser.remoteControlDirective))
+        #expect(KittyConfigParser.hasListenOn(in: KittyConfigParser.listenOnDirective))
+    }
+
     @Test func kittyConfig_remoteControl_socketOnly() {
         #expect(KittyConfigParser.hasRemoteControl(in: "allow_remote_control socket-only") == true)
     }

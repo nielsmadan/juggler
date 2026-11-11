@@ -76,7 +76,7 @@ final class SessionManager {
     }
 
     private(set) var cyclingState = CyclingState.initial
-    // Normalized to the session's composite id by updateFocusedSession.
+    // Resolved by updateFocusedSession to a session's terminalSessionID or composite id.
     private(set) var focusedSessionID: String? {
         didSet {
             if focusedSessionID != oldValue { automationContextToken = UUID() }
@@ -229,7 +229,6 @@ final class SessionManager {
     private var appFocusObserver: NSObjectProtocol?
 
     /// True when a tracked session is focused in an active terminal app.
-    /// Computed from two independent signals to avoid race conditions.
     var isSessionFocused: Bool {
         guard isTerminalAppActive, let focusedID = focusedSessionID else { return false }
         return matchesTrackedSession(focusedID)
@@ -301,7 +300,9 @@ final class SessionManager {
         setColorIndex(to: index)
     }
 
-    let animationController = SectionAnimationController()
+    let animationController = SectionAnimationController(
+        reducesMotion: { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    )
 
     private var queueOrderMode: QueueOrderMode {
         QueueOrderMode.stored()
@@ -511,7 +512,7 @@ final class SessionManager {
 
         logDebug(.session, "\(sessions[index].displayName): \(oldState.rawValue) → \(newState.rawValue)")
 
-        // Trigger animation (must be before state change so effectiveState works)
+        // Must precede the state change so effectiveSection keeps the row in its old section.
         let wasCyclable = sessions[index].isCycleEligible
         let isHidden = sessions[index].isHidden
         if oldState != newState { sessions[index].automationToken = UUID() }
@@ -593,8 +594,7 @@ final class SessionManager {
     /// Detects local-midnight rollover (called from the monitor view's periodic
     /// tick). On a new day: splits each still-working session's in-progress
     /// stretch at midnight (the pre-midnight portion is committed to the
-    /// previous day) and resets every session's `busyTimeToday`. Historical
-    /// daily totals are kept indefinitely — no pruning.
+    /// previous day) and resets every session's `busyTimeToday`.
     func handleDayRolloverIfNeeded(now: Date) {
         let newDay = Calendar.current.startOfDay(for: now)
         guard newDay > lastSeenDay else { return }
@@ -750,9 +750,7 @@ final class SessionManager {
     }
 
     var currentSession: Session? {
-        // When auto-advance is OFF and we have a lastActiveSessionID pointing to a busy session,
-        // return that session as current even though it's not cyclable.
-        // This keeps the UI highlighting stable when a session goes busy.
+        // Auto-advance off: keep a just-busied session current so the highlight doesn't jump.
         let autoAdvance = UserDefaults.standard.bool(forKey: AppStorageKeys.autoAdvanceOnBusy)
         if !autoAdvance, let lastID = lastActiveSessionID,
            let session = sessions.first(where: { $0.id == lastID }),
@@ -767,7 +765,6 @@ final class SessionManager {
         let cyclable = cyclableSessions
         guard !cyclable.isEmpty else { return nil }
 
-        // Prefer focused session if it's cyclable (focusedSessionID is normalized on entry)
         if let focusedID = focusedSessionID,
            let session = cyclable.first(where: {
                $0.id == focusedID || $0.terminalSessionID == focusedID
@@ -793,7 +790,6 @@ final class SessionManager {
             || onlySession.terminalSessionID.hasSuffix(activeID)
     }
 
-    /// Called before activation to suppress intermediate focus events.
     @MainActor
     @discardableResult
     func beginActivation(targetSessionID: String) -> ActivationToken {
@@ -828,7 +824,6 @@ final class SessionManager {
     /// Observe app activation to track whether a terminal app is frontmost.
     @MainActor
     func startAppFocusObserver() {
-        // Guard against double-registration
         if let existing = appFocusObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(existing)
         }
@@ -872,7 +867,6 @@ final class SessionManager {
         guard let terminalType = TerminalType.allCases.first(where: { $0.bundleIdentifier == bundleID })
         else { return }
 
-        // Only reconcile for terminals without persistent focus tracking
         guard terminalType == .kitty else { return }
 
         let kittySessions = sessions.filter { $0.terminalType == terminalType }
@@ -909,10 +903,9 @@ final class SessionManager {
             lastFocusedLocalPaneByTerminal[type] = newID
         }
 
-        // Normalize: resolve bare UUIDs to the full terminalSessionID so all
-        // downstream matching can use exact equality instead of hasSuffix. A remote
-        // tmux session whose stored terminalSessionID is stale is matched through its
-        // learned liveHostPaneID and resolved to the session's composite id.
+        // Normalize: resolve bare UUIDs to the full terminalSessionID, and a remote tmux
+        // session's stale id via its learned liveHostPaneID to the session's composite id,
+        // so downstream matching can use exact equality instead of hasSuffix.
         let resolved: String? = if let newID = terminalSessionID {
             if sessions.contains(where: { $0.id == newID || $0.terminalSessionID == newID }) {
                 newID

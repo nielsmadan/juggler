@@ -6,6 +6,7 @@ import SwiftUI
 struct SessionMonitorView: View {
     @Environment(SessionManager.self) private var sessionManager
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(AppStorageKeys.queueOrderMode) private var queueOrderMode: String = QueueOrderMode.default.rawValue
     @AppStorage(AppStorageKeys.useCyclingColors) private var useCyclingColors = true
     @AppStorage(AppStorageKeys.enableStats) private var enableStats = true
@@ -204,12 +205,12 @@ struct SessionMonitorView: View {
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
-                if let window = notification.object as? NSWindow, window.identifier?.rawValue == "main" {
+                if let window = notification.object as? NSWindow, WindowManager.shared.isMainWindow(window) {
                     isMonitorWindowKey = true
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notification in
-                if let window = notification.object as? NSWindow, window.identifier?.rawValue == "main" {
+                if let window = notification.object as? NSWindow, WindowManager.shared.isMainWindow(window) {
                     isMonitorWindowKey = false
                 }
             }
@@ -308,7 +309,7 @@ struct SessionMonitorView: View {
                     }
                 }
                 .animation(
-                    .easeInOut(duration: SectionAnimationTiming.upMoveDuration),
+                    reduceMotion ? nil : .easeInOut(duration: SectionAnimationTiming.upMoveDuration),
                     value: sessionManager.listedSessions.map(\.id)
                 )
             }
@@ -449,6 +450,8 @@ struct SessionMonitorView: View {
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.4)
         .help(isEnabled ? help : disabledHelp ?? help)
+        .accessibilityLabel(action.title)
+        .accessibilityValue(isOn.wrappedValue ? "On" : "Off")
     }
 
     // MARK: - Row Views
@@ -503,9 +506,7 @@ struct SessionMonitorView: View {
                 ? highlightColor.opacity(0.15)
                 : Color.clear
         )
-        .onTapGesture {
-            activateSession(session)
-        }
+        .activatableSessionRow(isSelected: isActiveRow(session), children: .contain) { activateSession(session) }
         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
     }
 
@@ -549,19 +550,24 @@ struct SessionMonitorView: View {
         }
         .contentShape(Rectangle())
         .opacity(session.isHidden ? 0.55 : 1)
-        .onTapGesture {
-            activateSession(session)
-        }
-        .transition(.asymmetric(
-            insertion: isDownAnimation ? .curvedEnterFromAbove : .fadeInFromAbove,
-            removal: isDownAnimation ? .curvedExitDown : .identity
-        ))
+        .activatableSessionRow(isSelected: isActiveRow(session), children: .contain) { activateSession(session) }
+        .transition(rowTransition(isDownAnimation: isDownAnimation))
 
         if isDownAnimation {
             row
         } else {
             row.matchedGeometryEffect(id: session.id, in: sessionAnimation)
         }
+    }
+
+    private func rowTransition(isDownAnimation: Bool) -> AnyTransition {
+        if reduceMotion {
+            return .opacity
+        }
+        return .asymmetric(
+            insertion: isDownAnimation ? .curvedEnterFromAbove : .fadeInFromAbove,
+            removal: isDownAnimation ? .curvedExitDown : .identity
+        )
     }
 
     @ViewBuilder

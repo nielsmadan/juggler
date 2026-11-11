@@ -86,7 +86,7 @@ After sign-off, write a short design doc under `docs/superpowers/specs/` (or fol
 
 The existing bridges are the reference — read them before designing:
 - **`KittyBridge.swift`** — CLI-driven (`kitten @`), control socket per session (`KITTY_LISTEN_ON`), watcher process for inbound events (`juggler_watcher.py` → `/kitty-event`). Mirror this for CLI terminals.
-- **`ITerm2Bridge.swift`** — persistent Python daemon (`iterm2_daemon.py`) over a Unix socket, direct addressing by `w1t0p0:UUID`, FocusMonitor for inbound focus. Mirror this for socket/RPC terminals.
+- **`iTerm2Bridge.swift`** — persistent Python daemon (`iterm2_daemon.py`) over a Unix socket, direct addressing by `w1t0p0:UUID`, FocusMonitor for inbound focus. Mirror this for socket/RPC terminals.
 
 ## Phase 3: Implementation
 

@@ -101,7 +101,7 @@ transient intent, generation-bound activation/notification checks and conservati
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | UI Framework | SwiftUI | Declarative, modern, less code |
-| App Lifecycle | NSStatusItem + NSPopover | Managed by StatusBarManager; SwiftUI Window scenes for settings/monitor |
+| App Lifecycle | NSStatusItem + NSPopover | Managed by StatusBarManager; SwiftUI Window scenes for the monitor, onboarding and About; an AppKit window for Settings. WindowManager opens and closes the monitor and Settings and owns the Dock icon policy |
 | macOS Target | 15+ | `@Observable` (14), `defaultLaunchBehavior` (15) |
 | Shortcuts | ShortcutKit 0.8.0 | Shared registry, per-activation local handlers, Carbon activation, recorder UI and conflicts |
 | Auto-Updates | Sparkle | Industry standard for non-App Store apps |
