@@ -7,7 +7,7 @@ runs:
       shell: bash
       run: echo "revision=$(python3 scripts/hooklinesinker.py source-revision)" >> "$GITHUB_OUTPUT"
 
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - uses: actions/checkout@v7.0.1
       with:
         repository: nielsmadan/hooklinesinker
         ref: ${{ steps.pin.outputs.revision }}

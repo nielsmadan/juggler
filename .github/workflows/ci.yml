@@ -22,7 +22,7 @@ jobs:
       - name: Install Just
         run: brew install just
 
-      - uses: ./.github/actions/build-hooklinesinker
+      - uses: $/.github/actions/build-hooklinesinker
 
       - name: Build (strict, zero warnings)
         run: just build-strict ci.xcconfig
@@ -54,7 +54,7 @@ jobs:
           brew install just
           brew install periphery
 
-      - uses: ./.github/actions/build-hooklinesinker
+      - uses: $/.github/actions/build-hooklinesinker
 
       - name: Check for unused code
         run: just check-unused ci.xcconfig
@@ -70,7 +70,7 @@ jobs:
       - name: Install Just
         run: brew install just
 
-      - uses: ./.github/actions/build-hooklinesinker
+      - uses: $/.github/actions/build-hooklinesinker
 
       - name: Idle-CPU guard
         run: just test-idle-cpu
