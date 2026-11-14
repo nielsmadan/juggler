@@ -232,7 +232,8 @@ extension TestFixtures {
                 ?? SessionNoteStore(defaults: TestDefaults.fresh("notes", fileID: fileID, function: function)),
             hiddenBindings: hiddenBindings
                 ?? HiddenBindingStore(defaults: TestDefaults.fresh("hidden", fileID: fileID, function: function)),
-            dispositionStore: dispositionStore
+            dispositionStore: dispositionStore,
+            reducesMotion: { false }
         )
     }
 }

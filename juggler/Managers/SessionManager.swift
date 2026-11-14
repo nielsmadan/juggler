@@ -300,9 +300,7 @@ final class SessionManager {
         setColorIndex(to: index)
     }
 
-    let animationController = SectionAnimationController(
-        reducesMotion: { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
-    )
+    let animationController: SectionAnimationController
 
     private var queueOrderMode: QueueOrderMode {
         QueueOrderMode.stored()
@@ -352,9 +350,11 @@ final class SessionManager {
         dailyStats: DailyStatsStore = DailyStatsStore(),
         noteStore: SessionNoteStore = SessionNoteStore(),
         hiddenBindings: HiddenBindingStore = HiddenBindingStore(),
-        dispositionStore: SessionDispositionStore = SessionDispositionStore()
+        dispositionStore: SessionDispositionStore = SessionDispositionStore(),
+        reducesMotion: @escaping () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     ) {
         cyclingEngine = DefaultCyclingEngine()
+        animationController = SectionAnimationController(reducesMotion: reducesMotion)
         self.dailyStats = dailyStats
         self.noteStore = noteStore
         self.hiddenBindings = hiddenBindings
