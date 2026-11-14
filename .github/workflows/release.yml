@@ -26,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: nielsmadan/curtaincall@v1.2.0
+      - uses: nielsmadan/curtaincall@v1.3.0
 
       - name: Validate annotated tag and ancestry
         id: identity
@@ -248,7 +248,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: nielsmadan/curtaincall@v1.2.0
+      - uses: nielsmadan/curtaincall@v1.3.0
 
       - name: Revalidate release tag
         env:
