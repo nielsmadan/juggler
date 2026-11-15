@@ -78,7 +78,7 @@ final class HotkeyManager {
         case .sendToBack:
             Task { await self.handleSendToBack() }
         case .reactivateAll:
-            handleReactivateAll()
+            Task { await self.handleReactivateAll() }
         case .showMonitor:
             handleShowMonitor()
         case .goToLastNotification:
@@ -175,13 +175,18 @@ final class HotkeyManager {
         sessionManager.backburnerSession(terminalSessionID: session.id)
 
         let goToNext = UserDefaults.standard.bool(forKey: AppStorageKeys.goToNextOnBackburner)
-        guard goToNext, sessionManager.prepareJump(afterSendingOff: session.id) != nil else { return }
+        guard goToNext, sessionManager.prepareJump(afterSendingOff: session.id) != nil else {
+            showBeacon("Backburnered")
+            return
+        }
         let outcome = await activator.activateFirstAvailable(
             trigger: .hotkey,
             presentation: .failureOnly,
             nextSession: { self.sessionManager.focusNextSession(afterSendingOff: session.id) }
         )
-        if case let .failed(error) = outcome {
+        if case .unavailable = outcome {
+            showBeacon("Backburnered")
+        } else if case let .failed(error) = outcome {
             logError(.hotkey, "Backburner go-to-next failed: \(error)")
         }
     }
@@ -199,13 +204,23 @@ final class HotkeyManager {
         }
         await activateWithRetry(
             direction: "send-to-back",
+            presentation: .forCyclableCount(sessionManager.cyclableSessions.count, returnsToFocusedSession: true),
             cycle: { self.sessionManager.focusNextSession(afterSendingOff: current.id) }
         )
     }
 
-    private func handleReactivateAll() {
+    func handleReactivateAll() async {
         logDebug(.hotkey, "Reactivate all triggered")
-        sessionManager.reactivateAllBackburnered()
+        guard sessionManager.sessions.contains(where: { $0.state == .backburner }) else {
+            showBeacon("No Backburnered Sessions")
+            return
+        }
+        sessionManager.reactivateAllBackburnered(allowsAutomation: false)
+        await activateWithRetry(
+            direction: "reactivate-all",
+            presentation: .reactivateAll,
+            cycle: { self.sessionManager.focusFirstCyclableSession() }
+        )
     }
 
     private func handleShowMonitor() {

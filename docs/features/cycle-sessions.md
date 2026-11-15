@@ -133,7 +133,7 @@ Backburner allows temporarily removing a session from the cycling queue without 
 ### Actions
 
 - **Backburner** (`⇧⌘L`): Move current session to backburner
-- **Reactivate All** (`⇧⌘H`): Move all backburnered sessions back to idle
+- **Reactivate All** (`⇧⌘H`): Move all backburnered sessions back to idle, then activate the first eligible session in the resulting queue order. Hidden sessions stay hidden and are skipped. If none were backburnered, show "No Backburnered Sessions"; if none are eligible after restoration, show "No Sessions to Cycle". The session-list `H` action restores states and leaves activation to the Auto-restart setting.
 
 ### Behavior
 
@@ -178,9 +178,13 @@ A single "Use cycling colors" toggle governs both tab and pane; highlighting can
 
 `⇧⌘O` (or `o` in the session window) moves the current session to the bottom of its queue and jumps to the top of the queue: the longest-waiting session in Fair, the freshest in Prio, and permission prompts first when Permission First is on (oldest first in Fair, newest first in Prio). Working from the top therefore steps through the queue in order, and sending off a session you picked from the middle takes you back to the top instead of further down. A prio session sent back stays at the back of its band until it next goes idle. Available in Fair and Prio only.
 
+The global shortcut shows "Only 1 Session" when the sole eligible session is sent back to itself.
+
 ## Go to Next on Backburner
 
 When enabled (default), backburnering jumps to the next waiting session. In Fair and Prio that is the top of the queue, as with Send to Back; in Static and Grouped it is the next session in list order. This allows rapid triage: backburner current, immediately see next.
+
+The global Backburner shortcut shows "Backburnered" when jumping is disabled or no live eligible target remains.
 
 Setting in **Settings > General > Backburner**.
 

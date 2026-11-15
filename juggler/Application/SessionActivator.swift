@@ -55,6 +55,7 @@ struct SessionActivationPresentation: Equatable {
     static let cycle = Self(success: .sessionBeacon, unavailable: .beacon("All At Work"))
     static let onlySessionCycle = Self(success: .onlySessionBeacon, unavailable: .beacon("All At Work"))
     static let notificationJump = Self(success: .sessionBeacon, unavailable: .beacon("No Notification"))
+    static let reactivateAll = Self(success: .sessionBeacon, unavailable: .beacon("No Sessions to Cycle"))
     static let failureOnly = Self(success: .none, unavailable: .none)
 
     static func forCyclableCount(_ count: Int, returnsToFocusedSession: Bool) -> SessionActivationPresentation {

@@ -1356,7 +1356,9 @@ final class SessionManager {
     }
 
     @MainActor
-    func updateSessionState(terminalSessionID: String, state: SessionState, now: Date = Date()) {
+    func updateSessionState(
+        terminalSessionID: String, state: SessionState, now: Date = Date(), allowsAutomation: Bool = true
+    ) {
         guard let index = sessions.firstIndex(where: { $0.id == terminalSessionID }) else { return }
         let oldState = sessions[index].state
         if state == .backburner || oldState == .backburner || state == .idle {
@@ -1369,11 +1371,17 @@ final class SessionManager {
             if !sessions[index].agentSessionIdentity.isPersistent {
                 sessions[index].transientDispositionOverrides.backburner = .set(disposition.backburner)
             }
-            synchronizeDisposition(disposition, sessionID: terminalSessionID, wakeState: state, now: now)
+            synchronizeDisposition(
+                disposition, sessionID: terminalSessionID, wakeState: state, now: now,
+                allowsAutomation: allowsAutomation
+            )
         }
         guard let session = sessions.first(where: { $0.id == terminalSessionID }) else { return }
         if session.state != state {
-            applyStateChange(sessionID: terminalSessionID, from: session.state, to: state, now: now)
+            applyStateChange(
+                sessionID: terminalSessionID, from: session.state, to: state, now: now,
+                allowsAutomation: allowsAutomation
+            )
         }
     }
 
@@ -1669,6 +1677,15 @@ final class SessionManager {
         return next
     }
 
+    func focusFirstCyclableSession() -> Session? {
+        guard let first = cyclableSessions.first else { return nil }
+        lastActiveSessionID = nil
+        lastCycleStep = nil
+        updateFocusedSession(terminalSessionID: first.id)
+        syncColorIndex(toSessionID: first.id)
+        return first
+    }
+
     /// Advances the cycling colour when the jump leaves `sessionID`; nil when there is nowhere to jump.
     @discardableResult
     @MainActor
@@ -1693,10 +1710,10 @@ final class SessionManager {
     }
 
     @MainActor
-    func reactivateAllBackburnered() {
+    func reactivateAllBackburnered(allowsAutomation: Bool = true) {
         let backburneredIDs = sessions.filter { $0.state == .backburner }.map(\.id)
         for id in backburneredIDs {
-            reactivateSession(terminalSessionID: id)
+            updateSessionState(terminalSessionID: id, state: .idle, allowsAutomation: allowsAutomation)
         }
     }
 }
