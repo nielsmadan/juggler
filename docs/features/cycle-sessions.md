@@ -71,6 +71,8 @@ Revealed hidden rows can still be activated explicitly by click or `Return`; see
 
 The order of sessions depends on the **Queue Mode** setting.
 
+In Fair and Prio modes, cycling forward from a working or compacting session starts at the first eligible session in the waiting queue.
+
 When focus isn't on a tracked session, for example after you quit the session you were in, cycling forward starts at the first cyclable session and cycling backward starts at the last.
 
 ### Stale Sessions

@@ -1572,9 +1572,13 @@ final class SessionManager {
             "cycleForward: focused=\(effectiveFocusID ?? "nil") stateIdx=\(cyclingState.currentIndex) cyclable=\(cyclable.map { "\($0.id)(\($0.terminalType.displayName))" })"
         )
 
+        let startsAtHead = queueOrderMode.reordersQueue && sessions.contains {
+            ($0.id == effectiveFocusID || $0.terminalSessionID == effectiveFocusID)
+                && ($0.state == .working || $0.state == .compacting)
+        }
         let result = cyclingEngine.cycleForward(
             sessions: sessions,
-            focusedSessionID: effectiveFocusID,
+            focusedSessionID: startsAtHead ? nil : effectiveFocusID,
             state: cyclingState
         )
         cyclingState = result.newState
