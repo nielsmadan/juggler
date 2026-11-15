@@ -115,7 +115,7 @@ struct SessionMenuView: View {
 
     private func infoLine(_ line: SessionMenuInfoLine) -> some View {
         iconRow(line.text, icon: line.slot.systemImage, iconWidth: Self.infoIconWidth)
-            .truncationMode(.middle)
+            .truncationMode(line.slot == .folderPath ? .head : .middle)
             .accessibilityLabel("\(line.slot.displayName): \(line.text)")
     }
 

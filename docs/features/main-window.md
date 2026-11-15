@@ -72,7 +72,7 @@ Hints appear at the top center of the monitor window and remain above an open re
 
 ## Sections
 
-In Fair and Prio modes, sessions are grouped into three labelled sections - **Idle**, **Working**, and **Backburner**: each with an empty-state placeholder when it has no sessions. Static mode shows a flat list; Grouped mode groups sessions by terminal window.
+In Fair and Prio modes, sessions are grouped into three labelled sections - **Idle**, **Working**, and **Backburner**: each heading has a trailing divider, with an empty-state placeholder when it has no sessions. Static mode shows a flat list; Grouped mode groups sessions by terminal window.
 
 ### Idle Section
 
@@ -146,7 +146,7 @@ Options: None, Folder Path, Folder Name, Parent / Folder Name, Tab Title, Window
 - **Subagents** and **Turns** are hidden at zero. Turns is the number of prompts the conversation has started, counted by hooklinesinker, so it is right even when Juggler starts mid-session and starts again at 0 after `/clear`. For Antigravity Juggler counts the turns it sees itself. OpenCode reports no turns.
 - **Run Time** is how long the agent process has been running, refreshed every 30 seconds.
 - **Current Tool** is the tool in use and clears when the turn ends. **Context %** shows "N% context".
-- Cells truncate to one line (Folder Path in the middle); hover shows the full text.
+- Cells truncate to one line (Folder Path at the beginning, preserving the final folders); hover shows the full text.
 - The two columns are always equal width. `SessionSlotGrid` uses a custom `EqualColumnsLayout` rather than `Grid`, because a `Grid` sizes columns to their content and the left and right cells would drift between rows. Trailing reserves are padding inside the layout: both rendered grid rows leave room for the right-edge control rail, and the bottom row also uses the wider stats-tab reserve when needed. The stats reserve is `max(0, cornerWidth - rowHorizontalPadding) + 4` because the corner sits partly inside the row padding and 4 points keep text off the tab border (`SessionRowGeometry`). Whether a trailing cell is under 40 points is decided from measured widths, so a new row can draw one frame with that cell blank.
 - The state badge is centered vertically in the space above the stats tabs, or in the full row when stats are off. The action stack is top-aligned in that area. When a right-hand cell would be narrower than about 40 points after its reserve, its text is hidden and appears on hover only.
 
@@ -205,6 +205,9 @@ Row context menus live in the popover (right-click a session row); the monitor w
 and keyboard shortcuts for rename, notes and Hide/Unhide, plus keyboard shortcuts for backburner / reactivate.
 The popover's **Remove** is separate stale-binding suppression: it removes a row until new activity, including
 across restart. It does not set the conversation's durable Hide choice. See [hydration](../tech/hooks.md#hydration-at-launch).
+
+Selection changes reveal the selected row. A reveal requested while that row is absent during a section animation
+waits until the row reappears.
 
 ## Window Behavior
 

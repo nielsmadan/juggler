@@ -43,6 +43,7 @@ struct SessionMonitorView: View {
     @State private var controller = SessionListController()
     @State private var isMonitorWindowKey = false
     @State private var scrollTask: Task<Void, Never>?
+    @State private var pendingScrollSessionID: String?
     /// Per-session stats-corner widths, captured via PreferenceKey so row content clears the corner.
     @State private var cornerWidths: [String: CGFloat] = [:]
 
@@ -175,6 +176,7 @@ struct SessionMonitorView: View {
             }
             .onDisappear {
                 scrollTask?.cancel()
+                pendingScrollSessionID = nil
             }
             .onChange(of: queueOrderMode) { _, newMode in
                 if let mode = QueueOrderMode(rawValue: newMode) {
@@ -262,6 +264,11 @@ struct SessionMonitorView: View {
         ScrollViewReader { proxy in
             sessionListContent
                 .onChange(of: controller.selectedSessionID) { _, _ in scrollToSelected(proxy) }
+                .onChange(of: sessionManager.orderedVisibleSessions().map(\.id)) { _, current in
+                    if let id = pendingScrollSessionID, id == controller.selectedSessionID, current.contains(id) {
+                        scrollToSelected(proxy)
+                    }
+                }
                 .onChange(of: isMonitorWindowKey) { _, isKey in
                     if isKey { scrollToSelected(proxy) }
                 }
@@ -325,6 +332,8 @@ struct SessionMonitorView: View {
     }
 
     private func scrollToSelected(_ proxy: ScrollViewProxy) {
+        scrollTask?.cancel()
+        pendingScrollSessionID = nil
         guard let id = controller.selectedSessionID,
               let session = sessionManager.listedSessions.first(where: { $0.id == id }) else {
             logDebug(.navigation, "scrollToSelected skipped — no valid selection")
@@ -336,6 +345,7 @@ struct SessionMonitorView: View {
         // isn't in `sectionedRows`, so scrolling to it would target a missing id
         // (and fire scrolls at a row set that's still moving).
         if usesSectionRowIDs, animationController.effectiveSection(for: session) == nil {
+            pendingScrollSessionID = id
             logDebug(.navigation, "scrollToSelected skipped — selected row not rendered (mid-animation): \(id)")
             return
         }
@@ -348,22 +358,32 @@ struct SessionMonitorView: View {
         // than enqueuing many async calls that fight each other and thrash the
         // animating LazyVStack into a layout hang. The short delay also lets a
         // freshly-shown window complete a layout pass before we scroll.
-        scrollTask?.cancel()
         scrollTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(16))
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, controller.selectedSessionID == id,
+                  let current = sessionManager.listedSessions.first(where: { $0.id == id }) else { return }
+            if usesSectionRowIDs, animationController.effectiveSection(for: current) == nil {
+                pendingScrollSessionID = id
+                return
+            }
             proxy.scrollTo(target)
         }
     }
 
     private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.headline)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        HStack {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            Rectangle()
+                .fill(.separator)
+                .frame(height: 1)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var emptyPlaceholder: some View {

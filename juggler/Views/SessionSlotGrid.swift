@@ -107,7 +107,7 @@ private struct SlotCellLabel: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(1)
-            .truncationMode(slot == .folderPath ? .middle : .tail)
+            .truncationMode(slot == .folderPath ? .head : .tail)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
