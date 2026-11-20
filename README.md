@@ -107,8 +107,9 @@ waiting. Settings lets you pick up to three row action buttons (Rename, Note, Hi
 From any app, `⇧⌘M` opens a session menu over the focused terminal with the session's details and the same four
 actions, using the same keys. One change closes it; `Escape` or `Control-C` closes it without changes.
 
-Hiding keeps state updates and busy time running. The stats footer always counts all tracked rows:
-`X/Y busy, Z hidden`. Hide follows the agent conversation, so a new conversation in the same pane starts clean.
+Hiding keeps state updates and busy time running. The stats footer reads `X/Y busy, B backburnered, Z hidden`,
+where X/Y leave out hidden and backburnered rows. Hide follows the agent conversation, so a new conversation in the
+same pane starts clean.
 Settings → General → **Reset Sessions…** clears tracked rows and saved hide/backburner choices while preserving
 conversation notes. The popover's **Remove** action is a separate cleanup for stale rows; new activity can bring
 a removed row back.

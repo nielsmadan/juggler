@@ -104,7 +104,8 @@ Rollover is **not** driven by a background timer in `SessionManager`. It's drive
 - **Color**: per-date stable index (`colorIndex`, `:181-187`) keyed off day-count from a fixed reference date, so window resizing never reshuffles hues. Today's bar is full-strength; older bars are dimmed by `StatsChart.barDimFactor`. Cycling-palette vs. fixed custom color is an `@AppStorage` toggle.
 - **Duration labels** use `SessionStatsCalculator.formatDuration` (`SessionStatsCalculator.swift:14`) - `0m` / `<1m` / `Xm` / `XhYYm` / `XdYYh`.
 - **Live summary** uses pure `SessionStatsSummary(sessions:)` over the raw tracked rows, never `listedSessions`:
-  `X/Y busy, Z hidden`, always including zero hidden. X counts working/compacting rows, Y all rows and Z hidden rows.
+  `X/Y busy, B backburnered, Z hidden`, always including zero counts. Y counts rows that are neither hidden nor
+  backburnered, X the working/compacting rows among them, B backburnered rows and Z hidden rows.
   Duplicate rows for one conversation count individually. Show Hidden changes neither this summary nor time totals.
 
 ## Bar layout: StatsBarLayout

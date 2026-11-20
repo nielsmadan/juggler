@@ -43,7 +43,7 @@ The Session Monitor is a standalone window providing an expanded view of tracked
 │  │ [CC ]  📁 ~/Projects/data-pipeline   gpt-5          [💬]  ││
 │  └─────────────────────────────────────────────────────────┘│
 ├─────────────────────────────────────────────────────────────┤
-│  ▁▂▅▇ ▃  2/4 busy, 1 hidden                busy time by day  │  ← Stats chart
+│ ▁▂▅▇ ▃ 2/4 busy, 1 backburnered, 1 hidden  busy time by day │  ← Stats chart
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -154,7 +154,7 @@ When stats are enabled, each card shows up to two trapezoid tabs in its corner: 
 
 ## Stats Chart
 
-When enabled (Settings > General > Stats), the footer shows a bar chart of **busy time per day** (busy time summed across all sessions). Today is the rightmost bar and grows live; older days fall off the left edge. An overlay always reads **"X/Y busy, Z hidden"**, including when Z is zero, with a "busy time by day" caption. X counts working/compacting rows, Y counts all tracked rows and Z counts hidden rows; duplicate conversation rows count individually. Show Hidden does not change these counts or the chart's busy time. Bars use per-day palette colors when "Use cycling colors" is on, otherwise the custom bar color; the chart has no stop/pause controls.
+When enabled (Settings > General > Stats), the footer shows a bar chart of **busy time per day** (busy time summed across all sessions). Today is the rightmost bar and grows live; older days fall off the left edge. An overlay always reads **"X/Y busy, B backburnered, Z hidden"**, including when B or Z is zero, with a "busy time by day" caption. Y counts tracked rows that are neither hidden nor backburnered, X counts the working/compacting rows among them, B counts backburnered rows and Z counts hidden rows; duplicate conversation rows count individually. Show Hidden does not change these counts or the chart's busy time. Bars use per-day palette colors when "Use cycling colors" is on, otherwise the custom bar color; the chart has no stop/pause controls.
 
 ## Keyboard Shortcuts
 
