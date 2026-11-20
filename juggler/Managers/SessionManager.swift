@@ -9,12 +9,21 @@ enum QueuePosition: Equatable {
     case bottomOfBusy
     case bottomOfBackburner
     case bottomOfPrioritized(WaitingBand)
+    case bottomOfEligibleWaiting(WaitingBand)
 }
 
 enum WaitingBand: Equatable {
     case permission
     case idle
     case all
+
+    func contains(_ state: SessionState) -> Bool {
+        switch self {
+        case .permission: state == .permission
+        case .idle: state == .idle
+        case .all: state.isIncludedInCycle
+        }
+    }
 }
 
 @Observable
@@ -647,17 +656,16 @@ final class SessionManager {
             sessions.count
         case let .bottomOfPrioritized(band):
             indexBelowPrioritized(in: band, sessions: sessions, excluding: index)
+        case let .bottomOfEligibleWaiting(band):
+            sessions.indices.last(where: {
+                sessions[$0].isCycleEligible && band.contains(sessions[$0].state)
+            }).map { $0 + 1 } ?? sessions.count
         }
     }
 
     private func indexBelowPrioritized(in band: WaitingBand, sessions: [Session], excluding index: Int?) -> Int {
-        let isInBand: (Session) -> Bool = switch band {
-        case .permission: { $0.state == .permission }
-        case .idle: { $0.state == .idle }
-        case .all: { $0.state.isIncludedInCycle }
-        }
         if let firstPlain = sessions.indices.first(where: {
-            $0 != index && isInBand(sessions[$0]) && !sessions[$0].isPrioritized
+            $0 != index && band.contains(sessions[$0].state) && !sessions[$0].isPrioritized
         }) {
             return firstPlain
         }
@@ -1655,11 +1663,7 @@ final class SessionManager {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return false }
         guard sessions[index].isCycleEligible else { return false }
 
-        let position: QueuePosition = if prioritizePermissionSessions, sessions[index].state == .permission {
-            .bottomOfPermission
-        } else {
-            .bottomOfIdle
-        }
+        let position = QueuePosition.bottomOfEligibleWaiting(waitingBand(for: sessions[index].state))
         withAnimation(.easeInOut(duration: SectionAnimationTiming.upMoveDuration)) {
             moveSession(at: index, to: position)
         }
