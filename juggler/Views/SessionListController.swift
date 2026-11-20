@@ -111,8 +111,10 @@ final class SessionListController {
     func syncMonitorSelection(sessionManager: SessionManager) {
         syncSelection(
             sessions: sessionManager.listedSessions,
-            renderedSessions: sessionManager.orderedVisibleSessions()
+            renderedSessions: sessionManager.orderedVisibleSessions(),
+            clearsColorWhenEmpty: false
         )
+        if sessionManager.listedSessions.isEmpty { sessionManager.clearColorIndex() }
     }
 
     func selectListedSession(matching id: String?, in sessions: [Session], syncColor: Bool = true) {

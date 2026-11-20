@@ -38,6 +38,7 @@ of these states; revealing hidden rows does not make them cycle-eligible.
 ## Feature Documentation
 
 - [Cycle Sessions](cycle-sessions.md) - Session cycling, queue modes, backburner
+- [Session Interaction Specification](session-interaction-rules.md) - Agreed test requirements; includes behavior still to implement
 - [Highlight Color](highlight-color.md) - Rules for the active-session highlight color
 - [Notifications](notification.md) - Notification system and settings
 - [Menu Bar Popover](popover.md) - Popover UI and interactions

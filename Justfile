@@ -97,7 +97,14 @@ check xcconfig="":
 test xcconfig="": stage-hooklinesinker
     @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} -enableCodeCoverage YES \
-        -parallel-testing-enabled NO -only-testing:JugglerTests test
+        -parallel-testing-enabled NO -only-testing:JugglerTests \
+        -skip-testing:JugglerTests/SessionInteractionSpecifications test
+
+# Desired interaction rules, including behavior still awaiting implementation.
+test-interactions xcconfig="": stage-hooklinesinker
+    @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
+        {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} \
+        -parallel-testing-enabled NO -only-testing:JugglerTests/SessionInteractionSpecifications test
 
 test-packaging:
     @python3 -m unittest discover -s scripts/tests -v
@@ -107,7 +114,8 @@ coverage xcconfig="": stage-hooklinesinker
     @rm -rf {{xcresult}}
     @xcodebuild -scheme {{scheme}} -configuration Debug -derivedDataPath {{build_dir}} \
         {{ if xcconfig != "" { "-xcconfig " + xcconfig } else { "" } }} -enableCodeCoverage YES \
-        -parallel-testing-enabled NO -resultBundlePath {{xcresult}} -only-testing:JugglerTests test
+        -parallel-testing-enabled NO -resultBundlePath {{xcresult}} -only-testing:JugglerTests \
+        -skip-testing:JugglerTests/SessionInteractionSpecifications test
     @xcrun xccov view --report --only-targets {{xcresult}} | grep -E "^--|Juggler\.app"
 
 # Performance / resource-hygiene guards (idle-CPU & leak regressions). Deterministic
