@@ -1,9 +1,9 @@
 {
   "branch": "main",
-  "components": 3,
+  "version_parts": 3,
   "initial_version": "0.1.0",
   "sign": true,
-  "checks": [
+  "preflight": [
     [
       "python3",
       "scripts/hooklinesinker.py",
@@ -63,5 +63,5 @@
   "name": "Juggler",
   "repository": "nielsmadan/juggler",
   "workflow": "release.yml",
-  "publication": "Signed and notarized GitHub release, updater feed and Homebrew cask"
+  "success_message": "Signed and notarized GitHub release, updater feed and Homebrew cask"
 }
