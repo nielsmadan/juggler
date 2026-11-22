@@ -73,7 +73,7 @@ struct HiddenSessionEligibilityTests {
         #expect(manager.currentCyclableSession?.id == "visible")
         #expect(manager.currentReferenceSessionID == nil)
         #expect(manager.focusedTrackedSession?.id == "hidden")
-        #expect(manager.currentCommandSession == nil)
+        #expect(manager.focusedCommandSession == nil)
     }
 
     @Test func allHiddenHasNoCycleOrCurrentTargets() {
@@ -112,6 +112,7 @@ struct HiddenSessionEligibilityTests {
         manager.testSetSessions([makeSession("hidden"), makeSession("visible")])
         manager.setSessionHidden(sessionID: "hidden", isHidden: true)
         manager.updateFocusedSession(terminalSessionID: "hidden")
+        manager.isTerminalAppActive = true
         let registry = TerminalBridgeRegistry()
         let bridge = SessionActivatorMockBridge()
         await registry.register(bridge, for: .iterm2)
@@ -154,6 +155,7 @@ struct HiddenSessionEligibilityTests {
         manager.setSessionHidden(sessionID: "hidden", isHidden: true)
         manager.updateFocusedSession(terminalSessionID: "busy")
         manager.testSetLastActiveSessionID("busy")
+        manager.isTerminalAppActive = true
         let registry = TerminalBridgeRegistry()
         let bridge = SessionActivatorMockBridge()
         await registry.register(bridge, for: .iterm2)

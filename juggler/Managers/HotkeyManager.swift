@@ -168,8 +168,9 @@ final class HotkeyManager {
 
     func handleBackburner() async {
         logDebug(.hotkey, "Backburner triggered")
-        guard let session = sessionManager.currentCommandSession else {
+        guard let session = sessionManager.focusedCommandSession else {
             logDebug(.hotkey, "No current session to backburner")
+            showBeacon("No Active Session")
             return
         }
         sessionManager.backburnerSession(terminalSessionID: session.id)
@@ -193,8 +194,12 @@ final class HotkeyManager {
 
     func handleSendToBack() async {
         logDebug(.hotkey, "Send to back triggered")
-        guard let current = sessionManager.currentCommandSession,
-              current.isCycleEligible else {
+        guard let current = sessionManager.focusedCommandSession else {
+            logDebug(.hotkey, "No focused session to send to back")
+            showBeacon("No Active Session")
+            return
+        }
+        guard current.isCycleEligible else {
             logDebug(.hotkey, "No cyclable current session to send to back")
             return
         }

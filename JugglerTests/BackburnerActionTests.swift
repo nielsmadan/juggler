@@ -78,7 +78,7 @@ struct BackburnerActionTests {
         #expect(fixture.automaticRestarts == 0)
         #expect(fixture.activationFeedback == [expected])
         #expect(fixture.manager.focusedSessionID == expected)
-        #expect(fixture.manager.currentCommandSession?.id == expected)
+        #expect(fixture.manager.focusedCommandSession?.id == expected)
     }
 
     @Test func reactivateAllWithNothingShelvedKeepsFocusAndExplains() async {
@@ -120,7 +120,7 @@ struct BackburnerActionTests {
         #expect(await fixture.bridge.recordedActivationCalls() == ["stale", "live"])
         #expect(fixture.activationFeedback == ["live"])
         #expect(fixture.manager.focusedSessionID == "live")
-        #expect(fixture.manager.currentCommandSession?.id == "live")
+        #expect(fixture.manager.focusedCommandSession?.id == "live")
         #expect(fixture.manager.activeColorIndex == 1)
     }
 
@@ -138,7 +138,7 @@ struct BackburnerActionTests {
         await fixture.hotkeys.handleReactivateAll()
 
         #expect(fixture.manager.focusedSessionID == "ready")
-        #expect(fixture.manager.currentCommandSession?.id == "ready")
+        #expect(fixture.manager.focusedCommandSession?.id == "ready")
         #expect(fixture.manager.lastActiveSessionID == nil)
         #expect(await fixture.bridge.recordedActivationCalls() == ["ready"])
     }
@@ -170,6 +170,69 @@ struct BackburnerActionTests {
         #expect(fixture.manager.sessions[0].state == .idle)
         #expect(fixture.activationFeedback == ["Activation Failed"])
         #expect(await fixture.bridge.recordedActivationCalls() == ["failed"])
+    }
+
+    @Test func backburnerWithoutActiveTerminalExplainsAndChangesNothing() async {
+        let fixture = await Fixture.make([makeSession("first"), makeSession("second")])
+        fixture.manager.updateFocusedSession(terminalSessionID: "first")
+        fixture.manager.isTerminalAppActive = false
+
+        await fixture.hotkeys.handleBackburner()
+
+        #expect(fixture.feedback == ["No Active Session"])
+        #expect(fixture.manager.sessions.map(\.state) == [.idle, .idle])
+        #expect(await fixture.bridge.recordedActivationCalls().isEmpty)
+    }
+
+    @Test func backburnerWithUntrackedFocusExplainsAndChangesNothing() async {
+        let fixture = await Fixture.make([makeSession("first"), makeSession("second")])
+        fixture.manager.updateFocusedSession(terminalSessionID: "untracked")
+
+        await fixture.hotkeys.handleBackburner()
+
+        #expect(fixture.feedback == ["No Active Session"])
+        #expect(fixture.manager.sessions.map(\.state) == [.idle, .idle])
+        #expect(await fixture.bridge.recordedActivationCalls().isEmpty)
+    }
+
+    @Test func sendToBackWithoutActiveTerminalExplainsAndKeepsOrder() async {
+        let fixture = await Fixture.make([makeSession("first"), makeSession("second")])
+        fixture.manager.updateFocusedSession(terminalSessionID: "first")
+        fixture.manager.isTerminalAppActive = false
+
+        await fixture.hotkeys.handleSendToBack()
+
+        #expect(fixture.feedback == ["No Active Session"])
+        #expect(fixture.manager.cyclableSessions.map(\.id) == ["first", "second"])
+    }
+
+    @Test func backburnerActsOnFocusNotTheBusyAnchor() async {
+        let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy, AppStorageKeys.goToNextOnBackburner)
+        defer { restore() }
+        UserDefaults.standard.set(false, forKey: AppStorageKeys.autoAdvanceOnBusy)
+        UserDefaults.standard.set(false, forKey: AppStorageKeys.goToNextOnBackburner)
+        let fixture = await Fixture.make([makeSession("busy", state: .working), makeSession("idle")])
+        fixture.manager.testSetLastActiveSessionID("busy")
+        fixture.manager.updateFocusedSession(terminalSessionID: "idle")
+
+        await fixture.hotkeys.handleBackburner()
+
+        #expect(fixture.manager.sessions.first { $0.id == "idle" }?.state == .backburner)
+        #expect(fixture.manager.sessions.first { $0.id == "busy" }?.state == .working)
+    }
+
+    @Test func backburnerActsOnAFocusedWorkingSession() async {
+        let restore = preserveDefaults(AppStorageKeys.autoAdvanceOnBusy, AppStorageKeys.goToNextOnBackburner)
+        defer { restore() }
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.autoAdvanceOnBusy)
+        UserDefaults.standard.set(false, forKey: AppStorageKeys.goToNextOnBackburner)
+        let fixture = await Fixture.make([makeSession("working", state: .working), makeSession("idle")])
+        fixture.manager.updateFocusedSession(terminalSessionID: "working")
+
+        await fixture.hotkeys.handleBackburner()
+
+        #expect(fixture.manager.sessions.first { $0.id == "working" }?.state == .backburner)
+        #expect(fixture.manager.sessions.first { $0.id == "idle" }?.state == .idle)
     }
 
     private final class Fixture {
@@ -204,6 +267,7 @@ struct BackburnerActionTests {
                 session.customName = session.id
                 return session
             })
+            manager.isTerminalAppActive = true
             let registry = TerminalBridgeRegistry()
             let bridge = SessionActivatorMockBridge(behaviors: behaviors)
             await registry.register(bridge, for: .iterm2)

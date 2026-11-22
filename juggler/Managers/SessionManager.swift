@@ -753,8 +753,13 @@ final class SessionManager {
         }
     }
 
-    var currentCommandSession: Session? {
-        isFocusedSessionHidden ? nil : currentSession
+    var focusedCommandSession: Session? {
+        guard isTerminalAppActive, let focusedSessionID, !isFocusedSessionHidden else { return nil }
+        let matches = sessions.filter {
+            $0.id == focusedSessionID || $0.terminalSessionID == focusedSessionID
+                || $0.terminalSessionID.hasSuffix(focusedSessionID)
+        }
+        return matches.first(where: \.isCycleEligible) ?? matches.first
     }
 
     var currentSession: Session? {

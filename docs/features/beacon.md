@@ -15,7 +15,7 @@ including when all idle sessions are hidden. See [cycling eligibility](cycle-ses
 Cycling while exactly one session is cyclable shows **"Only 1 Session"** with the session's display name as the subtitle, so rapid cycling doesn't look like a stuck re-highlight of an unnamed session. It appears only when the cycle returns to the session you're already on; arriving at it for the first time from another session shows the normal session-name beacon.
 
 Global Send to Back (`⇧⌘O`) also shows **"Only 1 Session"** when the only eligible session returns to itself.
-Global Reactivate All (`⇧⌘H`) shows the activated session's name, or **"No Backburnered Sessions"** / **"No Sessions to Cycle"** when there is nothing to restore or activate. Global Backburner confirms **"Backburnered"** when jumping is disabled or no live eligible target remains. These messages respect the beacon toggle.
+Global Reactivate All (`⇧⌘H`) shows the activated session's name, or **"No Backburnered Sessions"** / **"No Sessions to Cycle"** when there is nothing to restore or activate. Global Backburner confirms **"Backburnered"** when jumping is disabled or no live eligible target remains. Global Backburner and Send to Back show **"No Active Session"** when the frontmost terminal has no focused session to act on (another app, the Session Monitor, or an untracked or hidden pane). These messages respect the beacon toggle.
 
 On a *successful* activation the beacon does **not** appear for:
 - Manual session clicks in the popover or main window

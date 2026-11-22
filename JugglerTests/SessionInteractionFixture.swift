@@ -131,7 +131,7 @@ final class InteractionFixture {
             try performMenuAction(action, on: menu)
         case .global:
             try #require(removal == .backburner, "Only Backburner has a global removal shortcut")
-            try #require(manager.currentCommandSession?.id == name)
+            try #require(manager.focusedCommandSession?.id == name)
             await hotkeys.handleBackburner()
         }
         await deliverPendingAutomation()
@@ -216,7 +216,7 @@ final class InteractionFixture {
 
     func sendToBack(_ name: String) async throws {
         await registerBridge()
-        try #require(manager.currentCommandSession?.id == name)
+        try #require(manager.focusedCommandSession?.id == name)
         await hotkeys.handleSendToBack()
     }
 
