@@ -135,7 +135,7 @@ Backburner allows temporarily removing a session from the cycling queue without 
 ### Actions
 
 - **Backburner** (`⇧⌘L`): Move current session to backburner
-- **Reactivate All** (`⇧⌘H`): Move all backburnered sessions back to idle, then activate the first eligible session in the resulting queue order. Hidden sessions stay hidden and are skipped. If none were backburnered, show "No Backburnered Sessions"; if none are eligible after restoration, show "No Sessions to Cycle". The session-list `H` action restores states and leaves activation to the Auto-restart setting.
+- **Reactivate All** (`⇧⌘H`): Move all backburnered sessions back to idle, then activate the first eligible session in the resulting queue order. Hidden sessions stay hidden and are skipped. It also clears the stored backburner of conversations that are not currently running, so they resume idle later. If none were backburnered, show "No Backburnered Sessions"; if none are eligible after restoration, show "No Sessions to Cycle". The session-list `H` action restores states and leaves activation to the Auto-restart setting.
 
 The global Backburner acts on the session focused in the frontmost terminal and shows **"No Active Session"** when there is none — another app or the Session Monitor is frontmost, or the focused pane is untracked or hidden.
 

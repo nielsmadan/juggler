@@ -235,6 +235,21 @@ struct BackburnerActionTests {
         #expect(fixture.manager.sessions.first { $0.id == "idle" }?.state == .idle)
     }
 
+    @Test func reactivateAllClearsStoredBackburnersWithoutLiveRows() async {
+        let fixture = await Fixture.make([makeSession("ready")])
+        fixture.manager.updateFocusedSession(terminalSessionID: "ready")
+        let identity = AgentSessionIdentity(agent: "codex", agentSessionID: "offline")
+        fixture.manager.dispositionStore.setDisposition(
+            .init(isHidden: false, backburner: .init(wasAwaitingUser: true, backburneredAt: Date())),
+            for: identity
+        )
+
+        await fixture.hotkeys.handleReactivateAll()
+
+        #expect(fixture.feedback == ["No Backburnered Sessions"])
+        #expect(fixture.manager.dispositionStore.disposition(for: identity) == .empty)
+    }
+
     private final class Fixture {
         let manager: SessionManager
         let bridge: SessionActivatorMockBridge

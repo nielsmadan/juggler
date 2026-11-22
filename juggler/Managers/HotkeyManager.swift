@@ -216,11 +216,12 @@ final class HotkeyManager {
 
     func handleReactivateAll() async {
         logDebug(.hotkey, "Reactivate all triggered")
-        guard sessionManager.sessions.contains(where: { $0.state == .backburner }) else {
+        let hasLiveBackburnered = sessionManager.sessions.contains { $0.state == .backburner }
+        sessionManager.reactivateAllBackburnered(allowsAutomation: false)
+        guard hasLiveBackburnered else {
             showBeacon("No Backburnered Sessions")
             return
         }
-        sessionManager.reactivateAllBackburnered(allowsAutomation: false)
         await activateWithRetry(
             direction: "reactivate-all",
             presentation: .reactivateAll,

@@ -155,6 +155,25 @@ struct SessionDispositionStoreTests {
         #expect(secondDefaults.data(forKey: AppStorageKeys.sessionDispositions) == firstData)
     }
 
+    @Test func clearBackburnersKeepsOtherFieldsDropsEmptyRecordsAndPersists() {
+        let defaults = TestDefaults.fresh()
+        let store = SessionDispositionStore(defaults: defaults)
+        let backburner = BackburnerDisposition(wasAwaitingUser: true, backburneredAt: Date())
+        let hidden = AgentSessionIdentity(agent: "codex", agentSessionID: "hidden")
+        let prio = AgentSessionIdentity(agent: "codex", agentSessionID: "prio")
+        let shelved = AgentSessionIdentity(agent: "codex", agentSessionID: "shelved")
+        store.setDisposition(.init(isHidden: true, backburner: backburner), for: hidden)
+        store.setDisposition(.init(isHidden: false, isPrioritized: true, backburner: backburner), for: prio)
+        store.setDisposition(.init(isHidden: false, backburner: backburner), for: shelved)
+
+        store.clearBackburners()
+
+        let reloaded = SessionDispositionStore(defaults: defaults)
+        #expect(reloaded.disposition(for: hidden) == .init(isHidden: true))
+        #expect(reloaded.disposition(for: prio) == .init(isHidden: false, isPrioritized: true))
+        #expect(reloaded.disposition(for: shelved) == .empty)
+    }
+
     @Test func managerDefaultsAreIndependentInMemoryStores() {
         let before = UserDefaults.standard.data(forKey: AppStorageKeys.sessionDispositions)
         let first = SessionManager()

@@ -1728,6 +1728,7 @@ final class SessionManager {
 
     @MainActor
     func reactivateAllBackburnered(allowsAutomation: Bool = true) {
+        dispositionStore.clearBackburners()
         let backburneredIDs = sessions.filter { $0.state == .backburner }.map(\.id)
         for id in backburneredIDs {
             updateSessionState(terminalSessionID: id, state: .idle, allowsAutomation: allowsAutomation)

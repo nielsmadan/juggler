@@ -82,6 +82,17 @@ final class SessionDispositionStore {
         persist()
     }
 
+    func clearBackburners() {
+        let cleared = dispositions.compactMapValues { disposition -> SessionDisposition? in
+            var disposition = disposition
+            disposition.backburner = nil
+            return disposition == .empty ? nil : disposition
+        }
+        guard cleared != dispositions else { return }
+        dispositions = cleared
+        persist()
+    }
+
     private func persist() {
         guard let defaults else { return }
         let records = dispositions.map { SessionDispositionRecord(key: $0.key, disposition: $0.value) }

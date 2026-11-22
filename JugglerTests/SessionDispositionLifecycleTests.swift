@@ -190,6 +190,22 @@ struct SessionDispositionLifecycleTests {
         #expect(manager.dispositionStore.disposition(for: key).backburner?.backburneredAt == shelvedAt)
     }
 
+    @MainActor
+    @Test func reactivateAllClearsStoredBackburnersForMissingRows() {
+        let manager = TestFixtures.isolatedSessionManager()
+        receive(manager)
+        manager.setSessionHidden(sessionID: "pane", isHidden: true)
+        manager.backburnerSession(terminalSessionID: "pane", now: shelvedAt)
+        manager.removeSession(sessionID: "pane")
+
+        manager.reactivateAllBackburnered()
+
+        receive(manager, pane: "new-pane", source: .hydration)
+        #expect(manager.sessions[0].state == .idle)
+        #expect(manager.sessions[0].isHidden)
+        #expect(manager.dispositionStore.disposition(for: key) == .init(isHidden: true))
+    }
+
     @Test func hydrationRestoresMetadataAndDoesNotCountTurns() {
         let defaults = TestDefaults.fresh()
         let store = SessionDispositionStore(defaults: defaults)
