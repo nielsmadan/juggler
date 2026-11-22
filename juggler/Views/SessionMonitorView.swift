@@ -531,7 +531,7 @@ struct SessionMonitorView: View {
     }
 
     private func isActiveRow(_ session: Session) -> Bool {
-        (sessionManager.isSessionFocused || isMonitorWindowKey) && controller.selectedSessionID == session.id
+        (sessionManager.isListedSessionFocused || isMonitorWindowKey) && controller.selectedSessionID == session.id
     }
 
     @ViewBuilder

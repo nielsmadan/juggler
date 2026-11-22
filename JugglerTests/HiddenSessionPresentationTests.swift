@@ -203,6 +203,23 @@ struct HiddenSessionPresentationTests {
         #expect(controller.selectedSessionID == (showsHidden ? "a" : "b"))
     }
 
+    @Test func listedFocusIgnoresHiddenRowsUnlessShowHiddenIsOn() {
+        let manager = TestFixtures.isolatedSessionManager()
+        manager.testSetSessions([makeSession("visible"), makeSession("hidden")])
+        manager.setSessionHidden(sessionID: "hidden", isHidden: true)
+        manager.isTerminalAppActive = true
+
+        manager.updateFocusedSession(terminalSessionID: "visible")
+        #expect(manager.isListedSessionFocused)
+
+        manager.updateFocusedSession(terminalSessionID: "hidden")
+        #expect(manager.isSessionFocused)
+        #expect(manager.isListedSessionFocused == false)
+
+        manager.showsHiddenSessions = true
+        #expect(manager.isListedSessionFocused)
+    }
+
     @Test func currentSessionObserverSelectsOnlyListedTargets() {
         let sessions = [makeSession("a"), makeSession("b")]
         let controller = SessionListController()

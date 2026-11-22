@@ -243,6 +243,10 @@ final class SessionManager {
         return matchesTrackedSession(focusedID)
     }
 
+    var isListedSessionFocused: Bool {
+        isSessionFocused && (showsHiddenSessions || !isFocusedSessionHidden)
+    }
+
     var focusedTrackedSession: Session? {
         guard isTerminalAppActive,
               let focusedSessionID,
