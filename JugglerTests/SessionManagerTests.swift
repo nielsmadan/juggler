@@ -1530,6 +1530,9 @@ struct SessionManagerTests {
         }
 
         @Test @MainActor func cycleForward_withAnchor_usesAnchorAsEffectiveFocus() {
+            let restore = preserveDefaults(AppStorageKeys.queueOrderMode)
+            defer { restore() }
+            UserDefaults.standard.set(QueueOrderMode.static.rawValue, forKey: AppStorageKeys.queueOrderMode)
             let manager = SessionManager()
 
             manager.testSetSessions([
