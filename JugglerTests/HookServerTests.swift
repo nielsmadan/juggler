@@ -1427,7 +1427,8 @@ struct HookServerStatusTests {
         ("droid", "DR"),
         ("qwen", "QW"),
         ("kimi", "KM"),
-        ("cursor", "CU")
+        ("cursor", "CU"),
+        ("devin", "DV")
     ])
     @MainActor
     func newAgentsPassThroughUnchanged(wireAgent: String, shortName: String) async {
@@ -1441,7 +1442,7 @@ struct HookServerStatusTests {
         #expect(manager.sessions[0].agentShortName == shortName)
     }
 
-    @Test(arguments: ["goose", "devin", "copilot", "kilo"])
+    @Test(arguments: ["goose", "copilot", "kilo"])
     @MainActor
     func statusesFromAgentsJugglerDoesNotSupportCreateNoRow(wireAgent: String) async {
         let manager = SessionManager()

@@ -1,7 +1,7 @@
 # Claude Code Hooks
 
 Juggler learns what Claude Code is doing from **hooklinesinker**, a small shared binary that
-owns the status hooks for Claude Code, Codex, OpenCode, Pi, Factory Droid, Qwen Code, Kimi Code and Cursor CLI. Juggler ships it inside the app
+owns the status hooks for Claude Code, Codex, OpenCode, Pi, Factory Droid, Qwen Code, Kimi Code, Cursor CLI and Devin CLI. Juggler ships it inside the app
 bundle — there is **no separate Brew (or npm, or pip) dependency to install**. Antigravity is
 the one agent still on Juggler's own hooks; see [Antigravity Hooks](antigravity-hooks.md).
 
@@ -10,6 +10,12 @@ Per-agent specifics: [OpenCode Plugin](opencode-plugin.md), [Codex Hooks](codex-
 
 Cursor CLI support is experimental: Cursor has no hook that fires when it opens a permission
 prompt, so a waiting Cursor session stays `working` until the tool call finishes.
+
+Devin CLI support is experimental: hooklinesinker's Devin hooks are checked against Devin's docs
+but not yet against live delivery. Devin's `PostCompaction` only annotates, so a Devin session
+never shows `compacting`, and a permission wait is kept until the next prompt, `Stop` or
+`SessionStart`. Devin also runs imported Claude hooks; hooklinesinker drops those for Devin
+sessions, so Devin rows come only from its own hooks.
 
 ## Installation
 

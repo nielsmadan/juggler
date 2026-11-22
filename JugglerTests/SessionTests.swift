@@ -489,6 +489,7 @@ struct SessionTests {
         #expect(makeSession(agent: "qwen").agentDisplayName == "Qwen Code")
         #expect(makeSession(agent: "kimi").agentDisplayName == "Kimi Code")
         #expect(makeSession(agent: "cursor").agentDisplayName == "Cursor CLI")
+        #expect(makeSession(agent: "devin").agentDisplayName == "Devin CLI")
     }
 
     @Test func agentDisplayName_unknownHarnessPreservesIdentifier() {

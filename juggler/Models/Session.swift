@@ -128,6 +128,7 @@ struct Session: Identifiable, Codable, Equatable {
         case "qwen": "QW"
         case "kimi": "KM"
         case "cursor": "CU"
+        case "devin": "DV"
         default: "CC"
         }
     }
@@ -143,6 +144,7 @@ struct Session: Identifiable, Codable, Equatable {
         case "qwen": "Qwen Code"
         case "kimi": "Kimi Code"
         case "cursor": "Cursor CLI"
+        case "devin": "Devin CLI"
         default: agent
         }
     }

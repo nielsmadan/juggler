@@ -4,9 +4,9 @@
 
 A native macOS app that tracks your running coding agent sessions and cycles you to the next one that needs attention. No workflow changes. No new terminal. Just less time wasted.
 
-Currently works with iTerm2 / Kitty / WezTerm (tmux optional) and Claude Code, OpenCode, Codex, Pi, Factory Droid, Qwen Code, Kimi Code, and Cursor CLI (experimental). More integrations coming soon.
+Currently works with iTerm2 / Kitty / WezTerm (tmux optional) and Claude Code, OpenCode, Codex, Pi, Factory Droid, Qwen Code, Kimi Code, Cursor CLI (experimental), and Devin CLI (experimental). More integrations coming soon.
 
-![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![Codex](https://img.shields.io/badge/Codex-supported-brightgreen) ![Pi](https://img.shields.io/badge/Pi-supported-brightgreen) ![Factory Droid](https://img.shields.io/badge/Factory_Droid-supported-brightgreen) ![Qwen Code](https://img.shields.io/badge/Qwen_Code-supported-brightgreen) ![Kimi Code](https://img.shields.io/badge/Kimi_Code-supported-brightgreen) ![Cursor CLI](https://img.shields.io/badge/Cursor_CLI-experimental-yellow) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen) ![WezTerm](https://img.shields.io/badge/WezTerm-supported-brightgreen)
+![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue) ![MIT License](https://img.shields.io/badge/license-MIT-green) ![Claude Code](https://img.shields.io/badge/Claude_Code-supported-brightgreen) ![OpenCode](https://img.shields.io/badge/OpenCode-supported-brightgreen) ![Codex](https://img.shields.io/badge/Codex-supported-brightgreen) ![Pi](https://img.shields.io/badge/Pi-supported-brightgreen) ![Factory Droid](https://img.shields.io/badge/Factory_Droid-supported-brightgreen) ![Qwen Code](https://img.shields.io/badge/Qwen_Code-supported-brightgreen) ![Kimi Code](https://img.shields.io/badge/Kimi_Code-supported-brightgreen) ![Cursor CLI](https://img.shields.io/badge/Cursor_CLI-experimental-yellow) ![Devin CLI](https://img.shields.io/badge/Devin_CLI-experimental-yellow) ![iTerm2](https://img.shields.io/badge/iTerm2-supported-brightgreen) ![Kitty](https://img.shields.io/badge/Kitty-supported-brightgreen) ![WezTerm](https://img.shields.io/badge/WezTerm-supported-brightgreen)
 
 <p align="center">
   <img src="site/video.gif" alt="Juggler demo" width="720">
@@ -64,7 +64,7 @@ Upgrades and ordinary reinstalls preserve integrations. Other tools' hooks and s
 
 1. **Download and open** - Launch Juggler from Applications
 2. **Walk through onboarding** - Set up terminal integration(s), install hooks, and configure global shortcuts
-3. **Open your sessions** - Start Claude Code, OpenCode, Codex, Pi, Factory Droid, Qwen Code, Kimi Code, Cursor CLI, or Antigravity as you normally would. Juggler detects them automatically
+3. **Open your sessions** - Start Claude Code, OpenCode, Codex, Pi, Factory Droid, Qwen Code, Kimi Code, Cursor CLI, Devin CLI, or Antigravity as you normally would. Juggler detects them automatically
 4. **Hit the hotkey** - Press `⇧⌘K` and you're at the next idle session
 
 ## Features
@@ -118,7 +118,7 @@ a removed row back.
 
 **Terminals:** iTerm2, Kitty, WezTerm, tmux (optional multiplexer), Zellij (planned)
 
-**Coding agents:** Claude Code, OpenCode, Codex *(requires Codex CLI ≥ v0.114, or ≥ v0.145 for session-end tracking)*, Pi, Factory Droid *(restart a running `droid` after installing hooks)*, Qwen Code, Kimi Code *(requires Kimi Code CLI ≥ 0.32.0)*, Cursor CLI *(experimental: no permission state)*
+**Coding agents:** Claude Code, OpenCode, Codex *(requires Codex CLI ≥ v0.114, or ≥ v0.145 for session-end tracking)*, Pi, Factory Droid *(restart a running `droid` after installing hooks)*, Qwen Code, Kimi Code *(requires Kimi Code CLI ≥ 0.32.0)*, Cursor CLI *(experimental: no permission state)*, Devin CLI *(experimental)*
 
 **Requires:** macOS 15.0+ (Sequoia)
 
@@ -150,6 +150,7 @@ when one is already installed. Local agent setup works offline.
 - **Qwen Code** - hook entries in `~/.qwen/settings.json`
 - **Kimi Code** *(requires Kimi Code CLI ≥ 0.32.0)* - hook entries in `~/.kimi-code/config.toml`
 - **Cursor CLI** *(experimental)* - hook entries in `~/.cursor/hooks.json`. Cursor CLI has no hook that fires when it asks for approval, so a session waiting on a permission prompt shows as working until the tool call finishes. Install these hooks even if Cursor CLI sessions used to appear as Claude Code rows: Cursor's imported Claude hooks are now ignored
+- **Devin CLI** *(experimental)* - hook entries in `~/.config/devin/config.json`. Devin imports Claude Code's hooks, but those are ignored for Devin sessions, so install these hooks for Devin CLI sessions to appear. Devin reports no compaction start, so its sessions never show as compacting, and once a session asks for permission it keeps showing permission, even after approval, until the next prompt, stop or session start
 
 ### Running over SSH
 

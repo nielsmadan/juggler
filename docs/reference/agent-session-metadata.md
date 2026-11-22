@@ -5,7 +5,7 @@ permission mode) each coding agent exposes **on its hook or plugin surface**, fo
 the session list.
 
 Juggler takes everything it knows about a session from hooks: hooklinesinker's status sink for
-Claude Code, Codex, OpenCode, Pi, Droid, Qwen, Kimi and Cursor, and its own notify script for
+Claude Code, Codex, OpenCode, Pi, Droid, Qwen, Kimi, Cursor and Devin, and its own notify script for
 Antigravity. It never reads agent transcripts, session files, databases or logs, even though
 `transcriptPath` arrives on the wire. Every field below is a hook input or an adapter API, not a
 transcript field.
@@ -60,18 +60,18 @@ See [Antigravity Hooks](../tech/antigravity-hooks.md).
 What each Session Monitor slot shows for each agent today. `-` means the agent gives Juggler nothing
 for that slot and the cell stays empty. See [Session Monitor](../features/main-window.md#row-details).
 
-| Slot | Claude | Codex | Droid | Qwen | Kimi | Pi | OpenCode | Antigravity |
-|---|---|---|---|---|---|---|---|---|
-| Agent Session Title | yes | - | - | - | yes | yes | - | - |
-| Model | yes | yes | - | start model | start model | yes | - | yes |
-| Effort | yes | - | - | - | - | yes | - | - |
-| Permission Mode | yes | yes | yes | yes | - | - | - | - |
-| Current Tool | yes | yes | yes | yes | yes | - | - | - |
-| Last Problem | yes | interrupted only | - | yes | yes | interrupted only | - | yes |
-| Subagents | yes | yes | yes | - | - | - | - | - |
-| Context % | - | - | - | yes | - | yes | - | - |
-| Turns | yes | yes | yes | yes | yes | yes | - | counted by Juggler |
-| Run Time | yes | yes | yes | yes | yes | yes | yes | - |
+| Slot | Claude | Codex | Droid | Qwen | Kimi | Pi | OpenCode | Devin | Antigravity |
+|---|---|---|---|---|---|---|---|---|---|
+| Agent Session Title | yes | - | - | - | yes | yes | - | - | - |
+| Model | yes | yes | - | start model | start model | yes | - | - | yes |
+| Effort | yes | - | - | - | - | yes | - | - | - |
+| Permission Mode | yes | yes | yes | yes | - | - | - | - | - |
+| Current Tool | yes | yes | yes | yes | yes | - | - | yes | - |
+| Last Problem | yes | interrupted only | - | yes | yes | interrupted only | - | - | yes |
+| Subagents | yes | yes | yes | - | - | - | - | - | - |
+| Context % | - | - | - | yes | - | yes | - | - | - |
+| Turns | yes | yes | yes | yes | yes | yes | - | yes | counted by Juggler |
+| Run Time | yes | yes | yes | yes | yes | yes | yes | yes | - |
 
 - **Subagents** is Codex, Droid and Claude only. Pi and OpenCode track children inside their
   adapters for status, but report no count.
@@ -80,6 +80,8 @@ for that slot and the cell stays empty. See [Session Monitor](../features/main-w
   model changes until the event sets it again.
 - **OpenCode** has no details beyond run time, because its adapter forwards none and
   hooklinesinker has no OpenCode turn-start event to count.
+- **Devin** shows only its current tool, turns and run time: hooklinesinker forwards no other
+  Devin details.
 - **Antigravity** model and last problem come from Juggler's script, not hooklinesinker.
 
 ## Native sources per agent

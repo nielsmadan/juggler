@@ -9,6 +9,7 @@ enum HooklinesinkerAgent: String, CaseIterable, Sendable {
     case qwen
     case kimi
     case cursor
+    case devin
 
     var displayName: String {
         switch self {
@@ -20,6 +21,7 @@ enum HooklinesinkerAgent: String, CaseIterable, Sendable {
         case .qwen: "Qwen Code"
         case .kimi: "Kimi Code"
         case .cursor: "Cursor CLI"
+        case .devin: "Devin CLI"
         }
     }
 }

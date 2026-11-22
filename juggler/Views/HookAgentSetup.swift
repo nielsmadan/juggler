@@ -7,6 +7,7 @@ struct HookAgentSetup: Identifiable {
     let reportsPermission: Bool
     let isExperimental: Bool
     let startupHint: String?
+    var permissionCaveat: String?
 
     var id: HooklinesinkerAgent { agent }
     var title: String { agent.displayName }
@@ -16,7 +17,7 @@ struct HookAgentSetup: Identifiable {
     }
 
     var permissionHint: String? {
-        reportsPermission ? nil : "No permission events: a session waiting for approval shows as working."
+        reportsPermission ? permissionCaveat : "No permission events: a session waiting for approval shows as working."
     }
 
     var setupSummary: String {
@@ -44,6 +45,12 @@ struct HookAgentSetup: Identifiable {
             agent: .cursor, icon: "cursorarrow.rays", configPath: "~/.cursor/hooks.json", reportsPermission: false,
             isExperimental: true,
             startupHint: nil
+        ),
+        HookAgentSetup(
+            agent: .devin, icon: "wand.and.stars", configPath: "~/.config/devin/config.json",
+            reportsPermission: true, isExperimental: true,
+            startupHint: nil,
+            permissionCaveat: "Permission stays shown after approval until the next prompt, stop or session start."
         )
     ]
 }
