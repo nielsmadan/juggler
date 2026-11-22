@@ -152,10 +152,12 @@ struct SessionMenuView: View {
                 Spacer()
                 if let shortcut {
                     Text(shortcut)
-                        .font(.system(.caption, design: .monospaced))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(.secondary))
+                        .font(.system(.callout, design: .monospaced).weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.15)))
+                        .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color.white.opacity(0.4)))
                         .accessibilityHidden(true)
                 }
             }
