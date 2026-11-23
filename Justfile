@@ -302,4 +302,4 @@ clean-release:
 
 [positional-arguments]
 release *args:
-    @curtains "$@"
+    @LEFTHOOK=0 curtains "$@"
