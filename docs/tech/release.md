@@ -67,35 +67,34 @@ registers Juggler and creates the shared machine installation if needed. It upgr
 installation only when the bundled version is newer and protocol-compatible; the same or a newer
 compatible version is reused. The app does not download executable code during startup or onboarding.
 
-`scripts/hooklinesinker.json` pins the version, protocol and source revision. Keep the
-`HOOKLINESINKER_VERSION` default in `scripts/install-remote.sh` aligned; staging rejects drift.
+`scripts/pins.json` pins the version, its source revision (the tag's commit) and the sha256 of
+`hooklinesinker-macos-universal`; `curtains pins` manages it. The protocol Juggler speaks is
+`PROTOCOL` in `scripts/hooklinesinker.py`. Keep the `HOOKLINESINKER_VERSION` default in
+`scripts/install-remote.sh` aligned; staging rejects drift, and updating the pin rewrites it.
 Publish the pinned Hooklinesinker release, including `hooklinesinker-macos-universal` and
 `SHA256SUMS`, before releasing Juggler. A draft release does not satisfy this prerequisite.
 
 ### Updating HLS
 
-1. Release HLS with its `just release` command, then wait for CI and the release workflow to succeed.
-   The release workflow publishes the binaries and `SHA256SUMS` automatically.
-2. In Juggler, run the updater and verify the build:
+`just release` updates the pin first when a newer HLS release is published (the policy's `pins`):
+it records the new version, commit and digest, rewrites `scripts/install-remote.sh`, stages the
+published binary (checksum, pinned digest, both architectures, version and protocol) and commits
+`fix: update hooklinesinker to VERSION` before the release commit. `just release --keep-pins` releases
+with the current pin. A different protocol requires a Juggler compatibility change first; staging
+fails, and the release stops with the update left for review.
 
-   ```sh
-   just update-hooklinesinker       # latest published stable release
-   # Or choose a release: just update-hooklinesinker 1.0.1
-   just build
-   just verify-hooklinesinker
-   ```
+To update without releasing:
 
-3. Review and commit the changes to `scripts/hooklinesinker.json` and `scripts/install-remote.sh`,
-   then follow the Juggler release flow above.
+```sh
+just update-hooklinesinker       # latest published stable release
+# Or choose a release: just update-hooklinesinker 1.0.1
+just build
+just verify-hooklinesinker
+```
 
-The updater resolves the release tag to its commit and validates the universal binary's checksum,
-version and protocol before changing both pins. A different protocol requires a Juggler compatibility
-change first. Failed validation preserves the pins; the updater also refuses downgrades and preserves
-edits made while it is checking the release.
-
-`just check-hooklinesinker` checks for an update without changing files. These two commands read the
-public release API without a GitHub CLI login. Drafts and prereleases are excluded. The updater only
-changes build inputs; the installed app continues to use its bundled helper.
+Then review and commit `scripts/pins.json` and `scripts/install-remote.sh`. `just check-hooklinesinker`
+checks for an update without changing files. Both use `curtains pins` and the GitHub CLI. The update
+only changes build inputs; the installed app continues to use its bundled helper.
 
 ### Building and verifying the helper
 
@@ -106,7 +105,7 @@ and reused until the pin changes or the build directory is removed. Local develo
 require a published Hooklinesinker release or the other Mac architecture's Rust target.
 
 `just archive` uses `just stage-release-hooklinesinker`, which downloads the published universal
-release and verifies its checksum, both architectures, version and protocol. All staging paths
+release and verifies its checksum, pinned digest, both architectures, version and protocol. All staging paths
 apply an ad hoc signature with hardened runtime enabled before Xcode runs. Xcode's
 **Embed Helpers** Copy Files phase places it in `Contents/MacOS` with **Code Sign On Copy**,
 replacing that signature's identity with the app's. Direct Xcode Debug builds need
@@ -140,8 +139,8 @@ unchanged, because promotion reuses an equal version. Other consumers, such as r
 refreshed binary too.
 
 A Juggler change that calls a new hooklinesinker command needs that command in a published
-release before Juggler ships: release hooklinesinker, run `just update-hooklinesinker <version>`,
-then release Juggler. Settings → General → Reset Sessions (`sessions reset`) is one such change.
+release before Juggler ships: release hooklinesinker, then release Juggler; `just release`
+updates the pin first (or run `just update-hooklinesinker <version>` to pin a specific release). Settings → General → Reset Sessions (`sessions reset`) is one such change.
 
 `HOOKLINESINKER_DIST` accepts a directory containing the universal artifact and its manifest;
 a thin binary supplied through that override is rejected. CI test jobs build both architectures

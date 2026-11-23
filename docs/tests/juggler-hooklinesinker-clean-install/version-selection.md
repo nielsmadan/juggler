@@ -12,8 +12,8 @@ selection and integration with the existing protocol, not compatibility with fut
 
 Run from the Juggler repository root. Use the helper inside the exact Juggler app under test,
 after the artifact/signature checks in the main procedure. Supply a local HLS source checkout
-and explicit revisions; the pinned source revision is in `scripts/hooklinesinker.json` for a
-current-checkout test. For a published Juggler release, read that file at the release's commit.
+and explicit revisions; the pinned source revision is the `commit` of the `hooklinesinker` pin in
+`scripts/pins.json` for a current-checkout test. For a published Juggler release, read that file at the release's commit.
 The [recorded release run](runs/2026-09-18-hls-version-selection.md) provides a known fixture set.
 
 ```bash

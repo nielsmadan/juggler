@@ -13,15 +13,14 @@
     [
       "just",
       "check"
-    ],
-    [
-      "python3",
-      "scripts/update_hooklinesinker.py",
-      "--check"
     ]
+  ],
+  "pins": [
+    "hooklinesinker"
   ],
   "tools": [
     "git",
+    "gh",
     "python3",
     "just",
     "xcodebuild",

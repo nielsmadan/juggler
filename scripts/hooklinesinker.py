@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT = "hooklinesinker-macos-universal"
 IDENTIFIER = "com.nielsmadan.hooklinesinker"
 ARCHITECTURES = {"arm64", "x86_64"}
+PROTOCOL = 1
 
 
 def run(*arguments, environment=None, timeout=60):
@@ -24,11 +25,20 @@ def run(*arguments, environment=None, timeout=60):
 
 
 def read_pin(root=ROOT):
-    pin = json.loads((root / "scripts/hooklinesinker.json").read_text())
-    if not re.fullmatch(r"\d+\.\d+\.\d+", pin["version"]):
+    entry = json.loads((root / "scripts/pins.json").read_text())["hooklinesinker"]
+    digest = entry["assets"].get(ARTIFACT, "")
+    if not re.fullmatch(r"\d+\.\d+\.\d+", entry["version"]):
         raise ValueError("Invalid hooklinesinker version pin")
-    if pin["protocol"] != 1 or not re.fullmatch(r"[0-9a-f]{40}", pin["sourceRevision"]):
-        raise ValueError("Invalid hooklinesinker protocol or source revision pin")
+    if not re.fullmatch(r"[0-9a-f]{40}", entry["commit"]):
+        raise ValueError("Invalid hooklinesinker source revision pin")
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+        raise ValueError(f"The hooklinesinker pin needs a sha256 digest for {ARTIFACT}")
+    pin = {
+        "version": entry["version"],
+        "protocol": PROTOCOL,
+        "sourceRevision": entry["commit"],
+        "sha256": digest.removeprefix("sha256:"),
+    }
     remote_versions = re.findall(
         r"HOOKLINESINKER_VERSION:-v([^}]+)",
         (root / "scripts/install-remote.sh").read_text(),
@@ -46,6 +56,11 @@ def verify_checksum(binary, manifest):
         raise ValueError(f"SHA256SUMS must contain exactly one valid entry for {ARTIFACT}")
     if hashlib.sha256(binary.read_bytes()).hexdigest() != matches[0].lower():
         raise ValueError(f"Checksum mismatch for {ARTIFACT}")
+
+
+def verify_pinned(binary, pin):
+    if hashlib.sha256(binary.read_bytes()).hexdigest() != pin["sha256"]:
+        raise ValueError(f"{ARTIFACT} does not match the sha256 pinned in scripts/pins.json")
 
 
 def native_target():
@@ -195,9 +210,11 @@ def main():
                     downloaded = Path(temporary)
                     download(pin, downloaded)
                     verify_checksum(downloaded / ARTIFACT, downloaded / "SHA256SUMS")
+                    verify_pinned(downloaded / ARTIFACT, pin)
                     dist.mkdir(parents=True, exist_ok=True)
                     for name in (ARTIFACT, "SHA256SUMS"):
                         shutil.copyfile(downloaded / name, dist / name)
+            verify_pinned(dist / ARTIFACT, pin)
             stage(dist, args.output, pin)
     except (OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
         parser.exit(1, f"hooklinesinker: {error}\n")

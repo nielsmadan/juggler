@@ -1,0 +1,24 @@
+{
+  "hooklinesinker": {
+    "repository": "nielsmadan/hooklinesinker",
+    "version": "1.5.2",
+    "commit": "bd8646c29df59445bfd89fc449cbb1ed046c428a",
+    "assets": {
+      "hooklinesinker-macos-universal": "sha256:d97ceb246b65a4b9b7f6b60b0d9d751230e83c1ddd4d69a70923b555912984ab"
+    },
+    "references": [
+      {
+        "file": "scripts/install-remote.sh",
+        "pattern": "HOOKLINESINKER_VERSION:-v{version}"
+      }
+    ],
+    "after_update": [
+      [
+        "python3",
+        "scripts/hooklinesinker.py",
+        "stage",
+        "--published"
+      ]
+    ]
+  }
+}

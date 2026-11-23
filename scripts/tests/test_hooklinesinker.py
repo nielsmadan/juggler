@@ -107,12 +107,12 @@ class HooklinesinkerPackagingTests(unittest.TestCase):
                 hls.main()
             self.assertEqual(error.exception.code, 2)
 
-    def test_published_staging_fetches_release_even_with_local_override_and_cache(self):
+    def stage_published(self, published, pinned):
         cache = self.directory / "build/hooklinesinker/downloads/1.0.0"
         cache.mkdir(parents=True)
         (cache / hls.ARTIFACT).write_bytes(self.artifact.read_bytes())
         (cache / "SHA256SUMS").write_text(self.manifest.read_text())
-        published = b"published helper"
+        pin = dict(self.pin, sha256=hashlib.sha256(pinned).hexdigest())
 
         def fetch_release(pin, output):
             (output / hls.ARTIFACT).write_bytes(published)
@@ -120,15 +120,26 @@ class HooklinesinkerPackagingTests(unittest.TestCase):
             (output / "SHA256SUMS").write_text(f"{digest}  {hls.ARTIFACT}\n")
 
         with patch.object(hls, "ROOT", self.directory), \
-                patch.object(hls, "read_pin", return_value=self.pin), \
+                patch.object(hls, "read_pin", return_value=pin), \
                 patch.object(hls, "download", side_effect=fetch_release), \
                 patch.object(hls, "run", side_effect=["arm64 x86_64", json.dumps(self.pin), "", ""]), \
                 patch.dict(os.environ, {"HOOKLINESINKER_DIST": str(self.directory)}), \
                 patch.object(sys, "argv", [str(SCRIPT), "stage", "--published", "--output", str(self.output)]):
             hls.main()
+        return cache
 
+    def test_published_staging_fetches_release_even_with_local_override_and_cache(self):
+        published = b"published helper"
+        cache = self.stage_published(published, pinned=published)
         self.assertEqual(self.output.read_bytes(), published)
         self.assertEqual((cache / hls.ARTIFACT).read_bytes(), published)
+
+    def test_published_staging_rejects_a_release_that_differs_from_the_pinned_digest(self):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit):
+            self.stage_published(b"replaced helper", pinned=b"published helper")
+        self.assertIn("does not match the sha256 pinned in scripts/pins.json", stderr.getvalue())
+        self.assertFalse(self.output.exists())
 
     def test_version_and_protocol_must_match_the_pin(self):
         for version in ({"version": "0.9.0", "protocol": 1}, {"version": "1.0.0", "protocol": 2}):
@@ -149,13 +160,18 @@ class HooklinesinkerPackagingTests(unittest.TestCase):
                     self.assertRaises(ValueError):
                 hls.verify_signature(self.artifact, True, "TEAM")
 
-    def test_pin_rejects_remote_installer_drift_and_duplicate_defaults(self):
+    def test_pin_reads_the_pins_file_and_rejects_remote_installer_drift(self):
         scripts = self.directory / "scripts"
         scripts.mkdir()
-        (scripts / "hooklinesinker.json").write_text(json.dumps(self.pin))
+        (scripts / "pins.json").write_text(json.dumps({"hooklinesinker": {
+            "repository": "nielsmadan/hooklinesinker",
+            "version": "1.0.0",
+            "commit": "a" * 40,
+            "assets": {hls.ARTIFACT: f"sha256:{self.digest}"},
+        }}))
         remote = scripts / "install-remote.sh"
         remote.write_text('HLS_VERSION="${HOOKLINESINKER_VERSION:-v1.0.0}"\n')
-        self.assertEqual(hls.read_pin(self.directory), self.pin)
+        self.assertEqual(hls.read_pin(self.directory), dict(self.pin, sha256=self.digest))
         for contents in (remote.read_text() * 2, 'HLS_VERSION="${HOOKLINESINKER_VERSION:-v0.9.0}"\n'):
             remote.write_text(contents)
             with self.assertRaisesRegex(ValueError, "version pins differ"):

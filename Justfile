@@ -61,13 +61,12 @@ stage-hooklinesinker:
 
 [positional-arguments]
 update-hooklinesinker *args:
-    @python3 scripts/update_hooklinesinker.py "$@"
+    @curtains pins update hooklinesinker "$@"
 
 check-hooklinesinker:
-    @python3 scripts/update_hooklinesinker.py --check
+    @curtains pins check hooklinesinker
 
 stage-release-hooklinesinker:
-    @python3 scripts/update_hooklinesinker.py --check
     @python3 scripts/hooklinesinker.py stage --published
 
 verify-hooklinesinker:

@@ -163,7 +163,7 @@ a failed reset leaves rows, notes and dispositions unchanged locally, even if th
 
 `sessions reset` first ships in a hooklinesinker release after 1.1.0. A Juggler build pinned to
 1.1.0 shows the CLI's usage error instead, so the pin has to be bumped
-(`just update-hooklinesinker`) before a Juggler release that includes Reset Sessions.
+(`just release` does this when a newer release is published) before a Juggler release that includes Reset Sessions.
 
 ### HookServer constraints
 
