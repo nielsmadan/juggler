@@ -707,6 +707,27 @@ struct IntegrationSettingsView: View {
                     codexController.enableInCodex()
                 }
                 .disabled(codexController.isEnablingInCodex)
+
+                HStack {
+                    Text("Shared App Server")
+                    Spacer()
+                    if codexController.sharedAppServerDisabled {
+                        Label("Disabled", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Enabled", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Text(.init(CodexSetupController.sharedAppServerCaption))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Button(codexController.sharedAppServerButtonTitle) {
+                    codexController.toggleSharedAppServer()
+                }
+                .disabled(codexController.isChangingSharedAppServer)
             }
 
             Section("Pi") {

@@ -13,7 +13,7 @@ enum CodexHooksError: LocalizedError, Equatable {
         case let .hooksUnsupported(path):
             "Codex hooks.json at \(path) has a shape Juggler can't safely edit. Fix or remove it, then retry."
         case .configUnsupported:
-            "Codex config.toml has malformed strings, brackets, or table headers. Fix it before enabling hooks."
+            "Codex config.toml has malformed strings, brackets, or table headers. Fix it, then retry."
         }
     }
 }
@@ -57,11 +57,37 @@ enum CodexHooksInstaller {
     /// the deprecated `codex_hooks` key if present. Idempotent. Preserves existing sections and
     /// keys. Backs up the pre-existing file on first modification (to <path>.juggler-backup).
     static func enableFeatureFlag(at path: String = configTOMLPath) throws {
+        try setFeature("hooks", to: true, replacingLegacyKey: "codex_hooks", at: path)
+    }
+
+    /// Returns true if the hooks feature is enabled in the [features] section.
+    /// Accepts the current `hooks` key and the deprecated `codex_hooks` alias.
+    static func isFeatureFlagEnabled(at path: String = configTOMLPath) -> Bool {
+        guard let lines = featureLines(at: path) else { return false }
+        return featureValue("hooks", in: lines) ?? featureValue("codex_hooks", in: lines) ?? false
+    }
+
+    /// Sets `[features] daemon_auto_start`. Codex 0.157+ defaults it to true, which runs every
+    /// TUI in one shared app server whose environment all hooks inherit.
+    static func setSharedAppServerEnabled(_ enabled: Bool, at path: String = configTOMLPath) throws {
+        try setFeature(sharedAppServerFeature, to: enabled, at: path)
+    }
+
+    static func isSharedAppServerDisabled(at path: String = configTOMLPath) -> Bool {
+        guard let lines = featureLines(at: path) else { return false }
+        return featureValue(sharedAppServerFeature, in: lines) == false
+    }
+
+    private static let sharedAppServerFeature = "daemon_auto_start"
+
+    private static func setFeature(
+        _ key: String, to value: Bool, replacingLegacyKey legacyKey: String? = nil, at path: String
+    ) throws {
         let fm = FileManager.default
         let existed = fm.fileExists(atPath: path)
         let original = try existed ? String(contentsOfFile: path, encoding: .utf8) : ""
 
-        let updated = try editedTOML(original: original)
+        let updated = try editedTOML(original: original, key: key, value: value, legacyKey: legacyKey)
         if updated != original {
             let backupPath = path + ".juggler-backup"
             if existed, !fm.fileExists(atPath: backupPath) {
@@ -71,29 +97,25 @@ enum CodexHooksInstaller {
         }
     }
 
-    /// Returns true if the hooks feature is enabled in the [features] section.
-    /// Accepts the current `hooks` key and the deprecated `codex_hooks` alias.
-    static func isFeatureFlagEnabled(at path: String = configTOMLPath) -> Bool {
+    private static func featureLines(at path: String) -> [String]? {
         guard let contents = try? String(contentsOfFile: path, encoding: .utf8),
               let lines = try? scannedTOMLLines(contents) else {
-            return false
+            return nil
         }
         var currentSection = ""
+        var features: [String] = []
         for (_, line) in lines {
             if line.hasPrefix("[") {
                 currentSection = String(line.dropFirst().dropLast())
-                continue
-            }
-            if currentSection == "features" {
-                if let parsed = parseBoolAssignment(line: line, key: "hooks") {
-                    return parsed
-                }
-                if let parsed = parseBoolAssignment(line: line, key: "codex_hooks") {
-                    return parsed
-                }
+            } else if currentSection == "features" {
+                features.append(line)
             }
         }
-        return false
+        return features
+    }
+
+    private static func featureValue(_ key: String, in featureLines: [String]) -> Bool? {
+        featureLines.lazy.compactMap { parseBoolAssignment(line: $0, key: key) }.first
     }
 
     static func isAutoReviewEnabled(at path: String = configTOMLPath) -> Bool {
@@ -451,17 +473,18 @@ enum CodexHooksInstaller {
 
     // MARK: - TOML helpers
 
-    private static func editedTOML(original: String) throws -> String {
+    private static func editedTOML(original: String, key: String, value: Bool, legacyKey: String?) throws -> String {
+        let assignment = "\(key) = \(value)"
         if original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "[features]\nhooks = true\n"
+            return "[features]\n\(assignment)\n"
         }
 
         let scannedLines = try scannedTOMLLines(original)
         var lines = scannedLines.map(\.raw)
         var currentSection = ""
         var featuresEnd: Int? // index *after* last line of [features] (exclusive)
-        var hooksLineIndex: Int?
-        var legacyCodexHooksLineIndex: Int?
+        var keyLineIndex: Int?
+        var legacyLineIndex: Int?
 
         for (idx, scannedLine) in scannedLines.enumerated() {
             let line = scannedLine.statement
@@ -473,11 +496,11 @@ enum CodexHooksInstaller {
                 continue
             }
             if currentSection == "features" {
-                if parseBoolAssignment(line: line, key: "hooks") != nil {
-                    hooksLineIndex = idx
+                if parseBoolAssignment(line: line, key: key) != nil {
+                    keyLineIndex = idx
                 }
-                if parseBoolAssignment(line: line, key: "codex_hooks") != nil {
-                    legacyCodexHooksLineIndex = idx
+                if let legacyKey, parseBoolAssignment(line: line, key: legacyKey) != nil {
+                    legacyLineIndex = idx
                 }
             }
         }
@@ -485,27 +508,27 @@ enum CodexHooksInstaller {
             featuresEnd = lines.count
         }
 
-        if let hooksLineIndex {
-            lines[hooksLineIndex] = "hooks = true"
-            if let legacyCodexHooksLineIndex {
-                lines.remove(at: legacyCodexHooksLineIndex)
+        if let keyLineIndex {
+            lines[keyLineIndex] = assignment
+            if let legacyLineIndex {
+                lines.remove(at: legacyLineIndex)
             }
             return joinPreservingTrailingNewline(lines: lines, original: original)
         }
 
-        if let legacyCodexHooksLineIndex {
-            lines[legacyCodexHooksLineIndex] = "hooks = true"
+        if let legacyLineIndex {
+            lines[legacyLineIndex] = assignment
             return joinPreservingTrailingNewline(lines: lines, original: original)
         }
 
         if let featuresEnd {
-            lines.insert("hooks = true", at: featuresEnd)
+            lines.insert(assignment, at: featuresEnd)
             return joinPreservingTrailingNewline(lines: lines, original: original)
         }
 
         var trailing = original
         if !trailing.hasSuffix("\n") { trailing += "\n" }
-        trailing += "\n[features]\nhooks = true\n"
+        trailing += "\n[features]\n\(assignment)\n"
         return trailing
     }
 

@@ -194,7 +194,7 @@ struct IntegrationHubView: View {
         }
         .sheet(isPresented: $showingCodexSetup) {
             CodexSetupView(isConfigured: $progress.codex, isEnabled: $codexEnabled)
-                .frame(width: 540, height: 620)
+                .frame(width: 540, height: 760)
         }
         .sheet(isPresented: $showingPiSetup) {
             PiSetupView(isConfigured: $progress.pi)
@@ -937,6 +937,23 @@ struct CodexSetupView: View {
                     + "the global Codex config; profile and command-line overrides are not detected."
             ) {
                 Toggle("Ignore Codex permission events", isOn: $codexIgnorePermissionEvents)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 8) {
+                SetupStep(
+                    isComplete: controller.sharedAppServerDisabled,
+                    title: "Separate App Server per Session (optional)",
+                    detail: "Sets features.daemon_auto_start = false in ~/.codex/config.toml"
+                )
+                Text(.init(CodexSetupController.sharedAppServerCaption))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(controller.sharedAppServerButtonTitle) {
+                    controller.toggleSharedAppServer()
+                }
+                .disabled(controller.isChangingSharedAppServer)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 

@@ -292,6 +292,63 @@ struct CodexConfigTOMLTests {
     }
 }
 
+@Suite("CodexHooksInstaller — shared app server")
+struct CodexSharedAppServerTests {
+    @Test func missingKey_readsAsEnabled() throws {
+        try withTempFile(contents: "[features]\nhooks = true\n") { path in
+            #expect(CodexHooksInstaller.isSharedAppServerDisabled(at: path) == false)
+        }
+    }
+
+    @Test func disabling_addsKeyToExistingFeatures() throws {
+        try withTempFile(contents: "model = \"gpt-5\"\n\n[features]\nhooks = true\n") { path in
+            try CodexHooksInstaller.setSharedAppServerEnabled(false, at: path)
+            #expect(readFile(path) == "model = \"gpt-5\"\n\n[features]\nhooks = true\ndaemon_auto_start = false\n")
+            #expect(CodexHooksInstaller.isSharedAppServerDisabled(at: path))
+            #expect(CodexHooksInstaller.isFeatureFlagEnabled(at: path))
+        }
+    }
+
+    @Test func disabling_missingFile_createsFeaturesSection() throws {
+        try withTempFile { path in
+            try CodexHooksInstaller.setSharedAppServerEnabled(false, at: path)
+            #expect(readFile(path) == "[features]\ndaemon_auto_start = false\n")
+        }
+    }
+
+    @Test func disabling_rewritesExplicitTrueInPlace() throws {
+        try withTempFile(contents: "[features]\ndaemon_auto_start = true # default\nhooks = true\n") { path in
+            try CodexHooksInstaller.setSharedAppServerEnabled(false, at: path)
+            #expect(readFile(path) == "[features]\ndaemon_auto_start = false\nhooks = true\n")
+        }
+    }
+
+    @Test func reenabling_setsKeyTrue() throws {
+        try withTempFile(contents: "[features]\ndaemon_auto_start = false\n") { path in
+            try CodexHooksInstaller.setSharedAppServerEnabled(true, at: path)
+            #expect(readFile(path) == "[features]\ndaemon_auto_start = true\n")
+            #expect(CodexHooksInstaller.isSharedAppServerDisabled(at: path) == false)
+        }
+    }
+
+    @Test func keyOutsideFeatures_isIgnored() throws {
+        try withTempFile(contents: "[profiles.x]\ndaemon_auto_start = false\n") { path in
+            #expect(CodexHooksInstaller.isSharedAppServerDisabled(at: path) == false)
+            try CodexHooksInstaller.setSharedAppServerEnabled(false, at: path)
+            #expect(readFile(path) ==
+                "[profiles.x]\ndaemon_auto_start = false\n\n[features]\ndaemon_auto_start = false\n")
+            #expect(CodexHooksInstaller.isSharedAppServerDisabled(at: path))
+        }
+    }
+
+    @Test func enablingHooksFlag_keepsSharedAppServerSetting() throws {
+        try withTempFile(contents: "[features]\ndaemon_auto_start = false\n") { path in
+            try CodexHooksInstaller.enableFeatureFlag(at: path)
+            #expect(readFile(path) == "[features]\ndaemon_auto_start = false\nhooks = true\n")
+        }
+    }
+}
+
 @Suite("CodexSetupController — permission event preference")
 struct CodexSetupControllerTests {
     @Test @MainActor func autoReviewDetected_defaultsPreferenceOn() throws {

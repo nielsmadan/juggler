@@ -10,9 +10,11 @@ final class CodexSetupController {
     var hooksInstalled = false
     var featureFlagEnabled = false
     var enabledInCodex = false
+    var sharedAppServerDisabled = false
     var isInstallingHooks = false
     var isEnablingFlag = false
     var isEnablingInCodex = false
+    var isChangingSharedAppServer = false
     var errorMessage: String?
 
     /// The canonical hooks.json path and per-event group indexes the CLI reports. Trust keys
@@ -28,6 +30,17 @@ final class CodexSetupController {
     }
 
     var allComplete: Bool { hooksInstalled && featureFlagEnabled && enabledInCodex }
+
+    static let sharedAppServerCaption = "Codex 0.157 and later run every session in one shared app server, "
+        + "so hooks report the terminal that started it and Juggler merges those sessions into one row. "
+        + "Disabling it gives each session its own server, but turns off codex queue and other cross-session "
+        + "messaging. Sessions keep using a running shared server until you stop it with "
+        + "`codex app-server daemon stop`, which ends the sessions attached to it. "
+        + "Alternatively, launch Codex with `codex --no-daemon`."
+
+    var sharedAppServerButtonTitle: String {
+        sharedAppServerDisabled ? "Re-enable Shared App Server" : "Disable Shared App Server"
+    }
 
     func refresh() {
         Task { await refreshAsync() }
@@ -48,6 +61,7 @@ final class CodexSetupController {
             errorMessage = error.localizedDescription
         }
         featureFlagEnabled = CodexHooksInstaller.isFeatureFlagEnabled()
+        sharedAppServerDisabled = CodexHooksInstaller.isSharedAppServerDisabled()
         enabledInCodex = CodexHooksInstaller.isEnabledInCodex(
             hooksJSONPath: hooksJSONPath, hooksInstalled: hooksInstalled, entries: hookEntries
         )
@@ -106,6 +120,20 @@ final class CodexSetupController {
             }
             await refreshAsync()
             isEnablingInCodex = false
+        }
+    }
+
+    func toggleSharedAppServer() {
+        isChangingSharedAppServer = true
+        errorMessage = nil
+        Task {
+            do {
+                try CodexHooksInstaller.setSharedAppServerEnabled(sharedAppServerDisabled)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            await refreshAsync()
+            isChangingSharedAppServer = false
         }
     }
 }

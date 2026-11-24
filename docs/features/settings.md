@@ -31,7 +31,8 @@ The Integration tab is organized into **Permissions**, **Terminals**, **Agents**
 - **Terminals**: Kitty (remote control, listen socket, watcher script), iTerm2 (Automation permission), and WezTerm (wezterm CLI status — no configuration needed).
 - **Agents**: Install or verify Claude Code hooks, the OpenCode plugin, Codex hooks (including the Codex feature flag
   and trust step), and the Pi extension. The Codex section can ignore permission events so Auto Review does not briefly
-  put sessions in the permission queue. This also hides manual Codex permission prompts.
+  put sessions in the permission queue. This also hides manual Codex permission prompts. It can also turn off Codex's
+  shared app server so each session reports its own terminal, at the cost of `codex queue`.
 - **Tools**: tmux env forwarding and an SSH Tracking guide (reverse-tunnel setup for tracking Claude Code sessions on remote hosts).
 
 ## Highlighting

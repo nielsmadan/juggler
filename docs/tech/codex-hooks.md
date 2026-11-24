@@ -10,7 +10,7 @@ Requires Codex CLI ≥ v0.114; `SessionEnd` additionally requires ≥ v0.145 (ol
 
 ## Installation
 
-Codex setup is **three separate steps** (three buttons in onboarding's Integration Hub and in Settings → Integration). They are independent and idempotent - run them in order:
+Codex setup is **three separate steps** (three buttons in onboarding's Integration Hub and in Settings → Integration), plus an optional shared app server control described below. They are independent and idempotent - run them in order:
 
 1. **Install Hooks**: `hooklinesinker hooks install --agent codex` registers all events in
    `~/.codex/hooks.json`, each calling `<promoted binary> ingest --agent codex --event <Event>`.
@@ -19,8 +19,23 @@ Codex setup is **three separate steps** (three buttons in onboarding's Integrati
 2. **Enable Feature Flag**: sets `[features] hooks = true` in `~/.codex/config.toml`. Codex ignores `hooks.json` entirely unless this flag is on.
 3. **Enable in Codex**: writes `[hooks.state]` trust records to `config.toml` so the hooks run without the manual `/hooks` review. This bypasses Codex's own trust-enabling flow; the alternative is to skip this step and run `/hooks` inside Codex to approve the hooks manually.
 
-`CodexSetupController` drives all three. Step 1 goes through `HooklinesinkerClient`; steps 2 and
-3 stay in `CodexHooksInstaller` (`Services/CodexHooksInstaller.swift`), which backs an existing
+An optional fourth control, **Disable Shared App Server**, sets `[features] daemon_auto_start =
+false` (its counterpart button sets it back to `true`). It is not part of the "configured" check.
+Codex 0.157+ defaults that feature on: every TUI becomes a thin client of one managed app server,
+and hooks run with that server's environment, snapshotted when it started. Every session then
+reports the terminal (`ITERM_SESSION_ID`, `KITTY_WINDOW_ID`, `WEZTERM_PANE`, `TMUX_PANE`) of
+whichever pane launched the server, so Juggler collapses them into one row. The hook payload
+carries no client identity, so neither hooklinesinker nor Juggler can recover the real pane
+([openai/codex#48500](https://github.com/openai/codex/issues/48500); a client-env allowlist is
+proposed in [#44902](https://github.com/openai/codex/issues/44902)).
+
+Disabling the shared server breaks `codex queue` and other cross-session messaging, which need it.
+A server that is already running keeps its sessions until `codex app-server daemon stop`, which
+ends them. Launching with `codex --no-daemon`, or any launcher that gives each session its own app
+server started from that session's pane, avoids the problem without the config change.
+
+`CodexSetupController` drives all of them. Step 1 goes through `HooklinesinkerClient`; steps 2 and
+3 and the shared app server control stay in `CodexHooksInstaller` (`Services/CodexHooksInstaller.swift`), which backs an existing
 `config.toml` up once to `<path>.juggler-backup` before its first write.
 
 **Files involved:**
