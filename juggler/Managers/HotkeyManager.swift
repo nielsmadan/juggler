@@ -102,6 +102,18 @@ final class HotkeyManager {
     }
 
     private func handleCycleBackward(wasTerminalFrontmost: Bool) async {
+        if wasTerminalFrontmost, let origin = sessionManager.cycleBackToForwardOrigin() {
+            let outcome = await activator.activate(
+                session: origin, trigger: .hotkey, policy: .explicit, presentation: .cycleUndo
+            )
+            switch outcome {
+            case .activated: return
+            case let .failed(error):
+                logError(.hotkey, "Cycle back to origin failed: \(error)")
+                return
+            case .unavailable: break
+            }
+        }
         await activateWithRetry(
             direction: "backward",
             presentation: cyclePresentation(),

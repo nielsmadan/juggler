@@ -287,6 +287,8 @@ final class SessionManager {
     private var activationToken: ActivationToken?
     private var activationFocusContextToken: UUID?
     private var lastCycleStep: (targetID: String, originID: String?)?
+    private var lastForwardCycle: (targetID: String, originID: String, at: Date)?
+    static let cycleBackUndoWindow: TimeInterval = 5
 
     struct ActivationToken: Equatable {
         fileprivate let id = UUID()
@@ -1543,6 +1545,7 @@ final class SessionManager {
         lastActiveSessionID = nil
         lastNotificationTarget = nil
         lastCycleStep = nil
+        lastForwardCycle = nil
         cyclingState = .initial
         hiddenBindings.revealAll()
         logInfo(.session, "Cleared all sessions")
@@ -1600,7 +1603,7 @@ final class SessionManager {
         lastActiveSessionID = nil
     }
 
-    func cycleForward(wasTerminalFrontmost: Bool = true) -> Session? {
+    func cycleForward(wasTerminalFrontmost: Bool = true, now: Date = Date()) -> Session? {
         let (effectiveFocusID, earlyReturn) = resolveEffectiveFocus(
             wasTerminalFrontmost: wasTerminalFrontmost, direction: "Forward"
         )
@@ -1632,11 +1635,45 @@ final class SessionManager {
         if let target = result.targetSession {
             focusedSessionID = target.id
             lastCycleStep = (target.id, effectiveFocusID)
+            lastForwardCycle = if let effectiveFocusID, effectiveFocusID != target.id {
+                (target.id, effectiveFocusID, now)
+            } else {
+                nil
+            }
+        } else {
+            lastForwardCycle = nil
         }
         return result.targetSession
     }
 
+    @MainActor
+    func cycleBackToForwardOrigin(now: Date = Date()) -> Session? {
+        guard let step = lastForwardCycle else { return nil }
+        defer { lastForwardCycle = nil }
+        guard now.timeIntervalSince(step.at) <= Self.cycleBackUndoWindow,
+              let focusedID = focusedSessionID,
+              sessions.contains(where: {
+                  ($0.id == step.targetID || $0.terminalSessionID == step.targetID)
+                      && ($0.id == focusedID || $0.terminalSessionID == focusedID)
+              }),
+              let origin = sessions.first(where: {
+                  $0.id == step.originID || $0.terminalSessionID == step.originID
+              }),
+              !origin.isHidden, origin.state != .backburner else { return nil }
+        lastActiveSessionID = nil
+        lastCycleStep = (origin.id, focusedID)
+        focusedSessionID = origin.id
+        cyclingState = cyclingEngine.syncStateToFocus(
+            sessions: sessions,
+            focusedSessionID: focusedSessionID,
+            state: cyclingState
+        )
+        advanceColorIndex(by: -1)
+        return origin
+    }
+
     func cycleBackward(wasTerminalFrontmost: Bool = true) -> Session? {
+        lastForwardCycle = nil
         let (effectiveFocusID, earlyReturn) = resolveEffectiveFocus(
             wasTerminalFrontmost: wasTerminalFrontmost, direction: "Backward"
         )

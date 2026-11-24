@@ -128,6 +128,10 @@ Sessions are grouped into sections based on state:
 
 Sectioned display applies in Fair and Prio modes; Static mode is a flat list and Grouped mode groups by terminal window.
 
+### Cycle Back Undo
+
+Within 5 seconds of a forward cycle, cycling back returns to the session you came from — even if it started working in the meantime — unless focus moved elsewhere, or the origin was hidden or backburnered.
+
 ## Backburner
 
 Backburner allows temporarily removing a session from the cycling queue without closing it.
