@@ -222,6 +222,7 @@ extension TestFixtures {
         dailyStats: DailyStatsStore? = nil,
         noteStore: SessionNoteStore? = nil,
         dispositionStore: SessionDispositionStore = SessionDispositionStore(),
+        nameStore: SessionNameStore = SessionNameStore(),
         fileID: String = #fileID,
         function: String = #function
     ) -> SessionManager {
@@ -233,6 +234,7 @@ extension TestFixtures {
             hiddenBindings: hiddenBindings
                 ?? HiddenBindingStore(defaults: TestDefaults.fresh("hidden", fileID: fileID, function: function)),
             dispositionStore: dispositionStore,
+            nameStore: nameStore,
             reducesMotion: { false }
         )
     }

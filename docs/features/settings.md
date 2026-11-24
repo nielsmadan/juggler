@@ -13,8 +13,8 @@ The Settings window is organized into tabs, each covering a distinct configurati
 - **Stats**: Enable Stats (show the busy-time chart in the Session Monitor), plus the stats-bar color: "Use cycling colors" (per-day palette colors) or a custom bar color when off.
 - **Backburner**: "Go to next session on backburner" option for rapid triage.
 - **Sessions**: "Reset Sessions..." clears every tracked session, the hooklinesinker ledger shared with other apps,
-  stale-binding suppression, and saved hidden/backburner dispositions after a confirmation. Conversation notes
-  and accumulated busy time are preserved. The list rebuilds from live activity: working sessions reappear within
+  stale-binding suppression, and saved hidden/backburner dispositions after a confirmation. Conversation notes,
+  custom names and accumulated busy time are preserved. The list rebuilds from live activity: working sessions reappear within
   seconds, idle ones the next time they run. If hooklinesinker cannot reset its ledger, the error is shown and
   Juggler clears no local rows or dispositions. Use it when the list shows sessions that are not real, for example
   two rows for one terminal pane. See [reset mechanics](../tech/hooks.md#reset-sessions).

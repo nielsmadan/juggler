@@ -28,7 +28,10 @@ enum WaitingBand: Equatable {
 
 @Observable
 final class SessionManager {
-    static let shared = SessionManager(dispositionStore: SessionDispositionStore(defaults: .standard))
+    static let shared = SessionManager(
+        dispositionStore: SessionDispositionStore(defaults: .standard),
+        nameStore: SessionNameStore(defaults: .standard)
+    )
 
     private(set) var sessions: [Session] = []
     var showsHiddenSessions = false
@@ -46,6 +49,7 @@ final class SessionManager {
     let dailyStats: DailyStatsStore
     let noteStore: SessionNoteStore
     let dispositionStore: SessionDispositionStore
+    let nameStore: SessionNameStore
 
     private let hiddenBindings: HiddenBindingStore
 
@@ -364,6 +368,7 @@ final class SessionManager {
         noteStore: SessionNoteStore = SessionNoteStore(),
         hiddenBindings: HiddenBindingStore = HiddenBindingStore(),
         dispositionStore: SessionDispositionStore = SessionDispositionStore(),
+        nameStore: SessionNameStore = SessionNameStore(),
         reducesMotion: @escaping () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     ) {
         cyclingEngine = DefaultCyclingEngine()
@@ -372,6 +377,7 @@ final class SessionManager {
         self.noteStore = noteStore
         self.hiddenBindings = hiddenBindings
         self.dispositionStore = dispositionStore
+        self.nameStore = nameStore
         lastSeenDay = Calendar.current.startOfDay(for: Date())
         Self.migrateLegacyQueueOrderModeValues(in: .standard)
     }
@@ -1050,6 +1056,7 @@ final class SessionManager {
     ) -> SessionIdentityTransition {
         let current = sessions[index].agentSessionIdentity
         let transientNote = sessions[index].note
+        let transientName = sessions[index].customName
         let transition = SessionIdentityTransition.resolve(current: current, incoming: incoming, event: event)
         switch transition {
         case .unchanged, .rejected:
@@ -1068,6 +1075,14 @@ final class SessionManager {
             } else {
                 sessions[index].note = noteStore.note(for: incoming)
             }
+            if let transientName {
+                let normalizedName = nameStore.setName(transientName, for: incoming)
+                for matchingIndex in sessions.indices where sessions[matchingIndex].noteKey == incoming {
+                    sessions[matchingIndex].customName = normalizedName
+                }
+            } else {
+                sessions[index].customName = nameStore.name(for: incoming)
+            }
         case .replaced:
             let sessionID = sessions[index].id
             if lastActiveSessionID == sessionID { lastActiveSessionID = nil }
@@ -1075,6 +1090,7 @@ final class SessionManager {
             if activationTarget == sessionID { endActivation() }
             sessions[index].replaceAgentSessionIdentity(with: incoming)
             sessions[index].note = noteStore.note(for: incoming)
+            sessions[index].customName = nameStore.name(for: incoming)
             sessions[index].disposition = dispositionStore.disposition(for: incoming)
             sessions[index].details = SessionDetails()
             sessions[index].bindingTurnObservations = [:]
@@ -1186,9 +1202,10 @@ final class SessionManager {
                          allowsAnimation: allowsAnimation)
     }
 
-    private func hydrateStoredNote(for session: inout Session) {
+    private func hydrateStoredConversationFields(for session: inout Session) {
         guard let key = session.noteKey else { return }
         session.note = noteStore.note(for: key)
+        session.customName = nameStore.name(for: key)
     }
 
     private func hydrateDisposition(
@@ -1303,7 +1320,7 @@ final class SessionManager {
             session.gitBranch = gitBranch?.isEmpty == true ? nil : gitBranch
             session.gitRepoName = gitRepoName?.isEmpty == true ? nil : gitRepoName
             session.transcriptPath = transcriptPath?.isEmpty == true ? nil : transcriptPath
-            hydrateStoredNote(for: &session)
+            hydrateStoredConversationFields(for: &session)
             session.details = detailsChange?.applied(to: session.details) ?? session.details
             session.recordBindingTurns(bindingID: bindingID, detailsChange: detailsChange)
             hydrateDisposition(for: &session, event: event, source: source, bindingID: bindingID, now: now)
@@ -1420,7 +1437,13 @@ final class SessionManager {
 
     func renameSession(terminalSessionID: String, customName: String?) {
         guard let index = sessions.firstIndex(where: { $0.id == terminalSessionID }) else { return }
-        sessions[index].customName = customName?.isEmpty == true ? nil : customName
+        let normalized = SessionNoteStore.normalize(customName)
+        sessions[index].customName = normalized
+        guard let key = sessions[index].noteKey else { return }
+        nameStore.setName(normalized, for: key)
+        for matchingIndex in sessions.indices where sessions[matchingIndex].noteKey == key {
+            sessions[matchingIndex].customName = normalized
+        }
     }
 
     @discardableResult

@@ -41,8 +41,8 @@ back from a name or note field to the menu and closes the menu itself; `Control-
 from anywhere. Command shortcuts such as `⌘Q` are ignored while it is open, apart from cut, copy, paste, select all,
 undo and redo in a field.
 
-Notes are stored with the coding-agent conversation, so resuming the same conversation restores its note. Starting a
-new conversation in the same terminal pane does not inherit the old note. If a new conversation takes over the pane
+Notes and custom names are stored with the coding-agent conversation, so resuming the same conversation restores
+them. Starting a new conversation in the same terminal pane does not inherit the old note or name. If a new conversation takes over the pane
 while the menu is open, a note still saves to the conversation the menu was opened for; the other actions report
 **"Session No Longer Available"**.
 

@@ -193,6 +193,7 @@ in the popover; the other Session List bindings are shared. The monitor's shortc
 ### Rename
 
 - Click the trailing pencil button on a row, or use the Rename shortcut.
+- Custom names persist when the same coding-agent conversation is resumed and apply to every row of that conversation, like notes.
 
 ### Notes
 

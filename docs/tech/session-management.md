@@ -61,6 +61,8 @@ Notes are durable per agent conversation, not per terminal row. `SessionNoteStor
 `(agent, agentSessionID)`, so resuming the same conversation restores its note even when it appears in another pane.
 All live rows for that pair stay synchronized. When a different `agentSessionID` takes over an existing pane, the row
 loads that conversation's own stored note (or no note) instead of inheriting the previous conversation's note.
+Custom names follow the same rules, stored by `SessionNameStore` under the same key and applied to every row of
+the conversation.
 
 Conversation ownership changes only on agent-specific start or prompt events. Later lifecycle events from a previous
 conversation are ignored instead of replacing the pane's current identity or state. Removal events compare the agent

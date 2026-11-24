@@ -8,6 +8,7 @@ nonisolated enum AppStorageKeys {
     static let hasCompletedOnboarding = "hasCompletedOnboarding"
     static let sessionTitleMode = "sessionTitleMode"
     static let sessionNotes = "sessionNotes"
+    static let sessionCustomNames = "sessionCustomNames"
     static let sessionDispositions = "sessionDispositions"
     static let controlBarHintDismissed = "controlBarHintDismissed"
 
