@@ -31,7 +31,7 @@ background, so the terminal keeps focus once the menu closes.
 | Action | Default key | Effect |
 |--------|-------------|--------|
 | Prio | `Y` | Toggles prio and closes. Fair mode only; disabled in the other modes. |
-| Hide | `E` | Toggles hidden and closes. |
+| Hide | `E` | Toggles hidden and closes. Hiding activates the next waiting session (or shows "All At Work" when none remain); unhiding never activates. |
 | Rename | `R` | Opens a name field; `Return` saves, **Clear** removes the custom name. |
 | Note | `M` | Opens a note field; `Return` saves. |
 

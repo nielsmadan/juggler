@@ -128,7 +128,7 @@ final class InteractionFixture {
                     "The Session Menu needs an executable Backburner action"
                 )
             }
-            try performMenuAction(action, on: menu)
+            try await performMenuAction(action, on: menu)
         case .global:
             try #require(removal == .backburner, "Only Backburner has a global removal shortcut")
             try #require(manager.focusedCommandSession?.id == name)
@@ -148,7 +148,7 @@ final class InteractionFixture {
             try #require(focusedSession == nil, "Open the monitor before changing priority")
             monitor.togglePrioritized(sessionID: name, mode: mode, sessionManager: manager)
         case .hud:
-            try performMenuAction(.prio, on: makeMenu(name))
+            try await performMenuAction(.prio, on: makeMenu(name))
         case .global:
             Issue.record("There is no global priority shortcut")
         }
@@ -274,14 +274,15 @@ final class InteractionFixture {
     }
 
     private lazy var hud = SessionMenuManager(
-        sessionManager: manager, queueOrderMode: { [mode] in mode },
+        sessionManager: manager, queueOrderMode: { [mode] in mode }, activator: activator,
         showBeacon: { [effects] in effects.beacons.append($0) }, presentationHandler: { _ in }
     )
 
-    private func performMenuAction(_ action: SessionRowAction, on menu: SessionMenuController) throws {
+    private func performMenuAction(_ action: SessionRowAction, on menu: SessionMenuController) async throws {
         try #require(SessionMenuController.actions.contains(action))
         try #require(menu.isAvailable(action))
         menu.perform(action)
+        await menu.pendingActivation?.value
     }
 
     private func makeMenu(_ name: String) throws -> SessionMenuController {

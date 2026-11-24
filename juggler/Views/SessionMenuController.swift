@@ -24,8 +24,10 @@ final class SessionMenuController {
     let sessionName: String
     private(set) var mode: Mode = .menu
     private(set) var isClosed = false
+    private(set) var pendingActivation: Task<Void, Never>?
     private let sessionManager: SessionManager
     private let queueOrderMode: () -> QueueOrderMode
+    private let activator: SessionActivator
     private let showBeacon: (String) -> Void
     private let onClose: (SessionMenuController) -> Void
 
@@ -34,6 +36,7 @@ final class SessionMenuController {
         sessionName: String,
         sessionManager: SessionManager,
         queueOrderMode: @escaping () -> QueueOrderMode,
+        activator: SessionActivator,
         showBeacon: @escaping (String) -> Void,
         onClose: @escaping (SessionMenuController) -> Void
     ) {
@@ -41,6 +44,7 @@ final class SessionMenuController {
         self.sessionName = sessionName
         self.sessionManager = sessionManager
         self.queueOrderMode = queueOrderMode
+        self.activator = activator
         self.showBeacon = showBeacon
         self.onClose = onClose
     }
@@ -70,8 +74,17 @@ final class SessionMenuController {
             sessionManager.toggleSessionPrioritized(sessionID: session.id)
             close()
         case .hide:
+            let wasHidden = session.isHidden
             sessionManager.toggleSessionHidden(sessionID: session.id)
             close()
+            guard !wasHidden else { return }
+            let sessionID = session.id
+            sessionManager.prepareJump(afterSendingOff: sessionID)
+            pendingActivation = Task { [sessionManager, activator] in
+                _ = await activator.activateFirstAvailable(trigger: .hotkey, presentation: .hideAdvance) {
+                    sessionManager.focusNextSession(afterSendingOff: sessionID)
+                }
+            }
         case .rename:
             mode = .rename
         case .note:

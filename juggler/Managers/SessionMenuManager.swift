@@ -54,6 +54,7 @@ final class SessionMenuManager: NSObject, NSWindowDelegate {
     private let sessionManager: SessionManager
     private let queueOrderMode: () -> QueueOrderMode
     private let titleMode: () -> SessionTitleMode
+    private let activator: SessionActivator
     private let showBeacon: (String) -> Void
     private let presentationHandler: PresentationHandler?
 
@@ -61,12 +62,14 @@ final class SessionMenuManager: NSObject, NSWindowDelegate {
         sessionManager: SessionManager = .shared,
         queueOrderMode: @escaping () -> QueueOrderMode = { .stored() },
         titleMode: @escaping () -> SessionTitleMode = { .stored() },
+        activator: SessionActivator = .shared,
         showBeacon: @escaping (String) -> Void = { BeaconManager.shared.show(sessionName: $0, force: true) },
         presentationHandler: PresentationHandler? = nil
     ) {
         self.sessionManager = sessionManager
         self.queueOrderMode = queueOrderMode
         self.titleMode = titleMode
+        self.activator = activator
         self.showBeacon = showBeacon
         self.presentationHandler = presentationHandler
         super.init()
@@ -102,6 +105,7 @@ final class SessionMenuManager: NSObject, NSWindowDelegate {
             sessionName: sessionManager.disambiguatedDisplayName(for: session, titleMode: titleMode()),
             sessionManager: sessionManager,
             queueOrderMode: queueOrderMode,
+            activator: activator,
             showBeacon: showBeacon,
             onClose: { [weak self] in self?.controllerDidClose($0) }
         )

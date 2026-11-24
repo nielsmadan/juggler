@@ -119,9 +119,7 @@ before proceeding and fail explicitly when it is missing. There is no global
 priority shortcut; priority source tests cover HUD and monitor. These are
 capability boundaries, not substitutes for the missing interactions.
 
-Before implementing Session Menu activation, inject the fixture's activator into
-that workflow and expose completion that the tests can await. Its current actions
-are synchronous and perform no activation. The fixture's automatic-request delivery
-does not await future menu-owned tasks; a shared activator or detached task would
-bypass its recorded terminal effects. Add that boundary together with the actions
-that use it, keeping real terminal I/O confined to the bridge.
+The Session Menu takes an injected activator and exposes `pendingActivation`, which
+the fixture awaits after each menu action, keeping real terminal I/O confined to
+the bridge. The menu's Hide action uses that boundary to activate the next session;
+its other actions stay synchronous.

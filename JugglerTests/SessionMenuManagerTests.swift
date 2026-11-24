@@ -39,6 +39,7 @@ struct SessionMenuManagerTests {
     private func menu(
         _ sessionManager: SessionManager,
         mode: QueueOrderMode = .fair,
+        activator: SessionActivator? = nil,
         beacons: @escaping (String) -> Void = { _ in },
         presented: @escaping (SessionMenuController) -> Void = { _ in }
     ) -> SessionMenuManager {
@@ -46,6 +47,11 @@ struct SessionMenuManagerTests {
             sessionManager: sessionManager,
             queueOrderMode: { mode },
             titleMode: { .default },
+            activator: activator ?? SessionActivator(
+                sessionManager: sessionManager,
+                registry: TerminalBridgeRegistry(),
+                presentBeacon: { _, _, _, _ in }
+            ),
             showBeacon: beacons,
             presentationHandler: presented
         )
@@ -354,6 +360,61 @@ struct SessionMenuManagerTests {
 
         #expect(beacons == ["Session No Longer Available"])
         #expect(menu.controller == nil)
+    }
+
+    @Test func hidingActivatesTheFirstRemainingSession() async throws {
+        let sessionManager = focusedManager([session("a"), session("b"), session("c")], focused: "b")
+        let registry = TerminalBridgeRegistry()
+        let bridge = SessionActivatorMockBridge()
+        await registry.register(bridge, for: .iterm2)
+        let activator = SessionActivator(
+            sessionManager: sessionManager, registry: registry, presentBeacon: { _, _, _, _ in }
+        )
+        let controller = try openController(menu(sessionManager, activator: activator))
+
+        controller.perform(.hide)
+        await controller.pendingActivation?.value
+
+        #expect(sessionManager.sessions.first { $0.id == "b" }?.isHidden == true)
+        #expect(await bridge.recordedActivationCalls() == ["a"])
+    }
+
+    @Test func hidingTheLastSessionReportsAllAtWork() async throws {
+        let sessionManager = focusedManager([session("a")], focused: "a")
+        let registry = TerminalBridgeRegistry()
+        let bridge = SessionActivatorMockBridge()
+        await registry.register(bridge, for: .iterm2)
+        var beacons: [String] = []
+        let activator = SessionActivator(
+            sessionManager: sessionManager, registry: registry,
+            presentBeacon: { title, _, _, _ in beacons.append(title) }
+        )
+        let controller = try openController(menu(sessionManager, activator: activator))
+
+        controller.perform(.hide)
+        await controller.pendingActivation?.value
+
+        #expect(beacons == ["All At Work"])
+        #expect(await bridge.recordedActivationCalls().isEmpty)
+    }
+
+    @Test func unhidingDoesNotActivate() async throws {
+        var hidden = session("b")
+        hidden.disposition.isHidden = true
+        let sessionManager = focusedManager([session("a"), hidden], focused: "b")
+        let registry = TerminalBridgeRegistry()
+        let bridge = SessionActivatorMockBridge()
+        await registry.register(bridge, for: .iterm2)
+        let activator = SessionActivator(
+            sessionManager: sessionManager, registry: registry, presentBeacon: { _, _, _, _ in }
+        )
+        let controller = try openController(menu(sessionManager, activator: activator))
+
+        controller.perform(.hide)
+
+        #expect(sessionManager.sessions.first { $0.id == "b" }?.isHidden == false)
+        #expect(controller.pendingActivation == nil)
+        #expect(await bridge.recordedActivationCalls().isEmpty)
     }
 
     @Test func infoLinesListTheSessionDetailsWithoutRepeatingTheFolder() {
