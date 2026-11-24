@@ -10,6 +10,7 @@ nonisolated enum AppStorageKeys {
     static let sessionNotes = "sessionNotes"
     static let sessionCustomNames = "sessionCustomNames"
     static let sessionDispositions = "sessionDispositions"
+    static let restoreRunningSessionsAtLaunch = "restoreRunningSessionsAtLaunch"
     static let controlBarHintDismissed = "controlBarHintDismissed"
 
     static let queueOrderMode = "queueOrderMode"

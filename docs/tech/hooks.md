@@ -116,7 +116,8 @@ has a shell script reading `$ITERM_SESSION_ID` and friends for these agents.
 
 `JugglerApp` starts the hook server, then calls `sessions --json` once and replays every
 `running` record through the same `handleStatus` path HTTP uses. That is what makes sessions
-which started before Juggler launched appear. Records whose binding already arrived live in
+which started before Juggler launched appear. With "Restore running sessions at launch" off in
+Settings, the replay is skipped and those sessions appear on their next hook event. Records whose binding already arrived live in
 that startup window are skipped, so nothing is doubled and a session that ended between the
 snapshot and the replay is not resurrected.
 

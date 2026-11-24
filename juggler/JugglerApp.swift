@@ -93,6 +93,7 @@ struct JugglerApp: App {
             AppStorageKeys.autoAdvanceOnBusy: false,
             AppStorageKeys.autoRestartOnIdle: false,
             AppStorageKeys.prioritizePermissionSessions: false,
+            AppStorageKeys.restoreRunningSessionsAtLaunch: true,
             "useCyclingColors": true,
             "useTerminalCyclingColors": true,
             AppStorageKeys.iterm2Enabled: true,
@@ -196,6 +197,13 @@ private func registerStatusConsumer() async {
 /// Replays sessions that were already running before launch. Always called — even on failure —
 /// so `HookServer` stops tracking pre-hydration bindings.
 private func hydrateRunningSessions() async {
+    guard UserDefaults.standard.bool(forKey: AppStorageKeys.restoreRunningSessionsAtLaunch) else {
+        await HookServer.shared.hydrate([])
+        await MainActor.run {
+            logInfo(.hooks, "Skipped restoring running sessions (disabled in Settings)")
+        }
+        return
+    }
     do {
         let sessions = try await HooklinesinkerClient.shared.sessions()
         await HookServer.shared.hydrate(from: sessions)

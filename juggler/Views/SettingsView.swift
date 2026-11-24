@@ -53,6 +53,7 @@ struct GeneralSettingsView: View {
     @AppStorage(AppStorageKeys.quitOnMonitorClose) private var quitOnMonitorClose = false
     @AppStorage(AppStorageKeys.sessionTitleMode) private var sessionTitleMode: String = SessionTitleMode
         .default.rawValue
+    @AppStorage(AppStorageKeys.restoreRunningSessionsAtLaunch) private var restoreRunningSessionsAtLaunch = true
     @AppStorage(AppStorageKeys.notifyOnIdle) private var notifyOnIdle = true
     @AppStorage(AppStorageKeys.notifyOnPermission) private var notifyOnPermission = true
     @AppStorage(AppStorageKeys.playSound) private var playSound = false
@@ -223,6 +224,11 @@ struct GeneralSettingsView: View {
             }
 
             Section("Sessions") {
+                SettingWithDescription(
+                    description: "Load sessions that were already running when Juggler starts. When off, they appear on their next hook event. Applies at next launch."
+                ) {
+                    Toggle("Restore running sessions at launch", isOn: $restoreRunningSessionsAtLaunch)
+                }
                 Text(
                     "Clears every tracked session and rebuilds the list from live activity. Working sessions reappear within seconds; idle sessions reappear the next time they run."
                 )
