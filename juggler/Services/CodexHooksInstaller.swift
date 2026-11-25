@@ -521,7 +521,10 @@ enum CodexHooksInstaller {
             return joinPreservingTrailingNewline(lines: lines, original: original)
         }
 
-        if let featuresEnd {
+        if var featuresEnd {
+            while featuresEnd > 0, lines[featuresEnd - 1].trimmingCharacters(in: .whitespaces).isEmpty {
+                featuresEnd -= 1
+            }
             lines.insert(assignment, at: featuresEnd)
             return joinPreservingTrailingNewline(lines: lines, original: original)
         }
