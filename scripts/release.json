@@ -31,7 +31,8 @@
   "stages": [
     {
       "files": [
-        "Juggler.xcodeproj/project.pbxproj"
+        "Juggler.xcodeproj/project.pbxproj",
+        "juggler/Views/SettingsView.swift"
       ],
       "commands": [
         [
@@ -39,16 +40,7 @@
           "scripts/prepare_release.py",
           "version",
           "{version}"
-        ]
-      ],
-      "message": "chore: release {version}"
-    },
-    {
-      "files": [
-        "juggler/Views/SettingsView.swift",
-        "scripts/install-remote.sh"
-      ],
-      "commands": [
+        ],
         [
           "python3",
           "scripts/prepare_release.py",
@@ -56,7 +48,7 @@
           "{revision}"
         ]
       ],
-      "message": "chore: pin release installer"
+      "message": "chore: release {version}"
     }
   ],
   "name": "Juggler",

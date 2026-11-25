@@ -7,8 +7,6 @@
 #   curl -fsSL https://raw.githubusercontent.com/nielsmadan/juggler/<revision>/scripts/install-remote.sh |
 #       JUGGLER_SINK=http://127.0.0.1:7483/hook bash
 #
-# `just release` advances the default revision to an immutable release-preparation commit.
-#
 # The remote host reaches Juggler's HTTP sink over your ssh tunnel, so forward the port:
 #   ssh -R 7483:localhost:7483 <host>
 
@@ -17,12 +15,11 @@ set -e
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-REVISION="${JUGGLER_REVISION:-103a47184b046dbbe0aee9aeb64a8e311474d392}"
 HLS_VERSION="${HOOKLINESINKER_VERSION:-v1.5.2}"
 HLS_BASE="${HOOKLINESINKER_BASE_URL:-https://github.com/nielsmadan/hooklinesinker/releases/download/$HLS_VERSION}"
 SINK="${JUGGLER_SINK:-http://127.0.0.1:7483/hook}"
 
-echo "Juggler remote installer (revision $REVISION)"
+echo "Juggler remote installer"
 
 case "$(uname -s)/$(uname -m)" in
     Darwin/arm64 | Darwin/x86_64) ARTIFACT="hooklinesinker-macos-universal" ;;

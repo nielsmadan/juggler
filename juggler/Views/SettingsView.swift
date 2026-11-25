@@ -1240,7 +1240,7 @@ struct SSHSettingsView: View {
             .appendingPathComponent(".ssh/config").path
     }
 
-    // `just release` advances this to an immutable release-preparation commit.
+    // `just release` sets this to the release commit's parent, whose installer is identical.
     private static let installRevision = "103a47184b046dbbe0aee9aeb64a8e311474d392"
     private var installOneLiner: String {
         RemoteSetupSnippets.installOneLiner(

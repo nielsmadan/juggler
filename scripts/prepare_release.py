@@ -24,8 +24,5 @@ elif action == "revision":
         r'installRevision = "[0-9a-f]{40}"',
         f'installRevision = "{value}"',
     )
-    replace(
-        "scripts/install-remote.sh", r"JUGGLER_REVISION:-[0-9a-f]{40}", f"JUGGLER_REVISION:-{value}"
-    )
 else:
     raise SystemExit(f"Unknown preparation step: {action}")

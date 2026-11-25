@@ -7,12 +7,11 @@ from pathlib import Path
 
 
 class PreparationTests(unittest.TestCase):
-    def test_updates_build_versions_and_both_installer_pins(self):
+    def test_updates_build_versions_and_the_installer_revision(self):
         root = Path(__file__).resolve().parent.parent
         files = [
             "Juggler.xcodeproj/project.pbxproj",
             "juggler/Views/SettingsView.swift",
-            "scripts/install-remote.sh",
         ]
         with tempfile.TemporaryDirectory() as temporary:
             checkout = Path(temporary)
@@ -32,7 +31,6 @@ class PreparationTests(unittest.TestCase):
             self.assertTrue(versions)
             self.assertEqual(set(versions), {"9.8.7"})
             self.assertIn(f'installRevision = "{revision}"', (checkout / files[1]).read_text())
-            self.assertIn(f"JUGGLER_REVISION:-{revision}", (checkout / files[2]).read_text())
 
 
 if __name__ == "__main__":

@@ -28,16 +28,14 @@ includes Xcode tests and can launch the test host app.
 
 Before confirmation, checks fetch and verify the published Hooklinesinker artifact, then run
 `just check`. A missing or draft Hooklinesinker release stops the command before any version
-commit or tag is created. Immediately before confirmation, the command checks for a newer
-published HLS release and warns with the update command. The warning also appears during direct
-archives and in the release workflow. It leaves the pins unchanged and allows the release to
-continue; an unavailable update service produces a warning as well.
+commit or tag is created. The preview lists a newer published HLS release, which the release
+adopts first (see [Updating HLS](#updating-hls)).
 
-After confirmation, preparation commits the new Xcode marketing version, then commits both
-installer revision pins pointing to that version commit. This gives the installer an immutable
-source revision containing the new version. Curtains atomically pushes `main` and its annotated
-tag, then prints workflow and release links and finishes. Publication runs asynchronously; local
-success confirms the Git push. GitHub builds, signs, notarizes, publishes the ZIP/DMG, updates the
+After confirmation, preparation commits the new Xcode marketing version together with the SSH
+tab's installer revision, which points at the release commit's parent. That commit is immutable
+once pushed and carries the same `scripts/install-remote.sh` as the release. Curtains atomically
+pushes `main` and its annotated tag, then prints workflow and release links and finishes.
+Publication runs asynchronously; local success confirms the Git push. GitHub builds, signs, notarizes, publishes the ZIP/DMG, updates the
 Homebrew cask, and updates the Sparkle appcast. The workflow installs curtains through the
 `nielsmadan/curtaincall` action: `curtains ci validate-tag` checks that the pushed tag is annotated
 and on `main` before the build, `curtains ci previous-tag` picks the tag the release notes compare
