@@ -100,6 +100,7 @@ All shortcuts are customizable in Settings.
 In the Session Monitor, `E` hides or unhides the selected conversation and `⌘E` toggles **Show Hidden**.
 The top-bar eye also toggles Show Hidden; each row has a Hide/Unhide action at its right edge.
 Revealed hidden rows are dimmed with an eye-slash marker and can still be opened by click or `Return`.
+A hidden session you click into is listed temporarily while you work in it.
 Show Hidden also affects the popover, and starts off each time Juggler launches. These two shortcuts apply only
 in the monitor. `Y` marks the selected conversation as prio: in Fair mode it then jumps the queue whenever it starts
 waiting. Settings lets you pick up to three row action buttons (Rename, Note, Hide, Prio) or none.

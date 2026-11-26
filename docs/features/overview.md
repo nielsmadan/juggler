@@ -20,7 +20,7 @@ Juggler monitors Claude Code, OpenCode, Codex, Pi, and Antigravity sessions runn
 2. **Menu bar popover** shows listed sessions with their current state
 3. **Global hotkeys** cycle through sessions needing attention (idle/permission)
 4. **Backburner queue** allows deprioritizing sessions you want to ignore temporarily
-5. **[Hide](main-window.md#hide-and-show-hidden)** keeps conversations tracked without listing, cycling or notifications
+5. **[Hide](main-window.md#hide-and-show-hidden)** keeps conversations tracked without listing (except while you are in one), cycling or notifications
 
 ## Session States
 

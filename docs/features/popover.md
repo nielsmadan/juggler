@@ -48,7 +48,8 @@ The currently active / keyboard-selected row is shown with a highlight backgroun
 
 The list shares [Show Hidden](main-window.md#hide-and-show-hidden) with the monitor. It defaults off each launch;
 when on, hidden rows retain their order, render dimmed with a passive eye-slash marker, and permit explicit click
-or `Return` activation. Each time the popover opens it selects the actual focused listed row when there is one. Hide/Unhide
+or `Return` activation. A hidden session you are focused in is listed temporarily, as in the
+[monitor](main-window.md#hide-and-show-hidden). Each time the popover opens it selects the actual focused listed row when there is one. Hide/Unhide
 (`E`) and Show Hidden (`⌘E`) are monitor-only; the popover has no controls or bindings for them.
 
 The popover grows with its rows up to `MenuBarLayout.sessionListMaxHeight`, then the list scrolls. Opening the popover, keyboard navigation and reordering scroll the selected row into view.
@@ -124,7 +125,7 @@ When no sessions are tracked:
 └──────────────────────────────────────┘
 ```
 
-When every tracked row is hidden and Show Hidden is off, the popover instead shows **"All Sessions Hidden"**
+When every tracked row is hidden, Show Hidden is off and no hidden session is focused, the popover instead shows **"All Sessions Hidden"**
 with **"Turn on Show Hidden in Session Monitor to see these sessions."**
 
 ---

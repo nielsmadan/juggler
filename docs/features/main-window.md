@@ -1,6 +1,6 @@
 # Session Monitor Window
 
-The Session Monitor is a standalone window providing an expanded view of tracked sessions with additional details and statistics. Hidden sessions are omitted until Show Hidden is enabled.
+The Session Monitor is a standalone window providing an expanded view of tracked sessions with additional details and statistics. Hidden sessions are omitted until Show Hidden is enabled, except while you are working in one.
 
 - [Opening the window](#opening-the-window)
 - [Layout](#layout)
@@ -134,6 +134,14 @@ with the popover for this launch and defaults off at the next launch. It is not 
 When hiding removes the selection, selection moves to the next remaining row in rendered order, then the previous
 one if there is no next row; an empty list clears selection. Turning Show Hidden off also repairs selection.
 Focus synchronization prefers the actual focused row when it is listed, including a revealed hidden row.
+
+Clicking into a hidden session's terminal pane lists that row temporarily, so it can be highlighted and
+selected without turning on Show Hidden. It stays listed while focus stays in that pane, including while the
+monitor or another app is frontmost, and drops out when focus moves to another pane. Hiding the row you are in
+removes it until you focus another pane and come back. Only live focus from iTerm2 and kitty reveals a row
+(WezTerm sends no focus events), and a terminal pane hosting several tracked tmux sessions reveals none of
+them. A temporarily listed row is still hidden for cycling, automatic activation, notifications and global
+commands.
 
 ### Row details
 

@@ -104,8 +104,21 @@ metadata, turn durations and busy-time commits continue. `Session.isCycleEligibl
 `SessionState.isIncludedInCycle` with `!isHidden`; keep the state-only predicate where the prior state is
 needed, such as Antigravity backburner wake logic.
 
-`SessionManager.listedSessions` applies the launch-scoped `showsHiddenSessions` flag, initially false. Both
-views, their selection/navigation, empty states and name disambiguation use that projection. Revealed hidden
+`SessionManager.listedSessions` applies the launch-scoped `showsHiddenSessions` flag, initially false, and
+adds `revealedHiddenSessionID`. Both views, their selection/navigation, empty states and name disambiguation
+use that projection.
+
+`revealedHiddenSessionID` is derived, not stored. `focusGeneration` increments on every `focusedSessionID`
+change; a live focus event (`updateFocusedSession` with a `focusTerminalType`, sent only by the iTerm2 daemon
+and kitty watcher) records the generation and terminal type it confirmed, and `reconcileFocus(forNewSession:)`
+carries that across its bare-UUID → full-id refinement, so a hidden conversation resumed in the focused pane is
+revealed. Internal focus calls pass no type and reveal nothing. The focus must match exactly one session of the
+live event's terminal, so a pane hosting several tmux sessions reveals none. Hiding a focused row records a
+`HideSuppression` for the current generation: repeated focus events for the same pane keep it out, focusing
+elsewhere and back reveals it again. The monitor selects the revealed row when it appears without a
+`focusedSessionID` change. Revealing is display-only; cycling, automation, notifications and
+`focusedCommandSession` still treat the row as hidden. Suffix matching against focus ids requires iTerm2's
+`:` delimiter (`w1t0p0:UUID`), so a kitty window id never matches a longer one. Revealed hidden
 rows retain their normal section/order. Stats intentionally read raw `sessions` instead. A focused hidden row
 remains a valid focus anchor for cycling away; an unfocused hidden busy anchor is cleared, including when
 transient-to-stable hydration discovers persisted Hide.

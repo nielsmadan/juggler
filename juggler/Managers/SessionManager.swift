@@ -37,8 +37,38 @@ final class SessionManager {
     var showsHiddenSessions = false
 
     var listedSessions: [Session] {
-        sessions.filter { showsHiddenSessions || !$0.isHidden }
+        let showsHidden = showsHiddenSessions
+        let revealedID = revealedHiddenSessionID
+        return sessions.filter { showsHidden || !$0.isHidden || $0.id == revealedID }
     }
+
+    var revealedHiddenSessionID: String? {
+        guard let liveFocus, liveFocus.generation == focusGeneration else { return nil }
+        let focused = sessions.filter(isFocused)
+        guard focused.count == 1, let session = focused.first, session.isHidden,
+              session.terminalType == liveFocus.terminalType,
+              !isRevealSuppressed(session.id) else { return nil }
+        return session.id
+    }
+
+    private func isRevealSuppressed(_ sessionID: String) -> Bool {
+        guard let hideSuppression, hideSuppression.generation == focusGeneration else { return false }
+        return hideSuppression.sessionIDs.contains(sessionID)
+    }
+
+    private struct LiveFocus: Equatable {
+        let generation: Int
+        let terminalType: TerminalType
+    }
+
+    private struct HideSuppression: Equatable {
+        let generation: Int
+        var sessionIDs: Set<String>
+    }
+
+    private var focusGeneration = 0
+    private var liveFocus: LiveFocus?
+    private var hideSuppression: HideSuppression?
 
     var listEmptyState: SessionListEmptyState? {
         if sessions.isEmpty { return .noSessions }
@@ -92,7 +122,10 @@ final class SessionManager {
     // Resolved by updateFocusedSession to a session's terminalSessionID or composite id.
     private(set) var focusedSessionID: String? {
         didSet {
-            if focusedSessionID != oldValue { automationContextToken = UUID() }
+            if focusedSessionID != oldValue {
+                automationContextToken = UUID()
+                focusGeneration &+= 1
+            }
         }
     }
 
@@ -189,7 +222,7 @@ final class SessionManager {
         switch request.kind {
         case .advance:
             return (source.state == .working || source.state == .compacting)
-                && (focusedSessionID == source.id || focusedSessionID == source.terminalSessionID)
+                && isFocused(source)
                 && (lastActiveSessionID == nil || lastActiveSessionID == source.id)
         case .restart:
             return source.isCycleEligible
@@ -248,7 +281,7 @@ final class SessionManager {
     }
 
     var isListedSessionFocused: Bool {
-        isSessionFocused && (showsHiddenSessions || !isFocusedSessionHidden)
+        isSessionFocused && listedSessions.contains(where: isFocused)
     }
 
     var focusedTrackedSession: Session? {
@@ -256,10 +289,7 @@ final class SessionManager {
               let focusedSessionID,
               let frontmostTerminalType = frontmostTerminalTypeProvider()
         else { return nil }
-        let matches = sessions.filter {
-            $0.terminalType == frontmostTerminalType
-                && ($0.id == focusedSessionID || $0.terminalSessionID == focusedSessionID)
-        }
+        let matches = sessions.filter { $0.terminalType == frontmostTerminalType && isFocused($0) }
         guard matches.count == 1, let match = matches.first else { return nil }
         if let liveHostPaneID = match.liveHostPaneID {
             let liveMatches = sessions.filter {
@@ -273,7 +303,7 @@ final class SessionManager {
     /// No auto-advance flag check needed: the `lastActiveSessionID` anchor is only ever
     /// set while auto-advance is off — see `applyStateChange`.
     var currentReferenceSessionID: String? {
-        guard !isFocusedSessionHidden else { return nil }
+        if isFocusedSessionHidden { return isSessionFocused ? revealedHiddenSessionID : nil }
         if let lastActive = lastActiveSessionID, sessions.contains(where: { $0.id == lastActive && !$0.isHidden }) {
             return lastActive
         }
@@ -575,7 +605,7 @@ final class SessionManager {
                                           let session = sessions.first(where: { $0.id == sessionID }) {
                 session.id == fid
                     || session.terminalSessionID == fid
-                    || session.terminalSessionID.hasSuffix(fid)
+                    || session.terminalSessionID.hasSuffix(":\(fid)")
             } else {
                 false
             }
@@ -758,18 +788,20 @@ final class SessionManager {
         sessions.filter(\.isCycleEligible)
     }
 
-    var isFocusedSessionHidden: Bool {
+    private var isFocusedSessionHidden: Bool {
+        sessions.contains { $0.isHidden && isFocused($0) }
+    }
+
+    private func isFocused(_ session: Session) -> Bool {
         guard let focusedSessionID else { return false }
-        return sessions.contains {
-            $0.isHidden && ($0.id == focusedSessionID || $0.terminalSessionID == focusedSessionID)
-        }
+        return session.id == focusedSessionID || session.terminalSessionID == focusedSessionID
     }
 
     var focusedCommandSession: Session? {
         guard isTerminalAppActive, let focusedSessionID, !isFocusedSessionHidden else { return nil }
         let matches = sessions.filter {
             $0.id == focusedSessionID || $0.terminalSessionID == focusedSessionID
-                || $0.terminalSessionID.hasSuffix(focusedSessionID)
+                || $0.terminalSessionID.hasSuffix(":\(focusedSessionID)")
         }
         return matches.first(where: \.isCycleEligible) ?? matches.first
     }
@@ -793,7 +825,7 @@ final class SessionManager {
         if let focusedID = focusedSessionID,
            let session = cyclable.first(where: {
                $0.id == focusedID || $0.terminalSessionID == focusedID
-                   || $0.terminalSessionID.hasSuffix(focusedID)
+                   || $0.terminalSessionID.hasSuffix(":\(focusedID)")
            }) {
             return session
         }
@@ -812,7 +844,7 @@ final class SessionManager {
         }
         return onlySession.id == activeID
             || onlySession.terminalSessionID == activeID
-            || onlySession.terminalSessionID.hasSuffix(activeID)
+            || onlySession.terminalSessionID.hasSuffix(":\(activeID)")
     }
 
     @MainActor
@@ -923,7 +955,8 @@ final class SessionManager {
         // focus events tagged with their source terminal (iTerm2 daemon / kitty watcher);
         // internal focus-reconciliation calls pass a nil type and must not feed the
         // binding, since they carry stored — possibly stale — ids. Empty ids are ignored,
-        // and a nil event (focus cleared) leaves the last known handle in place.
+        // and a nil event (focus cleared) leaves the last known handle in place. Live events
+        // also let a focused hidden session be listed (see revealedHiddenSessionID).
         if let type = focusTerminalType, let newID = terminalSessionID, !newID.isEmpty {
             lastFocusedLocalPaneByTerminal[type] = newID
         }
@@ -936,7 +969,8 @@ final class SessionManager {
                 newID
             } else if let session = sessions.first(where: { $0.liveHostPaneID == newID }) {
                 session.id
-            } else if let session = sessions.first(where: { $0.terminalSessionID.hasSuffix(newID) }) {
+            } else if !newID.isEmpty,
+                      let session = sessions.first(where: { $0.terminalSessionID.hasSuffix(":\(newID)") }) {
                 session.terminalSessionID
             } else {
                 newID
@@ -966,6 +1000,9 @@ final class SessionManager {
         }
 
         focusedSessionID = resolved
+        if let focusTerminalType {
+            liveFocus = LiveFocus(generation: focusGeneration, terminalType: focusTerminalType)
+        }
         clearUnfocusedHiddenAnchor()
         if preservesFocusCommit { activationFocusContextToken = automationContextToken }
 
@@ -1151,6 +1188,7 @@ final class SessionManager {
             if disposition.isHidden, !sessions[index].isHidden {
                 invalidateDeferredWork(at: index)
                 if lastActiveSessionID == id { lastActiveSessionID = nil }
+                if isFocused(sessions[index]) { suppressReveal(of: id) }
             }
             let wasPrioritized = sessions[index].isPrioritized
             sessions[index].disposition = disposition
@@ -1370,19 +1408,25 @@ final class SessionManager {
     /// the session's id, then re-sync the cycling cursor to that focus.
     @MainActor
     private func reconcileFocus(forNewSession session: Session) {
+        let liveTerminalType = liveFocus?.generation == focusGeneration ? liveFocus?.terminalType : nil
+        defer {
+            if let liveTerminalType {
+                liveFocus = LiveFocus(generation: focusGeneration, terminalType: liveTerminalType)
+            }
+        }
         // A remote tmux session's live pane UUID matches neither terminalSessionID nor a
         // suffix of it, so resolve it through the learned liveHostPaneID first.
         if let focusedID = focusedSessionID, focusedID == session.liveHostPaneID {
             focusedSessionID = session.id
         } else if let focusedID = focusedSessionID,
                   focusedID != session.terminalSessionID,
-                  session.terminalSessionID.hasSuffix(focusedID) {
+                  session.terminalSessionID.hasSuffix(":\(focusedID)") {
             focusedSessionID = session.terminalSessionID
         }
 
         if let focusedID = focusedSessionID,
            session.terminalSessionID == focusedID || session.id == focusedID
-           || session.terminalSessionID.hasSuffix(focusedID) {
+           || session.terminalSessionID.hasSuffix(":\(focusedID)") {
             cyclingState = cyclingEngine.syncStateToFocus(
                 sessions: sessions,
                 focusedSessionID: focusedID,
@@ -1542,6 +1586,8 @@ final class SessionManager {
         sessions.forEach { animationController.cancel(sessionID: $0.id) }
         sessions = []
         focusedSessionID = nil
+        liveFocus = nil
+        hideSuppression = nil
         lastActiveSessionID = nil
         lastNotificationTarget = nil
         lastCycleStep = nil
@@ -1599,8 +1645,14 @@ final class SessionManager {
     private func clearUnfocusedHiddenAnchor() {
         guard let anchor = lastActiveSessionID,
               let session = sessions.first(where: { $0.id == anchor }), session.isHidden,
-              focusedSessionID != session.id, focusedSessionID != session.terminalSessionID else { return }
+              !isFocused(session) else { return }
         lastActiveSessionID = nil
+    }
+
+    private func suppressReveal(of sessionID: String) {
+        var ids = hideSuppression?.generation == focusGeneration ? hideSuppression?.sessionIDs ?? [] : []
+        ids.insert(sessionID)
+        hideSuppression = HideSuppression(generation: focusGeneration, sessionIDs: ids)
     }
 
     func cycleForward(wasTerminalFrontmost: Bool = true, now: Date = Date()) -> Session? {

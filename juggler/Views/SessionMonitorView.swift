@@ -194,6 +194,9 @@ struct SessionMonitorView: View {
             .onChange(of: sessionManager.focusedSessionID) { _, newFocusedID in
                 controller.selectListedSession(matching: newFocusedID, in: sessionManager.listedSessions)
             }
+            .onChange(of: sessionManager.revealedHiddenSessionID) { _, revealedID in
+                controller.selectListedSession(matching: revealedID, in: sessionManager.listedSessions)
+            }
             .onChange(of: sessionManager.isSessionFocused) { _, isFocused in
                 // Resync selection when a terminal becomes active, so arrow-key
                 // drift in the monitor doesn't persist when returning to the terminal.
