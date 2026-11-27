@@ -19,7 +19,7 @@ Every app command, preference change, HTTP request and UI action below must targ
 - [Runs](#runs)
 
 The shared `macos-vm` skill owns Tart lifecycle, sharing, guest permissions and iTerm2 input
-(`loadout/templates/skills/macos-vm/`; set `vm_skill` to its directory). The guest and evidence
+(from the linked `macos-vm` loadout kit; set `vm_skill` to its directory). The guest and evidence
 conventions follow the [clean-install procedure](../juggler-hooklinesinker-clean-install/README.md).
 
 ## Prerequisites

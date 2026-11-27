@@ -45,3 +45,5 @@ docs/superpowers
 /.agents/skills/review-swift/
 /.claude/skills/review-swiftui/
 /.agents/skills/review-swiftui/
+/.claude/skills/macos-vm/
+/.agents/skills/macos-vm/

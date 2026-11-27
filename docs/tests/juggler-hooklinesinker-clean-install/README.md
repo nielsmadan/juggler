@@ -13,21 +13,21 @@ the designated guest; host Juggler and host agent configuration must remain unto
 - [Recorded runs](#recorded-runs)
 
 The shared `macos-vm` skill owns Tart lifecycle, sharing, clipboard, guest permissions, VNC,
-and iTerm2 input. Its authoritative source is `loadout/templates/skills/macos-vm/` in the
-agentic-coding configuration repository. Load that skill and set `vm_skill` to its directory
-before using the commands below. It includes `scripts/iterm.py` and `references/interaction.md`.
+and iTerm2 input. It comes from the `macos-vm` loadout kit this repository links; loadout
+renders it to `.claude/skills/macos-vm/` and `.agents/skills/macos-vm/`. Load that skill and
+set `vm_skill` to its directory before using the commands below. It includes `scripts/iterm.py` and `references/interaction.md`.
 Juggler-specific helpers live in this repository's `scripts/tests/`.
 
 ## Choose the run and prepare artifacts
 
-Prerequisites: Apple silicon host, Tart with an existing local macOS 15+ base, Python 3,
+Prerequisites: Apple silicon host, Tart with the shared `base-macos-27` base, Python 3,
 network access in the guest, and a user available for Claude's interactive authentication.
 Debug builds also need Xcode, `just`, and the repo's build dependencies. Published artifacts
 need `gh`. The optional version-selection matrix needs Cargo and HLS sources.
 
 | Run | Starting state | Artifact |
 |---|---|---|
-| Clean install | Clone an untouched local base; authenticate in the guest | Published release or explicit Debug build |
+| Clean install | Clone `base-macos-27`; authenticate in the guest | Published release or explicit Debug build |
 | Release regression | Clone a stopped prepared guest; record inherited preferences/login | Exact published release |
 | Version selection | Isolated host matrix, then clone a stopped authenticated guest | Bundled helper plus older/newer fixtures |
 
@@ -91,7 +91,8 @@ Use `macos-vm` to clone the chosen stopped base/prepared guest. Boot visibly wit
 login-link pasting. Keep the `tart run` process attached and run later commands in another host
 shell with the same variables. Wait for a successful bounded `tart exec` readiness probe.
 
-For a fresh guest:
+A clone of `base-macos-27` already has iTerm2 (Python runtime installed, API enabled) and
+Claude Code. For a guest made from any other base:
 
 ```bash
 tart exec "$vm" /bin/zsh -lc 'brew install --cask iterm2 && brew install --cask claude-code'
@@ -119,8 +120,8 @@ tart exec "$vm" /usr/sbin/spctl --assess --type execute --verbose=2 /Application
 
 In the guest:
 
-1. Open iTerm2, finish first-run prompts, install its managed Python runtime, and enable its
-   Python API as described in `macos-vm`.
+1. Open iTerm2. In a guest not cloned from `base-macos-27`, first finish first-run prompts,
+   install its managed Python runtime, and enable its Python API as described in `macos-vm`.
 2. Open Juggler, complete onboarding with iTerm2 and **Install Claude Code hooks**, then open
    Juggler's session window. In a prepared guest, inspect existing integration state first.
 3. Disable automatic update checks/downloads for a fixed-release run; record this deviation.

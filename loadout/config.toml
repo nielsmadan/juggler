@@ -1,6 +1,6 @@
 harnesses = ["claude", "codex"]
 instructions = ["main"]
-kits = ["macos"]
+kits = ["macos", "macos-vm"]
 
 [skills.integrate-coding-agent]
 agents = ["claude"]
